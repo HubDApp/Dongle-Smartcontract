@@ -1,0 +1,84 @@
+{
+  "network": "sepolia",
+  "rpc_url": "https://starknet-sepolia.public.blastapi.io/rpc/v0_8",
+  "deployment_info": {
+    "deployed_at": "2025-08-30",
+    "deployed_by": "sncast",
+    "profile": "dongle-smartcontract"
+  },
+  "account": {
+    "name": "dongle-account",
+    "address": "0x041016f6d761c5b51c0705c92f2756f4576086c00c5a314d781dbd3cf7c1517d",
+    "admin_address": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055",
+    "treasury_address": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055"
+  },
+  "contracts": {
+    "registry": {
+      "name": "Registry",
+      "description": "dApp directory and registry management",
+      "class_hash": "0x077a4089d0346983c05368566a93381c29d152659d92b155e9d5313d50b1f52d",
+      "deployed_address": "0x016cc5f5d501663afdf96f85348d51c4bb5cdeaa69373d4a006430aaa769411c",
+      "constructor_params": {
+        "admin": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055"
+      },
+      "status": "deployed"
+    },
+    "ratings": {
+      "name": "Ratings", 
+      "description": "Review and rating system for dApps",
+      "class_hash": " 0x06e0642c79f105f0cf7948101b8610110c0fcfe259137b62f70c4b91b7ede18c",
+      "deployed_address": "0x0222611031fc9f45863210079fa989be8da3e23eb9fb04ebcd6b951d9992c6ec",
+      "constructor_params": {},
+      "status": "deployed"
+    },
+    "verification_registry": {
+      "name": "VerificationRegistry",
+      "description": "Project verification status management",
+      "class_hash": "0x075f9200a223e4f8532a7a144cc76aded405a6019fcf8edc31465bcb89ed0e18", 
+      "deployed_address": "0x06045d6e526ed80a3449c6f57bd1b9ee68b6f11ae292fd9ef2080a14eb56de8f",
+      "constructor_params": {
+        "admin": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055",
+        "project_registry": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "status": "deployed"
+    },
+    "fee_manager": {
+      "name": "FeeManager",
+      "description": "Verification fee collection and management",
+      "class_hash": "0x07f5a4cdfa31d58787b43b7335f2f6ece0222aa7b3ea75e3f4f855c9bbfaa620",
+      "deployed_address": "0x016cc5f5d501663afdf96f85348d51c4bb5cdeaa69373d4a006430aaa769411c", 
+      "constructor_params": {
+        "admin": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055",
+        "treasury": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055",
+        "initial_fee": "1000000000000000000",
+        "token_type": "0",
+        "token_address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "status": "deployed"
+    }
+  },
+  "contract_hashes": {
+    "registry_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "ratings_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "verification_registry_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "fee_manager_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "deployment_addresses": {
+    "registry_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "ratings_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "verification_registry_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "fee_manager_address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "testnet_info": {
+    "network": "sepolia",
+    "chain_id": "0x534e5f5345504f4c4941",
+    "explorer": "https://sepolia.voyager.online/",
+    "faucet": "Get testnet ETH from various sources"
+  },
+  "usage_notes": {
+    "registry_dependency": "VerificationRegistry and FeeManager depend on Registry address",
+    "admin_control": "Admin address controls all contracts and receives fees",
+    "gas_requirements": "Each transaction requires testnet ETH for gas fees",
+    "testing_order": "Test Registry first, then Ratings, then VerificationRegistry, then FeeManager"
+  }
+}

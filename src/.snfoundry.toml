@@ -1,0 +1,3 @@
+[profile.dongle-smartcontract]
+account = "dongle-account"         # 👈 your account name
+url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_8"
