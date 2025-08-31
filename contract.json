@@ -17,7 +17,7 @@
       "name": "Registry",
       "description": "dApp directory and registry management",
       "class_hash": "0x077a4089d0346983c05368566a93381c29d152659d92b155e9d5313d50b1f52d",
-      "deployed_address": "0x016cc5f5d501663afdf96f85348d51c4bb5cdeaa69373d4a006430aaa769411c",
+      "deployed_address": "0x02226607288c6e066724e0323291f898868b64abe1e838e15d8e486a9cc157ed",
       "constructor_params": {
         "admin": "0x078d215723e7037803b6f8757d849d758b3ae7f06a6eb6b3d361fc46bdc3a055"
       },
@@ -27,7 +27,7 @@
       "name": "Ratings", 
       "description": "Review and rating system for dApps",
       "class_hash": " 0x06e0642c79f105f0cf7948101b8610110c0fcfe259137b62f70c4b91b7ede18c",
-      "deployed_address": "0x0222611031fc9f45863210079fa989be8da3e23eb9fb04ebcd6b951d9992c6ec",
+      "deployed_address": "0x05e26f216884cb13abc693d40d11ec1034c7f81d1d81c21090c0736e60cdf886",
       "constructor_params": {},
       "status": "deployed"
     },
@@ -56,18 +56,6 @@
       },
       "status": "deployed"
     }
-  },
-  "contract_hashes": {
-    "registry_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "ratings_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "verification_registry_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "fee_manager_class_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
-  },
-  "deployment_addresses": {
-    "registry_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "ratings_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "verification_registry_address": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "fee_manager_address": "0x0000000000000000000000000000000000000000000000000000000000000000"
   },
   "testnet_info": {
     "network": "sepolia",
