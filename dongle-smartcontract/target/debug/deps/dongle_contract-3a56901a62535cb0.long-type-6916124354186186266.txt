@@ -1,4 +1,0 @@
-u8: TryFromVal<Env, soroban_sdk::Val>
-TryFromVal<E, soroban_env_common::num::DurationVal>
-TryFromVal<E, soroban_env_common::num::TimepointVal>
-TryFromVal<E, soroban_env_common::num::U64Val>

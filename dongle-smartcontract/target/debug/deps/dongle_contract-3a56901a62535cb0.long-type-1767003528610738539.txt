@@ -1,5 +1,0 @@
-soroban_sdk::xdr::ScVal: TryFrom<&u8>
-From<soroban_env_common::object::ScValObjRef<'_>>
-From<&soroban_sdk::crypto::bls12_381::Fp>
-From<soroban_env_common::object::ScValObject>
-From<soroban_sdk::crypto::bls12_381::Fp>
