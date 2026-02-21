@@ -1,6 +1,7 @@
 [package]
 name = "dongle-contract"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+soroban-sdk = { version = "25.1", features = ["testutils"] }
