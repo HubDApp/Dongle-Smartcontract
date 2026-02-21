@@ -104,4 +104,45 @@ Dongle promotes:
 * Open collaboration through smart contracts
 
 
+## Getting Started
+
+### Prerequisites
+
+* [Rust](https://www.rust-lang.org/tools/install)
+* [Soroban CLI](https://soroban.stellar.org/docs/getting-started/setup#install-the-soroban-cli)
+* Target `wasm32-unknown-unknown`: `rustup target add wasm32-unknown-unknown`
+
+### Build
+
+To compile the smart contract to WASM:
+
+```bash
+cargo build --target wasm32-unknown-unknown --release
+```
+
+The compiled contract will be available at `target/wasm32-unknown-unknown/release/dongle_contract.wasm`.
+
+### Test
+
+To run the unit tests:
+
+```bash
+cargo test
+```
+
+### Deploy
+
+To deploy to Stellar Testnet:
+
+1. Configure your identities and network:
+   ```bash
+   soroban config network add --rpc-url https://soroban-testnet.stellar.org:443 --network-passphrase "Test SDF Network ; September 2015" testnet
+   soroban config identity generate admin
+   ```
+2. Deploy the contract:
+   ```bash
+   soroban contract deploy --wasm target/wasm32-unknown-unknown/release/dongle_contract.wasm --source admin --network testnet
+   ```
+
+
 
