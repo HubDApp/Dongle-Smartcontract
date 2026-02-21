@@ -1,10 +1,15 @@
 use crate::types::{VerificationRecord, VerificationStatus};
-use soroban_sdk::{Env, Address, Map};
+use soroban_sdk::{Address, Env, String};
 
 pub struct VerificationRegistry;
 
 impl VerificationRegistry {
-    pub fn request_verification(env: &Env, project_id: u64, requester: Address, evidence_cid: String) {
+    pub fn request_verification(
+        env: &Env,
+        project_id: u64,
+        requester: Address,
+        evidence_cid: String,
+    ) {
         // Validate project ownership
         // Require fee paid via FeeManager
         // Store VerificationRecord with Pending

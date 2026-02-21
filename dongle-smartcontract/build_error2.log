@@ -1,0 +1,393 @@
+warning: unused import: `VerificationStatus`
+ --> src/verification_registry.rs:1:40
+  |
+1 | use crate::types::{VerificationRecord, VerificationStatus};
+  |                                        ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `env`
+ --> src/fee_manager.rs:6:20
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                    ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+  |
+  = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `admin`
+ --> src/fee_manager.rs:6:31
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+
+warning: unused variable: `token`
+ --> src/fee_manager.rs:6:47
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_token`
+
+warning: unused variable: `amount`
+ --> src/fee_manager.rs:6:71
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_amount`
+
+warning: unused variable: `treasury`
+ --> src/fee_manager.rs:6:85
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                                                                     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_treasury`
+
+warning: unused variable: `env`
+  --> src/fee_manager.rs:10:20
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                    ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `payer`
+  --> src/fee_manager.rs:10:31
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_payer`
+
+warning: unused variable: `project_id`
+  --> src/fee_manager.rs:10:47
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                                               ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `token`
+  --> src/fee_manager.rs:10:64
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                                                                ^^^^^ help: if this is intentional, prefix it with an underscore: `_token`
+
+warning: unused variable: `env`
+ --> src/project_registry.rs:8:9
+  |
+8 |         env: &Env,
+  |         ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `owner`
+ --> src/project_registry.rs:9:9
+  |
+9 |         owner: Address,
+  |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_owner`
+
+warning: unused variable: `name`
+  --> src/project_registry.rs:10:9
+   |
+10 |         name: String,
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+
+warning: unused variable: `description`
+  --> src/project_registry.rs:11:9
+   |
+11 |         description: String,
+   |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_description`
+
+warning: unused variable: `category`
+  --> src/project_registry.rs:12:9
+   |
+12 |         category: String,
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_category`
+
+warning: unused variable: `website`
+  --> src/project_registry.rs:13:9
+   |
+13 |         website: Option<String>,
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_website`
+
+warning: unused variable: `logo_cid`
+  --> src/project_registry.rs:14:9
+   |
+14 |         logo_cid: Option<String>,
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_logo_cid`
+
+warning: unused variable: `metadata_cid`
+  --> src/project_registry.rs:15:9
+   |
+15 |         metadata_cid: Option<String>,
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_metadata_cid`
+
+warning: unused variable: `env`
+  --> src/project_registry.rs:23:27
+   |
+23 |     pub fn update_project(env: &Env, project_id: u64, caller: Address) {
+   |                           ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/project_registry.rs:23:38
+   |
+23 |     pub fn update_project(env: &Env, project_id: u64, caller: Address) {
+   |                                      ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `caller`
+  --> src/project_registry.rs:23:55
+   |
+23 |     pub fn update_project(env: &Env, project_id: u64, caller: Address) {
+   |                                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_caller`
+
+warning: unused variable: `env`
+  --> src/project_registry.rs:28:24
+   |
+28 |     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
+   |                        ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/project_registry.rs:28:35
+   |
+28 |     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
+   |                                   ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:11:9
+   |
+11 |         rating: u8,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:35:9
+   |
+35 |         rating: u8,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `env`
+  --> src/review_registry.rs:69:23
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                       ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/review_registry.rs:69:34
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                                  ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `reviewer`
+  --> src/review_registry.rs:69:51
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                                                   ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reviewer`
+
+warning: unused variable: `env`
+ --> src/verification_registry.rs:8:9
+  |
+8 |         env: &Env,
+  |         ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+ --> src/verification_registry.rs:9:9
+  |
+9 |         project_id: u64,
+  |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `requester`
+  --> src/verification_registry.rs:10:9
+   |
+10 |         requester: Address,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_requester`
+
+warning: unused variable: `evidence_cid`
+  --> src/verification_registry.rs:11:9
+   |
+11 |         evidence_cid: String,
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_evidence_cid`
+
+warning: unused variable: `env`
+  --> src/verification_registry.rs:18:33
+   |
+18 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/verification_registry.rs:18:44
+   |
+18 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                            ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `verifier`
+  --> src/verification_registry.rs:18:61
+   |
+18 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                                             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_verifier`
+
+warning: unused variable: `env`
+  --> src/verification_registry.rs:23:32
+   |
+23 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/verification_registry.rs:23:43
+   |
+23 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                           ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `verifier`
+  --> src/verification_registry.rs:23:60
+   |
+23 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                                            ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_verifier`
+
+warning: unused variable: `env`
+  --> src/verification_registry.rs:28:29
+   |
+28 |     pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
+   |                             ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/verification_registry.rs:28:40
+   |
+28 |     pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
+   |                                        ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+   Compiling dongle-contract v0.1.0 (/home/blurbeast/works/waves/Dongle-Smartcontract/dongle-smartcontract)
+warning: `dongle-contract` (lib) generated 40 warnings (run `cargo fix --lib -p dongle-contract` to apply 40 suggestions)
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:82:33
+    |
+ 82 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Address` which provides `generate` is implemented but not in scope; perhaps you want to import it
+    |
+ 76 +     use soroban_sdk::testutils::Address;
+    |
+
+error[E0599]: no method named `try_into_val` found for struct `soroban_sdk::Val` in the current scope
+  --> src/review_registry.rs:97:48
+   |
+97 |         let event_data: ReviewEventData = data.try_into_val(&env).unwrap();
+   |                                                ^^^^^^^^^^^^
+   |
+  ::: /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-env-common-22.1.3/src/convert.rs:33:8
+   |
+33 |     fn try_into_val(&self, env: &E) -> Result<V, Self::Error>;
+   |        ------------ the method is available for `soroban_sdk::Val` here
+   |
+   = help: items from traits can only be used if the trait is in scope
+help: trait `TryIntoVal` which provides `try_into_val` is implemented but not in scope; perhaps you want to import it
+   |
+76 +     use soroban_sdk::TryIntoVal;
+   |
+help: there is a method `into_val` with a similar name
+   |
+97 -         let event_data: ReviewEventData = data.try_into_val(&env).unwrap();
+97 +         let event_data: ReviewEventData = data.into_val(&env).unwrap();
+   |
+
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:107:33
+    |
+107 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Address` which provides `generate` is implemented but not in scope; perhaps you want to import it
+    |
+ 76 +     use soroban_sdk::testutils::Address;
+    |
+
+error[E0599]: no method named `try_into_val` found for struct `soroban_sdk::Val` in the current scope
+   --> src/review_registry.rs:115:68
+    |
+115 |         let event_data: ReviewEventData = events.last().unwrap().2.try_into_val(&env).unwrap();
+    |                                                                    ^^^^^^^^^^^^
+    |
+   ::: /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-env-common-22.1.3/src/convert.rs:33:8
+    |
+ 33 |     fn try_into_val(&self, env: &E) -> Result<V, Self::Error>;
+    |        ------------ the method is available for `soroban_sdk::Val` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `TryIntoVal` which provides `try_into_val` is implemented but not in scope; perhaps you want to import it
+    |
+ 76 +     use soroban_sdk::TryIntoVal;
+    |
+help: there is a method `into_val` with a similar name
+    |
+115 -         let event_data: ReviewEventData = events.last().unwrap().2.try_into_val(&env).unwrap();
+115 +         let event_data: ReviewEventData = events.last().unwrap().2.into_val(&env).unwrap();
+    |
+
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:123:33
+    |
+123 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Address` which provides `generate` is implemented but not in scope; perhaps you want to import it
+    |
+ 76 +     use soroban_sdk::testutils::Address;
+    |
+
+error[E0599]: no method named `try_into_val` found for struct `soroban_sdk::Val` in the current scope
+   --> src/review_registry.rs:130:68
+    |
+130 |         let event_data: ReviewEventData = events.last().unwrap().2.try_into_val(&env).unwrap();
+    |                                                                    ^^^^^^^^^^^^
+    |
+   ::: /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-env-common-22.1.3/src/convert.rs:33:8
+    |
+ 33 |     fn try_into_val(&self, env: &E) -> Result<V, Self::Error>;
+    |        ------------ the method is available for `soroban_sdk::Val` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `TryIntoVal` which provides `try_into_val` is implemented but not in scope; perhaps you want to import it
+    |
+ 76 +     use soroban_sdk::TryIntoVal;
+    |
+help: there is a method `into_val` with a similar name
+    |
+130 -         let event_data: ReviewEventData = events.last().unwrap().2.try_into_val(&env).unwrap();
+130 +         let event_data: ReviewEventData = events.last().unwrap().2.into_val(&env).unwrap();
+    |
+
+For more information about this error, try `rustc --explain E0599`.
+warning: `dongle-contract` (lib test) generated 40 warnings (40 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 6 previous errors; 40 warnings emitted
