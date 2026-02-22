@@ -1,7 +1,9 @@
 use soroban_sdk::{contract, contractimpl, Env, Address, String};
 
 mod review_registry;
-use crate::review_registry::{ReviewRegistry, Review};
+mod types;
+use crate::review_registry::ReviewRegistry;
+use crate::types::Review;
 
 #[contract]
 pub struct HubDAppContract;
