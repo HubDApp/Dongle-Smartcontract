@@ -138,6 +138,40 @@ impl ReviewRegistry {
         project_id: u64,
         reviewer: Address,
     ) -> Result<(), ContractError> {
+        // Verify caller is the original reviewer
+        reviewer.require_auth();
+
+        // Get existing review
+        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
+        let review_key = (project_id, reviewer.clone());
+        
+        let review = reviews.get(review_key.clone()).ok_or(ContractError::ReviewNotFound)?;
+        let rating = review.rating;
+
+        // Get project
+        let projects: Map<u64, Project> = env.storage().instance().get(&symbol_short!("PROJECTS")).unwrap_or(Map::new(env));
+        let mut project = projects.get(project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Update rating aggregates
+        let (new_sum, new_count, new_average) = RatingCalculator::remove_rating(
+            project.rating_sum,
+            project.review_count,
+            rating,
+        );
+
+        project.rating_sum = new_sum;
+        project.review_count = new_count;
+        project.average_rating = new_average;
+
+        // Remove review and save updated project
+        let mut reviews = reviews;
+        reviews.remove(review_key);
+        env.storage().instance().set(&symbol_short!("REVIEWS"), &reviews);
+
+        let mut projects = projects;
+        projects.set(project_id, project);
+        env.storage().instance().set(&symbol_short!("PROJECTS"), &projects);
+
         Ok(())
     }
 
