@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "hello-rust"
+name = "dongle-contract"
 version = "0.1.0"
