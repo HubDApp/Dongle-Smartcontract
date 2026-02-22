@@ -85,7 +85,51 @@ impl ReviewRegistry {
         rating: u8,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        // Only original reviewer can update
+        // Validate rating is in range 1-5
+        if rating < 1 || rating > 5 {
+            return Err(ContractError::InvalidRating);
+        }
+
+        // Verify caller is the original reviewer
+        reviewer.require_auth();
+
+        // Get existing review
+        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
+        let review_key = (project_id, reviewer.clone());
+        
+        let mut review = reviews.get(review_key.clone()).ok_or(ContractError::ReviewNotFound)?;
+        let old_rating = review.rating;
+
+        // Get project
+        let projects: Map<u64, Project> = env.storage().instance().get(&symbol_short!("PROJECTS")).unwrap_or(Map::new(env));
+        let mut project = projects.get(project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Update rating aggregates
+        let (new_sum, new_count, new_average) = RatingCalculator::update_rating(
+            project.rating_sum,
+            project.review_count,
+            old_rating,
+            rating,
+        );
+
+        project.rating_sum = new_sum;
+        project.review_count = new_count;
+        project.average_rating = new_average;
+
+        // Update review
+        review.rating = rating;
+        review.comment_cid = comment_cid;
+        review.timestamp = env.ledger().timestamp();
+
+        // Save updated review and project
+        let mut reviews = reviews;
+        reviews.set(review_key, review);
+        env.storage().instance().set(&symbol_short!("REVIEWS"), &reviews);
+
+        let mut projects = projects;
+        projects.set(project_id, project);
+        env.storage().instance().set(&symbol_short!("PROJECTS"), &projects);
+
         Ok(())
     }
 
