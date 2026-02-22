@@ -26,7 +26,7 @@ impl ReviewRegistry {
         env: &Env,
         project_id: u64,
         reviewer: Address,
-        rating: u8,
+        rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         // Validate rating is in range 1-5
@@ -82,7 +82,7 @@ impl ReviewRegistry {
         env: &Env,
         project_id: u64,
         reviewer: Address,
-        rating: u8,
+        rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         // Validate rating is in range 1-5

@@ -59,7 +59,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         reviewer: Address,
-        rating: u8,
+        rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
@@ -70,7 +70,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         reviewer: Address,
-        rating: u8,
+        rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
@@ -99,88 +99,70 @@ mod tests {
     #[test]
     fn test_full_workflow() {
         let env = Env::default();
+        env.mock_all_auths();
+        
+        let contract_id = env.register_contract(None, DongleContract);
+        let client = DongleContractClient::new(&env, &contract_id);
+        
         let owner = Address::generate(&env);
         let reviewer1 = Address::generate(&env);
         let reviewer2 = Address::generate(&env);
 
         // Register project
-        let project_id = DongleContract::register_project(
-            env.clone(),
-            owner.clone(),
-            String::from_str(&env, "Test Project"),
-            String::from_str(&env, "A test project"),
-            String::from_str(&env, "Testing"),
-            None,
-            None,
-            None,
+        let project_id = client.register_project(
+            &owner,
+            &String::from_str(&env, "Test Project"),
+            &String::from_str(&env, "A test project"),
+            &String::from_str(&env, "Testing"),
+            &None,
+            &None,
+            &None,
         );
 
         assert_eq!(project_id, 1);
 
         // Verify initial state
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 0);
         assert_eq!(project.review_count, 0);
         assert_eq!(project.average_rating, 0);
 
         // Add first review (rating: 4)
-        env.mock_all_auths();
-        DongleContract::add_review(
-            env.clone(),
-            project_id,
-            reviewer1.clone(),
-            4,
-            None,
-        )
-        .unwrap();
+        client.add_review(&project_id, &reviewer1, &4, &None);
 
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 400);
         assert_eq!(project.review_count, 1);
         assert_eq!(project.average_rating, 400); // 4.00
 
         // Add second review (rating: 5)
-        DongleContract::add_review(
-            env.clone(),
-            project_id,
-            reviewer2.clone(),
-            5,
-            None,
-        )
-        .unwrap();
+        client.add_review(&project_id, &reviewer2, &5, &None);
 
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 900);
         assert_eq!(project.review_count, 2);
         assert_eq!(project.average_rating, 450); // 4.50
 
         // Update first review (4 -> 3)
-        DongleContract::update_review(
-            env.clone(),
-            project_id,
-            reviewer1.clone(),
-            3,
-            None,
-        )
-        .unwrap();
+        client.update_review(&project_id, &reviewer1, &3, &None);
 
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 800);
         assert_eq!(project.review_count, 2);
         assert_eq!(project.average_rating, 400); // 4.00
 
         // Delete second review
-        DongleContract::delete_review(env.clone(), project_id, reviewer2.clone()).unwrap();
+        client.delete_review(&project_id, &reviewer2);
 
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 300);
         assert_eq!(project.review_count, 1);
         assert_eq!(project.average_rating, 300); // 3.00
 
         // Delete last review
-        DongleContract::delete_review(env.clone(), project_id, reviewer1.clone()).unwrap();
+        client.delete_review(&project_id, &reviewer1);
 
-        let project = DongleContract::get_project(env.clone(), project_id).unwrap();
+        let project = client.get_project(&project_id).unwrap();
         assert_eq!(project.rating_sum, 0);
         assert_eq!(project.review_count, 0);
         assert_eq!(project.average_rating, 0); // Reset to zero
@@ -189,55 +171,59 @@ mod tests {
     #[test]
     fn test_invalid_rating() {
         let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, DongleContract);
+        let client = DongleContractClient::new(&env, &contract_id);
+
         let owner = Address::generate(&env);
         let reviewer = Address::generate(&env);
 
-        env.mock_all_auths();
-
-        let project_id = DongleContract::register_project(
-            env.clone(),
-            owner,
-            String::from_str(&env, "Test"),
-            String::from_str(&env, "Test"),
-            String::from_str(&env, "Test"),
-            None,
-            None,
-            None,
+        let project_id = client.register_project(
+            &owner,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "Test"),
+            &None,
+            &None,
+            &None,
         );
 
         // Test rating too low
-        let result = DongleContract::add_review(env.clone(), project_id, reviewer.clone(), 0, None);
-        assert_eq!(result, Err(ContractError::InvalidRating));
+        let result = client.try_add_review(&project_id, &reviewer, &0, &None);
+        assert_eq!(result, Err(Ok(ContractError::InvalidRating)));
 
         // Test rating too high
-        let result = DongleContract::add_review(env.clone(), project_id, reviewer, 6, None);
-        assert_eq!(result, Err(ContractError::InvalidRating));
+        let result = client.try_add_review(&project_id, &reviewer, &6, &None);
+        assert_eq!(result, Err(Ok(ContractError::InvalidRating)));
     }
 
     #[test]
     fn test_duplicate_review() {
         let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, DongleContract);
+        let client = DongleContractClient::new(&env, &contract_id);
+
         let owner = Address::generate(&env);
         let reviewer = Address::generate(&env);
 
-        env.mock_all_auths();
-
-        let project_id = DongleContract::register_project(
-            env.clone(),
-            owner,
-            String::from_str(&env, "Test"),
-            String::from_str(&env, "Test"),
-            String::from_str(&env, "Test"),
-            None,
-            None,
-            None,
+        let project_id = client.register_project(
+            &owner,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "Test"),
+            &None,
+            &None,
+            &None,
         );
 
         // Add first review
-        DongleContract::add_review(env.clone(), project_id, reviewer.clone(), 4, None).unwrap();
+        client.add_review(&project_id, &reviewer, &4, &None);
 
         // Try to add duplicate
-        let result = DongleContract::add_review(env.clone(), project_id, reviewer, 5, None);
-        assert_eq!(result, Err(ContractError::ReviewAlreadyExists));
+        let result = client.try_add_review(&project_id, &reviewer, &5, &None);
+        assert_eq!(result, Err(Ok(ContractError::ReviewAlreadyExists)));
     }
 }

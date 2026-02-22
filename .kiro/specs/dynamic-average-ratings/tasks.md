@@ -7,7 +7,7 @@
   - Define ContractError enum with rating-specific error variants
   - _Requirements: 2.1, 2.2, 2.4_
 
-- [ ] 2. Implement rating calculation module
+- [x] 2. Implement rating calculation module
   - Create RatingCalculator struct with static methods
   - Implement calculate_average function with two-decimal precision
   - Implement add_rating function to update aggregates when adding reviews
@@ -26,7 +26,7 @@
   - Test precision with various rating combinations
   - _Requirements: 1.5, 3.1, 3.2_
 
-- [ ] 3. Implement ReviewRegistry add_review functionality
+- [x] 3. Implement ReviewRegistry add_review functionality
   - Validate rating is in range 1-5
   - Check if review already exists for this project and reviewer
   - Create and store new Review struct
@@ -49,7 +49,7 @@
   - Test error when review already exists
   - _Requirements: 3.2, 1.1_
 
-- [ ] 4. Implement ReviewRegistry update_review functionality
+- [x] 4. Implement ReviewRegistry update_review functionality
   - Validate caller is the original reviewer
   - Retrieve existing review
   - Validate new rating is in range 1-5
@@ -70,7 +70,7 @@
   - Test error when unauthorized user attempts update
   - _Requirements: 1.2_
 
-- [ ] 5. Implement ReviewRegistry delete_review functionality
+- [x] 5. Implement ReviewRegistry delete_review functionality
   - Validate caller is the original reviewer
   - Retrieve existing review
   - Remove review from storage
@@ -90,7 +90,7 @@
   - Test error when unauthorized user attempts deletion
   - _Requirements: 1.3, 3.3_
 
-- [ ] 6. Implement rating aggregate invariant verification
+- [x] 6. Implement rating aggregate invariant verification
   - Create helper function to verify rating_sum equals sum of all review ratings
   - Create helper function to verify review_count equals actual number of reviews
   - _Requirements: 2.1, 2.2_
@@ -99,7 +99,7 @@
   - **Property 6: Rating sum and count invariant**
   - **Validates: Requirements 2.1, 2.2**
 
-- [ ] 7. Integrate rating system with ProjectRegistry
+- [x] 7. Integrate rating system with ProjectRegistry
   - Initialize rating aggregates to zero when registering new projects
   - Ensure get_project returns projects with rating information
   - Add helper method to retrieve project average rating
@@ -111,5 +111,5 @@
   - Verify ratings persist correctly across operations
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 8. Final checkpoint - Ensure all tests pass
+- [x] 8. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

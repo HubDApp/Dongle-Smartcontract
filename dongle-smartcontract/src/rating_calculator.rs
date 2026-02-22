@@ -31,7 +31,7 @@ impl RatingCalculator {
     /// 
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
-    pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u8) -> (u64, u32, u32) {
+    pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (new_rating as u64) * 100;
         let new_sum = current_sum + scaled_rating;
         let new_count = current_count + 1;
@@ -52,8 +52,8 @@ impl RatingCalculator {
     pub fn update_rating(
         current_sum: u64,
         current_count: u32,
-        old_rating: u8,
-        new_rating: u8,
+        old_rating: u32,
+        new_rating: u32,
     ) -> (u64, u32, u32) {
         let scaled_old = (old_rating as u64) * 100;
         let scaled_new = (new_rating as u64) * 100;
@@ -71,7 +71,7 @@ impl RatingCalculator {
     /// 
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
-    pub fn remove_rating(current_sum: u64, current_count: u32, rating: u8) -> (u64, u32, u32) {
+    pub fn remove_rating(current_sum: u64, current_count: u32, rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (rating as u64) * 100;
         let new_sum = current_sum - scaled_rating;
         let new_count = current_count - 1;

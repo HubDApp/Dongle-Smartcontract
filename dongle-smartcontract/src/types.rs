@@ -22,7 +22,7 @@ pub struct Project {
 pub struct Review {
     pub project_id: u64,
     pub reviewer: Address,
-    pub rating: u8,           // Rating value 1-5
+    pub rating: u32,          // Rating value 1-5
     pub comment_cid: Option<String>,
     pub timestamp: u64,
 }
