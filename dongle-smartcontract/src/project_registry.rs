@@ -1,17 +1,87 @@
-use crate::errors::ContractError;
-use crate::types::Project;
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Env, Address, Map, String};
+//! Project registration with validation, per-user limits, and events.
 
-#[contracttype]
-pub enum DataKey {
-    Projects,
-    NextProjectId,
+use crate::constants::*;
+use crate::errors::Error;
+use crate::events::ProjectRegistered;
+use crate::events::ProjectUpdated;
+use crate::storage_keys::StorageKey;
+use crate::types::Project;
+use soroban_sdk::{Address, Env, String as SorobanString};
+
+fn validate_string_length(s: &str, max: usize) -> Result<(), Error> {
+    if s.len() > max {
+        return Err(Error::StringLengthExceeded);
+    }
+    Ok(())
 }
-use soroban_sdk::{Address, Env, String, Vec};
+
+fn validate_optional_string(s: &Option<String>, max: usize) -> Result<(), Error> {
+    if let Some(ref x) = s {
+        validate_string_length(x, max)?;
+    }
+    Ok(())
+}
+
+/// Validates project registration inputs. Returns Ok(()) or Err.
+pub fn validate_project_inputs(
+    name: &str,
+    description: &str,
+    category: &str,
+    website: &Option<String>,
+    logo_cid: &Option<String>,
+    metadata_cid: &Option<String>,
+) -> Result<(), Error> {
+    if name.trim().len() < MIN_STRING_LEN {
+        return Err(Error::InvalidProjectName);
+    }
+    if description.trim().len() < MIN_STRING_LEN {
+        return Err(Error::InvalidProjectDescription);
+    }
+    if category.trim().len() < MIN_STRING_LEN {
+        return Err(Error::InvalidProjectCategory);
+    }
+    validate_string_length(name, MAX_NAME_LEN)?;
+    validate_string_length(description, MAX_DESCRIPTION_LEN)?;
+    validate_string_length(category, MAX_CATEGORY_LEN)?;
+    validate_optional_string(website, MAX_WEBSITE_LEN)?;
+    validate_optional_string(logo_cid, MAX_CID_LEN)?;
+    validate_optional_string(metadata_cid, MAX_CID_LEN)?;
+    Ok(())
+}
 
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    fn next_project_id(env: &Env) -> u64 {
+        let key = StorageKey::NextProjectId;
+        let next: u64 = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(1);
+        next
+    }
+
+    fn set_next_project_id(env: &Env, id: u64) {
+        env.storage()
+            .persistent()
+            .set(&StorageKey::NextProjectId, &(id + 1));
+    }
+
+    fn owner_project_count(env: &Env, owner: &Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjectCount(owner.clone()))
+            .unwrap_or(0)
+    }
+
+    fn inc_owner_project_count(env: &Env, owner: &Address) {
+        let count = Self::owner_project_count(env, owner);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::OwnerProjectCount(owner.clone()), &(count + 1));
+    }
+
     pub fn register_project(
         env: &Env,
         owner: Address,
@@ -21,190 +91,110 @@ impl ProjectRegistry {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
-        owner.require_auth();
+    ) -> Result<u64, Error> {
+        validate_project_inputs(&name, &description, &category, &website, &logo_cid, &metadata_cid)?;
 
-        let project_id: u64 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::NextProjectId)
-            .unwrap_or(0u64);
+        let count = Self::owner_project_count(env, &owner);
+        if count >= MAX_PROJECTS_PER_USER {
+            return Err(Error::MaxProjectsPerUserExceeded);
+        }
 
-        let registered_at: u64 = env.ledger().timestamp();
+        let project_id = Self::next_project_id(env);
+        if project_id == 0 {
+            return Err(Error::InvalidProjectId);
+        }
 
+        let ledger_timestamp = env.ledger().timestamp();
         let project = Project {
             id: project_id,
             owner: owner.clone(),
-            name,
-            description,
-            category,
-            website,
-            logo_cid,
-            metadata_cid,
-            registered_at,
+            name: SorobanString::from_str(env, &name),
+            description: SorobanString::from_str(env, &description),
+            category: SorobanString::from_str(env, &category),
+            website: website.map(|s| SorobanString::from_str(env, &s)),
+            logo_cid: logo_cid.map(|s| SorobanString::from_str(env, &s)),
+            metadata_cid: metadata_cid.map(|s| SorobanString::from_str(env, &s)),
+            created_at: ledger_timestamp,
+            updated_at: ledger_timestamp,
         };
 
-        let mut projects: Map<u64, Project> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Projects)
-            .unwrap_or(Map::new(env));
-
-        projects.set(project_id, project);
-        env.storage().persistent().set(&DataKey::Projects, &projects);
         env.storage()
             .persistent()
-            .set(&DataKey::NextProjectId, &(project_id + 1));
+            .set(&StorageKey::Project(project_id), &project);
+        Self::set_next_project_id(env, project_id);
+        Self::inc_owner_project_count(env, &owner);
 
-        env.events().publish(
-            (symbol_short!("ProjReg"), owner.clone()),
-            (project_id, registered_at),
-        );
+        ProjectRegistered {
+            project_id,
+            owner: owner.clone(),
+            name: SorobanString::from_str(env, &name),
+            category: SorobanString::from_str(env, &category),
+        }
+        .publish(env);
 
-        project_id
+        Ok(project_id)
     }
 
     pub fn update_project(
         env: &Env,
         project_id: u64,
         caller: Address,
-        name: Option<String>,
-        description: Option<String>,
-        category: Option<String>,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) {
-        caller.require_auth();
-
-        let mut projects: Map<u64, Project> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Projects)
-            .unwrap_or(Map::new(env));
-
-        let mut project = projects.get(project_id).expect("project not found");
-        assert!(project.owner == caller, "only the owner can update");
-
-        if let Some(v) = name        { project.name        = v; }
-        if let Some(v) = description { project.description = v; }
-        if let Some(v) = category    { project.category    = v; }
-        project.website      = website;
-        project.logo_cid     = logo_cid;
-        project.metadata_cid = metadata_cid;
-
-        projects.set(project_id, project);
-        env.storage().persistent().set(&DataKey::Projects, &projects);
-    }
-
-    pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
-        let projects: Map<u64, Project> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Projects)
-            .unwrap_or(Map::new(env));
-
-        projects.get(project_id)
-    }
-}
-
-// ── Contract wrapper required for test context ────────────────────────────────
-
-#[contract]
-pub struct DongleContract;
-
-#[contractimpl]
-impl DongleContract {
-    pub fn register_project(
-        env: Env,
-        owner: Address,
         name: String,
         description: String,
         category: String,
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
-        ProjectRegistry::register_project(
-            &env, owner, name, description, category, website, logo_cid, metadata_cid,
-        )
+    ) -> Result<(), Error> {
+        if project_id == 0 {
+            return Err(Error::InvalidProjectId);
+        }
+        let mut project: Project = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Project(project_id))
+            .ok_or(Error::ProjectNotFound)?;
+
+        if project.owner != caller {
+            return Err(Error::NotProjectOwner);
+        }
+
+        validate_project_inputs(&name, &description, &category, &website, &logo_cid, &metadata_cid)?;
+
+        let ledger_timestamp = env.ledger().timestamp();
+        project.name = SorobanString::from_str(env, &name);
+        project.description = SorobanString::from_str(env, &description);
+        project.category = SorobanString::from_str(env, &category);
+        project.website = website.map(|s| SorobanString::from_str(env, &s));
+        project.logo_cid = logo_cid.map(|s| SorobanString::from_str(env, &s));
+        project.metadata_cid = metadata_cid.map(|s| SorobanString::from_str(env, &s));
+        project.updated_at = ledger_timestamp;
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        ProjectUpdated {
+            project_id,
+            owner: caller,
+            updated_at: ledger_timestamp,
+        }
+        .publish(env);
+
+        Ok(())
     }
 
-    pub fn update_project(
-        env: Env,
-        project_id: u64,
-        caller: Address,
-        name: Option<String>,
-        description: Option<String>,
-        category: Option<String>,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) {
-        ProjectRegistry::update_project(
-            &env, project_id, caller, name, description, category, website, logo_cid, metadata_cid,
-        )
+    pub fn get_project(env: &Env, project_id: u64) -> Result<Option<Project>, Error> {
+        if project_id == 0 {
+            return Err(Error::InvalidProjectId);
+        }
+        let project: Option<Project> = env.storage().persistent().get(&StorageKey::Project(project_id));
+        Ok(project)
     }
 
-    pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
-        ProjectRegistry::get_project(&env, project_id)
-         env: &Env,
-        _owner: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
-    ) -> Result<u64, ContractError> {
-        let _registered_at: u64 = env.ledger().timestamp();
-        todo!("Project registration logic not implemented")
-    }
-
-    pub fn update_project(
-        _env: &Env,
-        _project_id: u64,
-        _caller: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        todo!("Project update logic not implemented")
-    }
-
-    pub fn get_project(_env: &Env, _project_id: u64) -> Result<Project, ContractError> {
-        todo!("Project retrieval logic not implemented")
-    }
-
-    pub fn list_projects(
-        _env: &Env,
-        _start_id: u64,
-        _limit: u32,
-    ) -> Result<Vec<Project>, ContractError> {
-        todo!("Project listing logic not implemented")
-    }
-
-    pub fn get_next_project_id(_env: &Env) -> u64 {
-        1
-    }
-
-    pub fn increment_project_counter(_env: &Env) -> u64 {
-        1
-    }
-
-    pub fn project_exists(_env: &Env, _project_id: u64) -> bool {
-        false
-    }
-
-    pub fn validate_project_data(
-        _name: &String,
-        _description: &String,
-        _category: &String,
-    ) -> Result<(), ContractError> {
-        todo!("Project data validation not implemented")
+    /// Returns the number of projects registered by an owner (for tests and admin).
+    pub fn get_owner_project_count(env: &Env, owner: &Address) -> u32 {
+        Self::owner_project_count(env, owner)
     }
 }
 
