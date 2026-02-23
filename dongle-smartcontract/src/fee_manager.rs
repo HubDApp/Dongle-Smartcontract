@@ -1,6 +1,6 @@
-use soroban_sdk::{Env, Address};
-use crate::types::FeeConfig;
 use crate::errors::ContractError;
+use crate::types::FeeConfig;
+use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
@@ -29,11 +29,7 @@ impl FeeManager {
         todo!("Fee configuration retrieval logic not implemented")
     }
 
-    pub fn set_treasury(
-        env: &Env,
-        admin: Address,
-        treasury: Address,
-    ) -> Result<(), ContractError> {
+    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
         todo!("Treasury setting logic not implemented")
     }
 
@@ -41,10 +37,7 @@ impl FeeManager {
         todo!("Treasury address retrieval logic not implemented")
     }
 
-    pub fn get_operation_fee(
-        env: &Env,
-        operation_type: &str,
-    ) -> Result<u128, ContractError> {
+    pub fn get_operation_fee(env: &Env, operation_type: &str) -> Result<u128, ContractError> {
         match operation_type {
             "verification" => Ok(1000000),
             "registration" => Ok(0),

@@ -2,18 +2,18 @@
 
 //! Dongle Smart Contract: project registry, reviews, and verification on Stellar/Soroban.
 
-mod types;
 mod errors;
+mod fee_manager;
 mod project_registry;
 mod review_registry;
-mod verification_registry;
-mod fee_manager;
+mod types;
 mod utils;
+mod verification_registry;
 
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
-use types::{Project, Review, VerificationRecord, FeeConfig};
 use errors::ContractError;
+use types::{FeeConfig, Project, Review, VerificationRecord};
 
 #[contract]
 pub struct DongleContract;
@@ -24,7 +24,11 @@ impl DongleContract {
         todo!("Contract initialization not yet implemented")
     }
 
-    pub fn set_admin(_env: Env, _caller: Address, _new_admin: Address) -> Result<(), ContractError> {
+    pub fn set_admin(
+        _env: Env,
+        _caller: Address,
+        _new_admin: Address,
+    ) -> Result<(), ContractError> {
         todo!("Admin management not yet implemented")
     }
 
@@ -59,7 +63,11 @@ impl DongleContract {
         todo!("Project retrieval not yet implemented")
     }
 
-    pub fn list_projects(_env: Env, _start_id: u64, _limit: u32) -> Result<Vec<Project>, ContractError> {
+    pub fn list_projects(
+        _env: Env,
+        _start_id: u64,
+        _limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
         todo!("Project listing not yet implemented")
     }
 
@@ -83,7 +91,11 @@ impl DongleContract {
         todo!("Review updates not yet implemented")
     }
 
-    pub fn get_review(_env: Env, _project_id: u64, _reviewer: Address) -> Result<Review, ContractError> {
+    pub fn get_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+    ) -> Result<Review, ContractError> {
         todo!("Review retrieval not yet implemented")
     }
 
@@ -121,7 +133,10 @@ impl DongleContract {
         todo!("Verification rejection not yet implemented")
     }
 
-    pub fn get_verification(env: Env, project_id: u64) -> Result<VerificationRecord, ContractError> {
+    pub fn get_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
         todo!("Verification record retrieval not yet implemented")
     }
 

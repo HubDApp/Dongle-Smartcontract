@@ -1,6 +1,6 @@
-use soroban_sdk::{Env, Address, String, Vec};
-use crate::types::Project;
 use crate::errors::ContractError;
+use crate::types::Project;
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 

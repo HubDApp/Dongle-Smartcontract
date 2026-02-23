@@ -1,6 +1,6 @@
-use soroban_sdk::{Env, Address, String, Vec};
-use crate::types::{VerificationRecord, VerificationStatus};
 use crate::errors::ContractError;
+use crate::types::{VerificationRecord, VerificationStatus};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 

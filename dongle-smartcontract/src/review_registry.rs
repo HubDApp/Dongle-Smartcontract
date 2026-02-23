@@ -1,6 +1,6 @@
-use soroban_sdk::{Env, Address, String, Vec};
-use crate::types::Review;
 use crate::errors::ContractError;
+use crate::types::Review;
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
 
@@ -42,18 +42,11 @@ impl ReviewRegistry {
         todo!("Project review listing logic not implemented")
     }
 
-    pub fn get_review_stats(
-        env: &Env,
-        project_id: u64,
-    ) -> Result<(u32, u32), ContractError> {
+    pub fn get_review_stats(env: &Env, project_id: u64) -> Result<(u32, u32), ContractError> {
         todo!("Review statistics calculation not implemented")
     }
 
-    pub fn review_exists(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
-    ) -> bool {
+    pub fn review_exists(env: &Env, project_id: u64, reviewer: Address) -> bool {
         false
     }
 
