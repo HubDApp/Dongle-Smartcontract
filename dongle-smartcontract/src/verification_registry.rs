@@ -30,12 +30,12 @@ impl VerificationRegistry {
         env: &Env,
         project_id: u64,
         requester: Address,
-        evidence_cid: String,
+        evidence_cid: SorobanString,
     ) -> Result<(), Error> {
         if project_id == 0 {
             return Err(Error::InvalidProjectId);
         }
-        if evidence_cid.trim().is_empty() || evidence_cid.len() > MAX_CID_LEN {
+        if evidence_cid.len() == 0 || evidence_cid.len() > MAX_CID_LEN as u32 {
             return Err(Error::InvalidEvidenceCid);
         }
 
@@ -55,11 +55,10 @@ impl VerificationRegistry {
         }
 
         let ledger_timestamp = env.ledger().timestamp();
-        let evidence_s = SorobanString::from_str(env, &evidence_cid);
         let record = VerificationRecord {
             project_id,
             requester: requester.clone(),
-            evidence_cid: evidence_s.clone(),
+            evidence_cid: evidence_cid.clone(),
             status: VerificationStatus::Pending,
             requested_at: ledger_timestamp,
             decided_at: None,
@@ -72,14 +71,18 @@ impl VerificationRegistry {
         VerificationRequested {
             project_id,
             requester: requester.clone(),
-            evidence_cid: evidence_s,
+            evidence_cid,
         }
         .publish(env);
 
         Ok(())
     }
 
-    pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) -> Result<(), Error> {
+    pub fn approve_verification(
+        env: &Env,
+        project_id: u64,
+        verifier: Address,
+    ) -> Result<(), Error> {
         if !Self::is_admin(env, &verifier) {
             return Err(Error::UnauthorizedVerifier);
         }

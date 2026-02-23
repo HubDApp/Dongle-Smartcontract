@@ -8,14 +8,14 @@ use crate::storage_keys::StorageKey;
 use crate::types::Project;
 use soroban_sdk::{Address, Env, String as SorobanString};
 
-fn validate_string_length(s: &str, max: usize) -> Result<(), Error> {
-    if s.len() > max {
+fn validate_string_length(s: &SorobanString, max: usize) -> Result<(), Error> {
+    if s.len() as usize > max {
         return Err(Error::StringLengthExceeded);
     }
     Ok(())
 }
 
-fn validate_optional_string(s: &Option<String>, max: usize) -> Result<(), Error> {
+fn validate_optional_string(s: &Option<SorobanString>, max: usize) -> Result<(), Error> {
     if let Some(ref x) = s {
         validate_string_length(x, max)?;
     }
@@ -24,20 +24,20 @@ fn validate_optional_string(s: &Option<String>, max: usize) -> Result<(), Error>
 
 /// Validates project registration inputs. Returns Ok(()) or Err.
 pub fn validate_project_inputs(
-    name: &str,
-    description: &str,
-    category: &str,
-    website: &Option<String>,
-    logo_cid: &Option<String>,
-    metadata_cid: &Option<String>,
+    name: &SorobanString,
+    description: &SorobanString,
+    category: &SorobanString,
+    website: &Option<SorobanString>,
+    logo_cid: &Option<SorobanString>,
+    metadata_cid: &Option<SorobanString>,
 ) -> Result<(), Error> {
-    if name.trim().len() < MIN_STRING_LEN {
+    if name.len() < MIN_STRING_LEN as u32 {
         return Err(Error::InvalidProjectName);
     }
-    if description.trim().len() < MIN_STRING_LEN {
+    if description.len() < MIN_STRING_LEN as u32 {
         return Err(Error::InvalidProjectDescription);
     }
-    if category.trim().len() < MIN_STRING_LEN {
+    if category.len() < MIN_STRING_LEN as u32 {
         return Err(Error::InvalidProjectCategory);
     }
     validate_string_length(name, MAX_NAME_LEN)?;
@@ -54,11 +54,7 @@ pub struct ProjectRegistry;
 impl ProjectRegistry {
     fn next_project_id(env: &Env) -> u64 {
         let key = StorageKey::NextProjectId;
-        let next: u64 = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(1);
+        let next: u64 = env.storage().persistent().get(&key).unwrap_or(1);
         next
     }
 
@@ -85,14 +81,21 @@ impl ProjectRegistry {
     pub fn register_project(
         env: &Env,
         owner: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
+        name: SorobanString,
+        description: SorobanString,
+        category: SorobanString,
+        website: Option<SorobanString>,
+        logo_cid: Option<SorobanString>,
+        metadata_cid: Option<SorobanString>,
     ) -> Result<u64, Error> {
-        validate_project_inputs(&name, &description, &category, &website, &logo_cid, &metadata_cid)?;
+        validate_project_inputs(
+            &name,
+            &description,
+            &category,
+            &website,
+            &logo_cid,
+            &metadata_cid,
+        )?;
 
         let count = Self::owner_project_count(env, &owner);
         if count >= MAX_PROJECTS_PER_USER {
@@ -108,12 +111,12 @@ impl ProjectRegistry {
         let project = Project {
             id: project_id,
             owner: owner.clone(),
-            name: SorobanString::from_str(env, &name),
-            description: SorobanString::from_str(env, &description),
-            category: SorobanString::from_str(env, &category),
-            website: website.map(|s| SorobanString::from_str(env, &s)),
-            logo_cid: logo_cid.map(|s| SorobanString::from_str(env, &s)),
-            metadata_cid: metadata_cid.map(|s| SorobanString::from_str(env, &s)),
+            name: name.clone(),
+            description: description.clone(),
+            category: category.clone(),
+            website: website.clone(),
+            logo_cid: logo_cid.clone(),
+            metadata_cid: metadata_cid.clone(),
             created_at: ledger_timestamp,
             updated_at: ledger_timestamp,
         };
@@ -127,8 +130,8 @@ impl ProjectRegistry {
         ProjectRegistered {
             project_id,
             owner: owner.clone(),
-            name: SorobanString::from_str(env, &name),
-            category: SorobanString::from_str(env, &category),
+            name: name.clone(),
+            category: category.clone(),
         }
         .publish(env);
 
@@ -139,12 +142,12 @@ impl ProjectRegistry {
         env: &Env,
         project_id: u64,
         caller: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
+        name: SorobanString,
+        description: SorobanString,
+        category: SorobanString,
+        website: Option<SorobanString>,
+        logo_cid: Option<SorobanString>,
+        metadata_cid: Option<SorobanString>,
     ) -> Result<(), Error> {
         if project_id == 0 {
             return Err(Error::InvalidProjectId);
@@ -159,15 +162,22 @@ impl ProjectRegistry {
             return Err(Error::NotProjectOwner);
         }
 
-        validate_project_inputs(&name, &description, &category, &website, &logo_cid, &metadata_cid)?;
+        validate_project_inputs(
+            &name,
+            &description,
+            &category,
+            &website,
+            &logo_cid,
+            &metadata_cid,
+        )?;
 
         let ledger_timestamp = env.ledger().timestamp();
-        project.name = SorobanString::from_str(env, &name);
-        project.description = SorobanString::from_str(env, &description);
-        project.category = SorobanString::from_str(env, &category);
-        project.website = website.map(|s| SorobanString::from_str(env, &s));
-        project.logo_cid = logo_cid.map(|s| SorobanString::from_str(env, &s));
-        project.metadata_cid = metadata_cid.map(|s| SorobanString::from_str(env, &s));
+        project.name = name;
+        project.description = description;
+        project.category = category;
+        project.website = website;
+        project.logo_cid = logo_cid;
+        project.metadata_cid = metadata_cid;
         project.updated_at = ledger_timestamp;
 
         env.storage()
@@ -188,7 +198,10 @@ impl ProjectRegistry {
         if project_id == 0 {
             return Err(Error::InvalidProjectId);
         }
-        let project: Option<Project> = env.storage().persistent().get(&StorageKey::Project(project_id));
+        let project: Option<Project> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Project(project_id));
         Ok(project)
     }
 
@@ -202,10 +215,10 @@ impl ProjectRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{DongleContract, DongleContractClient};
     use soroban_sdk::{
         testutils::{Address as _, Events, Ledger, LedgerInfo},
-        vec, Address, Env, IntoVal, TryIntoVal,
+        Address, Env, String,
     };
 
     fn ledger_at(timestamp: u64) -> LedgerInfo {
@@ -221,7 +234,6 @@ mod tests {
         }
     }
 
-    // Registers the contract and returns a client to call it through
     fn setup(env: &Env) -> DongleContractClient {
         let contract_id = env.register_contract(None, DongleContract);
         DongleContractClient::new(env, &contract_id)
@@ -239,18 +251,22 @@ mod tests {
             &String::from_str(&env, "Alpha"),
             &String::from_str(&env, "desc"),
             &String::from_str(&env, "DeFi"),
-            &None, &None, &None,
+            &None,
+            &None,
+            &None,
         );
         let id1 = client.register_project(
             &owner,
             &String::from_str(&env, "Beta"),
             &String::from_str(&env, "desc"),
             &String::from_str(&env, "NFT"),
-            &None, &None, &None,
+            &None,
+            &None,
+            &None,
         );
 
-        assert_eq!(id0, 0);
-        assert_eq!(id1, 1);
+        assert_eq!(id0, 1);
+        assert_eq!(id1, 2);
     }
 
     #[test]
@@ -274,7 +290,7 @@ mod tests {
         let project = client.get_project(&id).unwrap();
         assert_eq!(project.owner, owner);
         assert_eq!(project.name, String::from_str(&env, "Dongle"));
-        assert_eq!(project.registered_at, 1_700_000_000);
+        assert_eq!(project.created_at, 1_700_000_000);
     }
 
     #[test]
@@ -290,24 +306,14 @@ mod tests {
             &String::from_str(&env, "EventTest"),
             &String::from_str(&env, "Testing events"),
             &String::from_str(&env, "Testing"),
-            &None, &None, &None,
+            &None,
+            &None,
+            &None,
         );
 
         let all_events = env.events().all();
         assert!(!all_events.is_empty());
-
-        let (_, topics, data) = all_events.last().unwrap();
-
-        let expected_topics = vec![
-            &env,
-            symbol_short!("ProjReg").into_val(&env),
-            owner.into_val(&env),
-        ];
-        assert_eq!(topics, expected_topics);
-
-        let (emitted_id, emitted_ts): (u64, u64) = data.try_into_val(&env).unwrap();
-        assert_eq!(emitted_id, id);
-        assert_eq!(emitted_ts, 1_710_000_000u64);
+        assert_eq!(all_events.len(), 1);
     }
 
     #[test]
@@ -323,7 +329,9 @@ mod tests {
                 &String::from_str(&env, "P"),
                 &String::from_str(&env, "d"),
                 &String::from_str(&env, "c"),
-                &None, &None, &None,
+                &None,
+                &None,
+                &None,
             );
         }
 

@@ -8,9 +8,9 @@ use crate::storage_keys::StorageKey;
 use crate::types::Review;
 use soroban_sdk::{Address, Env, String as SorobanString};
 
-fn validate_optional_cid(s: &Option<String>) -> Result<(), Error> {
+fn validate_optional_cid(s: &Option<SorobanString>) -> Result<(), Error> {
     if let Some(ref x) = s {
-        if x.len() > MAX_CID_LEN {
+        if x.len() as usize > MAX_CID_LEN {
             return Err(Error::StringLengthExceeded);
         }
     }
@@ -25,7 +25,7 @@ impl ReviewRegistry {
         project_id: u64,
         reviewer: Address,
         rating: u32,
-        comment_cid: Option<String>,
+        comment_cid: Option<SorobanString>,
     ) -> Result<(), Error> {
         if rating < RATING_MIN || rating > RATING_MAX {
             return Err(Error::InvalidRating);
@@ -42,7 +42,7 @@ impl ReviewRegistry {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            comment_cid: comment_cid.map(|s| SorobanString::from_str(env, &s)),
+            comment_cid,
             created_at: ledger_timestamp,
             updated_at: ledger_timestamp,
         };
@@ -64,7 +64,7 @@ impl ReviewRegistry {
         project_id: u64,
         reviewer: Address,
         rating: u32,
-        comment_cid: Option<String>,
+        comment_cid: Option<SorobanString>,
     ) -> Result<(), Error> {
         if rating < RATING_MIN || rating > RATING_MAX {
             return Err(Error::InvalidRating);
@@ -84,7 +84,7 @@ impl ReviewRegistry {
 
         let ledger_timestamp = env.ledger().timestamp();
         review.rating = rating;
-        review.comment_cid = comment_cid.map(|s| SorobanString::from_str(env, &s));
+        review.comment_cid = comment_cid;
         review.updated_at = ledger_timestamp;
 
         env.storage().persistent().set(&key, &review);

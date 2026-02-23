@@ -1,92 +1,175 @@
-//! Contract events for all state-changing actions. Emitted consistently for indexing and clients.
+//! Contract events for all state-changing actions. Emitted via env.events().publish.
 
-use soroban_sdk::contractevent;
+use soroban_sdk::{Address, Env, String, Symbol};
 
-#[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectRegistered {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub owner: soroban_sdk::Address,
-    pub name: soroban_sdk::String,
-    pub category: soroban_sdk::String,
+    pub owner: Address,
+    pub name: String,
+    pub category: String,
 }
 
-#[contractevent]
+impl ProjectRegistered {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "ProjectRegistered"),
+                self.project_id,
+                self.owner,
+            ),
+            (self.name, self.category),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectUpdated {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub owner: soroban_sdk::Address,
+    pub owner: Address,
     pub updated_at: u64,
 }
 
-#[contractevent]
+impl ProjectUpdated {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "ProjectUpdated"),
+                self.project_id,
+                self.owner,
+            ),
+            (self.updated_at,),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewAdded {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub reviewer: soroban_sdk::Address,
+    pub reviewer: Address,
     pub rating: u32,
 }
 
-#[contractevent]
+impl ReviewAdded {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "ReviewAdded"),
+                self.project_id,
+                self.reviewer,
+            ),
+            (self.rating,),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewUpdated {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub reviewer: soroban_sdk::Address,
+    pub reviewer: Address,
     pub rating: u32,
     pub updated_at: u64,
 }
 
-#[contractevent]
+impl ReviewUpdated {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "ReviewUpdated"),
+                self.project_id,
+                self.reviewer,
+            ),
+            (self.rating, self.updated_at),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRequested {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub requester: soroban_sdk::Address,
-    pub evidence_cid: soroban_sdk::String,
+    pub requester: Address,
+    pub evidence_cid: String,
 }
 
-#[contractevent]
+impl VerificationRequested {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "VerificationRequested"),
+                self.project_id,
+                self.requester,
+            ),
+            (self.evidence_cid,),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationApproved {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub verifier: soroban_sdk::Address,
+    pub verifier: Address,
 }
 
-#[contractevent]
+impl VerificationApproved {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "VerificationApproved"),
+                self.project_id,
+                self.verifier,
+            ),
+            (),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRejected {
-    #[topic]
     pub project_id: u64,
-    #[topic]
-    pub verifier: soroban_sdk::Address,
+    pub verifier: Address,
 }
 
-#[contractevent]
+impl VerificationRejected {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (
+                Symbol::new(env, "VerificationRejected"),
+                self.project_id,
+                self.verifier,
+            ),
+            (),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaid {
-    #[topic]
-    pub payer: soroban_sdk::Address,
-    #[topic]
+    pub payer: Address,
     pub project_id: u64,
     pub amount: u128,
 }
 
-#[contractevent]
+impl FeePaid {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (Symbol::new(env, "FeePaid"), self.payer, self.project_id),
+            (self.amount,),
+        );
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeSet {
-    #[topic]
-    pub admin: soroban_sdk::Address,
+    pub admin: Address,
     pub amount: u128,
-    pub treasury: soroban_sdk::Address,
+    pub treasury: Address,
+}
+
+impl FeeSet {
+    pub fn publish(self, env: &Env) {
+        env.events().publish(
+            (Symbol::new(env, "FeeSet"), self.admin),
+            (self.amount, self.treasury),
+        );
+    }
 }
