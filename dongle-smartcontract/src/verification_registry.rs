@@ -1,7 +1,6 @@
 //! Verification requests with ownership and fee checks, and events.
-
 use crate::constants::MAX_CID_LEN;
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::VerificationApproved;
 use crate::events::VerificationRejected;
 use crate::events::VerificationRequested;
@@ -30,36 +29,39 @@ impl VerificationRegistry {
         env: &Env,
         project_id: u64,
         requester: Address,
-        evidence_cid: String,
-    ) -> Result<(), Error> {
+        evidence_cid: SorobanString,
+    ) -> Result<(), ContractError> {
+        requester.require_auth();
+
         if project_id == 0 {
-            return Err(Error::InvalidProjectId);
-        }
-        if evidence_cid.trim().is_empty() || evidence_cid.len() > MAX_CID_LEN {
-            return Err(Error::InvalidEvidenceCid);
+            return Err(ContractError::InvalidProjectId);
         }
 
-        let project_key = StorageKey::Project(project_id);
+        // Soroban String has no trim()/is_empty() — use len() == 0
+        if evidence_cid.len() == 0 || evidence_cid.len() as usize > MAX_CID_LEN {
+            return Err(ContractError::InvalidEvidenceCid);
+        }
+
         let project: crate::types::Project = env
             .storage()
             .persistent()
-            .get(&project_key)
-            .ok_or(Error::ProjectNotFound)?;
+            .get(&StorageKey::Project(project_id))
+            .ok_or(ContractError::ProjectNotFound)?;
 
         if project.owner != requester {
-            return Err(Error::NotProjectOwnerForVerification);
+            return Err(ContractError::NotProjectOwnerForVerification);
         }
 
         if !Self::fee_paid_for_project(env, project_id) {
-            return Err(Error::FeeNotPaid);
+            return Err(ContractError::FeeNotPaid);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
-        let evidence_s = SorobanString::from_str(env, &evidence_cid);
+
         let record = VerificationRecord {
             project_id,
             requester: requester.clone(),
-            evidence_cid: evidence_s.clone(),
+            evidence_cid: evidence_cid.clone(),
             status: VerificationStatus::Pending,
             requested_at: ledger_timestamp,
             decided_at: None,
@@ -72,16 +74,22 @@ impl VerificationRegistry {
         VerificationRequested {
             project_id,
             requester: requester.clone(),
-            evidence_cid: evidence_s,
+            evidence_cid,
         }
         .publish(env);
 
         Ok(())
     }
 
-    pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) -> Result<(), Error> {
+    pub fn approve_verification(
+        env: &Env,
+        project_id: u64,
+        verifier: Address,
+    ) -> Result<(), ContractError> {
+        verifier.require_auth();
+
         if !Self::is_admin(env, &verifier) {
-            return Err(Error::UnauthorizedVerifier);
+            return Err(ContractError::UnauthorizedVerifier);
         }
 
         let key = StorageKey::Verification(project_id);
@@ -89,15 +97,16 @@ impl VerificationRegistry {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(Error::VerificationNotFound)?;
+            .ok_or(ContractError::VerificationNotFound)?;
 
         if record.status != VerificationStatus::Pending {
-            return Err(Error::VerificationNotPending);
+            return Err(ContractError::VerificationNotPending);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
         record.status = VerificationStatus::Verified;
         record.decided_at = Some(ledger_timestamp);
+
         env.storage().persistent().set(&key, &record);
 
         VerificationApproved {
@@ -109,9 +118,15 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) -> Result<(), Error> {
+    pub fn reject_verification(
+        env: &Env,
+        project_id: u64,
+        verifier: Address,
+    ) -> Result<(), ContractError> {
+        verifier.require_auth();
+
         if !Self::is_admin(env, &verifier) {
-            return Err(Error::UnauthorizedVerifier);
+            return Err(ContractError::UnauthorizedVerifier);
         }
 
         let key = StorageKey::Verification(project_id);
@@ -119,15 +134,16 @@ impl VerificationRegistry {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(Error::VerificationNotFound)?;
+            .ok_or(ContractError::VerificationNotFound)?;
 
         if record.status != VerificationStatus::Pending {
-            return Err(Error::VerificationNotPending);
+            return Err(ContractError::VerificationNotPending);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
         record.status = VerificationStatus::Rejected;
         record.decided_at = Some(ledger_timestamp);
+
         env.storage().persistent().set(&key, &record);
 
         VerificationRejected {

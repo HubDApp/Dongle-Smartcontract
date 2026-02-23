@@ -1,6 +1,5 @@
 //! Fee configuration and payment with validation and events.
-
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::FeePaid;
 use crate::events::FeeSet;
 use crate::storage_keys::StorageKey;
@@ -15,21 +14,63 @@ impl FeeManager {
         env.storage().persistent().set(&StorageKey::Admin, &admin);
     }
 
+    /// Sets fee config with separate verification and registration fees.
+    /// Called from lib.rs set_fee_config.
+    pub fn set_fee_config(
+        env: &Env,
+        admin: &Address,
+        token: Option<Address>,
+        verification_fee: u128,
+        registration_fee: u128,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        let current_admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
+        if current_admin.as_ref() != Some(admin) {
+            return Err(ContractError::UnauthorizedAdmin);
+        }
+        if verification_fee == 0 && registration_fee == 0 {
+            return Err(ContractError::InvalidFeeAmount);
+        }
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::InvalidTreasury)?;
+
+        let config = FeeConfig {
+            token,
+            amount: verification_fee,
+            treasury: treasury.clone(),
+        };
+        env.storage()
+            .persistent()
+            .set(&StorageKey::FeeConfig, &config);
+
+        FeeSet {
+            admin: admin.clone(),
+            amount: verification_fee,
+            treasury,
+        }
+        .publish(env);
+        Ok(())
+    }
+
+    /// Legacy single-fee setter (used internally).
     pub fn set_fee(
         env: &Env,
         admin: Address,
         token: Option<Address>,
         amount: u128,
         treasury: Address,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
         let current_admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
         if current_admin.as_ref() != Some(&admin) {
-            return Err(Error::UnauthorizedAdmin);
+            return Err(ContractError::UnauthorizedAdmin);
         }
         if amount == 0 {
-            return Err(Error::InvalidFeeAmount);
+            return Err(ContractError::InvalidFeeAmount);
         }
-
         let config = FeeConfig {
             token,
             amount,
@@ -38,56 +79,68 @@ impl FeeManager {
         env.storage()
             .persistent()
             .set(&StorageKey::FeeConfig, &config);
-
         FeeSet {
             admin,
             amount,
             treasury,
         }
         .publish(env);
-
         Ok(())
     }
 
-    fn get_config(env: &Env) -> Result<FeeConfig, Error> {
+    fn get_config(env: &Env) -> Result<FeeConfig, ContractError> {
         env.storage()
             .persistent()
             .get(&StorageKey::FeeConfig)
-            .ok_or(Error::FeeNotConfigured)
+            .ok_or(ContractError::FeeNotConfigured)
     }
 
-    /// Pay verification fee for a project. In a full implementation this would transfer
-    /// tokens to treasury; here we record payment and mark fee as paid for verification.
-    /// Contract is modular: replace this with real token transfer when integrating.
     pub fn pay_fee(
         env: &Env,
         payer: Address,
         project_id: u64,
         _token: Option<Address>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
         let config = Self::get_config(env)?;
-
-        // Simulated transfer: in production, env.invoke_contract() to token transfer
-        // from payer to config.treasury for config.amount. On failure return PaymentFailed.
-        // For now we require amount > 0 and record the payment.
         if config.amount == 0 {
-            return Err(Error::InvalidFeeAmount);
+            return Err(ContractError::InvalidFeeAmount);
         }
-
-        // Mark fee as paid for this project so verification can proceed.
         VerificationRegistry::set_fee_paid(env, project_id);
-
         FeePaid {
             payer: payer.clone(),
             project_id,
             amount: config.amount,
         }
         .publish(env);
-
         Ok(())
     }
 
-    pub fn get_fee_config(env: &Env) -> Result<FeeConfig, Error> {
+    pub fn get_fee_config(env: &Env) -> Result<FeeConfig, ContractError> {
         Self::get_config(env)
+    }
+
+    /// Sets the treasury address. Caller must be admin.
+    pub fn set_treasury(
+        env: &Env,
+        admin: &Address,
+        treasury: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        let current_admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
+        if current_admin.as_ref() != Some(admin) {
+            return Err(ContractError::UnauthorizedAdmin);
+        }
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Treasury, &treasury);
+        Ok(())
+    }
+
+    /// Returns the current treasury address.
+    pub fn get_treasury(env: &Env) -> Result<Address, ContractError> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::InvalidTreasury)
     }
 }

@@ -1,17 +1,16 @@
 //! Review submission with validation, duplicate handling, and events.
-
 use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::ReviewAdded;
 use crate::events::ReviewUpdated;
 use crate::storage_keys::StorageKey;
 use crate::types::Review;
-use soroban_sdk::{Address, Env, String as SorobanString};
+use soroban_sdk::{Address, Env, String};
 
-fn validate_optional_cid(s: &Option<String>) -> Result<(), Error> {
+fn validate_optional_cid(s: &Option<String>) -> Result<(), ContractError> {
     if let Some(ref x) = s {
-        if x.len() > MAX_CID_LEN {
-            return Err(Error::StringLengthExceeded);
+        if x.len() as usize > MAX_CID_LEN {
+            return Err(ContractError::StringLengthExceeded);
         }
     }
     Ok(())
@@ -26,15 +25,17 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
+        reviewer.require_auth();
+
         if rating < RATING_MIN || rating > RATING_MAX {
-            return Err(Error::InvalidRating);
+            return Err(ContractError::InvalidRating);
         }
         validate_optional_cid(&comment_cid)?;
 
         let key = StorageKey::Review(project_id, reviewer.clone());
         if env.storage().persistent().has(&key) {
-            return Err(Error::DuplicateReview);
+            return Err(ContractError::DuplicateReview);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
@@ -42,7 +43,7 @@ impl ReviewRegistry {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            comment_cid: comment_cid.map(|s| SorobanString::from_str(env, &s)),
+            comment_cid: comment_cid.clone(),
             created_at: ledger_timestamp,
             updated_at: ledger_timestamp,
         };
@@ -65,9 +66,11 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
+        reviewer.require_auth();
+
         if rating < RATING_MIN || rating > RATING_MAX {
-            return Err(Error::InvalidRating);
+            return Err(ContractError::InvalidRating);
         }
         validate_optional_cid(&comment_cid)?;
 
@@ -76,15 +79,15 @@ impl ReviewRegistry {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(Error::ReviewNotFound)?;
+            .ok_or(ContractError::ReviewNotFound)?;
 
         if review.reviewer != reviewer {
-            return Err(Error::NotReviewAuthor);
+            return Err(ContractError::NotReviewAuthor);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
         review.rating = rating;
-        review.comment_cid = comment_cid.map(|s| SorobanString::from_str(env, &s));
+        review.comment_cid = comment_cid;
         review.updated_at = ledger_timestamp;
 
         env.storage().persistent().set(&key, &review);
