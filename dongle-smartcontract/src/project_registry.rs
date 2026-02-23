@@ -1,22 +1,66 @@
+use crate::errors::ContractError;
 use crate::types::Project;
-use soroban_sdk::{Env, Address, Map};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
-    pub fn register_project(env: &Env, owner: Address, name: String, description: String, category: String, website: Option<String>, logo_cid: Option<String>, metadata_cid: Option<String>) -> u64 {
-        // Generate unique project ID
-        // Save project in Map<u64, Project>
-        // Emit ProjectRegistered event
-        0
+    pub fn register_project(
+        _env: &Env,
+        _owner: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        todo!("Project registration logic not implemented")
     }
 
-    pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
-        // Validate ownership
-        // Update project metadata
+    pub fn update_project(
+        _env: &Env,
+        _project_id: u64,
+        _caller: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Project update logic not implemented")
     }
 
-    pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
-        None
+    pub fn get_project(_env: &Env, _project_id: u64) -> Result<Project, ContractError> {
+        todo!("Project retrieval logic not implemented")
+    }
+
+    pub fn list_projects(
+        _env: &Env,
+        _start_id: u64,
+        _limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
+        todo!("Project listing logic not implemented")
+    }
+
+    pub fn get_next_project_id(_env: &Env) -> u64 {
+        1
+    }
+
+    pub fn increment_project_counter(_env: &Env) -> u64 {
+        1
+    }
+
+    pub fn project_exists(_env: &Env, _project_id: u64) -> bool {
+        false
+    }
+
+    pub fn validate_project_data(
+        _name: &String,
+        _description: &String,
+        _category: &String,
+    ) -> Result<(), ContractError> {
+        todo!("Project data validation not implemented")
     }
 }
