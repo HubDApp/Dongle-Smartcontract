@@ -1,5 +1,6 @@
 #![no_std]
-
+#![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
 //! Dongle Smart Contract: project registry, reviews, and verification on Stellar/Soroban.
 
 mod errors;
