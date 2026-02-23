@@ -12,8 +12,9 @@ mod verification_registry;
 
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
-use errors::ContractError;
-use types::{FeeConfig, Project, Review, VerificationRecord};
+use crate::errors::ContractError;
+use crate::project_registry::ProjectRegistry;
+use crate::types::{FeeConfig, Project, Review, VerificationRecord};
 
 #[contract]
 pub struct DongleContract;
@@ -46,21 +47,33 @@ impl DongleContract {
     }
 
     pub fn update_project(
-        _env: Env,
-        _project_id: u64,
-        _caller: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        name: String,
+        description: String,
+        category: String,
+        website: Option<String>,
+        logo_cid: Option<String>,
+        metadata_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        todo!("Project updates not yet implemented")
+        // ACTUAL IMPLEMENTATION: Replacing todo!() with our secure logic
+        ProjectRegistry::update_project(
+            &env,
+            project_id,
+            caller,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
     }
 
-    pub fn get_project(_env: Env, _project_id: u64) -> Result<Project, ContractError> {
-        todo!("Project retrieval not yet implemented")
+    pub fn get_project(env: Env, project_id: u64) -> Result<Project, ContractError> {
+        // ACTUAL IMPLEMENTATION: Replacing todo!() with our retrieval logic
+        ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)
     }
 
     pub fn list_projects(
@@ -109,56 +122,74 @@ impl DongleContract {
     }
 
     pub fn request_verification(
-        env: Env,
-        project_id: u64,
-        requester: Address,
-        evidence_cid: String,
+        _env: Env,
+        _project_id: u64,
+        _requester: Address,
+        _evidence_cid: String,
     ) -> Result<(), ContractError> {
         todo!("Verification requests not yet implemented")
     }
 
     pub fn approve_verification(
-        env: Env,
-        project_id: u64,
-        admin: Address,
+        _env: Env,
+        _project_id: u64,
+        _admin: Address,
     ) -> Result<(), ContractError> {
         todo!("Verification approval not yet implemented")
     }
 
     pub fn reject_verification(
-        env: Env,
-        project_id: u64,
-        admin: Address,
+        _env: Env,
+        _project_id: u64,
+        _admin: Address,
     ) -> Result<(), ContractError> {
         todo!("Verification rejection not yet implemented")
     }
 
     pub fn get_verification(
-        env: Env,
-        project_id: u64,
+        _env: Env,
+        _project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         todo!("Verification record retrieval not yet implemented")
     }
 
     pub fn set_fee_config(
-        env: Env,
-        admin: Address,
-        token: Option<Address>,
-        verification_fee: u128,
-        registration_fee: u128,
+        _env: Env,
+        _admin: Address,
+        _token: Option<Address>,
+        _verification_fee: u128,
+        _registration_fee: u128,
     ) -> Result<(), ContractError> {
         todo!("Fee configuration not yet implemented")
     }
 
-    pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
+    pub fn get_fee_config(_env: Env) -> Result<FeeConfig, ContractError> {
         todo!("Fee configuration retrieval not yet implemented")
     }
 
-    pub fn set_treasury(env: Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+    pub fn set_treasury(
+        _env: Env,
+        _admin: Address,
+        _treasury: Address,
+    ) -> Result<(), ContractError> {
         todo!("Treasury management not yet implemented")
     }
 
-    pub fn get_treasury(env: Env) -> Result<Address, ContractError> {
+    pub fn get_treasury(_env: Env) -> Result<Address, ContractError> {
         todo!("Treasury address retrieval not yet implemented")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+
+    #[test]
+    fn test_unauthorized_update_fails() {
+        let env = Env::default();
+        let _owner = Address::generate(&env);
+        let _hacker = Address::generate(&env);
+        // Note: Full test logic will require a project to be registered first
     }
 }

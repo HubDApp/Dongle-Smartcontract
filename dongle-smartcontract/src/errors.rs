@@ -22,4 +22,5 @@ pub enum ContractError {
     CannotReviewOwnProject = 16,
     FeeConfigNotSet = 17,
     TreasuryNotSet = 18,
+    NotReviewer = 19,
 }

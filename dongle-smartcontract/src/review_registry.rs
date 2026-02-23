@@ -26,27 +26,27 @@ impl ReviewRegistry {
     }
 
     pub fn get_review(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
     ) -> Result<Review, ContractError> {
         todo!("Review retrieval logic not implemented")
     }
 
     pub fn get_project_reviews(
-        env: &Env,
-        project_id: u64,
-        start_reviewer: Option<Address>,
-        limit: u32,
+        _env: &Env,
+        _project_id: u64,
+        _start_reviewer: Option<Address>,
+        _limit: u32,
     ) -> Result<Vec<Review>, ContractError> {
         todo!("Project review listing logic not implemented")
     }
 
-    pub fn get_review_stats(env: &Env, project_id: u64) -> Result<(u32, u32), ContractError> {
+    pub fn get_review_stats(_env: &Env, _project_id: u64) -> Result<(u32, u32), ContractError> {
         todo!("Review statistics calculation not implemented")
     }
 
-    pub fn review_exists(env: &Env, project_id: u64, reviewer: Address) -> bool {
+    pub fn review_exists(_env: &Env, _project_id: u64, _reviewer: Address) -> bool {
         false
     }
 
@@ -54,7 +54,7 @@ impl ReviewRegistry {
         rating: u32,
         _comment_cid: &Option<String>,
     ) -> Result<(), ContractError> {
-        if rating < 1 || rating > 5 {
+        if !(1..=5).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
 
@@ -62,10 +62,10 @@ impl ReviewRegistry {
     }
 
     pub fn delete_review(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
-        admin: Address,
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _admin: Address,
     ) -> Result<(), ContractError> {
         todo!("Review deletion logic not implemented")
     }
