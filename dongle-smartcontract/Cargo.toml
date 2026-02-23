@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "21.7.0"
+soroban-sdk = { version = "21.0.0", features = ["alloc"] }
 
 [dev-dependencies]
-soroban-sdk = { version = "21.7.0", features = ["testutils"] }
+soroban-sdk = { version = "21.0.0", features = ["testutils", "alloc"] }
 
 [profile.release]
 opt-level = "z"
@@ -25,3 +25,13 @@ lto = true
 [profile.release-with-logs]
 inherits = "release"
 debug-assertions = true
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[features]
+testutils = ["soroban-sdk/testutils"]

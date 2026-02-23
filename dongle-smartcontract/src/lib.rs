@@ -1,230 +1,171 @@
+pub mod types;
+pub mod project_registry;
+pub mod errors;
+pub mod utils;
+pub mod fee_manager;
+pub mod review_registry;
+pub mod verification_registry;
 #![no_std]
 
+//! Dongle Smart Contract: project registry, reviews, and verification on Stellar/Soroban.
+
 mod errors;
+mod fee_manager;
 mod project_registry;
-mod rating_calculator;
 mod review_registry;
 mod types;
 mod utils;
+mod verification_registry;
 
-pub use errors::ContractError;
-pub use project_registry::ProjectRegistry;
-pub use rating_calculator::RatingCalculator;
-pub use review_registry::ReviewRegistry;
-pub use types::{Project, Review};
-pub use utils::RatingValidator;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use errors::ContractError;
+use types::{FeeConfig, Project, Review, VerificationRecord};
 
 #[contract]
 pub struct DongleContract;
 
 #[contractimpl]
 impl DongleContract {
-    /// Register a new project
+    pub fn initialize(_env: Env, _admin: Address, _treasury: Address) -> Result<(), ContractError> {
+        todo!("Contract initialization not yet implemented")
+    }
+
+    pub fn set_admin(
+        _env: Env,
+        _caller: Address,
+        _new_admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Admin management not yet implemented")
+    }
+
     pub fn register_project(
-        env: Env,
-        owner: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) -> u64 {
-        ProjectRegistry::register_project(
-            &env,
-            owner,
-            name,
-            description,
-            category,
-            website,
-            logo_cid,
-            metadata_cid,
-        )
+        _env: Env,
+        _owner: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        todo!("Project registration not yet implemented")
     }
 
-    /// Get a project by ID
-    pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
-        ProjectRegistry::get_project(&env, project_id)
+    pub fn update_project(
+        _env: Env,
+        _project_id: u64,
+        _caller: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Project updates not yet implemented")
     }
 
-    /// Get average rating for a project
-    pub fn get_average_rating(env: Env, project_id: u64) -> u32 {
-        ProjectRegistry::get_average_rating(&env, project_id)
+    pub fn get_project(_env: Env, _project_id: u64) -> Result<Project, ContractError> {
+        todo!("Project retrieval not yet implemented")
     }
 
-    /// Add a review for a project
+    pub fn list_projects(
+        _env: Env,
+        _start_id: u64,
+        _limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
+        todo!("Project listing not yet implemented")
+    }
+
     pub fn add_review(
-        env: Env,
-        project_id: u64,
-        reviewer: Address,
-        rating: u32,
-        comment_cid: Option<String>,
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+        todo!("Review submission not yet implemented")
     }
 
-    /// Update an existing review
     pub fn update_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Review updates not yet implemented")
+    }
+
+    pub fn get_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+    ) -> Result<Review, ContractError> {
+        todo!("Review retrieval not yet implemented")
+    }
+
+    pub fn get_project_reviews(
+        _env: Env,
+        _project_id: u64,
+        _start_reviewer: Option<Address>,
+        _limit: u32,
+    ) -> Result<Vec<Review>, ContractError> {
+        todo!("Project review listing not yet implemented")
+    }
+
+    pub fn request_verification(
         env: Env,
         project_id: u64,
-        reviewer: Address,
-        rating: u32,
-        comment_cid: Option<String>,
+        requester: Address,
+        evidence_cid: String,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+        todo!("Verification requests not yet implemented")
     }
 
-    /// Delete a review
-    pub fn delete_review(
+    pub fn approve_verification(
         env: Env,
         project_id: u64,
-        reviewer: Address,
+        admin: Address,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::delete_review(&env, project_id, reviewer)
+        todo!("Verification approval not yet implemented")
     }
 
-    /// Get a specific review
-    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
-        ReviewRegistry::get_review(&env, project_id, reviewer)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
-
-    #[test]
-    fn test_full_workflow() {
-        let env = Env::default();
-        env.mock_all_auths();
-        
-        let contract_id = env.register_contract(None, DongleContract);
-        let client = DongleContractClient::new(&env, &contract_id);
-        
-        let owner = Address::generate(&env);
-        let reviewer1 = Address::generate(&env);
-        let reviewer2 = Address::generate(&env);
-
-        // Register project
-        let project_id = client.register_project(
-            &owner,
-            &String::from_str(&env, "Test Project"),
-            &String::from_str(&env, "A test project"),
-            &String::from_str(&env, "Testing"),
-            &None,
-            &None,
-            &None,
-        );
-
-        assert_eq!(project_id, 1);
-
-        // Verify initial state
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 0);
-        assert_eq!(project.review_count, 0);
-        assert_eq!(project.average_rating, 0);
-
-        // Add first review (rating: 4)
-        client.add_review(&project_id, &reviewer1, &4, &None);
-
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 400);
-        assert_eq!(project.review_count, 1);
-        assert_eq!(project.average_rating, 400); // 4.00
-
-        // Add second review (rating: 5)
-        client.add_review(&project_id, &reviewer2, &5, &None);
-
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 900);
-        assert_eq!(project.review_count, 2);
-        assert_eq!(project.average_rating, 450); // 4.50
-
-        // Update first review (4 -> 3)
-        client.update_review(&project_id, &reviewer1, &3, &None);
-
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 800);
-        assert_eq!(project.review_count, 2);
-        assert_eq!(project.average_rating, 400); // 4.00
-
-        // Delete second review
-        client.delete_review(&project_id, &reviewer2);
-
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 300);
-        assert_eq!(project.review_count, 1);
-        assert_eq!(project.average_rating, 300); // 3.00
-
-        // Delete last review
-        client.delete_review(&project_id, &reviewer1);
-
-        let project = client.get_project(&project_id).unwrap();
-        assert_eq!(project.rating_sum, 0);
-        assert_eq!(project.review_count, 0);
-        assert_eq!(project.average_rating, 0); // Reset to zero
+    pub fn reject_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Verification rejection not yet implemented")
     }
 
-    #[test]
-    fn test_invalid_rating() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let contract_id = env.register_contract(None, DongleContract);
-        let client = DongleContractClient::new(&env, &contract_id);
-
-        let owner = Address::generate(&env);
-        let reviewer = Address::generate(&env);
-
-        let project_id = client.register_project(
-            &owner,
-            &String::from_str(&env, "Test"),
-            &String::from_str(&env, "Test"),
-            &String::from_str(&env, "Test"),
-            &None,
-            &None,
-            &None,
-        );
-
-        // Test rating too low
-        let result = client.try_add_review(&project_id, &reviewer, &0, &None);
-        assert_eq!(result, Err(Ok(ContractError::InvalidRating)));
-
-        // Test rating too high
-        let result = client.try_add_review(&project_id, &reviewer, &6, &None);
-        assert_eq!(result, Err(Ok(ContractError::InvalidRating)));
+    pub fn get_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        todo!("Verification record retrieval not yet implemented")
     }
 
-    #[test]
-    fn test_duplicate_review() {
-        let env = Env::default();
-        env.mock_all_auths();
+    pub fn set_fee_config(
+        env: Env,
+        admin: Address,
+        token: Option<Address>,
+        verification_fee: u128,
+        registration_fee: u128,
+    ) -> Result<(), ContractError> {
+        todo!("Fee configuration not yet implemented")
+    }
 
-        let contract_id = env.register_contract(None, DongleContract);
-        let client = DongleContractClient::new(&env, &contract_id);
+    pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
+        todo!("Fee configuration retrieval not yet implemented")
+    }
 
-        let owner = Address::generate(&env);
-        let reviewer = Address::generate(&env);
+    pub fn set_treasury(env: Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+        todo!("Treasury management not yet implemented")
+    }
 
-        let project_id = client.register_project(
-            &owner,
-            &String::from_str(&env, "Test"),
-            &String::from_str(&env, "Test"),
-            &String::from_str(&env, "Test"),
-            &None,
-            &None,
-            &None,
-        );
-
-        // Add first review
-        client.add_review(&project_id, &reviewer, &4, &None);
-
-        // Try to add duplicate
-        let result = client.try_add_review(&project_id, &reviewer, &5, &None);
-        assert_eq!(result, Err(Ok(ContractError::ReviewAlreadyExists)));
+    pub fn get_treasury(env: Env) -> Result<Address, ContractError> {
+        todo!("Treasury address retrieval not yet implemented")
     }
 }
-

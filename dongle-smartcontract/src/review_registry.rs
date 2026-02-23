@@ -1,79 +1,60 @@
-use crate::errors::ContractError;
-use crate::rating_calculator::RatingCalculator;
-use crate::types::{Project, Review};
-use soroban_sdk::{symbol_short, Address, Env, Map, String};
+//! Review submission with validation, duplicate handling, and events.
 
-const REVIEWS: &str = "REVIEWS";
-const PROJECTS: &str = "PROJECTS";
+use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
+use crate::errors::Error;
+use crate::events::ReviewAdded;
+use crate::events::ReviewUpdated;
+use crate::storage_keys::StorageKey;
+use crate::types::Review;
+use soroban_sdk::{Address, Env, String as SorobanString};
+
+fn validate_optional_cid(s: &Option<String>) -> Result<(), Error> {
+    if let Some(ref x) = s {
+        if x.len() > MAX_CID_LEN {
+            return Err(Error::StringLengthExceeded);
+        }
+    }
+    Ok(())
+}
 
 pub struct ReviewRegistry;
 
 impl ReviewRegistry {
-    /// Add a new review for a project and update rating aggregates.
-    /// 
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `project_id` - ID of the project being reviewed
-    /// * `reviewer` - Address of the reviewer
-    /// * `rating` - Rating value (must be 1-5)
-    /// * `comment_cid` - Optional IPFS CID for review comment
-    /// 
-    /// # Errors
-    /// * `InvalidRating` - If rating is not in range 1-5
-    /// * `ReviewAlreadyExists` - If reviewer has already reviewed this project
-    /// * `ProjectNotFound` - If project doesn't exist
     pub fn add_review(
         env: &Env,
         project_id: u64,
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        // Validate rating is in range 1-5
-        if rating < 1 || rating > 5 {
-            return Err(ContractError::InvalidRating);
+    ) -> Result<(), Error> {
+        if rating < RATING_MIN || rating > RATING_MAX {
+            return Err(Error::InvalidRating);
+        }
+        validate_optional_cid(&comment_cid)?;
+
+        let key = StorageKey::Review(project_id, reviewer.clone());
+        if env.storage().persistent().has(&key) {
+            return Err(Error::DuplicateReview);
         }
 
-        // Check if review already exists
-        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
-        let review_key = (project_id, reviewer.clone());
-        
-        if reviews.contains_key(review_key.clone()) {
-            return Err(ContractError::ReviewAlreadyExists);
-        }
-
-        // Get project
-        let projects: Map<u64, Project> = env.storage().instance().get(&symbol_short!("PROJECTS")).unwrap_or(Map::new(env));
-        let mut project = projects.get(project_id).ok_or(ContractError::ProjectNotFound)?;
-
-        // Create review
+        let ledger_timestamp = env.ledger().timestamp();
         let review = Review {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            comment_cid,
-            timestamp: env.ledger().timestamp(),
+            comment_cid: comment_cid.map(|s| SorobanString::from_str(env, &s)),
+            created_at: ledger_timestamp,
+            updated_at: ledger_timestamp,
         };
 
-        // Update rating aggregates
-        let (new_sum, new_count, new_average) = RatingCalculator::add_rating(
-            project.rating_sum,
-            project.review_count,
+        env.storage().persistent().set(&key, &review);
+
+        ReviewAdded {
+            project_id,
+            reviewer: reviewer.clone(),
             rating,
-        );
-
-        project.rating_sum = new_sum;
-        project.review_count = new_count;
-        project.average_rating = new_average;
-
-        // Save review and updated project
-        let mut reviews = reviews;
-        reviews.set(review_key, review);
-        env.storage().instance().set(&symbol_short!("REVIEWS"), &reviews);
-
-        let mut projects = projects;
-        projects.set(project_id, project);
-        env.storage().instance().set(&symbol_short!("PROJECTS"), &projects);
+        }
+        .publish(env);
 
         Ok(())
     }
@@ -84,99 +65,44 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        // Validate rating is in range 1-5
-        if rating < 1 || rating > 5 {
-            return Err(ContractError::InvalidRating);
+    ) -> Result<(), Error> {
+        if rating < RATING_MIN || rating > RATING_MAX {
+            return Err(Error::InvalidRating);
+        }
+        validate_optional_cid(&comment_cid)?;
+
+        let key = StorageKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(Error::ReviewNotFound)?;
+
+        if review.reviewer != reviewer {
+            return Err(Error::NotReviewAuthor);
         }
 
-        // Verify caller is the original reviewer
-        reviewer.require_auth();
-
-        // Get existing review
-        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
-        let review_key = (project_id, reviewer.clone());
-        
-        let mut review = reviews.get(review_key.clone()).ok_or(ContractError::ReviewNotFound)?;
-        let old_rating = review.rating;
-
-        // Get project
-        let projects: Map<u64, Project> = env.storage().instance().get(&symbol_short!("PROJECTS")).unwrap_or(Map::new(env));
-        let mut project = projects.get(project_id).ok_or(ContractError::ProjectNotFound)?;
-
-        // Update rating aggregates
-        let (new_sum, new_count, new_average) = RatingCalculator::update_rating(
-            project.rating_sum,
-            project.review_count,
-            old_rating,
-            rating,
-        );
-
-        project.rating_sum = new_sum;
-        project.review_count = new_count;
-        project.average_rating = new_average;
-
-        // Update review
+        let ledger_timestamp = env.ledger().timestamp();
         review.rating = rating;
-        review.comment_cid = comment_cid;
-        review.timestamp = env.ledger().timestamp();
+        review.comment_cid = comment_cid.map(|s| SorobanString::from_str(env, &s));
+        review.updated_at = ledger_timestamp;
 
-        // Save updated review and project
-        let mut reviews = reviews;
-        reviews.set(review_key, review);
-        env.storage().instance().set(&symbol_short!("REVIEWS"), &reviews);
+        env.storage().persistent().set(&key, &review);
 
-        let mut projects = projects;
-        projects.set(project_id, project);
-        env.storage().instance().set(&symbol_short!("PROJECTS"), &projects);
-
-        Ok(())
-    }
-
-    pub fn delete_review(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
-    ) -> Result<(), ContractError> {
-        // Verify caller is the original reviewer
-        reviewer.require_auth();
-
-        // Get existing review
-        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
-        let review_key = (project_id, reviewer.clone());
-        
-        let review = reviews.get(review_key.clone()).ok_or(ContractError::ReviewNotFound)?;
-        let rating = review.rating;
-
-        // Get project
-        let projects: Map<u64, Project> = env.storage().instance().get(&symbol_short!("PROJECTS")).unwrap_or(Map::new(env));
-        let mut project = projects.get(project_id).ok_or(ContractError::ProjectNotFound)?;
-
-        // Update rating aggregates
-        let (new_sum, new_count, new_average) = RatingCalculator::remove_rating(
-            project.rating_sum,
-            project.review_count,
+        ReviewUpdated {
+            project_id,
+            reviewer,
             rating,
-        );
-
-        project.rating_sum = new_sum;
-        project.review_count = new_count;
-        project.average_rating = new_average;
-
-        // Remove review and save updated project
-        let mut reviews = reviews;
-        reviews.remove(review_key);
-        env.storage().instance().set(&symbol_short!("REVIEWS"), &reviews);
-
-        let mut projects = projects;
-        projects.set(project_id, project);
-        env.storage().instance().set(&symbol_short!("PROJECTS"), &projects);
+            updated_at: ledger_timestamp,
+        }
+        .publish(env);
 
         Ok(())
     }
 
     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
-        let reviews: Map<(u64, Address), Review> = env.storage().instance().get(&symbol_short!("REVIEWS")).unwrap_or(Map::new(env));
-        reviews.get((project_id, reviewer))
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Review(project_id, reviewer))
     }
 }
