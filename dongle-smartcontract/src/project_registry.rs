@@ -6,7 +6,7 @@ pub struct ProjectRegistry;
 
 impl ProjectRegistry {
     pub fn register_project(
-        _env: &Env,
+         env: &Env,
         _owner: Address,
         _name: String,
         _description: String,
@@ -15,6 +15,7 @@ impl ProjectRegistry {
         _logo_cid: Option<String>,
         _metadata_cid: Option<String>,
     ) -> Result<u64, ContractError> {
+        let _registered_at: u64 = env.ledger().timestamp();
         todo!("Project registration logic not implemented")
     }
 
