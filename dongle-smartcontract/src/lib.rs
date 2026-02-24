@@ -21,6 +21,18 @@ pub struct DongleContract;
 
 #[contractimpl]
 impl DongleContract {
+    pub fn initialize(_env: Env, _admin: Address, _treasury: Address) -> Result<(), ContractError> {
+        todo!("Contract initialization not yet implemented")
+    }
+
+    pub fn set_admin(
+        _env: Env,
+        _caller: Address,
+        _new_admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Admin management not yet implemented")
+    }
+
     pub fn register_project(
         env: Env,
         owner: Address,
@@ -30,8 +42,8 @@ impl DongleContract {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
-        ProjectRegistry::register_project(
+    ) -> Result<u64, ContractError> {
+        project_registry::ProjectRegistry::register_project(
             &env,
             owner,
             name,
@@ -67,12 +79,71 @@ impl DongleContract {
         )
     }
 
-    pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
-        ProjectRegistry::get_project(&env, project_id)
+    pub fn get_project(env: Env, project_id: u64) -> Result<Project, ContractError> {
+        // ACTUAL IMPLEMENTATION: Replacing todo!() with our retrieval logic
+        ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)
     }
 
-    pub fn get_projects_by_owner(env: Env, owner: Address) -> Vec<Project> {
-        ProjectRegistry::get_projects_by_owner(&env, owner)
+    pub fn list_projects(
+        _env: Env,
+        _start_id: u64,
+        _limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
+        todo!("Project listing not yet implemented")
+    }
+
+    pub fn add_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Review submission not yet implemented")
+    }
+
+    pub fn update_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Review updates not yet implemented")
+    }
+
+    pub fn get_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+    ) -> Result<Review, ContractError> {
+        todo!("Review retrieval not yet implemented")
+    }
+
+    pub fn get_project_reviews(
+        _env: Env,
+        _project_id: u64,
+        _start_reviewer: Option<Address>,
+        _limit: u32,
+    ) -> Result<Vec<Review>, ContractError> {
+        todo!("Project review listing not yet implemented")
+    }
+
+    pub fn request_verification(
+        _env: Env,
+        _project_id: u64,
+        _requester: Address,
+        _evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        todo!("Verification requests not yet implemented")
+    }
+
+    pub fn approve_verification(
+        _env: Env,
+        _project_id: u64,
+        _admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Verification approval not yet implemented")
     }
 }
 

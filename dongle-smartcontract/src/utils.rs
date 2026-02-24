@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::types::DataKey;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
@@ -39,8 +39,8 @@ impl Utils {
 
         if length < min_length || length > max_length {
             match field_name {
-                "name" => Err(ContractError::ProjectNameTooLong),
-                "description" => Err(ContractError::ProjectDescriptionTooLong),
+                "name" => Err(ContractError::InvalidProjectData),
+                "description" => Err(ContractError::InvalidProjectData),
                 _ => Err(ContractError::InvalidProjectData),
             }
         } else {

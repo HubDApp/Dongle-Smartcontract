@@ -28,5 +28,5 @@ codegen-units = 1
 inherits = "release"
 debug-assertions = true
 
-[profile.test]
-opt-level = 0
+[features]
+testutils = ["soroban-sdk/testutils"]

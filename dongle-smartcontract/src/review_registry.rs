@@ -1,6 +1,21 @@
+//! Review submission with validation, duplicate handling, and events.
+
+use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
+use crate::events::ReviewAdded;
+use crate::events::ReviewUpdated;
+use crate::storage_keys::StorageKey;
 use crate::types::Review;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+
+fn validate_optional_cid(s: &Option<SorobanString>) -> Result<(), ContractError> {
+    if let Some(ref x) = s {
+        if x.len() as usize > MAX_CID_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+    }
+    Ok(())
+}
 
 pub struct ReviewRegistry;
 
@@ -57,7 +72,6 @@ impl ReviewRegistry {
         if !(1..=5).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
-
         Ok(())
     }
 

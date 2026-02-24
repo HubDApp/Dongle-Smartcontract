@@ -1,14 +1,7 @@
 use crate::errors::ContractError;
-use crate::types::{Project, VerificationStatus};
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
-
-#[derive(Clone)]
-#[contracttype]
-enum DataKey {
-    Project(u64),
-    OwnerProjects(Address),
-    ProjectCount,
-}
+use crate::storage_keys::StorageKey;
+use crate::types::Project;
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
@@ -62,9 +55,7 @@ impl ProjectRegistry {
         owner_projects.push_back(count);
         env.storage()
             .persistent()
-            .set(&DataKey::OwnerProjects(owner), &owner_projects);
-
-        count
+            .get(&StorageKey::Project(project_id))
     }
 
     pub fn update_project(
@@ -107,7 +98,7 @@ impl ProjectRegistry {
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
-            .set(&DataKey::Project(project_id), &project);
+            .set(&StorageKey::Project(project_id), &project);
 
         Some(project)
     }
@@ -143,16 +134,10 @@ impl ProjectRegistry {
         todo!("Project listing logic not implemented")
     }
 
-    pub fn get_next_project_id(_env: &Env) -> u64 {
-        1
-    }
-
-    pub fn increment_project_counter(_env: &Env) -> u64 {
-        1
-    }
-
-    pub fn project_exists(_env: &Env, _project_id: u64) -> bool {
-        false
+    pub fn project_exists(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .has(&StorageKey::Project(project_id))
     }
 
     pub fn validate_project_data(
