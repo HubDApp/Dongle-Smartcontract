@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
+use crate::types::DataKey;
 use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
