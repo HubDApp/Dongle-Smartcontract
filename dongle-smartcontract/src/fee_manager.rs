@@ -1,10 +1,8 @@
 //! Fee configuration and payment with validation and events.
 
 use crate::errors::ContractError;
-use crate::events::FeePaid;
-use crate::events::FeeSet;
-use crate::storage_keys::StorageKey;
-use crate::types::FeeConfig;
+use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+use crate::types::{FeeConfig, DataKey};
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;

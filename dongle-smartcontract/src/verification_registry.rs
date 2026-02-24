@@ -2,12 +2,12 @@
 
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
-use crate::events::VerificationApproved;
-use crate::events::VerificationRejected;
-use crate::events::VerificationRequested;
-use crate::storage_keys::StorageKey;
-use crate::types::{VerificationRecord, VerificationStatus};
-use soroban_sdk::{Address, Env, String};
+use crate::events::{
+    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_requested_event,
+};
+use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 
