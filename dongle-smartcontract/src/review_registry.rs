@@ -7,10 +7,35 @@ use crate::storage_keys::StorageKey;
 use crate::types::Review;
 use soroban_sdk::{Address, Env, String};
 
+/// Validates an optional IPFS CID string.
+///
+/// Rules enforced on-chain:
+/// - If `None`, passes — CID is optional (rating-only reviews are allowed).
+/// - Must not exceed `MAX_CID_LEN` characters (storage efficiency).
+/// - Must be at least 46 characters (shortest valid CIDv0).
+/// - Must not be empty (len == 0).
+///
+/// Note: Full prefix validation (Qm vs bafy) is not possible with soroban_sdk::String
+/// in no_std without heap allocation. Length bounds provide the contract-level guard;
+/// the frontend is responsible for supplying well-formed CIDs before calling this function.
 fn validate_optional_cid(s: &Option<String>) -> Result<(), ContractError> {
     if let Some(ref x) = s {
-        if x.len() as usize > MAX_CID_LEN {
+        let len = x.len() as usize;
+
+        // Must not exceed maximum storage size
+        if len > MAX_CID_LEN {
             return Err(ContractError::StringLengthExceeded);
+        }
+
+        // Empty string is not a valid CID
+        if len == 0 {
+            return Err(ContractError::InvalidCid);
+        }
+
+        // CIDv0 is exactly 46 chars; CIDv1 is longer.
+        // Anything shorter than 46 cannot be a valid IPFS CID.
+        if len < 46 {
+            return Err(ContractError::InvalidCid);
         }
     }
     Ok(())

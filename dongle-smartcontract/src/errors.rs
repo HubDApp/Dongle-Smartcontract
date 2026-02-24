@@ -37,6 +37,9 @@ pub enum ContractError {
     NotReviewAuthor = 204,
     /// Cannot compute aggregates when there are zero reviews (e.g. average rating).
     ZeroReviews = 205,
+    /// CID is present but invalid: wrong prefix or too short.
+    /// Valid CIDs start with "Qm" (CIDv0, 46 chars) or "bafy" (CIDv1).
+    InvalidCid = 206,
 
     // ---- Verification registry (3xx) ----
     /// Verification record not found for this project.

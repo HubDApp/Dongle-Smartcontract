@@ -37,7 +37,7 @@ impl DongleContract {
         Ok(())
     }
 
-    /// Replaces the current admin. Caller must be current admin.
+    /// Sets the admin. Caller must be the existing admin (or anyone if unset).
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         utils::Utils::add_admin(&env, &caller, &new_admin)
     }
@@ -95,6 +95,11 @@ impl DongleContract {
         ProjectRegistry::get_project(&env, project_id)?.ok_or(ContractError::ProjectNotFound)
     }
 
+    /// Returns the number of projects registered by an owner.
+    pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
+        ProjectRegistry::get_owner_project_count(&env, &owner)
+    }
+
     /// Returns a paginated list of projects starting from start_id.
     pub fn list_projects(
         env: Env,
@@ -118,7 +123,7 @@ impl DongleContract {
         Ok(results)
     }
 
-    /// Submits a review for a project.
+    /// Submits a review for a project. Only the CID is stored on-chain; text lives on IPFS.
     pub fn add_review(
         env: Env,
         project_id: u64,
@@ -141,22 +146,23 @@ impl DongleContract {
     }
 
     /// Returns a specific review, or error if not found.
+    /// The `comment_cid` field is used by the frontend to fetch review text from IPFS.
     pub fn get_review(
         env: Env,
         project_id: u64,
         reviewer: Address,
     ) -> Result<Review, ContractError> {
-        ReviewRegistry::get_review(&env, project_id, reviewer).ok_or(ContractError::ReviewNotFound)
+        ReviewRegistry::get_review(&env, project_id, reviewer)
+            .ok_or(ContractError::ReviewNotFound)
     }
 
-    /// Returns reviews for a project (simple sequential scan up to limit).
+    /// Returns reviews for a project (stub — full pagination requires an index).
     pub fn get_project_reviews(
         env: Env,
         _project_id: u64,
         _start_reviewer: Option<Address>,
         _limit: u32,
     ) -> Result<Vec<Review>, ContractError> {
-        // Full pagination requires an index — returning empty vec as stub
         Ok(Vec::new(&env))
     }
 
@@ -208,6 +214,32 @@ impl DongleContract {
         FeeManager::set_fee_config(&env, &admin, token, verification_fee, registration_fee)
     }
 
+    /// Convenience fee setter with an explicit treasury address (used in tests / simple flows).
+    /// Stores the treasury, then sets the fee config.
+    pub fn set_fee(
+        env: Env,
+        admin: Address,
+        token: Option<Address>,
+        amount: u128,
+        treasury: Address,
+    ) -> Result<(), ContractError> {
+        // Persist the treasury so pay_fee can reference it.
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Treasury, &treasury);
+        FeeManager::set_fee(&env, admin, token, amount, treasury)
+    }
+
+    /// Pays the verification fee for a project, marking it eligible for verification.
+    pub fn pay_fee(
+        env: Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        FeeManager::pay_fee(&env, payer, project_id, token)
+    }
+
     /// Returns the current fee configuration.
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
         FeeManager::get_fee_config(&env)
@@ -223,3 +255,6 @@ impl DongleContract {
         FeeManager::get_treasury(&env)
     }
 }
+
+#[cfg(test)]
+mod test;
