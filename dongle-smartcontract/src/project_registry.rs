@@ -1,5 +1,6 @@
 use crate::errors::ContractError;
-use crate::types::{DataKey, Project};
+use crate::storage_keys::StorageKey;
+use crate::types::Project;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -48,7 +49,7 @@ impl ProjectRegistry {
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
         env.storage()
             .persistent()
-            .get(&DataKey::Project(project_id))
+            .get(&StorageKey::Project(project_id))
     }
 
     pub fn update_project(
@@ -91,7 +92,7 @@ impl ProjectRegistry {
         // 6. PERSISTENCE: Save back to storage
         env.storage()
             .persistent()
-            .set(&DataKey::Project(project_id), &project);
+            .set(&StorageKey::Project(project_id), &project);
 
         Ok(())
     }
@@ -133,7 +134,7 @@ mod tests {
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&DataKey::Project(project_id))
+            .has(&StorageKey::Project(project_id))
     }
 
     pub fn validate_project_data(

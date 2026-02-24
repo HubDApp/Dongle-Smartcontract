@@ -1,6 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::FeePaid;
 use crate::events::FeeSet;
 use crate::storage_keys::StorageKey;
@@ -61,19 +61,6 @@ impl FeeManager {
 
     pub fn treasury_exists(_env: &Env) -> bool {
         false
-    }
-
-        // Mark fee as paid for this project so verification can proceed.
-        VerificationRegistry::set_fee_paid(env, project_id);
-
-        FeePaid {
-            payer: payer.clone(),
-            project_id,
-            amount: config.amount,
-        }
-        .publish(env);
-
-        Ok(())
     }
 
     pub fn refund_fee(
