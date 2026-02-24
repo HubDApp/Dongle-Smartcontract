@@ -13,7 +13,11 @@ impl Utils {
         false
     }
 
-    pub fn add_admin(_env: &Env, _caller: &Address, _new_admin: &Address) -> Result<(), Error> {
+    pub fn add_admin(
+        _env: &Env,
+        _caller: &Address,
+        _new_admin: &Address,
+    ) -> Result<(), ContractError> {
         todo!("Admin addition logic not implemented")
     }
 
@@ -21,7 +25,7 @@ impl Utils {
         _env: &Env,
         _caller: &Address,
         _admin_to_remove: &Address,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
         todo!("Admin removal logic not implemented")
     }
 
@@ -46,7 +50,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        len >= 46 && len <= 100
+        (46..=100).contains(&len)
     }
 
     pub fn is_valid_url(_url: &String) -> bool {
@@ -69,7 +73,7 @@ impl Utils {
         todo!("Event data creation needs Env parameter for Soroban String construction")
     }
 
-    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), Error> {
+    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
         const MAX_LIMIT: u32 = 100;
 
         if limit == 0 || limit > MAX_LIMIT {

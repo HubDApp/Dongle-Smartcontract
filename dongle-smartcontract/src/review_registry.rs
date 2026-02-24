@@ -21,88 +21,68 @@ pub struct ReviewRegistry;
 
 impl ReviewRegistry {
     pub fn add_review(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
-        rating: u32,
-        comment_cid: Option<SorobanString>,
-    ) -> Result<(), Error> {
-        if rating < RATING_MIN || rating > RATING_MAX {
-            return Err(Error::InvalidRating);
-        }
-        validate_optional_cid(&comment_cid)?;
-
-        let key = StorageKey::Review(project_id, reviewer.clone());
-        if env.storage().persistent().has(&key) {
-            return Err(Error::DuplicateReview);
-        }
-
-        let ledger_timestamp = env.ledger().timestamp();
-        let review = Review {
-            project_id,
-            reviewer: reviewer.clone(),
-            rating,
-            comment_cid,
-            created_at: ledger_timestamp,
-            updated_at: ledger_timestamp,
-        };
-
-        env.storage().persistent().set(&key, &review);
-
-        ReviewAdded {
-            project_id,
-            reviewer: reviewer.clone(),
-            rating,
-        }
-        .publish(env);
-
-        Ok(())
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Review submission logic not implemented")
     }
 
     pub fn update_review(
-        env: &Env,
-        project_id: u64,
-        reviewer: Address,
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _rating: u32,
+        _comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Review update logic not implemented")
+    }
+
+    pub fn get_review(
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
+    ) -> Result<Review, ContractError> {
+        todo!("Review retrieval logic not implemented")
+    }
+
+    pub fn get_project_reviews(
+        _env: &Env,
+        _project_id: u64,
+        _start_reviewer: Option<Address>,
+        _limit: u32,
+    ) -> Result<Vec<Review>, ContractError> {
+        todo!("Project review listing logic not implemented")
+    }
+
+    pub fn get_review_stats(_env: &Env, _project_id: u64) -> Result<(u32, u32), ContractError> {
+        todo!("Review statistics calculation not implemented")
+    }
+
+    pub fn review_exists(_env: &Env, _project_id: u64, _reviewer: Address) -> bool {
+        false
+    }
+
+    pub fn validate_review_data(
         rating: u32,
-        comment_cid: Option<SorobanString>,
-    ) -> Result<(), Error> {
-        if rating < RATING_MIN || rating > RATING_MAX {
-            return Err(Error::InvalidRating);
-        }
-        validate_optional_cid(&comment_cid)?;
-
-        let key = StorageKey::Review(project_id, reviewer.clone());
-        let mut review: Review = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(Error::ReviewNotFound)?;
-
-        if review.reviewer != reviewer {
-            return Err(Error::NotReviewAuthor);
-        }
-
-        let ledger_timestamp = env.ledger().timestamp();
-        review.rating = rating;
-        review.comment_cid = comment_cid;
-        review.updated_at = ledger_timestamp;
-
-        env.storage().persistent().set(&key, &review);
-
-        ReviewUpdated {
-            project_id,
-            reviewer,
-            rating,
-            updated_at: ledger_timestamp,
+        _comment_cid: &Option<String>,
+    ) -> Result<(), ContractError> {
+        if !(1..=5).contains(&rating) {
+            return Err(ContractError::InvalidRating);
         }
         .publish(env);
 
         Ok(())
     }
 
-    pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Review(project_id, reviewer))
+    pub fn delete_review(
+        _env: &Env,
+        _project_id: u64,
+        _reviewer: Address,
+        _admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Review deletion logic not implemented")
     }
 }

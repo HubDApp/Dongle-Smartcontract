@@ -28,3 +28,7 @@ debug-assertions = true
 
 [features]
 testutils = ["soroban-sdk/testutils"]
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true

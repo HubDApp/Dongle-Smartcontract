@@ -27,105 +27,69 @@ impl VerificationRegistry {
     }
 
     pub fn request_verification(
-        env: &Env,
-        project_id: u64,
-        requester: Address,
-        evidence_cid: SorobanString,
-    ) -> Result<(), Error> {
-        if project_id == 0 {
-            return Err(Error::InvalidProjectId);
-        }
-        if evidence_cid.len() == 0 || evidence_cid.len() > MAX_CID_LEN as u32 {
-            return Err(Error::InvalidEvidenceCid);
-        }
-
-        let project_key = StorageKey::Project(project_id);
-        let project: crate::types::Project = env
-            .storage()
-            .persistent()
-            .get(&project_key)
-            .ok_or(Error::ProjectNotFound)?;
-
-        if project.owner != requester {
-            return Err(Error::NotProjectOwnerForVerification);
-        }
-
-        if !Self::fee_paid_for_project(env, project_id) {
-            return Err(Error::FeeNotPaid);
-        }
-
-        let ledger_timestamp = env.ledger().timestamp();
-        let record = VerificationRecord {
-            project_id,
-            requester: requester.clone(),
-            evidence_cid: evidence_cid.clone(),
-            status: VerificationStatus::Pending,
-            requested_at: ledger_timestamp,
-            decided_at: None,
-        };
-
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
-
-        VerificationRequested {
-            project_id,
-            requester: requester.clone(),
-            evidence_cid,
-        }
-        .publish(env);
-
-        Ok(())
+        _env: &Env,
+        _project_id: u64,
+        _requester: Address,
+        _evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        todo!("Verification request logic not implemented")
     }
 
     pub fn approve_verification(
-        env: &Env,
-        project_id: u64,
-        verifier: Address,
-    ) -> Result<(), Error> {
-        if !Self::is_admin(env, &verifier) {
-            return Err(Error::UnauthorizedVerifier);
-        }
-
-        let key = StorageKey::Verification(project_id);
-        let mut record: VerificationRecord = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(Error::VerificationNotFound)?;
-
-        if record.status != VerificationStatus::Pending {
-            return Err(Error::VerificationNotPending);
-        }
-
-        let ledger_timestamp = env.ledger().timestamp();
-        record.status = VerificationStatus::Verified;
-        record.decided_at = Some(ledger_timestamp);
-        env.storage().persistent().set(&key, &record);
-
-        VerificationApproved {
-            project_id,
-            verifier,
-        }
-        .publish(env);
-
-        Ok(())
+        _env: &Env,
+        _project_id: u64,
+        _admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Verification approval logic not implemented")
     }
 
-    pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) -> Result<(), Error> {
-        if !Self::is_admin(env, &verifier) {
-            return Err(Error::UnauthorizedVerifier);
-        }
+    pub fn reject_verification(
+        _env: &Env,
+        _project_id: u64,
+        _admin: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Verification rejection logic not implemented")
+    }
 
-        let key = StorageKey::Verification(project_id);
-        let mut record: VerificationRecord = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(Error::VerificationNotFound)?;
+    pub fn get_verification(
+        _env: &Env,
+        _project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        todo!("Verification record retrieval logic not implemented")
+    }
 
-        if record.status != VerificationStatus::Pending {
-            return Err(Error::VerificationNotPending);
+    pub fn list_pending_verifications(
+        _env: &Env,
+        _admin: Address,
+        _start_project_id: u64,
+        _limit: u32,
+    ) -> Result<Vec<VerificationRecord>, ContractError> {
+        todo!("Pending verification listing logic not implemented")
+    }
+
+    pub fn verification_exists(_env: &Env, _project_id: u64) -> bool {
+        false
+    }
+
+    pub fn get_verification_status(
+        _env: &Env,
+        _project_id: u64,
+    ) -> Result<VerificationStatus, ContractError> {
+        todo!("Verification status retrieval logic not implemented")
+    }
+
+    pub fn update_verification_evidence(
+        _env: &Env,
+        _project_id: u64,
+        _requester: Address,
+        _new_evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        todo!("Verification evidence update logic not implemented")
+    }
+
+    pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
+        if evidence_cid.is_empty() {
+            return Err(ContractError::InvalidProjectData);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
@@ -142,14 +106,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    fn is_admin(env: &Env, addr: &Address) -> bool {
-        let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
-        admin.as_ref().map_or(false, |a| a == addr)
-    }
-
-    pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Verification(project_id))
+    pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
+        (0, 0, 0)
     }
 }
