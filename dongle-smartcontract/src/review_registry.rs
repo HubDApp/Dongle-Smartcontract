@@ -86,41 +86,9 @@ impl ReviewRegistry {
     }
 
     pub fn update_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _rating: u32,
-        _comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        todo!("Review update logic not implemented")
-    }
-
-    pub fn get_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-    ) -> Result<Review, ContractError> {
-        todo!("Review retrieval logic not implemented")
-    }
-
-    pub fn get_project_reviews(
-        _env: &Env,
-        _project_id: u64,
-        _start_reviewer: Option<Address>,
-        _limit: u32,
-    ) -> Result<Vec<Review>, ContractError> {
-        todo!("Project review listing logic not implemented")
-    }
-
-    pub fn get_review_stats(_env: &Env, _project_id: u64) -> Result<(u32, u32), ContractError> {
-        todo!("Review statistics calculation not implemented")
-    }
-
-    pub fn review_exists(_env: &Env, _project_id: u64, _reviewer: Address) -> bool {
-        false
-    }
-
-    pub fn validate_review_data(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
@@ -160,12 +128,9 @@ impl ReviewRegistry {
         Ok(())
     }
 
-    pub fn delete_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _admin: Address,
-    ) -> Result<(), ContractError> {
-        todo!("Review deletion logic not implemented")
+    pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Review(project_id, reviewer))
     }
 }

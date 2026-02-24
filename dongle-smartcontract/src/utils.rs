@@ -21,9 +21,9 @@ impl Utils {
 
     /// Sets a new admin. Caller must be the current admin.
     pub fn add_admin(
-        _env: &Env,
-        _caller: &Address,
-        _new_admin: &Address,
+        env: &Env,
+        caller: &Address,
+        new_admin: &Address,
     ) -> Result<(), ContractError> {
         caller.require_auth();
         if !Self::is_admin(env, caller) {
@@ -68,7 +68,7 @@ impl Utils {
     /// Checks if a string looks like a valid IPFS CID by length.
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        (46..=100).contains(&len)
+        len >= 46 && len <= 100
     }
 
     /// Placeholder URL validator (always true for now).

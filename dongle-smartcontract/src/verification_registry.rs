@@ -37,7 +37,6 @@ impl VerificationRegistry {
             return Err(ContractError::InvalidProjectId);
         }
 
-        // Soroban String has no trim()/is_empty() — use len() == 0
         if evidence_cid.len() == 0 || evidence_cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidEvidenceCid);
         }
@@ -155,7 +154,14 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
-        (0, 0, 0)
+    fn is_admin(env: &Env, addr: &Address) -> bool {
+        let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
+        admin.as_ref().map_or(false, |a| a == addr)
+    }
+
+    pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id))
     }
 }
