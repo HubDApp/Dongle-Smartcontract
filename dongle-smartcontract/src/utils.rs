@@ -1,30 +1,30 @@
 use crate::errors::ContractError;
-use crate::types::DataKey;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
 
 impl Utils {
-    pub fn get_current_timestamp(env: &Env) -> u64 {
+    pub fn get_current_timestamp(_env: &Env) -> u64 {
         0
     }
 
-    pub fn is_admin(env: &Env, address: &Address) -> bool {
+    pub fn is_admin(_env: &Env, _address: &Address) -> bool {
         false
     }
 
     pub fn add_admin(
-        env: &Env,
-        caller: &Address,
-        new_admin: &Address,
+        _env: &Env,
+        _caller: &Address,
+        _new_admin: &Address,
     ) -> Result<(), ContractError> {
         todo!("Admin addition logic not implemented")
     }
 
     pub fn remove_admin(
-        env: &Env,
-        caller: &Address,
-        admin_to_remove: &Address,
+        _env: &Env,
+        _caller: &Address,
+        _admin_to_remove: &Address,
     ) -> Result<(), ContractError> {
         todo!("Admin removal logic not implemented")
     }
@@ -39,8 +39,8 @@ impl Utils {
 
         if length < min_length || length > max_length {
             match field_name {
-                "name" => Err(ContractError::ProjectNameTooLong),
-                "description" => Err(ContractError::ProjectDescriptionTooLong),
+                "name" => Err(ContractError::InvalidProjectData),
+                "description" => Err(ContractError::InvalidProjectData),
                 _ => Err(ContractError::InvalidProjectData),
             }
         } else {
@@ -50,7 +50,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        len >= 46 && len <= 100
+        (46..=100).contains(&len)
     }
 
     pub fn is_valid_url(_url: &String) -> bool {
@@ -73,7 +73,7 @@ impl Utils {
         todo!("Event data creation needs Env parameter for Soroban String construction")
     }
 
-    pub fn validate_pagination(start_id: u64, limit: u32) -> Result<(), ContractError> {
+    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
         const MAX_LIMIT: u32 = 100;
 
         if limit == 0 || limit > MAX_LIMIT {

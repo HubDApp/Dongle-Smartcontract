@@ -1,93 +1,72 @@
 //! Fee configuration and payment with validation and events.
 
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::FeePaid;
 use crate::events::FeeSet;
 use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
-use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
 impl FeeManager {
-    pub fn set_admin(env: &Env, admin: Address) {
-        env.storage().persistent().set(&StorageKey::Admin, &admin);
-    }
-
     pub fn set_fee(
-        env: &Env,
-        admin: Address,
-        token: Option<Address>,
-        amount: u128,
-        treasury: Address,
-    ) -> Result<(), Error> {
-        let current_admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
-        if current_admin.as_ref() != Some(&admin) {
-            return Err(Error::UnauthorizedAdmin);
-        }
-        if amount == 0 {
-            return Err(Error::InvalidFeeAmount);
-        }
-
-        let config = FeeConfig {
-            token,
-            amount,
-            treasury: treasury.clone(),
-        };
-        env.storage()
-            .persistent()
-            .set(&StorageKey::FeeConfig, &config);
-
-        FeeSet {
-            admin,
-            amount,
-            treasury,
-        }
-        .publish(env);
-
-        Ok(())
-    }
-
-    fn get_config(env: &Env) -> Result<FeeConfig, Error> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::FeeConfig)
-            .ok_or(Error::FeeNotConfigured)
-    }
-
-    /// Pay verification fee for a project. In a full implementation this would transfer
-    /// tokens to treasury; here we record payment and mark fee as paid for verification.
-    /// Contract is modular: replace this with real token transfer when integrating.
-    pub fn pay_fee(
-        env: &Env,
-        payer: Address,
-        project_id: u64,
+        _env: &Env,
+        _admin: Address,
         _token: Option<Address>,
-    ) -> Result<(), Error> {
-        let config = Self::get_config(env)?;
-
-        // Simulated transfer: in production, env.invoke_contract() to token transfer
-        // from payer to config.treasury for config.amount. On failure return PaymentFailed.
-        // For now we require amount > 0 and record the payment.
-        if config.amount == 0 {
-            return Err(Error::InvalidFeeAmount);
-        }
-
-        // Mark fee as paid for this project so verification can proceed.
-        VerificationRegistry::set_fee_paid(env, project_id);
-
-        FeePaid {
-            payer: payer.clone(),
-            project_id,
-            amount: config.amount,
-        }
-        .publish(env);
-
-        Ok(())
+        _amount: u128,
+        _treasury: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Fee setting logic not implemented")
     }
 
-    pub fn get_fee_config(env: &Env) -> Result<FeeConfig, Error> {
-        Self::get_config(env)
+    pub fn pay_fee(
+        _env: &Env,
+        _payer: Address,
+        _project_id: u64,
+        _token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        todo!("Fee payment logic not implemented")
+    }
+
+    pub fn get_fee_config(_env: &Env) -> Result<FeeConfig, ContractError> {
+        todo!("Fee configuration retrieval logic not implemented")
+    }
+
+    pub fn set_treasury(
+        _env: &Env,
+        _admin: Address,
+        _treasury: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Treasury setting logic not implemented")
+    }
+
+    pub fn get_treasury(_env: &Env) -> Result<Address, ContractError> {
+        todo!("Treasury address retrieval logic not implemented")
+    }
+
+    pub fn get_operation_fee(_env: &Env, operation_type: &str) -> Result<u128, ContractError> {
+        match operation_type {
+            "verification" => Ok(1000000),
+            "registration" => Ok(0),
+            _ => Err(ContractError::InvalidProjectData),
+        }
+    }
+
+    pub fn fee_config_exists(_env: &Env) -> bool {
+        false
+    }
+
+    pub fn treasury_exists(_env: &Env) -> bool {
+        false
+    }
+
+    pub fn refund_fee(
+        _env: &Env,
+        _recipient: Address,
+        _amount: u128,
+        _token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        todo!("Fee refund logic not implemented")
     }
 }

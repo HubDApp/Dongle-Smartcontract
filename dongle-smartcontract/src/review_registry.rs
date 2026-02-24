@@ -11,7 +11,7 @@ impl ReviewRegistry {
         env: Env,
         project_id: u64,
         reviewer: Address,
-        rating: u32,
+        rating: u32, // Matches types.rs u32
         comment_cid: Option<String>,
     ) {
         // Check if review exists

@@ -34,6 +34,16 @@ pub struct Project {
 }
 
 #[contracttype]
+pub enum DataKey {
+    Project(u64),
+    Review(u64, Address),
+    Verification(u64),
+    NextProjectId,
+    Admin(Address),
+    FeeConfig,
+    Treasury,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
     Pending,
@@ -45,4 +55,13 @@ pub enum VerificationStatus {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
     pub status: VerificationStatus,
+}
+
+/// Fee configuration for contract operations
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeConfig {
+    pub token: Option<Address>,
+    pub verification_fee: u128,
+    pub registration_fee: u128,
 }
