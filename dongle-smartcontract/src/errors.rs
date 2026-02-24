@@ -43,4 +43,6 @@ pub enum ContractError {
     TreasuryNotSet = 18,
     /// User has already reviewed this project
     AlreadyReviewed = 19, // I added your error here with a new unique ID
+    /// Review is already deleted
+    ReviewAlreadyDeleted = 20,
 }

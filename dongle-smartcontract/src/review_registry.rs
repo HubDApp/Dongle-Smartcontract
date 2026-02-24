@@ -1,5 +1,7 @@
 use crate::events::publish_review_event;
-use crate::types::{Review, ReviewAction, DataKey};
+use crate::types::{Review, ReviewAction, ReviewEventData, DataKey, ProjectStats};
+use crate::errors::ContractError;
+use crate::rating_calculator::RatingCalculator;
 use soroban_sdk::{Address, Env, String, contract, contractimpl};
 
 #[contract]
@@ -93,6 +95,61 @@ impl ReviewRegistry {
 
             publish_review_event(&env, project_id, reviewer, ReviewAction::Deleted, None);
         }
+    }
+
+    pub fn delete_review(env: Env, project_id: u64, reviewer: Address) -> Result<(), ContractError> {
+        // 1. Authorize the caller - only the reviewer can delete their own review
+        reviewer.require_auth();
+
+        // 2. Fetch the review
+        let review_key = DataKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        // 3. Validate it hasn't already been deleted
+        if review.is_deleted {
+            return Err(ContractError::ReviewAlreadyDeleted);
+        }
+
+        // 4. Update the aggregate ratings
+        let stats_key = DataKey::ProjectStats(project_id);
+        let mut stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&stats_key)
+            .unwrap_or(ProjectStats {
+                rating_sum: 0,
+                review_count: 0,
+                average_rating: 0,
+            });
+
+        // Use your RatingCalculator to safely remove the rating
+        if stats.review_count > 0 {
+            let (new_sum, new_count, new_avg) = RatingCalculator::remove_rating(
+                stats.rating_sum,
+                stats.review_count,
+                review.rating,
+            );
+            
+            stats.rating_sum = new_sum;
+            stats.review_count = new_count;
+            stats.average_rating = new_avg;
+            
+            // Save the updated stats
+            env.storage().persistent().set(&stats_key, &stats);
+        }
+
+        // 5. Perform the soft delete
+        review.is_deleted = true;
+        env.storage().persistent().set(&review_key, &review);
+
+        // 6. Emit the deleted event
+        publish_review_event(&env, project_id, reviewer, ReviewAction::Deleted, None);
+        
+        Ok(())
     }
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
