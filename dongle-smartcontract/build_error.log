@@ -1,0 +1,466 @@
+    Blocking waiting for file lock on artifact directory
+   Compiling dongle-contract v0.1.0 (/home/blurbeast/works/waves/Dongle-Smartcontract/dongle-smartcontract)
+error: `...` is not supported for non-extern functions
+  --> src/project_registry.rs:14:72
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+   |                                                                        ^^^
+   |
+   = help: only `extern "C"` and `extern "C-unwind"` functions may have a C variable argument list
+
+error[E0432]: unresolved import `soroban_sdk::testutils`
+   --> src/review_registry.rs:77:36
+    |
+ 77 |     use soroban_sdk::{Env, String, testutils::Events};
+    |                                    ^^^^^^^^^ could not find `testutils` in `soroban_sdk`
+    |
+note: found an item that was configured out
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/lib.rs:813:9
+    |
+813 | pub mod testutils;
+    |         ^^^^^^^^^
+    |
+   ::: /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/testutils.rs:1:11
+    |
+  1 | #![cfg(any(test, feature = "testutils"))]
+    |           ----------------------------- the item is gated here
+
+error[E0432]: unresolved import `crate::types::Project`
+ --> src/project_registry.rs:1:5
+  |
+1 | use crate::types::Project;
+  |     ^^^^^^^^^^^^^^^^^^^^^ no `Project` in `types`
+
+error[E0432]: unresolved imports `crate::types::VerificationRecord`, `crate::types::VerificationStatus`
+ --> src/verification_registry.rs:1:20
+  |
+1 | use crate::types::{VerificationRecord, VerificationStatus};
+  |                    ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^ no `VerificationStatus` in `types`
+  |                    |
+  |                    no `VerificationRecord` in `types`
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:62
+  |
+7 |     pub fn register_project(env: &Env, owner: Address, name: String, description: String, category: String, website: Option<String>, logo_cid: Option<S...
+  |                                                              ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:83
+  |
+7 |     pub fn register_project(env: &Env, owner: Address, name: String, description: String, category: String, website: Option<String>, logo_cid: Option<S...
+  |                                                                                   ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:101
+  |
+7 |     pub fn register_project(env: &Env, owner: Address, name: String, description: String, category: String, website: Option<String>, logo_cid: Option<S...
+  |                                                                                                     ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:125
+  |
+7 | ...ng, description: String, category: String, website: Option<String>, logo_cid: Option<String>, metadata_cid: Option<String>) -> u64 {
+  |                                                               ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:151
+  |
+7 | ...ategory: String, website: Option<String>, logo_cid: Option<String>, metadata_cid: Option<String>) -> u64 {
+  |                                                               ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/project_registry.rs:7:181
+  |
+7 | ...on<String>, logo_cid: Option<String>, metadata_cid: Option<String>) -> u64 {
+  |                                                               ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0425]: cannot find type `String` in this scope
+ --> src/verification_registry.rs:7:95
+  |
+7 |     pub fn request_verification(env: &Env, project_id: u64, requester: Address, evidence_cid: String) {
+  |                                                                                               ^^^^^^ not found in this scope
+  |
+help: consider importing this struct
+  |
+1 + use soroban_sdk::String;
+  |
+
+error[E0658]: C-variadic functions are unstable
+  --> src/project_registry.rs:14:5
+   |
+14 | /     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+...  |
+17 | |     }
+   | |_____^
+   |
+   = note: see issue #44930 <https://github.com/rust-lang/rust/issues/44930> for more information
+
+warning: missing pattern for `...` argument
+  --> src/project_registry.rs:14:72
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+   |                                                                        ^^^
+   |
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #145544 <https://github.com/rust-lang/rust/issues/145544>
+   = note: `#[warn(varargs_without_pattern)]` (part of `#[warn(future_incompatible)]`) on by default
+help: name the argument, or use `_` to continue ignoring it
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, _: ...) {
+   |                                                                        ++
+
+warning: unused import: `Map`
+ --> src/project_registry.rs:2:33
+  |
+2 | use soroban_sdk::{Env, Address, Map};
+  |                                 ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Map`
+ --> src/verification_registry.rs:2:33
+  |
+2 | use soroban_sdk::{Env, Address, Map};
+  |                                 ^^^
+
+warning: the `#![no_std]` attribute can only be used at the crate root
+ --> src/types.rs:1:1
+  |
+1 | #![no_std]
+  | ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+error[E0277]: the trait bound `u8: TryFromVal<Env, soroban_sdk::Val>` is not satisfied
+ --> src/types.rs:4:1
+  |
+4 | #[contracttype]
+  | ^^^^^^^^^^^^^^^ the trait `TryFromVal<Env, soroban_sdk::Val>` is not implemented for `u8`
+  |
+  = help: the following other types implement trait `TryFromVal<E, V>`:
+            `i128` implements `TryFromVal<E, soroban_sdk::Val>`
+            `i128` implements `TryFromVal<Env, i128>`
+            `i32` implements `TryFromVal<E, soroban_sdk::Val>`
+            `i32` implements `TryFromVal<Env, i32>`
+            `i64` implements `TryFromVal<E, soroban_sdk::Val>`
+            `i64` implements `TryFromVal<Env, i64>`
+            `u128` implements `TryFromVal<E, soroban_sdk::Val>`
+            `u128` implements `TryFromVal<Env, u128>`
+          and 7 others
+  = note: required for `soroban_sdk::Val` to implement `TryIntoVal<Env, u8>`
+  = note: this error originates in the attribute macro `contracttype` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `soroban_sdk::Val: TryFromVal<Env, u8>` is not satisfied
+ --> src/types.rs:4:1
+  |
+4 | #[contracttype]
+  | ^^^^^^^^^^^^^^^ the trait `TryFromVal<Env, u8>` is not implemented for `soroban_sdk::Val`
+  |
+  = help: the following other types implement trait `TryFromVal<E, V>`:
+            `soroban_sdk::Val` implements `TryFromVal<E, &()>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5, T6)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5, T6, T7)>`
+          and 181 others
+  = note: required for `u8` to implement `TryIntoVal<Env, soroban_sdk::Val>`
+  = note: the full name for the type has been written to '/home/blurbeast/works/waves/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract.long-type-4013904709563032024.txt'
+  = note: consider using `--verbose` to print the full type name to the console
+  = note: this error originates in the attribute macro `contracttype` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:82:33
+    |
+ 82 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `all` found for struct `soroban_sdk::events::Events` in the current scope
+  --> src/review_registry.rs:87:35
+   |
+87 |         let events = env.events().all();
+   |                                   ^^^ method not found in `soroban_sdk::events::Events`
+
+error[E0282]: type annotations needed
+  --> src/review_registry.rs:95:20
+   |
+95 |         assert_eq!(topics.len(), 4);
+   |                    ^^^^^^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> src/review_registry.rs:97:43
+   |
+97 |         let event_data: ReviewEventData = data.try_into_val(&env).unwrap();
+   |                                           ^^^^ cannot infer type
+
+warning: unused variable: `env`
+ --> src/fee_manager.rs:6:20
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                    ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+  |
+  = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `admin`
+ --> src/fee_manager.rs:6:31
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+
+warning: unused variable: `token`
+ --> src/fee_manager.rs:6:47
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_token`
+
+warning: unused variable: `amount`
+ --> src/fee_manager.rs:6:71
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_amount`
+
+warning: unused variable: `treasury`
+ --> src/fee_manager.rs:6:85
+  |
+6 |     pub fn set_fee(env: &Env, admin: Address, token: Option<Address>, amount: u128, treasury: Address) {
+  |                                                                                     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_treasury`
+
+warning: unused variable: `env`
+  --> src/fee_manager.rs:10:20
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                    ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `payer`
+  --> src/fee_manager.rs:10:31
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_payer`
+
+warning: unused variable: `project_id`
+  --> src/fee_manager.rs:10:47
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                                               ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `token`
+  --> src/fee_manager.rs:10:64
+   |
+10 |     pub fn pay_fee(env: &Env, payer: Address, project_id: u64, token: Option<Address>) {
+   |                                                                ^^^^^ help: if this is intentional, prefix it with an underscore: `_token`
+
+warning: unused variable: `env`
+  --> src/project_registry.rs:14:27
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+   |                           ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/project_registry.rs:14:38
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+   |                                      ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `caller`
+  --> src/project_registry.rs:14:55
+   |
+14 |     pub fn update_project(env: &Env, project_id: u64, caller: Address, ...) {
+   |                                                       ^^^^^^ help: if this is intentional, prefix it with an underscore: `_caller`
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:11:9
+   |
+11 |         rating: u8,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:35:9
+   |
+35 |         rating: u8,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `env`
+  --> src/review_registry.rs:69:23
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                       ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/review_registry.rs:69:34
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                                  ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `reviewer`
+  --> src/review_registry.rs:69:51
+   |
+69 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+   |                                                   ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reviewer`
+
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:107:33
+    |
+107 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `env`
+  --> src/verification_registry.rs:13:33
+   |
+13 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/verification_registry.rs:13:44
+   |
+13 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                            ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `verifier`
+  --> src/verification_registry.rs:13:61
+   |
+13 |     pub fn approve_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                                             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_verifier`
+
+warning: unused variable: `env`
+  --> src/verification_registry.rs:18:32
+   |
+18 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/verification_registry.rs:18:43
+   |
+18 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                           ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `verifier`
+  --> src/verification_registry.rs:18:60
+   |
+18 |     pub fn reject_verification(env: &Env, project_id: u64, verifier: Address) {
+   |                                                            ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_verifier`
+
+error[E0599]: no method named `all` found for struct `soroban_sdk::events::Events` in the current scope
+   --> src/review_registry.rs:112:35
+    |
+112 |         let events = env.events().all();
+    |                                   ^^^ method not found in `soroban_sdk::events::Events`
+
+Some errors have detailed explanations: E0277, E0425, E0432, E0658.
+For more information about an error, try `rustc --explain E0277`.
+error[E0599]: no function or associated item named `generate` found for struct `soroban_sdk::Address` in the current scope
+   --> src/review_registry.rs:123:33
+    |
+123 |         let reviewer = Address::generate(&env);
+    |                                 ^^^^^^^^ function or associated item not found in `soroban_sdk::Address`
+    |
+note: if you're trying to build a new `soroban_sdk::Address` consider using one of the following associated functions:
+      soroban_sdk::Address::from_str
+      soroban_sdk::Address::from_string
+      soroban_sdk::Address::from_string_bytes
+   --> /home/blurbeast/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/address.rs:238:5
+    |
+238 |     pub fn from_str(env: &Env, strkey: &str) -> Address {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+250 |     pub fn from_string(strkey: &String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+272 |     pub fn from_string_bytes(strkey: &Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `dongle-contract` (lib) generated 27 warnings
+error: could not compile `dongle-contract` (lib) due to 13 previous errors; 27 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no method named `all` found for struct `soroban_sdk::events::Events` in the current scope
+   --> src/review_registry.rs:127:35
+    |
+127 |         let events = env.events().all();
+    |                                   ^^^ method not found in `soroban_sdk::events::Events`
+
+error[E0277]: the trait bound `soroban_sdk::Val: TryFromVal<Env, u8>` is not satisfied
+ --> src/types.rs:4:1
+  |
+4 | #[contracttype]
+  | ^^^^^^^^^^^^^^^ the trait `TryFromVal<Env, u8>` is not implemented for `soroban_sdk::Val`
+  |
+  = help: the following other types implement trait `TryFromVal<E, V>`:
+            `soroban_sdk::Val` implements `TryFromVal<E, &()>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5, T6)>`
+            `soroban_sdk::Val` implements `TryFromVal<E, &(T0, T1, T2, T3, T4, T5, T6, T7)>`
+          and 181 others
+  = note: required for `u8` to implement `TryIntoVal<Env, soroban_sdk::Val>`
+  = note: the full name for the type has been written to '/home/blurbeast/works/waves/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-765ab6dcca70286b.long-type-643702585340474876.txt'
+  = note: consider using `--verbose` to print the full type name to the console
+  = note: this error originates in the attribute macro `contracttype` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+Some errors have detailed explanations: E0277, E0282, E0425, E0432, E0599, E0658.
+warning: `dongle-contract` (lib test) generated 27 warnings (27 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 22 previous errors; 27 warnings emitted
