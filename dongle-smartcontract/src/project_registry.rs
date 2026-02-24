@@ -1,32 +1,10 @@
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
-use crate::types::Project;
-use soroban_sdk::{Address, Env, String};
+use crate::types::{Project, DataKey, VerificationStatus};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
-    pub fn register_project(
-        env: &Env,
-        owner: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) -> u64 {
-        // Generate unique project ID
-        // Save project in Map<u64, Project>
-        // Emit ProjectRegistered event
-        0
-    }
-
-    pub fn update_project(env: &Env, project_id: u64, caller: Address) {
-        // Validate ownership
-        // Update project metadata
-    }
-
     pub fn register_project(
         env: &Env,
         owner: Address,
@@ -76,7 +54,9 @@ impl ProjectRegistry {
         owner_projects.push_back(count);
         env.storage()
             .persistent()
-            .get(&StorageKey::Project(project_id))
+            .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
+
+        count
     }
 
     pub fn update_project(
@@ -119,7 +99,7 @@ impl ProjectRegistry {
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+            .set(&DataKey::Project(project_id), &project);
 
         Some(project)
     }
@@ -158,7 +138,7 @@ impl ProjectRegistry {
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&StorageKey::Project(project_id))
+            .has(&DataKey::Project(project_id))
     }
 
     pub fn validate_project_data(
