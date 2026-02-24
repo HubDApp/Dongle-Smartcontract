@@ -82,10 +82,10 @@
           "v0": {
             "topics": [
               {
-                "string": "Review"
+                "symbol": "REVIEW"
               },
               {
-                "string": "Updated"
+                "symbol": "UPDATED"
               },
               {
                 "u64": 1

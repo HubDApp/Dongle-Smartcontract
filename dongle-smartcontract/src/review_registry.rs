@@ -81,6 +81,16 @@ mod test {
 
         assert_eq!(topics.len(), 4);
 
+        let topic0: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+        let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);
+        let topic2: u64 = topics.get(2).unwrap().into_val(&env);
+        let topic3: Address = topics.get(3).unwrap().into_val(&env);
+
+        assert_eq!(topic0, soroban_sdk::symbol_short!("REVIEW"));
+        assert_eq!(topic1, soroban_sdk::symbol_short!("SUBMITTED"));
+        assert_eq!(topic2, 1u64);
+        assert_eq!(topic3, reviewer);
+
         let event_data: ReviewEventData = data.into_val(&env);
         assert_eq!(event_data.project_id, 1);
         assert_eq!(event_data.reviewer, reviewer);
@@ -101,7 +111,11 @@ mod test {
         let events = env.events().all();
         assert_eq!(events.len(), 1);
 
-        let event_data: ReviewEventData = events.last().unwrap().2.into_val(&env);
+        let (_, topics, data) = events.last().unwrap();
+        let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);
+        assert_eq!(topic1, soroban_sdk::symbol_short!("UPDATED"));
+
+        let event_data: ReviewEventData = data.into_val(&env);
         assert_eq!(event_data.action, ReviewAction::Updated);
         assert_eq!(event_data.comment_cid, Some(comment_cid));
     }
@@ -118,7 +132,11 @@ mod test {
         let events = env.events().all();
         assert_eq!(events.len(), 1);
 
-        let event_data: ReviewEventData = events.last().unwrap().2.into_val(&env);
+        let (_, topics, data) = events.last().unwrap();
+        let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);
+        assert_eq!(topic1, soroban_sdk::symbol_short!("DELETED"));
+
+        let event_data: ReviewEventData = data.into_val(&env);
         assert_eq!(event_data.action, ReviewAction::Deleted);
         assert_eq!(event_data.comment_cid, None);
     }

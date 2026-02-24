@@ -1,7 +1,7 @@
 use crate::types::{ReviewAction, ReviewEventData};
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Address, Env, String, Symbol, symbol_short};
 
-pub const REVIEW: &str = "Review";
+pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
 pub fn publish_review_event(
     env: &Env,
@@ -18,12 +18,12 @@ pub fn publish_review_event(
         comment_cid,
     };
 
-    let action_str = match action {
-        ReviewAction::Submitted => "Submitted",
-        ReviewAction::Updated => "Updated",
-        ReviewAction::Deleted => "Deleted",
+    let action_sym = match action {
+        ReviewAction::Submitted => symbol_short!("SUBMITTED"),
+        ReviewAction::Updated => symbol_short!("UPDATED"),
+        ReviewAction::Deleted => symbol_short!("DELETED"),
     };
 
     env.events()
-        .publish((REVIEW, action_str, project_id, reviewer), event_data);
+        .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
