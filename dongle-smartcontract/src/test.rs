@@ -15,8 +15,8 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address) {
     let client = DongleContractClient::new(env, &contract_id);
     let admin = Address::generate(env);
     let owner = Address::generate(env);
-    // set_admin(caller, new_admin) — caller becomes admin here (unchecked first call)
-    client.set_admin(&admin, &admin);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury); // <-- use initialize for first-time admin setup
     (client, admin, owner)
 }
 
@@ -660,10 +660,11 @@ fn test_add_review_cid_too_long_reverts() {
     let (client, _, owner) = setup(&env);
     let id = register_one_project(&env, &client, &owner);
     let reviewer = Address::generate(&env);
-    // 129 characters — one over MAX_CID_LEN (128)
+    // 46 base + 83 X's = 129 characters, one over MAX_CID_LEN (128)
     let long_cid = String::from_str(
         &env,
-        "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6ucoXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco\
+         XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     );
     let result = client.try_add_review(&id, &reviewer, &3u32, &Some(long_cid));
     assert_eq!(result, Err(Ok(ContractError::StringLengthExceeded)));
