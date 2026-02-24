@@ -110,6 +110,14 @@ impl DongleContract {
         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
+    pub fn delete_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::delete_review(env, project_id, reviewer)
+    }
+
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Result<Review, ContractError> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
             .ok_or(ContractError::ReviewNotFound)

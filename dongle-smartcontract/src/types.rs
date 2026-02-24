@@ -7,6 +7,15 @@ pub struct Review {
     pub reviewer: Address,
     pub rating: u32,
     pub comment_cid: Option<String>,
+    pub is_deleted: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+pub struct ProjectStats {
+    pub rating_sum: u64,
+    pub review_count: u32,
+    pub average_rating: u32,
 }
 
 #[contracttype]
@@ -42,6 +51,7 @@ pub enum DataKey {
     Admin(Address),
     FeeConfig,
     Treasury,
+    ProjectStats(u64),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
