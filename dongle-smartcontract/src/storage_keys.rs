@@ -1,8 +1,6 @@
 //! Storage key types for persistent storage. Modular to allow future extensions.
-
 use soroban_sdk::contracttype;
 
-/// Keys for contract storage. Using an enum keeps keys namespaced and avoids collisions.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
@@ -22,4 +20,6 @@ pub enum StorageKey {
     FeePaidForProject(u64),
     /// Admin address (for fee set and verifier checks).
     Admin,
+    /// Treasury address.
+    Treasury,
 }
