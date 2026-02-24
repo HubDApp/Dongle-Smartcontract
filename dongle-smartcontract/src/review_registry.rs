@@ -21,66 +21,65 @@ pub struct ReviewRegistry;
 
 impl ReviewRegistry {
     pub fn add_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _rating: u32,
-        _comment_cid: Option<String>,
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32, // Matches types.rs u32
+        comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        todo!("Review submission logic not implemented")
+        reviewer.require_auth();
+
+        if rating < 1 || rating > 5 {
+            return Err(ContractError::InvalidRating);
+        }
+
+        let key = DataKey::ProjectReview(project_id, reviewer.clone());
+        if env.storage().persistent().has(&key) {
+            return Err(ContractError::AlreadyReviewed);
+        }
+
+        // Get current ledger timestamp for the new fields
+        let now = env.ledger().timestamp();
+
+        let review = Review {
+            project_id,
+            reviewer: reviewer.clone(),
+            rating,
+            comment_cid: comment_cid.clone(),
+            created_at: now,
+            updated_at: now,
+        };
+        env.storage().persistent().set(&key, &review);
+
+        env.events().publish(
+            (symbol_short!("Review"), project_id, reviewer),
+            (rating, comment_cid),
+        );
+
+        Ok(())
     }
 
     pub fn update_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _rating: u32,
-        _comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        todo!("Review update logic not implemented")
-    }
-
-    pub fn get_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-    ) -> Result<Review, ContractError> {
-        todo!("Review retrieval logic not implemented")
-    }
-
-    pub fn get_project_reviews(
-        _env: &Env,
-        _project_id: u64,
-        _start_reviewer: Option<Address>,
-        _limit: u32,
-    ) -> Result<Vec<Review>, ContractError> {
-        todo!("Project review listing logic not implemented")
-    }
-
-    pub fn get_review_stats(_env: &Env, _project_id: u64) -> Result<(u32, u32), ContractError> {
-        todo!("Review statistics calculation not implemented")
-    }
-
-    pub fn review_exists(_env: &Env, _project_id: u64, _reviewer: Address) -> bool {
-        false
-    }
-
-    pub fn validate_review_data(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
         rating: u32,
-        _comment_cid: &Option<String>,
+        comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        if !(1..=5).contains(&rating) {
+        reviewer.require_auth();
+
+        if rating < 1 || rating > 5 {
             return Err(ContractError::InvalidRating);
         }
         Ok(())
     }
 
-    pub fn delete_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _admin: Address,
-    ) -> Result<(), ContractError> {
-        todo!("Review deletion logic not implemented")
+    pub fn get_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Result<Review, ContractError> {
+        let key = DataKey::ProjectReview(project_id, reviewer);
+        env.storage().persistent().get(&key).ok_or(ContractError::ReviewNotFound)
     }
 }

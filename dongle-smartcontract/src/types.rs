@@ -23,6 +23,7 @@ pub struct Project {
     pub verification_status: VerificationStatus,
     pub created_at: u64,
     pub updated_at: u64,
+    pub is_verified: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -66,4 +67,13 @@ pub struct FeeConfig {
     pub token: Option<Address>,
     pub amount: u128,
     pub treasury: Address,
+}
+
+/// Fee configuration for contract operations
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeConfig {
+    pub token: Option<Address>,
+    pub verification_fee: u128,
+    pub registration_fee: u128,
 }

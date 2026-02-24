@@ -1,4 +1,17 @@
 #![no_std]
+<<<<<<< feat/submit-review-13
+
+//! # Dongle Smart Contract
+//! 
+//! A decentralized project registry and discovery platform built on Stellar/Soroban.
+//! This contract enables transparent project registration, community reviews, and 
+//! verification processes for the Stellar ecosystem.
+
+mod types;
+mod errors;
+mod project_registry;
+mod review_registry;
+=======
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(clippy::too_many_arguments)]
@@ -11,29 +24,72 @@ mod project_registry;
 mod review_registry;
 mod types;
 mod utils;
+>>>>>>> main
 mod verification_registry;
+mod fee_manager;
+mod utils;
 
+<<<<<<< feat/submit-review-13
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+
+use types::{Project, Review, VerificationRecord, FeeConfig};
+use crate::errors::ContractError;
+use crate::review_registry::ReviewRegistry;
+=======
 use crate::project_registry::ProjectRegistry;
 use crate::types::Project;
+>>>>>>> main
 
+/// The main Dongle smart contract
 #[contract]
 pub struct DongleContract;
 
+/// Contract implementation with all core functionality
 #[contractimpl]
 impl DongleContract {
+<<<<<<< feat/submit-review-13
+    // ==========================================
+    // INITIALIZATION & ADMIN FUNCTIONS
+    // ==========================================
+
+=======
+>>>>>>> main
     pub fn initialize(_env: Env, _admin: Address, _treasury: Address) -> Result<(), ContractError> {
         todo!("Contract initialization not yet implemented")
     }
 
+<<<<<<< feat/submit-review-13
+    pub fn set_admin(_env: Env, _caller: Address, _new_admin: Address) -> Result<(), ContractError> {
+=======
     pub fn set_admin(
         _env: Env,
         _caller: Address,
         _new_admin: Address,
     ) -> Result<(), ContractError> {
+>>>>>>> main
         todo!("Admin management not yet implemented")
     }
 
+    // ==========================================
+    // PROJECT REGISTRY FUNCTIONS
+    // ==========================================
+
     pub fn register_project(
+<<<<<<< feat/submit-review-13
+        _env: Env,
+        _owner: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        todo!("Project registration not yet implemented")
+    }
+
+    pub fn update_project(
+=======
         env: Env,
         owner: Address,
         name: String,
@@ -85,14 +141,57 @@ impl DongleContract {
     }
 
     pub fn list_projects(
+>>>>>>> main
         _env: Env,
-        _start_id: u64,
-        _limit: u32,
-    ) -> Result<Vec<Project>, ContractError> {
+        _project_id: u64,
+        _caller: Address,
+        _name: String,
+        _description: String,
+        _category: String,
+        _website: Option<String>,
+        _logo_cid: Option<String>,
+        _metadata_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        todo!("Project updates not yet implemented")
+    }
+
+    pub fn get_project(_env: Env, _project_id: u64) -> Result<Project, ContractError> {
+        todo!("Project retrieval not yet implemented")
+    }
+
+    pub fn list_projects(_env: Env, _start_id: u64, _limit: u32) -> Result<Vec<Project>, ContractError> {
         todo!("Project listing not yet implemented")
     }
 
+    // ==========================================
+    // REVIEW SYSTEM FUNCTIONS (Your Logic Integrated)
+    // ==========================================
+
     pub fn add_review(
+<<<<<<< feat/submit-review-13
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u8,
+        comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+    }
+
+    pub fn update_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u8,
+        comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+    }
+
+    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Result<Review, ContractError> {
+        ReviewRegistry::get_review(&env, project_id, reviewer)
+            .ok_or(ContractError::ReviewNotFound)
+=======
         _env: Env,
         _project_id: u64,
         _reviewer: Address,
@@ -118,6 +217,7 @@ impl DongleContract {
         _reviewer: Address,
     ) -> Result<Review, ContractError> {
         todo!("Review retrieval not yet implemented")
+>>>>>>> main
     }
 
     pub fn get_project_reviews(
@@ -128,6 +228,10 @@ impl DongleContract {
     ) -> Result<Vec<Review>, ContractError> {
         todo!("Project review listing not yet implemented")
     }
+
+    // ==========================================
+    // VERIFICATION SYSTEM FUNCTIONS
+    // ==========================================
 
     pub fn request_verification(
         _env: Env,
@@ -153,6 +257,25 @@ mod tests {
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{vec, Vec as SorobanVec};
 
+<<<<<<< feat/submit-review-13
+    pub fn get_verification(_env: Env, _project_id: u64) -> Result<VerificationRecord, ContractError> {
+        todo!("Verification record retrieval not yet implemented")
+    }
+
+    // ==========================================
+    // FEE MANAGEMENT FUNCTIONS
+    // ==========================================
+
+    pub fn set_fee_config(
+        _env: Env,
+        _admin: Address,
+        _token: Option<Address>,
+        _verification_fee: u128,
+        _registration_fee: u128,
+    ) -> Result<(), ContractError> {
+        todo!("Fee configuration not yet implemented")
+    }
+=======
     fn setup_env() -> Env {
         Env::default()
     }
@@ -163,6 +286,7 @@ mod tests {
         let contract_id = env.register_contract(None, DongleContract);
         let client = DongleContractClient::new(&env, &contract_id);
         env.mock_all_auths();
+>>>>>>> main
 
         let owner = Address::generate(&env);
         let name = String::from_str(&env, "Alpha");
@@ -171,6 +295,10 @@ mod tests {
         let logo = Some(String::from_str(&env, "bafylogo"));
         let metadata = Some(String::from_str(&env, "bafymeta"));
 
+<<<<<<< feat/submit-review-13
+    pub fn set_treasury(_env: Env, _admin: Address, _treasury: Address) -> Result<(), ContractError> {
+        todo!("Treasury management not yet implemented")
+=======
         let project_id = client.register_project(
             &owner,
             &name,
@@ -190,6 +318,7 @@ mod tests {
         assert_eq!(project.logo_cid, logo);
         assert_eq!(project.metadata_cid, metadata);
         assert_eq!(project.created_at, project.updated_at);
+>>>>>>> main
     }
 
     #[test]
@@ -238,6 +367,9 @@ mod tests {
         assert_eq!(projects.len(), 2);
         assert_eq!(ids, vec![&env, id1, id2]);
     }
+<<<<<<< feat/submit-review-13
+}
+=======
 
     #[test]
     fn get_project_returns_none_for_invalid_id() {
@@ -260,3 +392,4 @@ mod tests {
         assert_eq!(projects.len(), 0);
     }
 }
+>>>>>>> main
