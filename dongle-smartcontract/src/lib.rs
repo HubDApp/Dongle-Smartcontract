@@ -6,6 +6,7 @@ pub mod errors;
 pub mod events;
 pub mod fee_manager;
 pub mod project_registry;
+pub mod rating_calculator;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod types;

@@ -1,6 +1,6 @@
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String as SorobanString};
+use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
 
@@ -51,7 +51,7 @@ impl Utils {
 
     /// Validates a Soroban string is within length bounds.
     pub fn validate_string_length(
-        value: &SorobanString,
+        value: &String,
         min_length: u32,
         max_length: u32,
     ) -> Result<(), ContractError> {
@@ -66,13 +66,13 @@ impl Utils {
     }
 
     /// Checks if a string looks like a valid IPFS CID by length.
-    pub fn is_valid_ipfs_cid(cid: &SorobanString) -> bool {
+    pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
         len >= 46 && len <= 100
     }
 
     /// Placeholder URL validator (always true for now).
-    pub fn is_valid_url(_url: &SorobanString) -> bool {
+    pub fn is_valid_url(_url: &String) -> bool {
         true
     }
 
@@ -82,13 +82,17 @@ impl Utils {
     }
 
     /// Returns a clone of the input string (no-op sanitizer for now).
-    pub fn sanitize_string(input: &SorobanString) -> SorobanString {
+    pub fn sanitize_string(input: &String) -> String {
         input.clone()
     }
 
     /// Placeholder category validator (always true for now).
-    pub fn is_valid_category(_category: &SorobanString) -> bool {
+    pub fn is_valid_category(_category: &String) -> bool {
         true
+    }
+
+    pub fn create_event_data(_event_type: &str, _data: &str) -> String {
+        todo!("Event data creation needs Env parameter for Soroban String construction")
     }
 
     /// Validates pagination parameters.

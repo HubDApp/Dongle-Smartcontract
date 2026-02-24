@@ -6,7 +6,7 @@ use crate::events::VerificationRejected;
 use crate::events::VerificationRequested;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
-use soroban_sdk::{Address, Env, String as SorobanString};
+use soroban_sdk::{Address, Env, String};
 
 pub struct VerificationRegistry;
 
@@ -29,7 +29,7 @@ impl VerificationRegistry {
         env: &Env,
         project_id: u64,
         requester: Address,
-        evidence_cid: SorobanString,
+        evidence_cid: String,
     ) -> Result<(), ContractError> {
         requester.require_auth();
 
