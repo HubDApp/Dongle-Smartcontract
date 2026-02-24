@@ -1,0 +1,3 @@
+target/
+/dongle-smartcontract/target/
+.DS_Store
