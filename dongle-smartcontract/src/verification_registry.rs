@@ -1,13 +1,13 @@
 //! Verification requests with ownership and fee checks, and events.
 
 use crate::constants::MAX_CID_LEN;
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::events::VerificationApproved;
 use crate::events::VerificationRejected;
 use crate::events::VerificationRequested;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
-use soroban_sdk::{Address, Env, String as SorobanString};
+use soroban_sdk::{Address, Env, String as SorobanString, Vec};
 
 pub struct VerificationRegistry;
 
@@ -91,18 +91,6 @@ impl VerificationRegistry {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
         }
-
-        let ledger_timestamp = env.ledger().timestamp();
-        record.status = VerificationStatus::Rejected;
-        record.decided_at = Some(ledger_timestamp);
-        env.storage().persistent().set(&key, &record);
-
-        VerificationRejected {
-            project_id,
-            verifier,
-        }
-        .publish(env);
-
         Ok(())
     }
 

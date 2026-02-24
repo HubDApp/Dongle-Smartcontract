@@ -25,11 +25,15 @@ pub struct DongleContract;
 
 #[contractimpl]
 impl DongleContract {
-    pub fn initialize(_env: Env, _admin: Address, _treasury: Address) -> Result<(), Error> {
+    pub fn initialize(_env: Env, _admin: Address, _treasury: Address) -> Result<(), ContractError> {
         todo!("Contract initialization not yet implemented")
     }
 
-    pub fn set_admin(_env: Env, _caller: Address, _new_admin: Address) -> Result<(), Error> {
+    pub fn set_admin(
+        _env: Env,
+        _caller: Address,
+        _new_admin: Address,
+    ) -> Result<(), ContractError> {
         todo!("Admin management not yet implemented")
     }
 
@@ -42,7 +46,7 @@ impl DongleContract {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, ContractError> {
         project_registry::ProjectRegistry::register_project(
             &env,
             owner,
@@ -99,7 +103,7 @@ impl DongleContract {
         _reviewer: Address,
         _rating: u32,
         _comment_cid: Option<String>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
         todo!("Review submission not yet implemented")
     }
 
@@ -109,11 +113,15 @@ impl DongleContract {
         _reviewer: Address,
         _rating: u32,
         _comment_cid: Option<String>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
         todo!("Review updates not yet implemented")
     }
 
-    pub fn get_review(_env: Env, _project_id: u64, _reviewer: Address) -> Result<Review, Error> {
+    pub fn get_review(
+        _env: Env,
+        _project_id: u64,
+        _reviewer: Address,
+    ) -> Result<Review, ContractError> {
         todo!("Review retrieval not yet implemented")
     }
 
@@ -122,7 +130,7 @@ impl DongleContract {
         _project_id: u64,
         _start_reviewer: Option<Address>,
         _limit: u32,
-    ) -> Result<Vec<Review>, Error> {
+    ) -> Result<Vec<Review>, ContractError> {
         todo!("Project review listing not yet implemented")
     }
 
