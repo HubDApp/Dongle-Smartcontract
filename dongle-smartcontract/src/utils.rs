@@ -1,4 +1,4 @@
-use crate::errors::Error;
+use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
@@ -34,14 +34,14 @@ impl Utils {
         min_length: u32,
         max_length: u32,
         field_name: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ContractError> {
         let length = value.len();
 
         if length < min_length || length > max_length {
             match field_name {
-                "name" => Err(Error::InvalidProjectName),
-                "description" => Err(Error::InvalidProjectDescription),
-                _ => Err(Error::StringLengthExceeded),
+                "name" => Err(ContractError::InvalidProjectData),
+                "description" => Err(ContractError::InvalidProjectData),
+                _ => Err(ContractError::InvalidProjectData),
             }
         } else {
             Ok(())
@@ -57,7 +57,7 @@ impl Utils {
         true
     }
 
-    pub fn get_storage_key(data_key: StorageKey) -> StorageKey {
+    pub fn get_storage_key(data_key: DataKey) -> DataKey {
         data_key
     }
 
@@ -77,7 +77,7 @@ impl Utils {
         const MAX_LIMIT: u32 = 100;
 
         if limit == 0 || limit > MAX_LIMIT {
-            return Err(Error::StringLengthExceeded);
+            return Err(ContractError::InvalidProjectData);
         }
 
         Ok(())

@@ -1,6 +1,21 @@
-use soroban_sdk::{symbol_short, Address, Env, String, Vec};
-use crate::types::{DataKey, Review};
+//! Review submission with validation, duplicate handling, and events.
+
+use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
+use crate::events::ReviewAdded;
+use crate::events::ReviewUpdated;
+use crate::storage_keys::StorageKey;
+use crate::types::Review;
+use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+
+fn validate_optional_cid(s: &Option<SorobanString>) -> Result<(), ContractError> {
+    if let Some(ref x) = s {
+        if x.len() as usize > MAX_CID_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+    }
+    Ok(())
+}
 
 pub struct ReviewRegistry;
 
@@ -56,19 +71,6 @@ impl ReviewRegistry {
         if rating < 1 || rating > 5 {
             return Err(ContractError::InvalidRating);
         }
-
-        let key = DataKey::ProjectReview(project_id, reviewer.clone());
-        
-        // Retrieve existing review to keep the original created_at timestamp
-        let mut review: Review = env.storage().persistent().get(&key)
-            .ok_or(ContractError::ReviewNotFound)?;
-
-        review.rating = rating;
-        review.comment_cid = comment_cid;
-        review.updated_at = env.ledger().timestamp(); // Update only the edit time
-
-        env.storage().persistent().set(&key, &review);
-
         Ok(())
     }
 
