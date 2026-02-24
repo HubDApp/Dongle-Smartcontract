@@ -123,6 +123,7 @@ impl ProjectRegistry {
             updated_at: ledger_timestamp,
         };
 
+    pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
@@ -185,16 +186,13 @@ impl ProjectRegistry {
         project.metadata_cid = metadata_cid;
         project.updated_at = ledger_timestamp;
 
+        // Update the timestamp to current ledger time
+        project.updated_at = env.ledger().timestamp();
+
+        // 6. PERSISTENCE: Save back to storage
         env.storage()
             .persistent()
-            .set(&StorageKey::Project(project_id), &project);
-
-        ProjectUpdated {
-            project_id,
-            owner: caller,
-            updated_at: ledger_timestamp,
-        }
-        .publish(env);
+            .set(&DataKey::Project(project_id), &project);
 
         Ok(())
     }

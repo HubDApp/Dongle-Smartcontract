@@ -155,14 +155,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    fn is_admin(env: &Env, addr: &Address) -> bool {
-        let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
-        admin.as_ref().map_or(false, |a| a == addr)
-    }
-
-    pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Verification(project_id))
+    pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
+        (0, 0, 0)
     }
 }

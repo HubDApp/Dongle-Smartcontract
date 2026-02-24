@@ -169,36 +169,36 @@ impl DongleContract {
 
     /// Requests verification for a project.
     pub fn request_verification(
-        env: Env,
-        project_id: u64,
-        requester: Address,
-        evidence_cid: String,
+        _env: Env,
+        _project_id: u64,
+        _requester: Address,
+        _evidence_cid: String,
     ) -> Result<(), ContractError> {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
     /// Approves a pending verification. Caller must be admin.
     pub fn approve_verification(
-        env: Env,
-        project_id: u64,
-        admin: Address,
+        _env: Env,
+        _project_id: u64,
+        _admin: Address,
     ) -> Result<(), ContractError> {
         VerificationRegistry::approve_verification(&env, project_id, admin)
     }
 
     /// Rejects a pending verification. Caller must be admin.
     pub fn reject_verification(
-        env: Env,
-        project_id: u64,
-        admin: Address,
+        _env: Env,
+        _project_id: u64,
+        _admin: Address,
     ) -> Result<(), ContractError> {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
     /// Returns the verification record for a project, or error if not found.
     pub fn get_verification(
-        env: Env,
-        project_id: u64,
+        _env: Env,
+        _project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         VerificationRegistry::get_verification(&env, project_id)
             .ok_or(ContractError::VerificationNotFound)
@@ -206,11 +206,11 @@ impl DongleContract {
 
     /// Sets the fee configuration. Caller must be admin.
     pub fn set_fee_config(
-        env: Env,
-        admin: Address,
-        token: Option<Address>,
-        verification_fee: u128,
-        registration_fee: u128,
+        _env: Env,
+        _admin: Address,
+        _token: Option<Address>,
+        _verification_fee: u128,
+        _registration_fee: u128,
     ) -> Result<(), ContractError> {
         FeeManager::set_fee_config(&env, &admin, token, verification_fee, registration_fee)
     }
