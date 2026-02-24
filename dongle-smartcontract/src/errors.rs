@@ -1,5 +1,9 @@
+//! Contract error codes and revert messages.
+//! All errors are descriptive and used for validation, authorization, and invalid input failures.
+
 use soroban_sdk::contracterror;
 
+/// Contract error codes. Values are stable for client bindings and indexing.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]

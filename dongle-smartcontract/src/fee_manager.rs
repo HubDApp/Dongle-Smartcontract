@@ -1,5 +1,11 @@
-use crate::errors::ContractError;
+//! Fee configuration and payment with validation and events.
+
+use crate::errors::Error;
+use crate::events::FeePaid;
+use crate::events::FeeSet;
+use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
+use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -57,15 +63,15 @@ impl FeeManager {
         false
     }
 
-    pub fn validate_fee_amounts(
-        verification_fee: u128,
-        registration_fee: u128,
-    ) -> Result<(), ContractError> {
-        let max_fee = 1000 * 10_000_000;
+        // Mark fee as paid for this project so verification can proceed.
+        VerificationRegistry::set_fee_paid(env, project_id);
 
-        if verification_fee > max_fee || registration_fee > max_fee {
-            return Err(ContractError::InvalidFeeAmount);
+        FeePaid {
+            payer: payer.clone(),
+            project_id,
+            amount: config.amount,
         }
+        .publish(env);
 
         Ok(())
     }
