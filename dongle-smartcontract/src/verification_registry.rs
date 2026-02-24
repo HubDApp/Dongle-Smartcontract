@@ -12,19 +12,7 @@ use soroban_sdk::{Address, Env, String as SorobanString, Vec};
 pub struct VerificationRegistry;
 
 impl VerificationRegistry {
-    /// Marks that the verification fee has been paid for a project (called by FeeManager).
-    pub fn set_fee_paid(env: &Env, project_id: u64) {
-        env.storage()
-            .persistent()
-            .set(&StorageKey::FeePaidForProject(project_id), &true);
-    }
-
-    fn fee_paid_for_project(env: &Env, project_id: u64) -> bool {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::FeePaidForProject(project_id))
-            .unwrap_or(false)
-    }
+    pub fn set_fee_paid(_env: &Env, _project_id: u64) {}
 
     pub fn request_verification(
         _env: &Env,
@@ -75,7 +63,7 @@ impl VerificationRegistry {
         _env: &Env,
         _project_id: u64,
     ) -> Result<VerificationStatus, ContractError> {
-        todo!("Verification status retrieval logic not implemented")
+        todo!("Verification status retrieval not implemented")
     }
 
     pub fn update_verification_evidence(

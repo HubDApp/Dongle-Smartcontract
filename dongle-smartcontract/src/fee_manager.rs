@@ -5,28 +5,26 @@ use crate::events::FeePaid;
 use crate::events::FeeSet;
 use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
-use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
 impl FeeManager {
-    pub fn set_fee_config(
+    pub fn set_fee(
         _env: &Env,
         _admin: Address,
         _token: Option<Address>,
-        _verification_fee: u128,
-        _registration_fee: u128,
+        _amount: u128,
         _treasury: Address,
     ) -> Result<(), ContractError> {
-        todo!("Fee configuration logic not implemented")
+        todo!("Fee setting logic not implemented")
     }
 
     pub fn pay_fee(
         _env: &Env,
         _payer: Address,
-        _operation_type: &str,
-        _project_id: Option<u64>,
+        _project_id: u64,
+        _token: Option<Address>,
     ) -> Result<(), ContractError> {
         todo!("Fee payment logic not implemented")
     }
