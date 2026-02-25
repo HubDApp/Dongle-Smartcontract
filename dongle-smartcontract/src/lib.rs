@@ -1,185 +1,191 @@
  #![no_std]
 
+mod constants;
 mod errors;
+mod events;
+mod fee_manager;
+mod project_registry;
+mod rating_calculator;
+mod review_registry;
+mod storage_keys;
+mod verification_registry;   // ← added (used below)
 mod types;
 
-use crate::errors::ContractError;
-use crate::types::{ProjectAggregate, Review};
-use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Vec};
+#[cfg(test)]
+mod test;
 
-// ── Storage keys ──────────────────────────────────────────────────────────────
+use crate::fee_manager::FeeManager;
+use crate::project_registry::ProjectRegistry;
+use crate::review_registry::ReviewRegistry;
+use crate::types::{FeeConfig, Project, Review, VerificationRecord};
+use crate::verification_registry::VerificationRegistry;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
-#[contracttype]
-pub enum DataKey {
-    Review(u64, Address),
-    Aggregate(u64),
-}
+#[contract]
+pub struct DongleContract;
 
-// ── Events ────────────────────────────────────────────────────────────────────
+#[contractimpl]
+impl DongleContract {
+    // ──────────────────────────────────────────────────────────────
+    // Project Registry
+    // ──────────────────────────────────────────────────────────────
 
-fn emit_review_added(env: &Env, project_id: u64, reviewer: &Address, rating: u32) {
-    env.events().publish(
-        (symbol_short!("rev_add"), project_id),
-        (reviewer.clone(), rating),
-    );
-}
-
-fn emit_review_updated(
-    env: &Env,
-    project_id: u64,
-    reviewer: &Address,
-    old_rating: u32,
-    new_rating: u32,
-) {
-    env.events().publish(
-        (symbol_short!("rev_upd"), project_id),
-        (reviewer.clone(), old_rating, new_rating),
-    );
-}
-
-// ── Registry ──────────────────────────────────────────────────────────────────
-
-pub struct ReviewRegistry;
-
-impl ReviewRegistry {
-    fn validate_rating(rating: u32) -> Result<(), ContractError> {
-        if rating < 1 || rating > 5 {
-            return Err(ContractError::InvalidRating);
-        }
-        Ok(())
+    pub fn register_project(
+        env: Env,
+        owner: Address,
+        name: String,
+        description: String,
+        category: String,
+        website: Option<String>,
+        logo_cid: Option<String>,
+        metadata_cid: Option<String>,
+    ) -> u64 {
+        ProjectRegistry::register_project(
+            &env,
+            owner,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
     }
 
-    fn get_aggregate(env: &Env, project_id: u64) -> ProjectAggregate {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Aggregate(project_id))
-            .unwrap_or_default()
+    pub fn update_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        name: Option<String>,
+        description: Option<String>,
+        category: Option<String>,
+        website: Option<Option<String>>,
+        logo_cid: Option<Option<String>>,
+        metadata_cid: Option<Option<String>>,
+    ) -> Option<Project> {
+        ProjectRegistry::update_project(
+            &env,
+            project_id,
+            caller,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
     }
 
-    fn save_aggregate(env: &Env, project_id: u64, agg: &ProjectAggregate) {
-        env.storage()
-            .persistent()
-            .set(&DataKey::Aggregate(project_id), agg);
+    pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
+        ProjectRegistry::get_project(&env, project_id)
     }
 
-    pub fn average_rating(env: &Env, project_id: u64) -> u64 {
-        let agg = Self::get_aggregate(env, project_id);
-        if agg.review_count == 0 {
-            0
-        } else {
-            agg.total_rating / agg.review_count
-        }
+    pub fn list_projects(env: Env, start_id: u64, limit: u32) -> Vec<Project> {
+        ProjectRegistry::list_projects(&env, start_id, limit)
     }
+
+    pub fn get_projects_by_owner(env: Env, owner: Address) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_owner(&env, owner)
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Review Registry
+    // ──────────────────────────────────────────────────────────────
 
     pub fn add_review(
-        env: &Env,
+        env: Env,
         project_id: u64,
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        reviewer.require_auth();
-        Self::validate_rating(rating)?;
-
-        let key = DataKey::Review(project_id, reviewer.clone());
-        if env.storage().persistent().has(&key) {
-            return Err(ContractError::AlreadyExists);
-        }
-
-        let now = env.ledger().timestamp();
-        let review = Review {
-            reviewer: reviewer.clone(),
-            project_id,
-            rating,
-            comment_cid,
-            created_at: now,
-            updated_at: now,
-        };
-        env.storage().persistent().set(&key, &review);
-
-        let mut agg = Self::get_aggregate(env, project_id);
-        agg.total_rating += rating as u64;
-        agg.review_count += 1;
-        Self::save_aggregate(env, project_id, &agg);
-
-        emit_review_added(env, project_id, &reviewer, rating);
-        Ok(())
+    ) {
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid);
     }
 
     pub fn update_review(
-        env: &Env,
+        env: Env,
         project_id: u64,
         reviewer: Address,
-        new_rating: u32,
+        rating: u32,
         comment_cid: Option<String>,
-    ) -> Result<(), ContractError> {
-        reviewer.require_auth();
-        Self::validate_rating(new_rating)?;
-
-        let key = DataKey::Review(project_id, reviewer.clone());
-        let mut review: Review = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(ContractError::NotFound)?;
-
-        let old_rating = review.rating;
-        let mut agg = Self::get_aggregate(env, project_id);
-        agg.total_rating = agg
-            .total_rating
-            .saturating_sub(old_rating as u64)
-            .saturating_add(new_rating as u64);
-        Self::save_aggregate(env, project_id, &agg);
-
-        review.rating = new_rating;
-        review.comment_cid = comment_cid;
-        review.updated_at = env.ledger().timestamp();
-        env.storage().persistent().set(&key, &review);
-
-        emit_review_updated(env, project_id, &reviewer, old_rating, new_rating);
-        Ok(())
+    ) {
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid);
     }
 
-    pub fn get_review(
-        env: &Env,
+    pub fn delete_review(env: Env, project_id: u64, reviewer: Address) {
+        let _ = ReviewRegistry::delete_review(&env, project_id, reviewer);
+    }
+
+    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
+        ReviewRegistry::get_review(&env, project_id, reviewer)
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Verification Registry
+    // ──────────────────────────────────────────────────────────────
+
+    pub fn request_verification(
+        env: Env,
         project_id: u64,
-        reviewer: Address,
-    ) -> Result<Review, ContractError> {
+        requester: Address,
+        evidence_cid: String,
+    ) {
+        VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid);
+    }
+
+    pub fn approve_verification(env: Env, project_id: u64, admin: Address) {
+        let _ = VerificationRegistry::approve_verification(&env, project_id, admin);
+    }
+
+    pub fn reject_verification(env: Env, project_id: u64, admin: Address) {
+        let _ = VerificationRegistry::reject_verification(&env, project_id, admin);
+    }
+
+    pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
+        VerificationRegistry::get_verification(&env, project_id).ok()
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Fee Manager
+    // ──────────────────────────────────────────────────────────────
+
+    pub fn set_fee(
+        env: Env,
+        admin: Address,
+        token: Option<Address>,
+        amount: u128,
+        treasury: Address,
+    ) {
+        let _ = FeeManager::set_fee(&env, admin, token, amount, treasury);
+    }
+
+    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) {
+        let _ = FeeManager::pay_fee(&env, payer, project_id, token);
+    }
+
+    pub fn get_fee_config(env: Env) -> FeeConfig {
+        FeeManager::get_fee_config(&env).unwrap_or(FeeConfig {
+            token: None,
+            verification_fee: 0,
+            registration_fee: 0,
+        })
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Admin / Utils
+    // ──────────────────────────────────────────────────────────────
+
+    pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
+        ProjectRegistry::get_projects_by_owner(&env, owner).len()
+    }
+
+    pub fn set_admin(env: Env, admin: Address) {
         env.storage()
             .persistent()
-            .get(&DataKey::Review(project_id, reviewer))
-            .ok_or(ContractError::NotFound)
+            .set(&crate::types::DataKey::Admin(admin), &());
     }
 
-    pub fn get_project_reviews(
-        _env: &Env,
-        _project_id: u64,
-        _start_reviewer: Option<Address>,
-        _limit: u32,
-    ) -> Result<Vec<Review>, ContractError> {
-        todo!("Project review listing logic not implemented")
-    }
-
-    pub fn get_review_stats(
-        env: &Env,
-        project_id: u64,
-    ) -> Result<(u32, u32), ContractError> {
-        let agg = Self::get_aggregate(env, project_id);
-        Ok((agg.review_count as u32, agg.total_rating as u32))
-    }
-
-    pub fn review_exists(env: &Env, project_id: u64, reviewer: Address) -> bool {
-        env.storage()
-            .persistent()
-            .has(&DataKey::Review(project_id, reviewer))
-    }
-
-    pub fn delete_review(
-        _env: &Env,
-        _project_id: u64,
-        _reviewer: Address,
-        _admin: Address,
-    ) -> Result<(), ContractError> {
-        todo!("Review deletion logic not implemented")
+    pub fn initialize(env: Env, admin: Address) {
+        Self::set_admin(env, admin);
     }
 }

@@ -1,5 +1,7 @@
-use crate::errors::ContractError;
-use crate::types::DataKey;
+//! Shared utility helpers.
+
+use crate::errors::Error;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
@@ -13,11 +15,7 @@ impl Utils {
         false
     }
 
-    pub fn add_admin(
-        _env: &Env,
-        _caller: &Address,
-        _new_admin: &Address,
-    ) -> Result<(), ContractError> {
+    pub fn add_admin(_env: &Env, _caller: &Address, _new_admin: &Address) -> Result<(), Error> {
         todo!("Admin addition logic not implemented")
     }
 
@@ -25,7 +23,7 @@ impl Utils {
         _env: &Env,
         _caller: &Address,
         _admin_to_remove: &Address,
-    ) -> Result<(), ContractError> {
+    ) -> Result<(), Error> {
         todo!("Admin removal logic not implemented")
     }
 
@@ -34,14 +32,14 @@ impl Utils {
         min_length: u32,
         max_length: u32,
         field_name: &str,
-    ) -> Result<(), ContractError> {
+    ) -> Result<(), Error> {
         let length = value.len();
 
         if length < min_length || length > max_length {
             match field_name {
-                "name" => Err(ContractError::InvalidProjectData),
-                "description" => Err(ContractError::InvalidProjectData),
-                _ => Err(ContractError::InvalidProjectData),
+                "name" => Err(Error::InvalidProjectName),
+                "description" => Err(Error::InvalidProjectDescription),
+                _ => Err(Error::StringLengthExceeded),
             }
         } else {
             Ok(())
@@ -57,7 +55,7 @@ impl Utils {
         true
     }
 
-    pub fn get_storage_key(data_key: DataKey) -> DataKey {
+    pub fn get_storage_key(data_key: StorageKey) -> StorageKey {
         data_key
     }
 
@@ -73,11 +71,11 @@ impl Utils {
         todo!("Event data creation needs Env parameter for Soroban String construction")
     }
 
-    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
+    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), Error> {
         const MAX_LIMIT: u32 = 100;
 
         if limit == 0 || limit > MAX_LIMIT {
-            return Err(ContractError::InvalidProjectData);
+            return Err(Error::StringLengthExceeded);
         }
 
         Ok(())
