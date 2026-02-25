@@ -1,5 +1,5 @@
 use crate::types::{ReviewAction, ReviewEventData};
-use soroban_sdk::{Address, Env, String, Symbol, symbol_short};
+use soroban_sdk::{symbol_short, Address, Env, String, Symbol};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
@@ -60,5 +60,26 @@ pub fn publish_verification_rejected_event(env: &Env, project_id: u64) {
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REJ"), project_id),
         project_id,
+    );
+}
+
+pub fn publish_admin_added_event(env: &Env, added_by: Address, new_admin: Address) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("ADDED")),
+        (added_by, new_admin),
+    );
+}
+
+pub fn publish_admin_removed_event(env: &Env, removed_by: Address, removed_admin: Address) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
+        (removed_by, removed_admin),
+    );
+}
+
+pub fn publish_treasury_updated_event(env: &Env, admin: Address, new_treasury: Address) {
+    env.events().publish(
+        (symbol_short!("TREASURY"), symbol_short!("UPDATED")),
+        (admin, new_treasury),
     );
 }

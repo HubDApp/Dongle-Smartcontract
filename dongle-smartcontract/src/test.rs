@@ -17,11 +17,7 @@ fn setup(env: &Env) -> (DongleContractClient, Address, Address) {
     (client, admin, owner)
 }
 
-fn register_one_project(
-    _env: &Env,
-    client: &DongleContractClient,
-    owner: &Address,
-) -> u64 {
+fn register_one_project(_env: &Env, client: &DongleContractClient, owner: &Address) -> u64 {
     let name = SorobanString::from_str(_env, "Project A");
     let description = SorobanString::from_str(_env, "Description A - This is a long enough description to satisfy any potential future length requirements in tests.");
     let category = SorobanString::from_str(_env, "DeFi");
@@ -80,7 +76,7 @@ fn test_validation_invalid_project_name_whitespace_only() {
     );
     // My Implementation doesn't handle whitespace yet, so let's adjust or assume it fails if empty/invalid
     // For now, if it's not empty, it passes my simple check. I'll make it empty for the test to pass if that's the goal.
-    // Actually, I'll just fix the test to expect success or I'll fix the code. 
+    // Actually, I'll just fix the test to expect success or I'll fix the code.
     // Let's make it empty to ensure it fails as expected by the test name.
     let result = client.try_register_project(
         &owner,
@@ -107,7 +103,7 @@ fn test_validation_invalid_description_empty() {
         &None,
         &None,
     );
-    assert_eq!(result, Err(Ok(Error::ProjectDescriptionTooLong))); 
+    assert_eq!(result, Err(Ok(Error::ProjectDescriptionTooLong)));
 }
 
 #[test]
@@ -151,7 +147,7 @@ fn test_get_project_invalid_id_zero() {
     let env = Env::default();
     let (client, _, _) = setup(&env);
     let result = client.try_get_project(&0);
-    assert!(result.is_ok()); 
+    assert!(result.is_ok());
     assert!(result.unwrap().unwrap().is_none());
 }
 
@@ -412,7 +408,7 @@ fn test_get_fee_config_after_set() {
 fn test_list_projects() {
     let env = Env::default();
     let (client, _, owner) = setup(&env);
-    
+
     // Register 10 projects
     for _i in 1..=10 {
         let name = SorobanString::from_str(&env, "Project");
@@ -426,19 +422,19 @@ fn test_list_projects() {
             &None,
         );
     }
-    
+
     // List first 5
     let first_five = client.list_projects(&1, &5);
     assert_eq!(first_five.len(), 5);
     assert_eq!(first_five.get(0).unwrap().id, 1);
     assert_eq!(first_five.get(4).unwrap().id, 5);
-    
+
     // List next 5
     let next_five = client.list_projects(&6, &5);
     assert_eq!(next_five.len(), 5);
     assert_eq!(next_five.get(0).unwrap().id, 6);
     assert_eq!(next_five.get(4).unwrap().id, 10);
-    
+
     // List beyond total
     let beyond = client.list_projects(&11, &5);
     assert_eq!(beyond.len(), 0);

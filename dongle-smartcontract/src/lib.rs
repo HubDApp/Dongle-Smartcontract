@@ -1,27 +1,34 @@
 #![no_std]
 
-mod project_registry;
-mod review_registry;
-mod verification_registry;
-mod fee_manager;
-mod types;
-mod errors;
+mod admin_registry;
 mod constants;
+mod errors;
 mod events;
-mod utils;
-mod storage_keys;
+mod fee_manager;
+mod project_registry;
 mod rating_calculator;
+mod review_registry;
+mod storage_keys;
+mod types;
+mod utils;
+mod verification_registry;
 
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Env, Address, String, Vec};
+#[cfg(test)]
+mod admin_tests;
+
+#[cfg(test)]
+mod integration_tests;
+
+use crate::admin_registry::AdminRegistry;
+use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::types::{FeeConfig, Project, Review, VerificationRecord, VerificationStatus};
 use crate::verification_registry::VerificationRegistry;
-use crate::fee_manager::FeeManager;
-use crate::types::{Project, Review, VerificationRecord, FeeConfig, VerificationStatus};
-use crate::errors::ContractError;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
 pub struct DongleContract;
@@ -126,7 +133,8 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) {
-        VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
+        let _ =
+            VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid);
     }
 
     pub fn approve_verification(env: Env, project_id: u64, admin: Address) {
@@ -141,6 +149,20 @@ impl DongleContract {
         VerificationRegistry::get_verification(&env, project_id).ok()
     }
 
+    pub fn list_pending_verifications(
+        env: Env,
+        admin: Address,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::list_pending_verifications(&env, admin, start_project_id, limit)
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn get_verification_status(env: Env, project_id: u64) -> Option<VerificationStatus> {
+        VerificationRegistry::get_verification_status(&env, project_id).ok()
+    }
+
     // --- Fee Manager ---
 
     pub fn set_fee(
@@ -153,12 +175,7 @@ impl DongleContract {
         let _ = FeeManager::set_fee(&env, admin, token, amount, treasury);
     }
 
-    pub fn pay_fee(
-        env: Env,
-        payer: Address,
-        project_id: u64,
-        token: Option<Address>,
-    ) {
+    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) {
         let _ = FeeManager::pay_fee(&env, payer, project_id, token);
     }
 
@@ -174,11 +191,33 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_owner(&env, owner).len()
     }
 
-    pub fn set_admin(env: Env, admin: Address) {
-        env.storage().persistent().set(&crate::types::DataKey::Admin(admin), &());
-    }
+    // --- Admin Management ---
 
     pub fn initialize(env: Env, admin: Address) {
-        Self::set_admin(env, admin);
+        AdminRegistry::initialize(&env, admin);
+    }
+
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
+        let _ = AdminRegistry::add_admin(&env, caller, new_admin);
+    }
+
+    pub fn remove_admin(env: Env, caller: Address, admin_to_remove: Address) {
+        let _ = AdminRegistry::remove_admin(&env, caller, admin_to_remove);
+    }
+
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        AdminRegistry::is_admin(&env, &address)
+    }
+
+    pub fn list_admins(env: Env) -> Vec<Address> {
+        AdminRegistry::list_admins(&env)
+    }
+
+    pub fn set_treasury(env: Env, admin: Address, treasury: Address) {
+        let _ = FeeManager::set_treasury(&env, admin, treasury);
+    }
+
+    pub fn get_treasury(env: Env) -> Option<Address> {
+        FeeManager::get_treasury(&env).ok()
     }
 }

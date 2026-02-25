@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, String, contracttype};
+use soroban_sdk::{contracttype, Address, String};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,6 +63,9 @@ pub enum DataKey {
     Verification(u64),
     NextProjectId,
     Admin(Address),
+    AdminInitialized,
+    AdminCount,
+    AdminList,
     FeeConfig,
     Treasury,
     ProjectStats(u64),

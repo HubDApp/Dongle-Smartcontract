@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::types::{Project, DataKey, VerificationStatus};
+use crate::types::{DataKey, Project, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -138,11 +138,7 @@ impl ProjectRegistry {
         projects
     }
 
-    pub fn list_projects(
-        env: &Env,
-        start_id: u64,
-        limit: u32,
-    ) -> Vec<Project> {
+    pub fn list_projects(env: &Env, start_id: u64, limit: u32) -> Vec<Project> {
         let count: u64 = env
             .storage()
             .persistent()
