@@ -7,7 +7,7 @@ mod tests {
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{Address, Env};
 
-    fn setup(env: &Env) -> (DongleContractClient, Address) {
+    fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
         let contract_id = env.register_contract(None, DongleContract);
         let client = DongleContractClient::new(env, &contract_id);
         let admin = Address::generate(env);

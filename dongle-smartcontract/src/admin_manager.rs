@@ -135,7 +135,6 @@ impl AdminManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::DongleContract;
     use crate::DongleContractClient;
     use soroban_sdk::{testutils::Address as _, Address, Env};

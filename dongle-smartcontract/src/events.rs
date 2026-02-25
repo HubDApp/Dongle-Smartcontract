@@ -28,6 +28,7 @@ pub fn publish_review_event(
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
+#[allow(dead_code)]
 pub fn publish_fee_paid_event(env: &Env, project_id: u64, amount: u128) {
     env.events().publish(
         (symbol_short!("FEE"), symbol_short!("PAID"), project_id),
@@ -42,6 +43,7 @@ pub fn publish_fee_set_event(env: &Env, verification_fee: u128, registration_fee
     );
 }
 
+#[allow(dead_code)]
 pub fn publish_verification_requested_event(env: &Env, project_id: u64, requester: Address) {
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),

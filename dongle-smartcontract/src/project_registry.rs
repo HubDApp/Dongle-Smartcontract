@@ -5,6 +5,7 @@ use soroban_sdk::{Address, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: &Env,
         owner: Address,
@@ -18,13 +19,13 @@ impl ProjectRegistry {
         owner.require_auth();
 
         // Validation
-        if name.len() == 0 {
+        if name.is_empty() {
             panic!("InvalidProjectName");
         }
-        if description.len() == 0 {
+        if description.is_empty() {
             panic!("InvalidProjectDescription");
         }
-        if category.len() == 0 {
+        if category.is_empty() {
             panic!("InvalidProjectCategory");
         }
 
@@ -70,6 +71,7 @@ impl ProjectRegistry {
         count
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_project(
         env: &Env,
         project_id: u64,
@@ -177,13 +179,13 @@ impl ProjectRegistry {
         description: &String,
         category: &String,
     ) -> Result<(), ContractError> {
-        if name.len() == 0 {
+        if name.is_empty() {
             return Err(ContractError::InvalidProjectData);
         }
-        if description.len() == 0 {
+        if description.is_empty() {
             return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
         }
-        if category.len() == 0 {
+        if category.is_empty() {
             return Err(ContractError::InvalidProjectCategory);
         }
         Ok(())

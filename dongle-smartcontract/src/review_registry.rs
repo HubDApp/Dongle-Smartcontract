@@ -147,6 +147,7 @@ impl ReviewRegistry {
             .get(&DataKey::Review(project_id, reviewer))
     }
 
+    #[allow(dead_code)]
     pub fn get_reviews_by_user(
         env: &Env,
         user: Address,

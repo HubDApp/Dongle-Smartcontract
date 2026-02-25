@@ -2,8 +2,10 @@ use crate::errors::ContractError;
 use crate::types::DataKey;
 use soroban_sdk::{Address, Env, String};
 
+#[allow(dead_code)]
 pub struct Utils;
 
+#[allow(dead_code)]
 impl Utils {
     pub fn get_current_timestamp(_env: &Env) -> u64 {
         0

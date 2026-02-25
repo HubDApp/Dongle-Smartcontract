@@ -34,6 +34,7 @@ pub struct DongleContract;
 impl DongleContract {
     // --- Project Registry ---
 
+    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: Env,
         owner: Address,
@@ -56,6 +57,7 @@ impl DongleContract {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_project(
         env: Env,
         project_id: u64,
