@@ -5,6 +5,7 @@
 /// For example, a rating of 4.50 is stored as 450.
 pub struct RatingCalculator;
 
+#[allow(dead_code)]
 impl RatingCalculator {
     /// Calculate average rating from sum and count.
     /// Returns 0 if review_count is 0 (handles division by zero).
