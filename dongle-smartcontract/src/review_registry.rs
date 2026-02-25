@@ -3,8 +3,8 @@
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
-use crate::types::{ProjectStats, Review, ReviewAction};
 use crate::storage_keys::StorageKey;
+use crate::types::{ProjectStats, Review, ReviewAction};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
@@ -49,13 +49,18 @@ impl ReviewRegistry {
 
         // Update stats
         let stats_key = StorageKey::ProjectStats(project_id);
-        let stats: ProjectStats = env.storage().persistent().get(&stats_key).unwrap_or(ProjectStats {
-            rating_sum: 0,
-            review_count: 0,
-            average_rating: 0,
-        });
+        let stats: ProjectStats =
+            env.storage()
+                .persistent()
+                .get(&stats_key)
+                .unwrap_or(ProjectStats {
+                    rating_sum: 0,
+                    review_count: 0,
+                    average_rating: 0,
+                });
 
-        let (new_sum, new_count, new_avg) = RatingCalculator::add_rating(stats.rating_sum, stats.review_count, rating);
+        let (new_sum, new_count, new_avg) =
+            RatingCalculator::add_rating(stats.rating_sum, stats.review_count, rating);
         let new_stats = ProjectStats {
             rating_sum: new_sum,
             review_count: new_count,
@@ -65,9 +70,15 @@ impl ReviewRegistry {
 
         env.storage().persistent().set(&review_key, &review);
 
-        let mut project_reviews: Vec<Address> = env.storage().persistent().get(&StorageKey::ProjectReviews(project_id)).unwrap_or_else(|| Vec::new(env));
+        let mut project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
         project_reviews.push_back(reviewer.clone());
-        env.storage().persistent().set(&StorageKey::ProjectReviews(project_id), &project_reviews);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectReviews(project_id), &project_reviews);
 
         publish_review_event(
             env,
@@ -106,8 +117,17 @@ impl ReviewRegistry {
 
         // Update stats
         let stats_key = StorageKey::ProjectStats(project_id);
-        let mut stats: ProjectStats = env.storage().persistent().get(&stats_key).ok_or(ContractError::InvalidProjectData)?;
-        let (new_sum, _new_count, new_avg) = RatingCalculator::update_rating(stats.rating_sum, stats.review_count, old_rating, rating);
+        let mut stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&stats_key)
+            .ok_or(ContractError::InvalidProjectData)?;
+        let (new_sum, _new_count, new_avg) = RatingCalculator::update_rating(
+            stats.rating_sum,
+            stats.review_count,
+            old_rating,
+            rating,
+        );
         stats.rating_sum = new_sum;
         stats.average_rating = new_avg;
         env.storage().persistent().set(&stats_key, &stats);
@@ -179,12 +199,17 @@ impl ReviewRegistry {
                 }
             }
         }
-        env.storage()
-            .persistent()
-            .set(&StorageKey::UserReviews(reviewer.clone()), &new_user_reviews);
+        env.storage().persistent().set(
+            &StorageKey::UserReviews(reviewer.clone()),
+            &new_user_reviews,
+        );
 
         // Remove from project reviews
-        let project_reviews: Vec<Address> = env.storage().persistent().get(&StorageKey::ProjectReviews(project_id)).unwrap_or_else(|| Vec::new(env));
+        let project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
         let mut new_project_reviews = Vec::new(env);
         for i in 0..project_reviews.len() {
             if let Some(addr) = project_reviews.get(i) {
@@ -193,7 +218,10 @@ impl ReviewRegistry {
                 }
             }
         }
-        env.storage().persistent().set(&StorageKey::ProjectReviews(project_id), &new_project_reviews);
+        env.storage().persistent().set(
+            &StorageKey::ProjectReviews(project_id),
+            &new_project_reviews,
+        );
 
         publish_review_event(env, project_id, reviewer, ReviewAction::Deleted, None);
 
@@ -206,12 +234,7 @@ impl ReviewRegistry {
             .get(&StorageKey::Review(project_id, reviewer))
     }
 
-    pub fn list_reviews(
-        env: &Env,
-        project_id: u64,
-        start_id: u32,
-        limit: u32,
-    ) -> Vec<Review> {
+    pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         let reviewers: Vec<Address> = env
             .storage()
             .persistent()
@@ -232,12 +255,7 @@ impl ReviewRegistry {
         reviews
     }
 
-    pub fn get_reviews_by_user(
-        env: &Env,
-        user: Address,
-        offset: u32,
-        limit: u32,
-    ) -> Vec<Review> {
+    pub fn get_reviews_by_user(env: &Env, user: Address, offset: u32, limit: u32) -> Vec<Review> {
         let project_ids: Vec<u64> = env
             .storage()
             .persistent()

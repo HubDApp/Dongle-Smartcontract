@@ -15,8 +15,7 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::types::{
-    FeeConfig, Project, Review, VerificationRecord,
-    ProjectRegistrationParams, ProjectUpdateParams
+    FeeConfig, Project, ProjectRegistrationParams, ProjectUpdateParams, Review, VerificationRecord,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -28,7 +27,9 @@ pub struct DongleContract;
 impl DongleContract {
     pub fn initialize(env: Env, admin: Address) {
         admin.require_auth();
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::Admin, &admin);
+        env.storage()
+            .persistent()
+            .set(&crate::storage_keys::StorageKey::Admin, &admin);
     }
 
     pub fn register_project(
@@ -38,10 +39,7 @@ impl DongleContract {
         ProjectRegistry::register_project(&env, params)
     }
 
-    pub fn update_project(
-        env: Env,
-        params: ProjectUpdateParams,
-    ) -> Option<Project> {
+    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Option<Project> {
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -81,7 +79,11 @@ impl DongleContract {
         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
-    pub fn delete_review(env: Env, project_id: u64, reviewer: Address) -> Result<(), ContractError> {
+    pub fn delete_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Result<(), ContractError> {
         ReviewRegistry::delete_review(&env, project_id, reviewer)
     }
 
@@ -102,11 +104,19 @@ impl DongleContract {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
-    pub fn approve_verification(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
+    pub fn approve_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
         VerificationRegistry::approve_verification(&env, project_id, admin)
     }
 
-    pub fn reject_verification(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
+    pub fn reject_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
@@ -124,7 +134,12 @@ impl DongleContract {
         FeeManager::set_fee(&env, admin, token, amount, treasury)
     }
 
-    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) -> Result<(), ContractError> {
+    pub fn pay_fee(
+        env: Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 

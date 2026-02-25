@@ -1,7 +1,7 @@
-use crate::DongleContract;
-use crate::DongleContractClient;
 use crate::errors::ContractError;
 use crate::types::ProjectRegistrationParams;
+use crate::DongleContract;
+use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
@@ -34,7 +34,7 @@ fn test_register_project_success() {
     let id = client.register_project(&params);
 
     assert_eq!(id, 1);
-    
+
     let project = client.get_project(&id).unwrap();
     assert_eq!(project.name, name);
     assert_eq!(project.owner, owner);

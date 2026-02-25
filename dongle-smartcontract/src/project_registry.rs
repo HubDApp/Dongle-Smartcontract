@@ -1,6 +1,6 @@
 use crate::errors::ContractError;
-use crate::types::{Project, VerificationStatus, ProjectRegistrationParams, ProjectUpdateParams};
 use crate::storage_keys::StorageKey;
+use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -24,7 +24,11 @@ impl ProjectRegistry {
         }
 
         // Check if project name already exists
-        if env.storage().persistent().has(&StorageKey::ProjectByName(params.name.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectByName(params.name.clone()))
+        {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
@@ -73,10 +77,7 @@ impl ProjectRegistry {
         Ok(count)
     }
 
-    pub fn update_project(
-        env: &Env,
-        params: ProjectUpdateParams,
-    ) -> Option<Project> {
+    pub fn update_project(env: &Env, params: ProjectUpdateParams) -> Option<Project> {
         let mut project = Self::get_project(env, params.project_id)?;
 
         params.caller.require_auth();
@@ -174,7 +175,7 @@ impl ProjectRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         if description.is_empty() {
-            return Err(ContractError::ProjectDescriptionTooLong); 
+            return Err(ContractError::ProjectDescriptionTooLong);
         }
         if category.is_empty() {
             return Err(ContractError::InvalidProjectCategory);

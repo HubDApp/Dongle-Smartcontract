@@ -1,9 +1,9 @@
 //! Fee configuration and payment with validation and events.
 
 use crate::errors::ContractError;
-use crate::events::{publish_fee_set_event, publish_fee_paid_event};
-use crate::types::FeeConfig;
+use crate::events::{publish_fee_paid_event, publish_fee_set_event};
 use crate::storage_keys::StorageKey;
+use crate::types::FeeConfig;
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -18,7 +18,10 @@ impl FeeManager {
         treasury: Address,
     ) -> Result<(), ContractError> {
         // Authorization check
-        let stored_admin: Address = env.storage().persistent().get(&StorageKey::Admin)
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Admin)
             .ok_or(ContractError::Unauthorized)?;
         if admin != stored_admin {
             return Err(ContractError::Unauthorized);
@@ -30,7 +33,9 @@ impl FeeManager {
             verification_fee: amount,
             registration_fee: 0,
         };
-        env.storage().persistent().set(&StorageKey::FeeConfig, &config);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::FeeConfig, &config);
         env.storage()
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
@@ -54,16 +59,16 @@ impl FeeManager {
                 let client = soroban_sdk::token::Client::new(env, &token_address);
                 client.transfer(&payer, &treasury, &(config.verification_fee as i128));
             } else {
-                 // Native XLM transfer not directly supported in this simple way via token client if it's not a token address
-                 // Assuming token address is provided for now as per implementation plan.
-                 return Err(ContractError::InvalidProjectData);
+                // Native XLM transfer not directly supported in this simple way via token client if it's not a token address
+                // Assuming token address is provided for now as per implementation plan.
+                return Err(ContractError::InvalidProjectData);
             }
         }
 
         env.storage()
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
-        
+
         publish_fee_paid_event(env, project_id, config.verification_fee);
         Ok(())
     }
@@ -75,12 +80,11 @@ impl FeeManager {
             .ok_or(ContractError::FeeConfigNotSet)
     }
 
-    pub fn set_treasury(
-        env: &Env,
-        admin: Address,
-        treasury: Address,
-    ) -> Result<(), ContractError> {
-        let stored_admin: Address = env.storage().persistent().get(&StorageKey::Admin)
+    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Admin)
             .ok_or(ContractError::Unauthorized)?;
         if admin != stored_admin {
             return Err(ContractError::Unauthorized);
