@@ -49,4 +49,7 @@ pub enum ContractError {
     InvalidAmount = 21,
     /// Fee not configured for this token
     FeeNotConfigured = 22,
+    AlreadyReviewed = 19, // I added your error here with a new unique ID
+    /// Review is already deleted
+    ReviewAlreadyDeleted = 20,
 }

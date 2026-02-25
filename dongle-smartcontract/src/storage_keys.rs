@@ -32,4 +32,6 @@ pub enum StorageKey {
     OwnerProjects(soroban_sdk::Address),
     /// List of reviewer addresses for a project (u64).
     ProjectReviewers(u64),
+    /// List of project IDs reviewed by a user.
+    UserReviews(soroban_sdk::Address),
 }
