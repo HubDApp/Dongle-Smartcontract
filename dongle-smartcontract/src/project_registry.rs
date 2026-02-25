@@ -1,7 +1,7 @@
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use crate::types::Project;
-use soroban_sdk::{Address, Env, String};
+use crate::types::{Project, VerificationStatus};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
@@ -15,34 +15,13 @@ impl ProjectRegistry {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
-        // Generate unique project ID
-        // Save project in Map<u64, Project>
-        // Emit ProjectRegistered event
-        0
-    }
-
-    pub fn update_project(env: &Env, project_id: u64, caller: Address) {
-        // Validate ownership
-        // Update project metadata
-    }
-
-    pub fn register_project(
-        env: &Env,
-        owner: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) -> u64 {
+    ) -> Result<u64, ContractError> {
         owner.require_auth();
 
         let mut count: u64 = env
             .storage()
             .persistent()
-            .get(&DataKey::ProjectCount)
+            .get(&StorageKey::NextProjectId)
             .unwrap_or(0);
         count = count.saturating_add(1);
 
@@ -63,20 +42,22 @@ impl ProjectRegistry {
 
         env.storage()
             .persistent()
-            .set(&DataKey::Project(count), &project);
+            .set(&StorageKey::Project(count), &project);
         env.storage()
             .persistent()
-            .set(&DataKey::ProjectCount, &count);
+            .set(&StorageKey::NextProjectId, &count);
 
         let mut owner_projects: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&DataKey::OwnerProjects(owner.clone()))
+            .get(&StorageKey::OwnerProjects(owner.clone()))
             .unwrap_or(Vec::new(env));
         owner_projects.push_back(count);
         env.storage()
             .persistent()
-            .get(&StorageKey::Project(project_id))
+            .set(&StorageKey::OwnerProjects(owner), &owner_projects);
+
+        Ok(count)
     }
 
     pub fn update_project(
@@ -89,12 +70,12 @@ impl ProjectRegistry {
         website: Option<Option<String>>,
         logo_cid: Option<Option<String>>,
         metadata_cid: Option<Option<String>>,
-    ) -> Option<Project> {
-        let mut project = Self::get_project(env, project_id)?;
+    ) -> Result<Project, ContractError> {
+        let mut project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {
-            return None;
+            return Err(ContractError::Unauthorized);
         }
 
         if let Some(value) = name {
@@ -121,20 +102,20 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        Some(project)
+        Ok(project)
     }
 
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
         env.storage()
             .persistent()
-            .get(&DataKey::Project(project_id))
+            .get(&StorageKey::Project(project_id))
     }
 
     pub fn get_projects_by_owner(env: &Env, owner: Address) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&DataKey::OwnerProjects(owner))
+            .get(&StorageKey::OwnerProjects(owner))
             .unwrap_or(Vec::new(env));
 
         let mut projects = Vec::new(env);
@@ -148,11 +129,29 @@ impl ProjectRegistry {
     }
 
     pub fn list_projects(
-        _env: &Env,
-        _start_id: u64,
-        _limit: u32,
+        env: &Env,
+        start_id: u64,
+        limit: u32,
     ) -> Result<Vec<Project>, ContractError> {
-        todo!("Project listing logic not implemented")
+        let mut projects = Vec::new(env);
+        let max_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::NextProjectId)
+            .unwrap_or(0);
+        
+        let mut current_id = start_id;
+        let mut count = 0;
+        
+        while current_id <= max_id && count < limit {
+            if let Some(project) = Self::get_project(env, current_id) {
+                projects.push_back(project);
+                count += 1;
+            }
+            current_id += 1;
+        }
+        
+        Ok(projects)
     }
 
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
@@ -161,11 +160,19 @@ impl ProjectRegistry {
             .has(&StorageKey::Project(project_id))
     }
 
-    pub fn validate_project_data(
-        _name: &String,
-        _description: &String,
-        _category: &String,
+    pub fn update_verification_status(
+        env: &Env,
+        project_id: u64,
+        status: VerificationStatus,
     ) -> Result<(), ContractError> {
-        todo!("Project data validation not implemented")
+        let mut project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        project.verification_status = status.clone();
+        project.updated_at = env.ledger().timestamp();
+        
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+            
+        Ok(())
     }
 }

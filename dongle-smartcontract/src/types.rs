@@ -7,6 +7,7 @@ pub struct Review {
     pub reviewer: Address,
     pub rating: u32,
     pub comment_cid: Option<String>,
+    pub timestamp: u64,
 }
 
 #[contracttype]
@@ -29,23 +30,8 @@ pub struct ReviewEventData {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Project {
-    pub id: u64,
-}
-
-#[contracttype]
-pub enum DataKey {
-    Project(u64),
-    Review(u64, Address),
-    Verification(u64),
-    NextProjectId,
-    Admin(Address),
-    FeeConfig,
-    Treasury,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
+    Unverified,
     Pending,
     Verified,
     Rejected,
@@ -53,8 +39,28 @@ pub enum VerificationStatus {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Project {
+    pub id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub website: Option<String>,
+    pub logo_cid: Option<String>,
+    pub metadata_cid: Option<String>,
+    pub verification_status: VerificationStatus,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
+    pub project_id: u64,
     pub status: VerificationStatus,
+    pub requester: Address,
+    pub evidence_cid: String,
+    pub timestamp: u64,
 }
 
 /// Fee configuration for contract operations

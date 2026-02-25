@@ -1,10 +1,9 @@
-//! Verification requests with ownership and fee checks, and events.
-
-use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
-use crate::events::VerificationApproved;
-use crate::events::VerificationRejected;
-use crate::events::VerificationRequested;
+use crate::events::{
+    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_requested_event,
+};
+use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
 use soroban_sdk::{Address, Env, String};
@@ -18,71 +17,82 @@ impl VerificationRegistry {
         requester: Address,
         evidence_cid: String,
     ) {
-        // Validate project ownership
-        // Require fee paid via FeeManager
-        // Store VerificationRecord with Pending
+        let record = VerificationRecord {
+            project_id,
+            status: VerificationStatus::Pending,
+            requester: requester.clone(),
+            evidence_cid,
+            timestamp: env.ledger().timestamp(),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        publish_verification_requested_event(env, project_id, requester);
     }
 
     pub fn approve_verification(
-        _env: &Env,
-        _project_id: u64,
+        env: &Env,
+        project_id: u64,
         _admin: Address,
     ) -> Result<(), ContractError> {
-        todo!("Verification approval logic not implemented")
-    }
-
-    pub fn reject_verification(
-        _env: &Env,
-        _project_id: u64,
-        _admin: Address,
-    ) -> Result<(), ContractError> {
-        todo!("Verification rejection logic not implemented")
-    }
-
-    pub fn get_verification(
-        _env: &Env,
-        _project_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
-        todo!("Verification record retrieval logic not implemented")
-    }
-
-    pub fn list_pending_verifications(
-        _env: &Env,
-        _admin: Address,
-        _start_project_id: u64,
-        _limit: u32,
-    ) -> Result<Vec<VerificationRecord>, ContractError> {
-        todo!("Pending verification listing logic not implemented")
-    }
-
-    pub fn verification_exists(_env: &Env, _project_id: u64) -> bool {
-        false
-    }
-
-    pub fn get_verification_status(
-        _env: &Env,
-        _project_id: u64,
-    ) -> Result<VerificationStatus, ContractError> {
-        todo!("Verification status retrieval not implemented")
-    }
-
-    pub fn update_verification_evidence(
-        _env: &Env,
-        _project_id: u64,
-        _requester: Address,
-        _new_evidence_cid: String,
-    ) -> Result<(), ContractError> {
-        todo!("Verification evidence update logic not implemented")
-    }
-
-    pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
-        if evidence_cid.is_empty() {
-            return Err(ContractError::InvalidProjectData);
+        let mut record = Self::get_verification(env, project_id)?;
+        
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationAlreadyProcessed);
         }
+
+        record.status = VerificationStatus::Verified;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        publish_verification_approved_event(env, project_id);
+        
+        // Also update project status to keep records in sync
+        ProjectRegistry::update_verification_status(env, project_id, VerificationStatus::Verified)?;
+        
         Ok(())
     }
 
-    pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
-        (0, 0, 0)
+    pub fn reject_verification(
+        env: &Env,
+        project_id: u64,
+        _admin: Address,
+    ) -> Result<(), ContractError> {
+        let mut record = Self::get_verification(env, project_id)?;
+        
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationAlreadyProcessed);
+        }
+
+        record.status = VerificationStatus::Rejected;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        publish_verification_rejected_event(env, project_id);
+        
+        // Also update project status to keep records in sync
+        ProjectRegistry::update_verification_status(env, project_id, VerificationStatus::Rejected)?;
+        
+        Ok(())
+    }
+
+    pub fn get_verification(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id))
+            .ok_or(ContractError::VerificationNotFound)
+    }
+
+    pub fn verification_exists(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .has(&StorageKey::Verification(project_id))
     }
 }
