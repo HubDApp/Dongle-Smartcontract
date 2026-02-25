@@ -1,16 +1,44 @@
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{Address, String, contracttype};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub enum VerificationStatus {
-    Unverified,
-    Pending,
-    Verified,
-    Rejected,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Review {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub rating: u32,
+    pub timestamp: u64,
+    pub comment_cid: Option<String>,
+    pub is_deleted: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+pub struct ProjectStats {
+    pub rating_sum: u64,
+    pub review_count: u32,
+    pub average_rating: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewAction {
+    Submitted,
+    Updated,
+    Deleted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewEventData {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub action: ReviewAction,
+    pub timestamp: u64,
+    pub comment_cid: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
     pub owner: Address,
@@ -23,50 +51,36 @@ pub struct Project {
     pub verification_status: VerificationStatus,
     pub created_at: u64,
     pub updated_at: u64,
-    pub is_verified: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[contracttype]
-pub struct Review {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub rating: u32,
-    pub comment_cid: Option<String>,
-    pub created_at: u64,
-    pub updated_at: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[contracttype]
-pub struct VerificationRecord {
-    pub project_id: u64,
-    pub requester: Address,
-    pub verifier: Option<Address>,
-    pub status: VerificationStatus,
-    pub evidence_cid: String,
-    pub created_at: u64,
-    pub updated_at: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub enum DataKey {
     Project(u64),
+    ProjectCount,
+    OwnerProjects(Address),
     Review(u64, Address),
+    UserReviews(Address),
     Verification(u64),
     NextProjectId,
     Admin(Address),
     FeeConfig,
     Treasury,
+    ProjectStats(u64),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub struct FeeConfig {
-    pub token: Option<Address>,
-    pub amount: u128,
-    pub treasury: Address,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationStatus {
+    Unverified,
+    Pending,
+    Verified,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRecord {
+    pub status: VerificationStatus,
 }
 
 /// Fee configuration for contract operations

@@ -1,175 +1,64 @@
-//! Contract events for all state-changing actions. Emitted via env.events().publish.
+use crate::types::{ReviewAction, ReviewEventData};
+use soroban_sdk::{Address, Env, String, Symbol, symbol_short};
 
-use soroban_sdk::{Address, Env, String, Symbol};
+pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectRegistered {
-    pub project_id: u64,
-    pub owner: Address,
-    pub name: String,
-    pub category: String,
+pub fn publish_review_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    action: ReviewAction,
+    comment_cid: Option<String>,
+) {
+    let event_data = ReviewEventData {
+        project_id,
+        reviewer: reviewer.clone(),
+        action: action.clone(),
+        timestamp: env.ledger().timestamp(),
+        comment_cid,
+    };
+
+    let action_sym = match action {
+        ReviewAction::Submitted => symbol_short!("SUBMITTED"),
+        ReviewAction::Updated => symbol_short!("UPDATED"),
+        ReviewAction::Deleted => symbol_short!("DELETED"),
+    };
+
+    env.events()
+        .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
-impl ProjectRegistered {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "ProjectRegistered"),
-                self.project_id,
-                self.owner,
-            ),
-            (self.name, self.category),
-        );
-    }
+pub fn publish_fee_paid_event(env: &Env, project_id: u64, amount: u128) {
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("PAID"), project_id),
+        amount,
+    );
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectUpdated {
-    pub project_id: u64,
-    pub owner: Address,
-    pub updated_at: u64,
+pub fn publish_fee_set_event(env: &Env, verification_fee: u128, registration_fee: u128) {
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("SET")),
+        (verification_fee, registration_fee),
+    );
 }
 
-impl ProjectUpdated {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "ProjectUpdated"),
-                self.project_id,
-                self.owner,
-            ),
-            (self.updated_at,),
-        );
-    }
+pub fn publish_verification_requested_event(env: &Env, project_id: u64, requester: Address) {
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
+        requester,
+    );
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewAdded {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub rating: u32,
+pub fn publish_verification_approved_event(env: &Env, project_id: u64) {
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("APP"), project_id),
+        project_id,
+    );
 }
 
-impl ReviewAdded {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "ReviewAdded"),
-                self.project_id,
-                self.reviewer,
-            ),
-            (self.rating,),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewUpdated {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub rating: u32,
-    pub updated_at: u64,
-}
-
-impl ReviewUpdated {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "ReviewUpdated"),
-                self.project_id,
-                self.reviewer,
-            ),
-            (self.rating, self.updated_at),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRequested {
-    pub project_id: u64,
-    pub requester: Address,
-    pub evidence_cid: String,
-}
-
-impl VerificationRequested {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "VerificationRequested"),
-                self.project_id,
-                self.requester,
-            ),
-            (self.evidence_cid,),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationApproved {
-    pub project_id: u64,
-    pub verifier: Address,
-}
-
-impl VerificationApproved {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "VerificationApproved"),
-                self.project_id,
-                self.verifier,
-            ),
-            (),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRejected {
-    pub project_id: u64,
-    pub verifier: Address,
-}
-
-impl VerificationRejected {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (
-                Symbol::new(env, "VerificationRejected"),
-                self.project_id,
-                self.verifier,
-            ),
-            (),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeePaid {
-    pub payer: Address,
-    pub project_id: u64,
-    pub amount: u128,
-}
-
-impl FeePaid {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (Symbol::new(env, "FeePaid"), self.payer, self.project_id),
-            (self.amount,),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeeSet {
-    pub admin: Address,
-    pub amount: u128,
-    pub treasury: Address,
-}
-
-impl FeeSet {
-    pub fn publish(self, env: &Env) {
-        env.events().publish(
-            (Symbol::new(env, "FeeSet"), self.admin),
-            (self.amount, self.treasury),
-        );
-    }
+pub fn publish_verification_rejected_event(env: &Env, project_id: u64) {
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("REJ"), project_id),
+        project_id,
+    );
 }

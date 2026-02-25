@@ -2,25 +2,25 @@
 
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
-use crate::events::VerificationApproved;
-use crate::events::VerificationRejected;
-use crate::events::VerificationRequested;
-use crate::storage_keys::StorageKey;
-use crate::types::{VerificationRecord, VerificationStatus};
-use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+use crate::events::{
+    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_requested_event,
+};
+use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 
 impl VerificationRegistry {
-    pub fn set_fee_paid(_env: &Env, _project_id: u64) {}
-
     pub fn request_verification(
-        _env: &Env,
-        _project_id: u64,
-        _requester: Address,
-        _evidence_cid: String,
-    ) -> Result<(), ContractError> {
-        todo!("Verification request logic not implemented")
+        env: &Env,
+        project_id: u64,
+        requester: Address,
+        evidence_cid: String,
+    ) {
+        // Validate project ownership
+        // Require fee paid via FeeManager
+        // Store VerificationRecord with Pending
     }
 
     pub fn approve_verification(

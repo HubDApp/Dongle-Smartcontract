@@ -22,6 +22,4 @@ pub enum StorageKey {
     FeePaidForProject(u64),
     /// Admin address (for fee set and verifier checks).
     Admin,
-    /// List of project IDs reviewed by a user.
-    UserReviews(soroban_sdk::Address),
 }

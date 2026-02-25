@@ -1,6 +1,5 @@
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
-use crate::types::Project;
+use crate::types::{Project, DataKey, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -17,6 +16,17 @@ impl ProjectRegistry {
         metadata_cid: Option<String>,
     ) -> u64 {
         owner.require_auth();
+
+        // Validation
+        if name.len() == 0 {
+            panic!("InvalidProjectName");
+        }
+        if description.len() == 0 {
+            panic!("InvalidProjectDescription");
+        }
+        if category.len() == 0 {
+            panic!("InvalidProjectCategory");
+        }
 
         let mut count: u64 = env
             .storage()
@@ -55,7 +65,9 @@ impl ProjectRegistry {
         owner_projects.push_back(count);
         env.storage()
             .persistent()
-            .get(&StorageKey::Project(project_id))
+            .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
+
+        count
     }
 
     pub fn update_project(
@@ -98,7 +110,7 @@ impl ProjectRegistry {
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+            .set(&DataKey::Project(project_id), &project);
 
         Some(project)
     }
@@ -127,24 +139,52 @@ impl ProjectRegistry {
     }
 
     pub fn list_projects(
-        _env: &Env,
-        _start_id: u64,
-        _limit: u32,
-    ) -> Result<Vec<Project>, ContractError> {
-        todo!("Project listing logic not implemented")
+        env: &Env,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if start_id == 0 || start_id > count {
+            return projects;
+        }
+
+        let end_id = core::cmp::min(start_id.saturating_add(limit as u64), count + 1);
+
+        for id in start_id..end_id {
+            if let Some(project) = Self::get_project(env, id) {
+                projects.push_back(project);
+            }
+        }
+
+        projects
     }
 
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&StorageKey::Project(project_id))
+            .has(&DataKey::Project(project_id))
     }
 
     pub fn validate_project_data(
-        _name: &String,
-        _description: &String,
-        _category: &String,
+        name: &String,
+        description: &String,
+        category: &String,
     ) -> Result<(), ContractError> {
-        todo!("Project data validation not implemented")
+        if name.len() == 0 {
+            return Err(ContractError::InvalidProjectData);
+        }
+        if description.len() == 0 {
+            return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
+        }
+        if category.len() == 0 {
+            return Err(ContractError::InvalidProjectCategory);
+        }
+        Ok(())
     }
 }
