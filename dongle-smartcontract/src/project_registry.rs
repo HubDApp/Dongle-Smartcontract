@@ -18,13 +18,13 @@ impl ProjectRegistry {
         owner.require_auth();
 
         // Validation
-        if name.len() == 0 {
+        if name.is_empty() {
             panic!("InvalidProjectName");
         }
-        if description.len() == 0 {
+        if description.is_empty() {
             panic!("InvalidProjectDescription");
         }
-        if category.len() == 0 {
+        if category.is_empty() {
             panic!("InvalidProjectCategory");
         }
 
@@ -177,13 +177,13 @@ impl ProjectRegistry {
         description: &String,
         category: &String,
     ) -> Result<(), ContractError> {
-        if name.len() == 0 {
+        if name.is_empty() {
             return Err(ContractError::InvalidProjectData);
         }
-        if description.len() == 0 {
+        if description.is_empty() {
             return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
         }
-        if category.len() == 0 {
+        if category.is_empty() {
             return Err(ContractError::InvalidProjectCategory);
         }
         Ok(())

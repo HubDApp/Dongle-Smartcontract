@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 
 mod admin_registry;
 mod constants;
@@ -37,6 +38,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 #[contract]
 pub struct DongleContract;
 
+#[allow(clippy::too_many_arguments)]
 #[contractimpl]
 impl DongleContract {
     // --- Project Registry ---

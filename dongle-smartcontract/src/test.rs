@@ -1,12 +1,9 @@
 //! Tests for validation, limits, error codes, and edge cases.
 
-use crate::constants::MAX_PROJECTS_PER_USER;
-use crate::errors::ContractError as Error;
-use crate::types::{FeeConfig, VerificationStatus};
 use crate::DongleContract;
 use crate::DongleContractClient;
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+use soroban_sdk::{Address, Env, String as SorobanString};
 
 fn setup(env: &Env) -> (DongleContractClient, Address, Address) {
     let contract_id = env.register_contract(None, DongleContract);
