@@ -66,6 +66,7 @@ pub enum DataKey {
     FeeConfig,
     Treasury,
     ProjectStats(u64),
+    FeePaidForProject(u64),
 }
 
 #[contracttype]
@@ -80,7 +81,12 @@ pub enum VerificationStatus {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
+    pub project_id: u64,
+    pub requester: Address,
     pub status: VerificationStatus,
+    pub evidence_cid: String,
+    pub timestamp: u64,
+    pub fee_amount: u128,
 }
 
 /// Fee configuration for contract operations

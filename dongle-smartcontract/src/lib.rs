@@ -124,20 +124,31 @@ impl DongleContract {
         project_id: u64,
         requester: Address,
         evidence_cid: String,
-    ) {
+    ) -> Result<(), ContractError> {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
-    pub fn approve_verification(env: Env, project_id: u64, admin: Address) {
-        let _ = VerificationRegistry::approve_verification(&env, project_id, admin);
+    pub fn approve_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::approve_verification(&env, project_id, admin)
     }
 
-    pub fn reject_verification(env: Env, project_id: u64, admin: Address) {
-        let _ = VerificationRegistry::reject_verification(&env, project_id, admin);
+    pub fn reject_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
-    pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
-        VerificationRegistry::get_verification(&env, project_id).ok()
+    pub fn get_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        VerificationRegistry::get_verification(&env, project_id)
     }
 
     // --- Fee Manager ---
@@ -152,8 +163,13 @@ impl DongleContract {
         let _ = FeeManager::set_fee(&env, admin, token, amount, treasury);
     }
 
-    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) {
-        let _ = FeeManager::pay_fee(&env, payer, project_id, token);
+    pub fn pay_fee(
+        env: Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
     pub fn get_fee_config(env: Env) -> FeeConfig {

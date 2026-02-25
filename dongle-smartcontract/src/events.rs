@@ -42,23 +42,28 @@ pub fn publish_fee_set_event(env: &Env, verification_fee: u128, registration_fee
     );
 }
 
-pub fn publish_verification_requested_event(env: &Env, project_id: u64, requester: Address) {
+pub fn publish_verification_requested_event(
+    env: &Env,
+    project_id: u64,
+    requester: Address,
+    evidence_cid: String,
+) {
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
-        requester,
+        (requester, evidence_cid),
     );
 }
 
-pub fn publish_verification_approved_event(env: &Env, project_id: u64) {
+pub fn publish_verification_approved_event(env: &Env, project_id: u64, admin: Address) {
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("APP"), project_id),
-        project_id,
+        admin,
     );
 }
 
-pub fn publish_verification_rejected_event(env: &Env, project_id: u64) {
+pub fn publish_verification_rejected_event(env: &Env, project_id: u64, admin: Address) {
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REJ"), project_id),
-        project_id,
+        admin,
     );
 }
