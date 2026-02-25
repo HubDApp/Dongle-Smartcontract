@@ -1,11 +1,17 @@
    Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: unused import: `Project`
+ --> src\verification_registry.rs:8:20
+  |
+8 | use crate::types::{Project, VerificationRecord, VerificationStatus};
+  |                    ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
 warning: unused import: `crate::errors::ContractError as Error`
  --> src\test.rs:3:5
   |
 3 | use crate::errors::ContractError as Error;
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused import: `crate::types::VerificationStatus`
  --> src\test.rs:4:5
@@ -35,6 +41,21 @@ warning: variable does not need to be mutable
     |
     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
 
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src\verification_tests.rs:32:11
+   |
+24 |           let project_id = client.register_project(
+   |  __________________________-
+25 | |             &owner,
+26 | |             &project_name,
+27 | |             &String::from_str(&env, "Description... Description... Description... Description..."),
+...  |
+31 | |             &None,
+32 | |         ).unwrap();
+   | |          -^^^^^^ method not found in `u64`
+   | |__________|
+   |
+
 warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
   --> src\verification_tests.rs:45:33
    |
@@ -43,11 +64,38 @@ warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_cont
    |
    = note: `#[warn(deprecated)]` on by default
 
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src\verification_tests.rs:50:22
+   |
+50 |         token_client.mint(&owner, &1000);
+   |                      ^^^^ method not found in `Client<'_>`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src\verification_tests.rs:81:11
+   |
+73 |           let project_id = client.register_project(
+   |  __________________________-
+74 | |             &owner,
+75 | |             &String::from_str(&env, "Project Y"),
+76 | |             &String::from_str(&env, "Description... Description... Description... Description..."),
+...  |
+80 | |             &None,
+81 | |         ).unwrap();
+   | |          -^^^^^^ method not found in `u64`
+   | |__________|
+   |
+
 warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
   --> src\verification_tests.rs:85:33
    |
 85 |         let token_address = env.register_stellar_asset_contract(token_admin);
    |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src\verification_tests.rs:87:22
+   |
+87 |         token_client.mint(&owner, &100);
+   |                      ^^^^ method not found in `Client<'_>`
 
 warning: constant `MAX_PROJECTS_PER_USER` is never used
  --> src\constants.rs:4:11
@@ -197,39 +245,8 @@ warning: associated functions `list_pending_verifications`, `verification_exists
 174 |     pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
     |            ^^^^^^^^^^^^^^^^^^^^^^
 
-warning: `dongle-contract` (lib test) generated 21 warnings (15 duplicates) (run `cargo fix --lib -p dongle-contract --tests` to apply 4 suggestions)
-warning: `dongle-contract` (lib) generated 16 warnings (run `cargo fix --lib -p dongle-contract` to apply 1 suggestion)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.24s
-     Running unittests src\lib.rs (target\debug\deps\dongle_contract-a300b76b9d4a7117.exe)
-
-running 21 tests
-test rating_calculator::tests::test_add_rating_subsequent_review ... ok
-test rating_calculator::tests::test_calculate_average_multiple_reviews ... ok
-test rating_calculator::tests::test_add_rating_first_review ... ok
-test rating_calculator::tests::test_remove_rating_multiple_reviews ... ok
-test rating_calculator::tests::test_calculate_average_single_review ... ok
-test rating_calculator::tests::test_remove_rating_last_review ... ok
-test rating_calculator::tests::test_calculate_average_zero_reviews ... ok
-test rating_calculator::tests::test_calculate_average_precision ... ok
-test rating_calculator::tests::test_update_rating_decrease ... ok
-test rating_calculator::tests::test_update_rating_increase ... ok
-test rating_calculator::tests::test_update_rating_no_change ... ok
-test test::test_get_project_invalid_id_zero ... ok
-test test::test_get_project_none_for_nonexistent_id ... ok
-test registration_tests::test_register_project_success ... ok
-test registration_tests::test_register_duplicate_project_fails ... ok
-test test::test_register_project_success ... ok
-test review_registry::test::test_add_review_event ... ok
-test registration_tests::test_register_different_projects_success ... ok
-test verification_tests::test::test_reject_verification ... ok
-test verification_tests::test::test_verification_lifecycle ... ok
-test test::test_list_projects ... ok
-
-test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
-
-   Doc-tests dongle_contract
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
+For more information about this error, try `rustc --explain E0599`.
+warning: `dongle-contract` (lib test) generated 8 warnings (2 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 4 previous errors; 8 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `dongle-contract` (lib) generated 17 warnings (run `cargo fix --lib -p dongle-contract` to apply 2 suggestions)
