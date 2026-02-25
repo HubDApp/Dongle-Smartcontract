@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::types::{Project, DataKey, VerificationStatus};
+use crate::types::{DataKey, Project, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -129,20 +129,19 @@ impl ProjectRegistry {
             .unwrap_or(Vec::new(env));
 
         let mut projects = Vec::new(env);
-        for project_id in ids.iter() {
-            if let Some(project) = Self::get_project(env, project_id) {
-                projects.push_back(project);
+        let len = ids.len();
+        for i in 0..len {
+            if let Some(project_id) = ids.get(i) {
+                if let Some(project) = Self::get_project(env, project_id) {
+                    projects.push_back(project);
+                }
             }
         }
 
         projects
     }
 
-    pub fn list_projects(
-        env: &Env,
-        start_id: u64,
-        limit: u32,
-    ) -> Vec<Project> {
+    pub fn list_projects(env: &Env, start_id: u64, limit: u32) -> Vec<Project> {
         let count: u64 = env
             .storage()
             .persistent()
@@ -165,12 +164,14 @@ impl ProjectRegistry {
         projects
     }
 
+    #[allow(dead_code)]
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
             .has(&DataKey::Project(project_id))
     }
 
+    #[allow(dead_code)]
     pub fn validate_project_data(
         name: &String,
         description: &String,

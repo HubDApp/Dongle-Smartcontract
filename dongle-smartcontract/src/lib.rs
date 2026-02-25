@@ -1,27 +1,26 @@
 #![no_std]
 
-mod project_registry;
-mod review_registry;
-mod verification_registry;
-mod fee_manager;
-mod types;
-mod errors;
 mod constants;
+mod errors;
 mod events;
-mod utils;
-mod storage_keys;
+mod fee_manager;
+mod project_registry;
 mod rating_calculator;
+mod review_registry;
+mod storage_keys;
+mod types;
+mod utils;
+mod verification_registry;
 
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Env, Address, String, Vec};
+use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::types::{FeeConfig, Project, Review, VerificationRecord};
 use crate::verification_registry::VerificationRegistry;
-use crate::fee_manager::FeeManager;
-use crate::types::{Project, Review, VerificationRecord, FeeConfig, VerificationStatus};
-use crate::errors::ContractError;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
 pub struct DongleContract;
@@ -97,7 +96,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) {
-        ReviewRegistry::add_review(env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
     pub fn update_review(
@@ -107,15 +106,15 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) {
-        ReviewRegistry::update_review(env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
     pub fn delete_review(env: Env, project_id: u64, reviewer: Address) {
-        let _ = ReviewRegistry::delete_review(env, project_id, reviewer);
+        let _ = ReviewRegistry::delete_review(&env, project_id, reviewer);
     }
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
-        ReviewRegistry::get_review(env, project_id, reviewer)
+        ReviewRegistry::get_review(&env, project_id, reviewer)
     }
 
     // --- Verification Registry ---
@@ -153,12 +152,7 @@ impl DongleContract {
         let _ = FeeManager::set_fee(&env, admin, token, amount, treasury);
     }
 
-    pub fn pay_fee(
-        env: Env,
-        payer: Address,
-        project_id: u64,
-        token: Option<Address>,
-    ) {
+    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) {
         let _ = FeeManager::pay_fee(&env, payer, project_id, token);
     }
 
@@ -175,7 +169,9 @@ impl DongleContract {
     }
 
     pub fn set_admin(env: Env, admin: Address) {
-        env.storage().persistent().set(&crate::types::DataKey::Admin(admin), &());
+        env.storage()
+            .persistent()
+            .set(&crate::types::DataKey::Admin(admin), &());
     }
 
     pub fn initialize(env: Env, admin: Address) {

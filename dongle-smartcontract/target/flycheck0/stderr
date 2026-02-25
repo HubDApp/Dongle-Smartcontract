@@ -1,5 +1,5 @@
-   0.456392667s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint: fingerprint error for dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("dongle_contract", ["cdylib", "rlib"], "/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/src/lib.rs", Edition2021) }
-   0.456812042s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/target/debug/.fingerprint/dongle-contract-ed58adc950f7997a/lib-dongle_contract`
+   0.075074750s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint: fingerprint error for dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("dongle_contract", ["cdylib", "rlib"], "/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/src/lib.rs", Edition2021) }
+   0.075098042s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/target/debug/.fingerprint/dongle-contract-0438f2af955be1a9/lib-dongle_contract`
 
 Caused by:
     No such file or directory (os error 2)
@@ -23,8 +23,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.497521208s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint: fingerprint error for dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("dongle_contract", ["cdylib", "rlib"], "/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/src/lib.rs", Edition2021) }
-   0.497534500s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/target/debug/.fingerprint/dongle-contract-3620fd8c1f433e0b/test-lib-dongle_contract`
+   0.085318042s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint: fingerprint error for dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("dongle_contract", ["cdylib", "rlib"], "/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/src/lib.rs", Edition2021) }
+   0.085331708s  INFO prepare_target{force=false package_id=dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract) target="dongle_contract"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract/target/debug/.fingerprint/dongle-contract-65b4d55b630ce42c/test-lib-dongle_contract`
 
 Caused by:
     No such file or directory (os error 2)
@@ -49,6 +49,4 @@ Stack backtrace:
   16: std::rt::lang_start_internal
   17: _main
     Checking dongle-contract v0.1.0 (/Users/nayy/smartcontract-dongle/Dongle-Smartcontract/dongle-smartcontract)
-error: could not compile `dongle-contract` (lib test) due to 1 previous error
-warning: build failed, waiting for other jobs to finish...
-error: could not compile `dongle-contract` (lib) due to 1 previous error
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.89s
