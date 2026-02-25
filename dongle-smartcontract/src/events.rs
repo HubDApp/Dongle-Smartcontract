@@ -62,3 +62,13 @@ pub fn publish_verification_rejected_event(env: &Env, project_id: u64) {
         project_id,
     );
 }
+
+pub fn publish_admin_added_event(env: &Env, admin: Address) {
+    env.events()
+        .publish((symbol_short!("ADMIN"), symbol_short!("ADDED")), admin);
+}
+
+pub fn publish_admin_removed_event(env: &Env, admin: Address) {
+    env.events()
+        .publish((symbol_short!("ADMIN"), symbol_short!("REMOVED")), admin);
+}

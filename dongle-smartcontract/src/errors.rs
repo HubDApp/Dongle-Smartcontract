@@ -45,4 +45,8 @@ pub enum ContractError {
     AlreadyReviewed = 19, // I added your error here with a new unique ID
     /// Review is already deleted
     ReviewAlreadyDeleted = 20,
+    /// Cannot remove the last admin
+    CannotRemoveLastAdmin = 21,
+    /// Admin not found
+    AdminNotFound = 22,
 }

@@ -1,5 +1,6 @@
 #![no_std]
 
+mod admin_manager;
 mod constants;
 mod errors;
 mod events;
@@ -15,6 +16,10 @@ mod verification_registry;
 #[cfg(test)]
 mod test;
 
+#[cfg(test)]
+mod admin_tests;
+
+use crate::admin_manager::AdminManager;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -168,13 +173,35 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_owner(&env, owner).len()
     }
 
+    // --- Admin Management ---
+
+    pub fn initialize(env: Env, admin: Address) {
+        AdminManager::initialize(&env, admin);
+    }
+
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
+        let _ = AdminManager::add_admin(&env, caller, new_admin);
+    }
+
+    pub fn remove_admin(env: Env, caller: Address, admin_to_remove: Address) {
+        let _ = AdminManager::remove_admin(&env, caller, admin_to_remove);
+    }
+
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        AdminManager::is_admin(&env, &address)
+    }
+
+    pub fn get_admin_list(env: Env) -> Vec<Address> {
+        AdminManager::get_admin_list(&env)
+    }
+
+    pub fn get_admin_count(env: Env) -> u32 {
+        AdminManager::get_admin_count(&env)
+    }
+
     pub fn set_admin(env: Env, admin: Address) {
         env.storage()
             .persistent()
             .set(&crate::types::DataKey::Admin(admin), &());
-    }
-
-    pub fn initialize(env: Env, admin: Address) {
-        Self::set_admin(env, admin);
     }
 }

@@ -1,5 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::events::publish_fee_set_event;
 use crate::types::{DataKey, FeeConfig};
@@ -10,11 +11,16 @@ pub struct FeeManager;
 impl FeeManager {
     pub fn set_fee(
         env: &Env,
-        _admin: Address,
+        admin: Address,
         token: Option<Address>,
         amount: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
+        admin.require_auth();
+
+        // Verify admin privileges
+        AdminManager::require_admin(env, &admin)?;
+
         let config = FeeConfig {
             token,
             verification_fee: amount,

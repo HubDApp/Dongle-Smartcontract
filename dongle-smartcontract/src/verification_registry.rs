@@ -1,5 +1,6 @@
 //! Verification requests with ownership and fee checks, and events.
 
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
@@ -23,19 +24,69 @@ impl VerificationRegistry {
     }
 
     pub fn approve_verification(
-        _env: &Env,
-        _project_id: u64,
-        _admin: Address,
+        env: &Env,
+        project_id: u64,
+        admin: Address,
     ) -> Result<(), ContractError> {
-        todo!("Verification approval logic not implemented")
+        admin.require_auth();
+
+        // Verify admin privileges
+        AdminManager::require_admin(env, &admin)?;
+
+        // Get verification record
+        let mut record: VerificationRecord = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Verification(project_id))
+            .ok_or(ContractError::VerificationNotFound)?;
+
+        // Check if already processed
+        if record.status == VerificationStatus::Verified {
+            return Err(ContractError::VerificationAlreadyProcessed);
+        }
+
+        // Update status
+        record.status = VerificationStatus::Verified;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Verification(project_id), &record);
+
+        publish_verification_approved_event(env, project_id);
+
+        Ok(())
     }
 
     pub fn reject_verification(
-        _env: &Env,
-        _project_id: u64,
-        _admin: Address,
+        env: &Env,
+        project_id: u64,
+        admin: Address,
     ) -> Result<(), ContractError> {
-        todo!("Verification rejection logic not implemented")
+        admin.require_auth();
+
+        // Verify admin privileges
+        AdminManager::require_admin(env, &admin)?;
+
+        // Get verification record
+        let mut record: VerificationRecord = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Verification(project_id))
+            .ok_or(ContractError::VerificationNotFound)?;
+
+        // Check if already processed
+        if record.status == VerificationStatus::Rejected {
+            return Err(ContractError::VerificationAlreadyProcessed);
+        }
+
+        // Update status
+        record.status = VerificationStatus::Rejected;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Verification(project_id), &record);
+
+        publish_verification_rejected_event(env, project_id);
+
+        Ok(())
     }
 
     pub fn get_verification(
