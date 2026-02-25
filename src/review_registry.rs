@@ -1,7 +1,7 @@
 //! Review submission with validation, duplicate handling, and events.
 
 use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
-use crate::errors::ContractError;
+use crate::errors::Error;
 use crate::events::ReviewAdded;
 use crate::events::ReviewUpdated;
 use crate::storage_keys::StorageKey;
@@ -27,7 +27,7 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<SorobanString>,
     ) -> Result<(), Error> {
-        if rating < RATING_MIN || rating > RATING_MAX {
+        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(Error::InvalidRating);
         }
         validate_optional_cid(&comment_cid)?;
@@ -66,7 +66,7 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<SorobanString>,
     ) -> Result<(), Error> {
-        if rating < RATING_MIN || rating > RATING_MAX {
+        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(Error::InvalidRating);
         }
         validate_optional_cid(&comment_cid)?;

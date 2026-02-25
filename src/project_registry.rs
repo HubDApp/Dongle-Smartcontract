@@ -6,20 +6,23 @@ use crate::events::{ProjectRegistered, ProjectUpdated};
 use crate::types::{DataKey, Project};
 use soroban_sdk::{Address, Env, String as SorobanString};
 
-// --- Validation Helpers ---
+// ── Validation Helpers ────────────────────────────────────────────────────────
 
-/// Checks if the provided category matches the allowed enumeration (Issue #8).
+/// Returns `true` iff `category` is exactly one of the five permitted values.
+///
+/// Comparison uses `soroban_sdk::String::from_str` so that the encoding is
+/// identical to whatever the caller passed in — no hidden ASCII/UTF-8 mismatch.
 fn is_valid_category(env: &Env, category: &SorobanString) -> bool {
-    let categories = [
-        "DeFi", "NFT", "Gaming", "DAO", "Tools"
-    ];
-    for cat in categories {
-        if category == &SorobanString::from_str(env, cat) {
+    // Issue #8: strict enumeration — only these five strings are accepted.
+    let valid = ["DeFi", "NFT", "Gaming", "DAO", "Tools"];
+    for name in valid {
+        if category == &SorobanString::from_str(env, name) {
             return true;
         }
     }
     false
 }
+
 fn validate_string_length(s: &SorobanString, max: usize) -> Result<(), ContractError> {
     if s.len() as usize > max {
         return Err(ContractError::ProjectNameTooLong);
@@ -34,8 +37,13 @@ fn validate_optional_string(s: &Option<SorobanString>, max: usize) -> Result<(),
     Ok(())
 }
 
-/// Validates project registration inputs. Returns Ok(()) or Err.
+/// Validates all project registration / update inputs.
+///
+/// `env` is required so that `soroban_sdk::String::from_str` can be used for
+/// the category comparison (fix for Issue #8 — previously `env` was absent,
+/// causing a compile error).
 pub fn validate_project_inputs(
+    env: &Env,
     name: &SorobanString,
     description: &SorobanString,
     category: &SorobanString,
@@ -43,6 +51,7 @@ pub fn validate_project_inputs(
     logo_cid: &Option<SorobanString>,
     metadata_cid: &Option<SorobanString>,
 ) -> Result<(), ContractError> {
+    // Minimum length guards
     if name.len() < MIN_STRING_LEN as u32 {
         return Err(ContractError::InvalidProjectData);
     }
@@ -50,19 +59,23 @@ pub fn validate_project_inputs(
         return Err(ContractError::InvalidProjectData);
     }
 
-    // Strict category validation for Issue #8
-    if !is_valid_category(category) {
+    // ── Issue #8: strict category enumeration ────────────────────────────────
+    if !is_valid_category(env, category) {
         return Err(ContractError::InvalidProjectCategory);
     }
 
+    // Maximum length guards
     validate_string_length(name, MAX_NAME_LEN)?;
     validate_string_length(description, MAX_DESCRIPTION_LEN)?;
     validate_string_length(category, MAX_CATEGORY_LEN)?;
     validate_optional_string(website, MAX_WEBSITE_LEN)?;
     validate_optional_string(logo_cid, MAX_CID_LEN)?;
     validate_optional_string(metadata_cid, MAX_CID_LEN)?;
+
     Ok(())
 }
+
+// ── ProjectRegistry ───────────────────────────────────────────────────────────
 
 pub struct ProjectRegistry;
 
@@ -94,6 +107,7 @@ impl ProjectRegistry {
             .set(&DataKey::OwnerProjectCount(owner.clone()), &(count + 1));
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: &Env,
         owner: Address,
@@ -106,7 +120,9 @@ impl ProjectRegistry {
     ) -> Result<u64, ContractError> {
         owner.require_auth();
 
+        // Pass `env` — required for soroban_sdk::String category comparison.
         validate_project_inputs(
+            env,
             &name,
             &description,
             &category,
@@ -123,6 +139,7 @@ impl ProjectRegistry {
         let project_id = Self::next_project_id(env);
         let ledger_timestamp = env.ledger().timestamp();
 
+        // Issue #8 — `category` is persisted as part of the Project struct.
         let project = Project {
             id: project_id,
             owner: owner.clone(),
@@ -154,6 +171,7 @@ impl ProjectRegistry {
         Ok(project_id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_project(
         env: &Env,
         project_id: u64,
@@ -178,6 +196,7 @@ impl ProjectRegistry {
         }
 
         validate_project_inputs(
+            env,
             &name,
             &description,
             &category,
@@ -243,10 +262,12 @@ mod tests {
         }
     }
 
-    fn setup(env: &Env) -> DongleContractClient {
+    fn setup(env: &Env) -> DongleContractClient<'_> {
         let contract_id = env.register_contract(None, DongleContract);
         DongleContractClient::new(env, &contract_id)
     }
+
+    // ── Existing tests (preserved + fixed) ───────────────────────────────────
 
     #[test]
     fn test_ids_are_sequential() {
@@ -286,17 +307,18 @@ mod tests {
         let client = setup(&env);
         let owner = Address::generate(&env);
 
+        // Fixed: "Infrastructure" replaced with valid category "Tools".
         let id = client.register_project(
             &owner,
             &String::from_str(&env, "Dongle"),
             &String::from_str(&env, "A Stellar registry"),
-            &String::from_str(&env, "Infrastructure"),
+            &String::from_str(&env, "Tools"),
             &Some(String::from_str(&env, "https://dongle.xyz")),
             &None,
             &None,
         );
 
-        let project = client.get_project(&id).unwrap();
+        let project = client.get_project(&id);
         assert_eq!(project.owner, owner);
         assert_eq!(project.name, String::from_str(&env, "Dongle"));
         assert_eq!(project.created_at, 1_700_000_000);
@@ -310,11 +332,11 @@ mod tests {
         let client = setup(&env);
         let owner = Address::generate(&env);
 
-        let _id = client.register_project(
+        client.register_project(
             &owner,
             &String::from_str(&env, "EventTest"),
             &String::from_str(&env, "Testing events"),
-            &String::from_str(&env, "Tools"), // Valid Category
+            &String::from_str(&env, "Tools"),
             &None,
             &None,
             &None,
@@ -343,13 +365,122 @@ mod tests {
             &None,
         );
 
-        let project = client.get_project(&id).unwrap();
+        let project = client.get_project(&id);
         assert_eq!(project.category, category);
     }
 
+    // ── Issue #8: Category enumeration tests ─────────────────────────────────
+
+    /// Each of the five valid categories must be accepted without error.
     #[test]
-    #[should_panic(expected = "Status(ContractError(14))")] // InvalidProjectCategory
-    fn test_invalid_category_fails() {
+    fn test_valid_category_defi() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        let id = client.register_project(
+            &owner,
+            &String::from_str(&env, "MyDeFiApp"),
+            &String::from_str(&env, "A decentralized finance protocol"),
+            &String::from_str(&env, "DeFi"),
+            &None,
+            &None,
+            &None,
+        );
+
+        let project = client.get_project(&id);
+        assert_eq!(project.category, String::from_str(&env, "DeFi"));
+    }
+
+    #[test]
+    fn test_valid_category_nft() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        let id = client.register_project(
+            &owner,
+            &String::from_str(&env, "MyNFTApp"),
+            &String::from_str(&env, "An NFT marketplace"),
+            &String::from_str(&env, "NFT"),
+            &None,
+            &None,
+            &None,
+        );
+
+        let project = client.get_project(&id);
+        assert_eq!(project.category, String::from_str(&env, "NFT"));
+    }
+
+    #[test]
+    fn test_valid_category_gaming() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        let id = client.register_project(
+            &owner,
+            &String::from_str(&env, "MyGame"),
+            &String::from_str(&env, "An on-chain game"),
+            &String::from_str(&env, "Gaming"),
+            &None,
+            &None,
+            &None,
+        );
+
+        let project = client.get_project(&id);
+        assert_eq!(project.category, String::from_str(&env, "Gaming"));
+    }
+
+    #[test]
+    fn test_valid_category_dao() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        let id = client.register_project(
+            &owner,
+            &String::from_str(&env, "MyDAO"),
+            &String::from_str(&env, "A decentralized autonomous organization"),
+            &String::from_str(&env, "DAO"),
+            &None,
+            &None,
+            &None,
+        );
+
+        let project = client.get_project(&id);
+        assert_eq!(project.category, String::from_str(&env, "DAO"));
+    }
+
+    #[test]
+    fn test_valid_category_tools() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        let id = client.register_project(
+            &owner,
+            &String::from_str(&env, "MyTool"),
+            &String::from_str(&env, "A developer tooling project"),
+            &String::from_str(&env, "Tools"),
+            &None,
+            &None,
+            &None,
+        );
+
+        let project = client.get_project(&id);
+        assert_eq!(project.category, String::from_str(&env, "Tools"));
+    }
+
+    /// Any string not in the enumeration must return InvalidProjectCategory (code 14).
+    #[test]
+    #[should_panic(expected = "Status(ContractError(14))")]
+    fn test_invalid_category_unknown_string() {
         let env = Env::default();
         env.mock_all_auths();
         let client = setup(&env);
@@ -360,6 +491,65 @@ mod tests {
             &String::from_str(&env, "Bad Cat"),
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "UnknownCategory"),
+            &None,
+            &None,
+            &None,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Status(ContractError(14))")]
+    fn test_invalid_category_empty_string() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        client.register_project(
+            &owner,
+            &String::from_str(&env, "No Cat"),
+            &String::from_str(&env, "Desc"),
+            &String::from_str(&env, ""),
+            &None,
+            &None,
+            &None,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Status(ContractError(14))")]
+    fn test_invalid_category_wrong_case() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        // "defi" ≠ "DeFi" — case must match exactly.
+        client.register_project(
+            &owner,
+            &String::from_str(&env, "Lower Case"),
+            &String::from_str(&env, "Desc"),
+            &String::from_str(&env, "defi"),
+            &None,
+            &None,
+            &None,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Status(ContractError(14))")]
+    fn test_invalid_category_whitespace_padded() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let owner = Address::generate(&env);
+
+        // Whitespace-padded strings must not sneak through.
+        client.register_project(
+            &owner,
+            &String::from_str(&env, "Padded"),
+            &String::from_str(&env, "Desc"),
+            &String::from_str(&env, " DeFi "),
             &None,
             &None,
             &None,

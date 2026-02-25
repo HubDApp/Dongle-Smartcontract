@@ -1,7 +1,6 @@
 #![no_std]
-// #![allow(dead_code)]
-// #![allow(clippy::too_many_arguments)]
-
+#![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
 //! Dongle Smart Contract: project registry, reviews, and verification on Stellar/Soroban.
 
 mod constants;
@@ -38,17 +37,29 @@ impl DongleContract {
         todo!("Admin management not yet implemented")
     }
 
+    /// Registers a new project. Delegates to [`ProjectRegistry::register_project`]
+    /// so that validation (including strict category enumeration from Issue #8)
+    /// and ledger persistence are handled in one place.
     pub fn register_project(
-        _env: Env,
-        _owner: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
+        env: Env,
+        owner: Address,
+        name: String,
+        description: String,
+        category: String,
+        website: Option<String>,
+        logo_cid: Option<String>,
+        metadata_cid: Option<String>,
     ) -> Result<u64, ContractError> {
-        todo!("Project registration not yet implemented")
+        ProjectRegistry::register_project(
+            &env,
+            owner,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
     }
 
     pub fn update_project(

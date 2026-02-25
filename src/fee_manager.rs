@@ -1,6 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
-use crate::errors::ContractError;
+use crate::errors::Error;
 use crate::events::FeePaid;
 use crate::events::FeeSet;
 use crate::storage_keys::StorageKey;

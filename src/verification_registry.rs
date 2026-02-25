@@ -1,7 +1,7 @@
 //! Verification requests with ownership and fee checks, and events.
 
 use crate::constants::MAX_CID_LEN;
-use crate::errors::ContractError;
+use crate::errors::Error;
 use crate::events::VerificationApproved;
 use crate::events::VerificationRejected;
 use crate::events::VerificationRequested;
@@ -35,7 +35,7 @@ impl VerificationRegistry {
         if project_id == 0 {
             return Err(Error::InvalidProjectId);
         }
-        if evidence_cid.len() == 0 || evidence_cid.len() > MAX_CID_LEN as u32 {
+        if evidence_cid.is_empty() || evidence_cid.len() > MAX_CID_LEN as u32 {
             return Err(Error::InvalidEvidenceCid);
         }
 
@@ -95,7 +95,8 @@ impl VerificationRegistry {
             .ok_or(Error::VerificationNotFound)?;
 
         if record.status != VerificationStatus::Pending {
-            return Err(ContractError::VerificationNotPending);
+            // Use Error:: alias — identical to ContractError::, avoids unused-import warning.
+            return Err(Error::VerificationNotPending);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
@@ -125,7 +126,7 @@ impl VerificationRegistry {
             .ok_or(Error::VerificationNotFound)?;
 
         if record.status != VerificationStatus::Pending {
-            return Err(ContractError::VerificationNotPending);
+            return Err(Error::VerificationNotPending);
         }
 
         let ledger_timestamp = env.ledger().timestamp();
@@ -144,7 +145,7 @@ impl VerificationRegistry {
 
     fn is_admin(env: &Env, addr: &Address) -> bool {
         let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
-        admin.as_ref().map_or(false, |a| a == addr)
+        admin.as_ref() == Some(addr)
     }
 
     pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {

@@ -1,7 +1,6 @@
 //! Contract data types. All types used in storage or events must be [contracttype].
-//! Uses soroban_sdk::String for Val/testutils compatibility.
 
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, Address, String};
 
 /// Status of a project's verification request.
 #[contracttype]
@@ -18,25 +17,26 @@ pub enum VerificationStatus {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
-    pub owner: soroban_sdk::Address,
-    pub name: soroban_sdk::String,
-    pub description: soroban_sdk::String,
-    pub category: soroban_sdk::String,
-    pub website: Option<soroban_sdk::String>,
-    pub logo_cid: Option<soroban_sdk::String>,
-    pub metadata_cid: Option<soroban_sdk::String>,
+    pub owner: Address,
+    pub name: String,
+    pub description: String,
+    /// Validated category — one of: DeFi, NFT, Gaming, DAO, Tools.
+    pub category: String,
+    pub website: Option<String>,
+    pub logo_cid: Option<String>,
+    pub metadata_cid: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
 }
 
-/// A single review for a project. Rating is 1..=5 (u32 for Soroban Val compatibility).
+/// A single review for a project.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Review {
     pub project_id: u64,
-    pub reviewer: soroban_sdk::Address,
+    pub reviewer: Address,
     pub rating: u32,
-    pub comment_cid: Option<soroban_sdk::String>,
+    pub comment_cid: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -46,18 +46,23 @@ pub struct Review {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
     pub project_id: u64,
-    pub requester: soroban_sdk::Address,
-    pub evidence_cid: soroban_sdk::String,
+    pub requester: Address,
+    pub evidence_cid: String,
     pub status: VerificationStatus,
     pub requested_at: u64,
     pub decided_at: Option<u64>,
 }
 
-/// Fee configuration (admin-set).
+/// Fee configuration.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfig {
-    pub token: Option<soroban_sdk::Address>,
+    pub token: Option<Address>,
     pub amount: u128,
-    pub treasury: soroban_sdk::Address,
+    pub treasury: Address,
 }
+
+/// `DataKey` is an alias for `StorageKey` (Issue #8: storage key enum must be named `DataKey`).
+/// The canonical definition with `#[contracttype]` lives in `crate::storage_keys`
+/// to avoid duplicate trait implementations.
+pub use crate::storage_keys::StorageKey as DataKey;

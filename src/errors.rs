@@ -1,49 +1,58 @@
 //! Contract error codes and revert messages.
-//! All errors are descriptive and used for validation, authorization, and invalid input failures.
 
 use soroban_sdk::contracterror;
 
-/// Contract error codes. Values are stable for client bindings and indexing.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
-    /// Project not found in storage.
+    // ── Core project errors (1–14) ─────────────────────────────────────────
     ProjectNotFound = 1,
-    /// Caller is not authorized for this action.
     Unauthorized = 2,
-    /// Project ID already exists.
     ProjectAlreadyExists = 3,
-    /// Rating must be between 1 and 5.
     InvalidRating = 4,
-    /// Review not found for this project/reviewer.
     ReviewNotFound = 5,
-    /// Verification record not found.
     VerificationNotFound = 6,
-    /// Invalid state transition for verification.
     InvalidStatusTransition = 7,
-    /// Restricted to contract admins.
     AdminOnly = 8,
-    /// Fee amount must be greater than zero.
     InvalidFeeAmount = 9,
-    /// Payment attached is less than required fee.
     InsufficientFee = 10,
-    /// Project data is malformed or invalid.
     InvalidProjectData = 11,
-    /// Project name exceeds maximum length.
     ProjectNameTooLong = 12,
-    /// Project description exceeds maximum length.
     ProjectDescriptionTooLong = 13,
-    /// Category is not recognized.
+    /// Returned when category is not one of: DeFi, NFT, Gaming, DAO, Tools.
     InvalidProjectCategory = 14,
-    /// Verification request has already been handled.
+
+    // ── Verification / review errors (15–20) ──────────────────────────────
     VerificationAlreadyProcessed = 15,
-    /// Owners cannot review their own projects.
     CannotReviewOwnProject = 16,
-    /// Fee configuration is missing.
     FeeConfigNotSet = 17,
-    /// Treasury address is missing.
     TreasuryNotSet = 18,
-    /// Action restricted to authorized reviewers.
     NotReviewer = 19,
+    VerificationNotPending = 20,
+
+    // ── Fee manager errors (21–22) ────────────────────────────────────────
+    UnauthorizedAdmin = 21,
+    FeeNotConfigured = 22,
+
+    // ── String / validation errors (23) ──────────────────────────────────
+    StringLengthExceeded = 23,
+
+    // ── Review errors (24–25) ─────────────────────────────────────────────
+    DuplicateReview = 24,
+    NotReviewAuthor = 25,
+
+    // ── Project field errors (26–27) ──────────────────────────────────────
+    InvalidProjectName = 26,
+    InvalidProjectDescription = 27,
+
+    // ── Verification submission errors (28–32) ────────────────────────────
+    InvalidProjectId = 28,
+    InvalidEvidenceCid = 29,
+    NotProjectOwnerForVerification = 30,
+    FeeNotPaid = 31,
+    UnauthorizedVerifier = 32,
 }
+
+/// Type alias so that modules importing `crate::errors::Error` continue to compile.
+pub type Error = ContractError;

@@ -1,4 +1,6 @@
-use crate::errors::ContractError;
+//! Shared utility helpers.
+
+use crate::errors::Error;
 use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
@@ -46,7 +48,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        len >= 46 && len <= 100
+        (46..=100).contains(&len)
     }
 
     pub fn is_valid_url(_url: &String) -> bool {
