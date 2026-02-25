@@ -1,21 +1,31 @@
 //! Fee configuration and payment with validation and events.
 
 use crate::errors::ContractError;
-use crate::events::{publish_fee_paid_event, publish_fee_set_event};
-use crate::types::{FeeConfig, DataKey};
+use crate::events::publish_fee_set_event;
+use crate::types::{DataKey, FeeConfig};
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
 impl FeeManager {
     pub fn set_fee(
-        _env: &Env,
+        env: &Env,
         _admin: Address,
-        _token: Option<Address>,
-        _amount: u128,
-        _treasury: Address,
+        token: Option<Address>,
+        amount: u128,
+        treasury: Address,
     ) -> Result<(), ContractError> {
-        todo!("Fee setting logic not implemented")
+        let config = FeeConfig {
+            token,
+            verification_fee: amount,
+            registration_fee: 0,
+        };
+        env.storage().persistent().set(&DataKey::FeeConfig, &config);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Treasury, &treasury);
+        publish_fee_set_event(env, amount, 0);
+        Ok(())
     }
 
     pub fn pay_fee(
@@ -27,10 +37,14 @@ impl FeeManager {
         todo!("Fee payment logic not implemented")
     }
 
-    pub fn get_fee_config(_env: &Env) -> Result<FeeConfig, ContractError> {
-        todo!("Fee configuration retrieval logic not implemented")
+    pub fn get_fee_config(env: &Env) -> Result<FeeConfig, ContractError> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::FeeConfig)
+            .ok_or(ContractError::FeeConfigNotSet)
     }
 
+    #[allow(dead_code)]
     pub fn set_treasury(
         _env: &Env,
         _admin: Address,
@@ -39,10 +53,12 @@ impl FeeManager {
         todo!("Treasury setting logic not implemented")
     }
 
+    #[allow(dead_code)]
     pub fn get_treasury(_env: &Env) -> Result<Address, ContractError> {
         todo!("Treasury address retrieval logic not implemented")
     }
 
+    #[allow(dead_code)]
     pub fn get_operation_fee(_env: &Env, operation_type: &str) -> Result<u128, ContractError> {
         match operation_type {
             "verification" => Ok(1000000),
@@ -51,14 +67,17 @@ impl FeeManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn fee_config_exists(_env: &Env) -> bool {
         false
     }
 
+    #[allow(dead_code)]
     pub fn treasury_exists(_env: &Env) -> bool {
         false
     }
 
+    #[allow(dead_code)]
     pub fn refund_fee(
         _env: &Env,
         _recipient: Address,
