@@ -145,3 +145,26 @@ fn test_unauthorized_withdrawal() {
     let result = client.try_withdraw_treasury(&non_admin, &token.address, &100, &treasury_dest);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_set_treasury_address() {
+    let env = Env::default();
+    let (_, client, admin) = setup_env(&env);
+    
+    let treasury = Address::generate(&env);
+    client.set_treasury(&admin, &treasury);
+    
+    assert_eq!(client.get_treasury(), treasury);
+}
+
+#[test]
+fn test_unauthorized_set_treasury() {
+    let env = Env::default();
+    let (_, client, _) = setup_env(&env);
+    
+    let non_admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    
+    let result = client.try_set_treasury(&non_admin, &treasury);
+    assert!(result.is_err());
+}

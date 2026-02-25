@@ -49,4 +49,6 @@ pub enum ContractError {
     InvalidAmount = 21,
     /// Fee not configured for this token
     FeeNotConfigured = 22,
+    /// Treasury address not set
+    TreasuryAddressNotSet = 23,
 }

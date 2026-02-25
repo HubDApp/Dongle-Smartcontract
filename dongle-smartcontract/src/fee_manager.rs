@@ -132,4 +132,21 @@ impl FeeManager {
     pub fn is_fee_paid(env: &Env, project_id: u64) -> bool {
         env.storage().persistent().get(&StorageKey::FeePaidForProject(project_id)).unwrap_or(false)
     }
+
+    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        let stored_admin: Address = env.storage().persistent().get(&StorageKey::Admin).ok_or(ContractError::AdminOnly)?;
+        if admin != stored_admin {
+            return Err(ContractError::AdminOnly);
+        }
+        env.storage().persistent().set(&StorageKey::Treasury, &treasury);
+        Ok(())
+    }
+
+    pub fn get_treasury(env: &Env) -> Result<Address, ContractError> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryAddressNotSet)
+    }
 }

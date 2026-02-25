@@ -203,4 +203,12 @@ impl DongleContract {
     pub fn get_treasury_balance(env: Env, token: Address) -> u128 {
         FeeManager::get_treasury_balance(&env, &token)
     }
+
+    pub fn set_treasury(env: Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+        FeeManager::set_treasury(&env, admin, treasury)
+    }
+
+    pub fn get_treasury(env: Env) -> Result<Address, ContractError> {
+        FeeManager::get_treasury(&env)
+    }
 }
