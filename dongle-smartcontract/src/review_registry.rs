@@ -1,5 +1,5 @@
 use crate::events::publish_review_event;
-use crate::types::{Review, ReviewAction, DataKey};
+use crate::types::{Review, ReviewAction, ReviewEventData, DataKey};
 use soroban_sdk::{Address, Env, String, contract, contractimpl};
 
 #[contract]
@@ -139,6 +139,7 @@ mod test {
     #[test]
     fn test_add_review_event() {
         let env = Env::default();
+        env.mock_all_auths();
         let reviewer = Address::generate(&env);
         let comment_cid = String::from_str(&env, "QmHash");
         let contract_id = env.register_contract(None, ReviewRegistry);
@@ -173,15 +174,19 @@ mod test {
     #[test]
     fn test_update_review_event() {
         let env = Env::default();
+        env.mock_all_auths();
         let reviewer = Address::generate(&env);
         let comment_cid = String::from_str(&env, "QmHash2");
         let contract_id = env.register_contract(None, ReviewRegistry);
         let client = ReviewRegistryClient::new(&env, &contract_id);
 
+        // Add a review first so we can update it
+        client.add_review(&1, &reviewer, &5, &None);
+
         client.update_review(&1, &reviewer, &4, &Some(comment_cid.clone()));
 
         let events = env.events().all();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
 
         let (_, topics, data) = events.last().unwrap();
         let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);
@@ -195,14 +200,18 @@ mod test {
     #[test]
     fn test_delete_review_event() {
         let env = Env::default();
+        env.mock_all_auths();
         let reviewer = Address::generate(&env);
         let contract_id = env.register_contract(None, ReviewRegistry);
         let client = ReviewRegistryClient::new(&env, &contract_id);
 
+        // Add a review first so we can delete it
+        client.add_review(&1, &reviewer, &5, &None);
+
         client.delete_review(&1, &reviewer);
 
         let events = env.events().all();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
 
         let (_, topics, data) = events.last().unwrap();
         let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);

@@ -47,34 +47,55 @@ impl DongleContract {
     // ==========================================
 
     pub fn register_project(
-        _env: Env,
-        _owner: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
+        env: Env,
+        owner: Address,
+        name: String,
+        description: String,
+        category: String,
+        website: Option<String>,
+        logo_cid: Option<String>,
+        metadata_cid: Option<String>,
     ) -> Result<u64, ContractError> {
-        todo!("Project registration not yet implemented")
+        crate::project_registry::ProjectRegistry::register_project(
+            &env,
+            owner,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
     }
 
     pub fn update_project(
-        _env: Env,
-        _project_id: u64,
-        _caller: Address,
-        _name: String,
-        _description: String,
-        _category: String,
-        _website: Option<String>,
-        _logo_cid: Option<String>,
-        _metadata_cid: Option<String>,
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        name: Option<String>,
+        description: Option<String>,
+        category: Option<String>,
+        website: Option<Option<String>>,
+        logo_cid: Option<Option<String>>,
+        metadata_cid: Option<Option<String>>,
     ) -> Result<(), ContractError> {
-        todo!("Project updates not yet implemented")
+        crate::project_registry::ProjectRegistry::update_project(
+            &env,
+            project_id,
+            caller,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        ).ok_or(ContractError::ProjectNotFound)?;
+        Ok(())
     }
 
-    pub fn get_project(_env: Env, _project_id: u64) -> Result<Project, ContractError> {
-        todo!("Project retrieval not yet implemented")
+    pub fn get_project(env: Env, project_id: u64) -> Result<Project, ContractError> {
+        crate::project_registry::ProjectRegistry::get_project(&env, project_id)
+            .ok_or(ContractError::ProjectNotFound)
     }
 
     pub fn list_projects(_env: Env, _start_id: u64, _limit: u32) -> Result<Vec<Project>, ContractError> {
@@ -166,19 +187,4 @@ impl DongleContract {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{vec, Vec as SorobanVec};
-
-    fn setup_env() -> Env {
-        Env::default()
-    }
-
-    #[test]
-    fn get_projects_by_owner_returns_all_projects() {
-        // This test as written in the original file refers to missing functions like get_projects_by_owner.
-        // I will keep it but as a stub for now if it doesn't compile, or fix it if I have time.
-        // For now, let's just make sure lib.rs is syntactically correct.
-    }
-}
+mod registration_tests;

@@ -1,0 +1,200 @@
+warning: unused import: `crate::constants::MAX_CID_LEN`
+ --> src\verification_registry.rs:3:5
+  |
+3 | use crate::constants::MAX_CID_LEN;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `publish_verification_approved_event`, `publish_verification_rejected_event`, and `publish_verification_requested_event`
+ --> src\verification_registry.rs:6:5
+  |
+6 |     publish_verification_approved_event, publish_verification_rejected_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |     publish_verification_requested_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\verification_registry.rs:9:60
+  |
+9 | ...s, DataKey};
+  |       ^^^^^^^
+
+warning: unused imports: `publish_fee_paid_event` and `publish_fee_set_event`
+ --> src\fee_manager.rs:4:21
+  |
+4 | ...::{publish_fee_paid_event, publish_fee_set_event};
+  |       ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\fee_manager.rs:5:31
+  |
+5 | ...g, DataKey};
+  |       ^^^^^^^
+
+warning: unused import: `FeeConfig`
+  --> src\lib.rs:22:50
+   |
+22 | ...d, FeeConfig};
+   |       ^^^^^^^^^
+
+warning: variable does not need to be mutable
+  --> src\review_registry.rs:78:17
+   |
+78 | ...et mut user_reviews: s...
+   |       ----^^^^^^^^^^^^
+   |       |
+   |       help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `env`
+  --> src\verification_registry.rs:16:9
+   |
+16 | ...   env: &Env,
+   |       ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `project_id`
+  --> src\verification_registry.rs:17:9
+   |
+17 | ...   project_id: u64,
+   |       ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `requester`
+  --> src\verification_registry.rs:18:9
+   |
+18 | ...   requester: A...
+   |       ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_requester`
+
+warning: unused variable: `evidence_cid`
+  --> src\verification_registry.rs:19:9
+   |
+19 | ...   evidence_cid: S...
+   |       ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_evidence_cid`
+
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: `dongle-contract` (lib) generated 11 warnings (run `cargo fix --lib -p dongle-contract` to apply 11 suggestions)
+error[E0425]: cannot find type `ReviewEventData` in this scope
+   --> src\review_registry.rs:166:25
+    |
+166 |         let event_data: ReviewEventData = data.into_val(&env);
+    |                         ^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: consider importing this struct
+    |
+133 +     use crate::types::ReviewEventData;
+    |
+
+error[E0425]: cannot find type `ReviewEventData` in this scope
+   --> src\review_registry.rs:190:25
+    |
+190 |         let event_data: ReviewEventData = data.into_val(&env);
+    |                         ^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: consider importing this struct
+    |
+133 +     use crate::types::ReviewEventData;
+    |
+
+error[E0425]: cannot find type `ReviewEventData` in this scope
+   --> src\review_registry.rs:211:25
+    |
+211 |         let event_data: ReviewEventData = data.into_val(&env);
+    |                         ^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: consider importing this struct
+    |
+133 +     use crate::types::ReviewEventData;
+    |
+
+warning: unused import: `TryIntoVal`
+   --> src\review_registry.rs:135:31
+    |
+135 |         Env, IntoVal, String, TryIntoVal,
+    |                               ^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::constants::MAX_CID_LEN`
+ --> src\verification_registry.rs:3:5
+  |
+3 | use crate::constants::MAX_CID_LEN;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\verification_registry.rs:9:60
+  |
+9 | use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+  |                                                            ^^^^^^^
+
+warning: unused imports: `publish_fee_paid_event` and `publish_fee_set_event`
+ --> src\fee_manager.rs:4:21
+  |
+4 | use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+  |                     ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\fee_manager.rs:5:31
+  |
+5 | use crate::types::{FeeConfig, DataKey};
+  |                               ^^^^^^^
+
+warning: unused import: `FeeConfig`
+  --> src\lib.rs:22:50
+   |
+22 | use types::{Project, Review, VerificationRecord, FeeConfig};
+   |                                                  ^^^^^^^^^
+
+warning: unused import: `soroban_sdk::testutils::Address as _`
+   --> src\lib.rs:192:9
+    |
+192 |     use soroban_sdk::testutils::Address as _;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Vec as SorobanVec` and `vec`
+   --> src\lib.rs:193:23
+    |
+193 |     use soroban_sdk::{vec, Vec as SorobanVec};
+    |                       ^^^  ^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+  --> src\review_registry.rs:78:17
+   |
+78 |             let mut user_reviews: soroban_sdk::Vec<u64> = env
+   |                 ----^^^^^^^^^^^^
+   |                 |
+   |                 help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `env`
+  --> src\verification_registry.rs:16:9
+   |
+16 |         env: &Env,
+   |         ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `project_id`
+  --> src\verification_registry.rs:17:9
+   |
+17 |         project_id: u64,
+   |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `requester`
+  --> src\verification_registry.rs:18:9
+   |
+18 |         requester: Address,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_requester`
+
+warning: unused variable: `evidence_cid`
+  --> src\verification_registry.rs:19:9
+   |
+19 |         evidence_cid: String,
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_evidence_cid`
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `dongle-contract` (lib test) generated 14 warnings (1 duplicate)
+error: could not compile `dongle-contract` (lib test) due to 3 previous errors; 14 warnings emitted

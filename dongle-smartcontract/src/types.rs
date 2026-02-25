@@ -48,6 +48,7 @@ pub struct Project {
 pub enum DataKey {
     Project(u64),
     ProjectCount,
+    ProjectByName(String),
     OwnerProjects(Address),
     Review(u64, Address),
     UserReviews(Address),

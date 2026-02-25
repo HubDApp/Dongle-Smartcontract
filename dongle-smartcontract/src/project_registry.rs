@@ -14,8 +14,13 @@ impl ProjectRegistry {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
+    ) -> Result<u64, ContractError> {
         owner.require_auth();
+
+        // Check if project name already exists
+        if env.storage().persistent().has(&DataKey::ProjectByName(name.clone())) {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
 
         let mut count: u64 = env
             .storage()
@@ -28,7 +33,7 @@ impl ProjectRegistry {
         let project = Project {
             id: count,
             owner: owner.clone(),
-            name,
+            name: name.clone(),
             description,
             category,
             website,
@@ -45,6 +50,9 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&DataKey::ProjectCount, &count);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProjectByName(name), &count);
 
         let mut owner_projects: Vec<u64> = env
             .storage()
@@ -56,7 +64,7 @@ impl ProjectRegistry {
             .persistent()
             .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
 
-        count
+        Ok(count)
     }
 
     pub fn update_project(

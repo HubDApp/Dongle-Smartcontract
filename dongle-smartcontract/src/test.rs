@@ -1,7 +1,7 @@
 //! Tests for validation, limits, error codes, and edge cases.
 
 use crate::constants::MAX_PROJECTS_PER_USER;
-use crate::errors::Error;
+use crate::errors::ContractError as Error;
 use crate::types::{FeeConfig, VerificationStatus};
 use crate::DongleContract;
 use crate::DongleContractClient;
@@ -13,6 +13,7 @@ fn setup(env: &Env) -> (DongleContractClient, Address, Address) {
     let client = DongleContractClient::new(env, &contract_id);
     let admin = Address::generate(env);
     let owner = Address::generate(env);
+    env.mock_all_auths();
     client.set_admin(&admin);
     (client, admin, owner)
 }
@@ -43,6 +44,28 @@ fn test_register_project_success() {
     assert_eq!(project.name, SorobanString::from_str(&env, "Project A"));
     assert_eq!(project.owner, owner);
     assert_eq!(client.get_owner_project_count(&owner), 1);
+}
+
+#[test]
+fn test_register_duplicate_project_fails() {
+    let env = Env::default();
+    let (client, _, owner) = setup(&env);
+    
+    // Register first project
+    register_one_project(&env, &client, &owner);
+    
+    // Attempt to register another project with the same name
+    let result = client.try_register_project(
+        &owner,
+        &"Project A".into(),
+        &"Other Desc".into(),
+        &"Other Cat".into(),
+        &None,
+        &None,
+        &None,
+    );
+    
+    assert_eq!(result, Err(Ok(crate::errors::ContractError::ProjectAlreadyExists)));
 }
 
 #[test]
