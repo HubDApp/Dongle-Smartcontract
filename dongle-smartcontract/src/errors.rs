@@ -42,7 +42,7 @@ pub enum ContractError {
     /// Treasury address not set
     TreasuryNotSet = 18,
     /// User has already reviewed this project
-    AlreadyReviewed = 19, // I added your error here with a new unique ID
+    DuplicateReview = 19,
     /// Review is already deleted
     ReviewAlreadyDeleted = 20,
 }

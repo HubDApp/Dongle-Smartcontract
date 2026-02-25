@@ -13,6 +13,7 @@ use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 
+#[allow(dead_code)]
 impl VerificationRegistry {
     pub fn request_verification(
         env: &Env,

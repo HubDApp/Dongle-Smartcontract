@@ -34,4 +34,6 @@ pub enum StorageKey {
     UserReviews(Address),
     /// Treasury address.
     Treasury,
+    /// List of reviewer addresses for a project (by project_id).
+    ProjectReviews(u64),
 }

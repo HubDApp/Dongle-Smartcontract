@@ -8,6 +8,7 @@ use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
+#[allow(dead_code)]
 impl FeeManager {
     pub fn set_fee(
         env: &Env,

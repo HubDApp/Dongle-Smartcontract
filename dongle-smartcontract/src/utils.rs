@@ -4,6 +4,7 @@ use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
 
+#[allow(dead_code)]
 impl Utils {
     pub fn get_current_timestamp(env: &Env) -> u64 {
         env.ledger().timestamp()
@@ -33,7 +34,7 @@ impl Utils {
         let length = value.len();
 
         if length < min_length || length > max_length {
-            return Err(ContractError::InvalidProjectData);
+            Err(ContractError::InvalidProjectData)
         } else {
             Ok(())
         }
