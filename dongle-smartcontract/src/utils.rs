@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::types::DataKey;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
 pub struct Utils;
@@ -57,8 +57,8 @@ impl Utils {
         true
     }
 
-    pub fn get_storage_key(data_key: DataKey) -> DataKey {
-        data_key
+    pub fn get_storage_key(storage_key: StorageKey) -> StorageKey {
+        storage_key
     }
 
     pub fn sanitize_string(input: &String) -> String {

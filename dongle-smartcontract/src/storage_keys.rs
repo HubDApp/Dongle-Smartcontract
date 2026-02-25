@@ -1,6 +1,6 @@
 //! Storage key types for persistent storage. Modular to allow future extensions.
 
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, Address, String};
 
 /// Keys for contract storage. Using an enum keeps keys namespaced and avoids collisions.
 #[contracttype]
@@ -11,9 +11,17 @@ pub enum StorageKey {
     /// Next project id (counter).
     NextProjectId,
     /// Number of projects registered by owner (Address).
-    OwnerProjectCount(soroban_sdk::Address),
+    OwnerProjectCount(Address),
+    /// Project stats (ratings, etc).
+    ProjectStats(u64),
+    /// List of project IDs registered by owner.
+    OwnerProjects(Address),
+    /// Project by name (for duplicate detection).
+    ProjectByName(String),
+    /// Project count.
+    ProjectCount,
     /// Review by (project_id, reviewer address).
-    Review(u64, soroban_sdk::Address),
+    Review(u64, Address),
     /// Verification record by project_id.
     Verification(u64),
     /// Fee configuration (single global).
@@ -23,5 +31,7 @@ pub enum StorageKey {
     /// Admin address (for fee set and verifier checks).
     Admin,
     /// List of project IDs reviewed by a user.
-    UserReviews(soroban_sdk::Address),
+    UserReviews(Address),
+    /// Treasury address.
+    Treasury,
 }

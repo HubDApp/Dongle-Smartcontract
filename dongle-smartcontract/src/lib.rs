@@ -14,7 +14,10 @@ mod verification_registry;
 
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod registration_tests;
 
+use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -38,7 +41,7 @@ impl DongleContract {
         website: Option<String>,
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
-    ) -> u64 {
+    ) -> Result<u64, ContractError> {
         ProjectRegistry::register_project(
             &env,
             owner,
@@ -171,7 +174,7 @@ impl DongleContract {
     pub fn set_admin(env: Env, admin: Address) {
         env.storage()
             .persistent()
-            .set(&crate::types::DataKey::Admin(admin), &());
+            .set(&crate::storage_keys::StorageKey::Admin, &admin);
     }
 
     pub fn initialize(env: Env, admin: Address) {

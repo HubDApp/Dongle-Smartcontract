@@ -149,9 +149,6 @@
               "vec": [
                 {
                   "symbol": "Admin"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 }
               ]
             },
@@ -169,14 +166,13 @@
                   "vec": [
                     {
                       "symbol": "Admin"
-                    },
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                     }
                   ]
                 },
                 "durability": "persistent",
-                "val": "void"
+                "val": {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                }
               }
             },
             "ext": "v0"
@@ -372,6 +368,51 @@
             "key": {
               "vec": [
                 {
+                  "symbol": "ProjectByName"
+                },
+                {
+                  "string": "Test Project"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "ProjectByName"
+                    },
+                    {
+                      "string": "Test Project"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "u64": 1
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "vec": [
+                {
                   "symbol": "ProjectCount"
                 }
               ]
@@ -453,14 +494,6 @@
                       },
                       "val": {
                         "string": "QmHash"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "is_deleted"
-                      },
-                      "val": {
-                        "bool": false
                       }
                     },
                     {

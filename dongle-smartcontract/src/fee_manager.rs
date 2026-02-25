@@ -2,7 +2,8 @@
 
 use crate::errors::ContractError;
 use crate::events::publish_fee_set_event;
-use crate::types::{DataKey, FeeConfig};
+use crate::types::FeeConfig;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -20,10 +21,10 @@ impl FeeManager {
             verification_fee: amount,
             registration_fee: 0,
         };
-        env.storage().persistent().set(&DataKey::FeeConfig, &config);
+        env.storage().persistent().set(&StorageKey::FeeConfig, &config);
         env.storage()
             .persistent()
-            .set(&DataKey::Treasury, &treasury);
+            .set(&StorageKey::Treasury, &treasury);
         publish_fee_set_event(env, amount, 0);
         Ok(())
     }
@@ -40,7 +41,7 @@ impl FeeManager {
     pub fn get_fee_config(env: &Env) -> Result<FeeConfig, ContractError> {
         env.storage()
             .persistent()
-            .get(&DataKey::FeeConfig)
+            .get(&StorageKey::FeeConfig)
             .ok_or(ContractError::FeeConfigNotSet)
     }
 

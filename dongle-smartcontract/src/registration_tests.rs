@@ -32,7 +32,7 @@ fn test_register_project_success() {
 
     assert_eq!(id, 1);
     
-    let project = client.get_project(&id);
+    let project = client.get_project(&id).unwrap();
     assert_eq!(project.name, name);
     assert_eq!(project.owner, owner);
 }
@@ -68,7 +68,7 @@ fn test_register_duplicate_project_fails() {
         &None,
     );
 
-    assert_eq!(result, Err(Ok(ContractError::ProjectAlreadyExists)));
+    assert_eq!(result, Err(Ok(ContractError::ProjectAlreadyExists.into())));
 }
 
 #[test]

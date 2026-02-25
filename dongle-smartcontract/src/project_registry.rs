@@ -1,5 +1,6 @@
 use crate::errors::ContractError;
-use crate::types::{DataKey, Project, VerificationStatus};
+use crate::types::{Project, VerificationStatus};
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -28,10 +29,15 @@ impl ProjectRegistry {
             panic!("InvalidProjectCategory");
         }
 
+        // Check if project name already exists
+        if env.storage().persistent().has(&StorageKey::ProjectByName(name.clone())) {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
+
         let mut count: u64 = env
             .storage()
             .persistent()
-            .get(&DataKey::ProjectCount)
+            .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
         count = count.saturating_add(1);
 
@@ -52,23 +58,23 @@ impl ProjectRegistry {
 
         env.storage()
             .persistent()
-            .set(&DataKey::Project(count), &project);
+            .set(&StorageKey::Project(count), &project);
         env.storage()
             .persistent()
-            .set(&DataKey::ProjectCount, &count);
+            .set(&StorageKey::ProjectCount, &count);
         env.storage()
             .persistent()
-            .set(&DataKey::ProjectByName(name), &count);
+            .set(&StorageKey::ProjectByName(name), &count);
 
         let mut owner_projects: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&DataKey::OwnerProjects(owner.clone()))
+            .get(&StorageKey::OwnerProjects(owner.clone()))
             .unwrap_or(Vec::new(env));
         owner_projects.push_back(count);
         env.storage()
             .persistent()
-            .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
+            .set(&StorageKey::OwnerProjects(owner.clone()), &owner_projects);
 
         Ok(count)
     }
@@ -113,7 +119,7 @@ impl ProjectRegistry {
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
-            .set(&DataKey::Project(project_id), &project);
+            .set(&StorageKey::Project(project_id), &project);
 
         Some(project)
     }
@@ -121,14 +127,14 @@ impl ProjectRegistry {
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
         env.storage()
             .persistent()
-            .get(&DataKey::Project(project_id))
+            .get(&StorageKey::Project(project_id))
     }
 
     pub fn get_projects_by_owner(env: &Env, owner: Address) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&DataKey::OwnerProjects(owner))
+            .get(&StorageKey::OwnerProjects(owner))
             .unwrap_or(Vec::new(env));
 
         let mut projects = Vec::new(env);
@@ -148,7 +154,7 @@ impl ProjectRegistry {
         let count: u64 = env
             .storage()
             .persistent()
-            .get(&DataKey::ProjectCount)
+            .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
         let mut projects = Vec::new(env);
@@ -171,7 +177,7 @@ impl ProjectRegistry {
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&DataKey::Project(project_id))
+            .has(&StorageKey::Project(project_id))
     }
 
     #[allow(dead_code)]
@@ -184,7 +190,7 @@ impl ProjectRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         if description.len() == 0 {
-            return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
+            return Err(ContractError::ProjectDescriptionTooLong); 
         }
         if category.len() == 0 {
             return Err(ContractError::InvalidProjectCategory);

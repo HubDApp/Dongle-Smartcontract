@@ -432,8 +432,9 @@ fn test_list_projects() {
     let (client, _, owner) = setup(&env);
 
     // Register 10 projects
-    for _i in 1..=10 {
-        let name = SorobanString::from_str(&env, "Project");
+    let names = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"];
+    for name_str in names {
+        let name = SorobanString::from_str(&env, name_str);
         client.mock_all_auths().register_project(
             &owner,
             &name,
