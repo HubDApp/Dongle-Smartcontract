@@ -479,7 +479,7 @@ mod tests {
 
     /// Any string not in the enumeration must return InvalidProjectCategory (code 14).
     #[test]
-    #[should_panic(expected = "Status(ContractError(14))")]
+    #[should_panic(expected = "HostError: Error(Contract, #14)")]
     fn test_invalid_category_unknown_string() {
         let env = Env::default();
         env.mock_all_auths();
@@ -498,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Status(ContractError(14))")]
+    #[should_panic(expected = "HostError: Error(Contract, #14)")]
     fn test_invalid_category_empty_string() {
         let env = Env::default();
         env.mock_all_auths();
@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Status(ContractError(14))")]
+    #[should_panic(expected = "HostError: Error(Contract, #14)")]
     fn test_invalid_category_wrong_case() {
         let env = Env::default();
         env.mock_all_auths();
@@ -537,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Status(ContractError(14))")]
+    #[should_panic(expected = "HostError: Error(Contract, #14)")]
     fn test_invalid_category_whitespace_padded() {
         let env = Env::default();
         env.mock_all_auths();
