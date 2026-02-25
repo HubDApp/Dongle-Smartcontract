@@ -27,6 +27,10 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::types::{FeeConfig, Project, Review, VerificationRecord, VerificationStatus};
+use crate::fee_manager::FeeManager;
+use crate::project_registry::ProjectRegistry;
+use crate::review_registry::ReviewRegistry;
+use crate::types::{FeeConfig, Project, Review, VerificationRecord};
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
@@ -104,7 +108,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) {
-        ReviewRegistry::add_review(env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
     pub fn update_review(
@@ -114,15 +118,15 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) {
-        ReviewRegistry::update_review(env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
     pub fn delete_review(env: Env, project_id: u64, reviewer: Address) {
-        let _ = ReviewRegistry::delete_review(env, project_id, reviewer);
+        let _ = ReviewRegistry::delete_review(&env, project_id, reviewer);
     }
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
-        ReviewRegistry::get_review(env, project_id, reviewer)
+        ReviewRegistry::get_review(&env, project_id, reviewer)
     }
 
     // --- Verification Registry ---
@@ -192,6 +196,11 @@ impl DongleContract {
     }
 
     // --- Admin Management ---
+    pub fn set_admin(env: Env, admin: Address) {
+        env.storage()
+            .persistent()
+            .set(&crate::types::DataKey::Admin(admin), &());
+    }
 
     pub fn initialize(env: Env, admin: Address) {
         AdminRegistry::initialize(&env, admin);

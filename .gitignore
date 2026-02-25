@@ -1,3 +1,4 @@
 target/
-/dongle-smartcontract/target/
+dongle-smartcontract/target/
+dongle-smartcontract/Cargo.lock
 .DS_Store

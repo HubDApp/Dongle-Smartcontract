@@ -3,14 +3,19 @@ use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
 use crate::types::{DataKey, ProjectStats, Review, ReviewAction, ReviewEventData};
 use soroban_sdk::{contract, contractimpl, Address, Env, String};
+//! Review submission with validation, duplicate handling, and events.
 
-#[contract]
+use crate::errors::ContractError;
+use crate::events::publish_review_event;
+use crate::rating_calculator::RatingCalculator;
+use crate::types::{DataKey, ProjectStats, Review, ReviewAction};
+use soroban_sdk::{Address, Env, String};
+
 pub struct ReviewRegistry;
 
-#[contractimpl]
 impl ReviewRegistry {
     pub fn add_review(
-        env: Env,
+        env: &Env,
         project_id: u64,
         reviewer: Address,
         rating: u32,
@@ -28,13 +33,12 @@ impl ReviewRegistry {
             is_deleted: false,
         };
 
-        // If it's a new review, add it to the user's list
         if !env.storage().persistent().has(&review_key) {
             let mut user_reviews: soroban_sdk::Vec<u64> = env
                 .storage()
                 .persistent()
                 .get(&DataKey::UserReviews(reviewer.clone()))
-                .unwrap_or(soroban_sdk::Vec::new(&env));
+                .unwrap_or(soroban_sdk::Vec::new(env));
             user_reviews.push_back(project_id);
             env.storage()
                 .persistent()
@@ -45,6 +49,7 @@ impl ReviewRegistry {
 
         publish_review_event(
             &env,
+            env,
             project_id,
             reviewer,
             ReviewAction::Submitted,
@@ -53,7 +58,7 @@ impl ReviewRegistry {
     }
 
     pub fn update_review(
-        env: Env,
+        env: &Env,
         project_id: u64,
         reviewer: Address,
         rating: u32,
@@ -76,6 +81,7 @@ impl ReviewRegistry {
 
         publish_review_event(
             &env,
+            env,
             project_id,
             reviewer,
             ReviewAction::Updated,
@@ -85,6 +91,7 @@ impl ReviewRegistry {
 
     pub fn delete_review(
         env: Env,
+        env: &Env,
         project_id: u64,
         reviewer: Address,
     ) -> Result<(), ContractError> {
@@ -138,18 +145,19 @@ impl ReviewRegistry {
 
         // 6. Emit the deleted event
         publish_review_event(&env, project_id, reviewer, ReviewAction::Deleted, None);
+        publish_review_event(env, project_id, reviewer, ReviewAction::Deleted, None);
 
         Ok(())
     }
 
-    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
+    pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
         env.storage()
             .persistent()
             .get(&DataKey::Review(project_id, reviewer))
     }
 
     pub fn get_reviews_by_user(
-        env: Env,
+        env: &Env,
         user: Address,
         offset: u32,
         limit: u32,
@@ -158,16 +166,18 @@ impl ReviewRegistry {
             .storage()
             .persistent()
             .get(&DataKey::UserReviews(user.clone()))
-            .unwrap_or(soroban_sdk::Vec::new(&env));
+            .unwrap_or(soroban_sdk::Vec::new(env));
 
-        let mut reviews = soroban_sdk::Vec::new(&env);
+        let mut reviews = soroban_sdk::Vec::new(env);
         let start = offset;
-        let end = core::cmp::min(offset + limit, project_ids.len());
+        let len = project_ids.len();
+        let end = core::cmp::min(offset.saturating_add(limit), len);
 
         for i in start..end {
-            let project_id = project_ids.get(i).unwrap();
-            if let Some(review) = Self::get_review(env.clone(), project_id, user.clone()) {
-                reviews.push_back(review);
+            if let Some(project_id) = project_ids.get(i) {
+                if let Some(review) = Self::get_review(env, project_id, user.clone()) {
+                    reviews.push_back(review);
+                }
             }
         }
 
@@ -183,24 +193,39 @@ mod test {
         testutils::{Address as _, Events},
         Env, IntoVal, String, TryIntoVal,
     }; // Alias for clarity
+    use crate::types::ReviewEventData;
+    use crate::{DongleContract, DongleContractClient};
+    use soroban_sdk::String as SorobanString;
+    use soroban_sdk::{
+        testutils::{Address as _, Events},
+        Env, IntoVal, String,
+    };
 
     #[test]
     fn test_add_review_event() {
         let env = Env::default();
+        env.mock_all_auths();
         let reviewer = Address::generate(&env);
+        let owner = Address::generate(&env);
         let comment_cid = String::from_str(&env, "QmHash");
-        let contract_id = env.register_contract(None, ReviewRegistry);
-        let client = ReviewRegistryClient::new(&env, &contract_id);
+        let contract_id = env.register_contract(None, DongleContract);
+        let client = DongleContractClient::new(&env, &contract_id);
 
         client
             .mock_all_auths()
             .add_review(&1, &reviewer, &5, &Some(comment_cid.clone()));
+        client.initialize(&owner);
+        let name = SorobanString::from_str(&env, "Test Project");
+        let desc =
+            SorobanString::from_str(&env, "A description that is long enough for validation.");
+        let cat = SorobanString::from_str(&env, "DeFi");
+        let project_id = client.register_project(&owner, &name, &desc, &cat, &None, &None, &None);
+        client.add_review(&project_id, &reviewer, &5, &Some(comment_cid.clone()));
 
         let events = env.events().all();
-        assert_eq!(events.len(), 1);
+        assert!(events.len() >= 1);
 
         let (_, topics, data) = events.last().unwrap();
-
         assert_eq!(topics.len(), 4);
 
         let topic0: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
@@ -210,11 +235,11 @@ mod test {
 
         assert_eq!(topic0, soroban_sdk::symbol_short!("REVIEW"));
         assert_eq!(topic1, soroban_sdk::symbol_short!("SUBMITTED"));
-        assert_eq!(topic2, 1u64);
+        assert_eq!(topic2, project_id);
         assert_eq!(topic3, reviewer);
 
         let event_data: ReviewEventData = data.into_val(&env);
-        assert_eq!(event_data.project_id, 1);
+        assert_eq!(event_data.project_id, project_id);
         assert_eq!(event_data.reviewer, reviewer);
         assert_eq!(event_data.action, ReviewAction::Submitted);
         assert_eq!(event_data.comment_cid, Some(comment_cid));

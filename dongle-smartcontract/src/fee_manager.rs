@@ -5,6 +5,7 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_fee_paid_event, publish_fee_set_event, publish_treasury_updated_event,
 };
+use crate::events::publish_fee_set_event;
 use crate::types::{DataKey, FeeConfig};
 use soroban_sdk::{Address, Env};
 
@@ -14,6 +15,7 @@ impl FeeManager {
     pub fn set_fee(
         env: &Env,
         admin: Address,
+        _admin: Address,
         token: Option<Address>,
         amount: u128,
         treasury: Address,
@@ -30,6 +32,7 @@ impl FeeManager {
 
         // Create fee configuration
         let fee_config = FeeConfig {
+        let config = FeeConfig {
             token,
             verification_fee: amount,
             registration_fee: 0,
@@ -44,6 +47,11 @@ impl FeeManager {
 
         publish_fee_set_event(env, amount, 0);
 
+        env.storage().persistent().set(&DataKey::FeeConfig, &config);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Treasury, &treasury);
+        publish_fee_set_event(env, amount, 0);
         Ok(())
     }
 
@@ -97,8 +105,21 @@ impl FeeManager {
             .persistent()
             .get(&DataKey::Treasury)
             .ok_or(ContractError::TreasuryNotSet)
+    #[allow(dead_code)]
+    pub fn set_treasury(
+        _env: &Env,
+        _admin: Address,
+        _treasury: Address,
+    ) -> Result<(), ContractError> {
+        todo!("Treasury setting logic not implemented")
     }
 
+    #[allow(dead_code)]
+    pub fn get_treasury(_env: &Env) -> Result<Address, ContractError> {
+        todo!("Treasury address retrieval logic not implemented")
+    }
+
+    #[allow(dead_code)]
     pub fn get_operation_fee(_env: &Env, operation_type: &str) -> Result<u128, ContractError> {
         match operation_type {
             "verification" => Ok(1000000),
@@ -113,8 +134,17 @@ impl FeeManager {
 
     pub fn treasury_exists(env: &Env) -> bool {
         env.storage().persistent().has(&DataKey::Treasury)
+    #[allow(dead_code)]
+    pub fn fee_config_exists(_env: &Env) -> bool {
+        false
     }
 
+    #[allow(dead_code)]
+    pub fn treasury_exists(_env: &Env) -> bool {
+        false
+    }
+
+    #[allow(dead_code)]
     pub fn refund_fee(
         env: &Env,
         admin: Address,
