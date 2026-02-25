@@ -1,6 +1,7 @@
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
 use crate::types::{Project, VerificationStatus};
+use crate::types::{Project, DataKey, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -16,6 +17,7 @@ impl ProjectRegistry {
         logo_cid: Option<String>,
         metadata_cid: Option<String>,
     ) -> Result<u64, ContractError> {
+    ) -> u64 {
         owner.require_auth();
 
         let mut count: u64 = env
@@ -58,6 +60,9 @@ impl ProjectRegistry {
             .set(&StorageKey::OwnerProjects(owner), &owner_projects);
 
         Ok(count)
+            .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
+
+        count
     }
 
     pub fn update_project(
@@ -100,7 +105,7 @@ impl ProjectRegistry {
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+            .set(&DataKey::Project(project_id), &project);
 
         Ok(project)
     }
@@ -157,7 +162,7 @@ impl ProjectRegistry {
     pub fn project_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&StorageKey::Project(project_id))
+            .has(&DataKey::Project(project_id))
     }
 
     pub fn update_verification_status(

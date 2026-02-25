@@ -7,6 +7,8 @@ use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
 use soroban_sdk::{Address, Env, String};
+use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 

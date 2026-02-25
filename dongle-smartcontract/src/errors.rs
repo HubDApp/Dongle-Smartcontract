@@ -51,4 +51,7 @@ pub enum ContractError {
     FeeNotConfigured = 22,
     /// Treasury address not set
     TreasuryAddressNotSet = 23,
+    AlreadyReviewed = 19, // I added your error here with a new unique ID
+    /// Review is already deleted
+    ReviewAlreadyDeleted = 20,
 }

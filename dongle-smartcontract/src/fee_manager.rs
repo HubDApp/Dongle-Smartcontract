@@ -3,6 +3,9 @@ use crate::events::{publish_fee_collected_event, publish_treasury_withdrawal_eve
 use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
 use soroban_sdk::{token, Address, Env};
+use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+use crate::types::{FeeConfig, DataKey};
+use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
