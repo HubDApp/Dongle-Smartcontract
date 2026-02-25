@@ -1,0 +1,414 @@
+   Compiling dongle-contract v0.1.0 (/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract)
+error[E0106]: missing lifetime specifier
+ --> src/test_treasury.rs:7:46
+  |
+7 | ...ractClient<'_>, Address) {
+  |               ^^ expected named lifetime parameter
+  |
+  = help: this function's return type contains a borrowed value, but there is no value for it to be borrowed from
+help: consider using the `'static` lifetime, but this is uncommon unless you're returning a borrowed value from a `const` or a `static`, or if you will only have owned values
+  |
+7 - fn setup_env() -> (Env, DongleContractClient<'_>, Address) {
+7 + fn setup_env() -> (Env, DongleContractClient<'static>, Address) {
+  |
+
+error[E0425]: cannot find type `String` in this scope
+  --> src/verification_registry.rs:17:23
+   |
+17 |         evidence_cid: String,
+   |                       ^^^^^^ not found in this scope
+   |
+help: consider importing one of these structs
+   |
+ 1 + use crate::String;
+   |
+ 1 + use soroban_sdk::String;
+   |
+
+warning: unused import: `ReviewEventData`
+ --> src/review_registry.rs:2:42
+  |
+2 | ...Action, ReviewEventData};
+  |            ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `TryIntoVal`
+  --> src/review_registry.rs:63:31
+   |
+63 | ..., String, TryIntoVal,
+   |              ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::storage_keys::StorageKey`
+ --> src/utils.rs:2:5
+  |
+2 | use crate::storage_keys::StorageKey;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Project` and `VerificationStatus`
+ --> src/test.rs:2:20
+  |
+2 | ...::{Project, VerificationStatus};
+  |       ^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::errors::ContractError`
+ --> src/test.rs:3:5
+  |
+3 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `vec`
+ --> src/test.rs:4:66
+  |
+4 | ... Env, String, vec};
+  |                  ^^^
+
+warning: unused import: `VerificationRecord`
+  --> src/lib.rs:27:37
+   |
+27 | ...view, VerificationRecord, FeeCo...
+   |          ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `FeeConfig` and `VerificationStatus`
+ --> src/test_treasury.rs:2:20
+  |
+2 | ...::{VerificationStatus, FeeConfig};
+  |       ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `crate::errors::ContractError`
+ --> src/test_treasury.rs:3:5
+  |
+3 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Events` and `vec`
+ --> src/test_treasury.rs:4:45
+  |
+4 | ..._, Events}, Address, Env, String, vec};
+  |       ^^^^^^                         ^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> src/review_registry.rs:72:31
+   |
+72 | ... = env.register_contract(None, ...
+   |           ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+   --> src/review_registry.rs:106:31
+    |
+106 | ...= env.register_contract(None, ...
+    |          ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+   --> src/review_registry.rs:127:31
+    |
+127 | ...= env.register_contract(None, ...
+    |          ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+ --> src/test.rs:9:27
+  |
+9 | ... = env.register_contract(None, D...
+  |           ^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test.rs:33:7
+   |
+25 |       let id = client.register_pro...
+   |  ______________-
+26 | |         &owner,
+27 | |         &name,
+28 | |         &desc,
+...  |
+32 | |         &None,
+33 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `unwrap` found for struct `Project` in the current scope
+  --> src/test.rs:36:43
+   |
+36 | ...ect(&id).unwrap();
+   |             ^^^^^^ method not found in `Project`
+   |
+  ::: src/types.rs:41:1
+   |
+41 | pub struct Project {
+   | ------------------ method `unwrap` not found for this struct
+   |
+help: some of the expressions' fields have a method of the same name
+   |
+36 |     let project = client.get_project(&id).logo_cid.unwrap();
+   |                                           +++++++++
+36 |     let project = client.get_project(&id).metadata_cid.unwrap();
+   |                                           +++++++++++++
+36 |     let project = client.get_project(&id).website.unwrap();
+   |                                           ++++++++
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test.rs:55:7
+   |
+47 |       let id = client.register_pro...
+   |  ______________-
+48 | |         &owner,
+49 | |         &String::from_str(&env, ...
+50 | |         &String::from_str(&env, ...
+...  |
+54 | |         &None,
+55 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `unwrap` found for struct `Project` in the current scope
+  --> src/test.rs:60:43
+   |
+60 | ...ect(&id).unwrap();
+   |             ^^^^^^ method not found in `Project`
+   |
+  ::: src/types.rs:41:1
+   |
+41 | pub struct Project {
+   | ------------------ method `unwrap` not found for this struct
+   |
+help: some of the expressions' fields have a method of the same name
+   |
+60 |     let project = client.get_project(&id).logo_cid.unwrap();
+   |                                           +++++++++
+60 |     let project = client.get_project(&id).metadata_cid.unwrap();
+   |                                           +++++++++++++
+60 |     let project = client.get_project(&id).website.unwrap();
+   |                                           ++++++++
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:14:9
+   |
+14 |         rating: u32, // Matches ty...
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:34:9
+   |
+34 |         rating: u32,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `env`
+  --> src/review_registry.rs:54:23
+   |
+54 | ...get_review(env: Env, project_id...
+   |               ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/review_registry.rs:54:33
+   |
+54 | ...nv: Env, project_id: u64, revie...
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `reviewer`
+  --> src/review_registry.rs:54:50
+   |
+54 | ...id: u64, reviewer: Address) -> ...
+   |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reviewer`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test.rs:78:7
+   |
+70 |       let id = client.register_pro...
+   |  ______________-
+71 | |         &owner,
+72 | |         &String::from_str(&env, ...
+73 | |         &String::from_str(&env, ...
+...  |
+77 | |         &None,
+78 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `unwrap` found for unit type `()` in the current scope
+  --> src/test.rs:81:50
+   |
+81 | ..., &None).unwrap();
+   |             ^^^^^^ method not found in `()`
+
+error[E0599]: no method named `unwrap` found for struct `Review` in the current scope
+  --> src/test.rs:83:52
+   |
+83 | ...eviewer).unwrap();
+   |             ^^^^^^ method not found in `Review`
+   |
+  ::: src/types.rs:5:1
+   |
+ 5 | pub struct Review {
+   | ----------------- method `unwrap` not found for this struct
+   |
+help: one of the expressions' fields has a method of the same name
+   |
+83 |     let review = client.get_review(&id, &reviewer).comment_cid.unwrap();
+   |                                                    ++++++++++++
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> src/test_treasury.rs:12:27
+   |
+12 | ... = env.register_contract(None, ...
+   |           ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
+  --> src/test_treasury.rs:21:27
+   |
+21 | ...nv.register_stellar_asset_contract(ad...
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `unwrap` found for struct `FeeConfig` in the current scope
+  --> src/test_treasury.rs:33:42
+   |
+33 | ...config().unwrap();
+   |             ^^^^^^ method not found in `FeeConfig`
+   |
+  ::: src/types.rs:68:1
+   |
+68 | pub struct FeeConfig {
+   | -------------------- method `unwrap` not found for this struct
+   |
+help: one of the expressions' fields has a method of the same name
+   |
+33 |     let config = client.get_fee_config().token.unwrap();
+   |                                          ++++++
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src/test_treasury.rs:48:11
+   |
+48 |     token.mint(&user, &5000);
+   |           ^^^^ method not found in `Client<'_>`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test_treasury.rs:58:7
+   |
+50 |       let project_id = client.regi...
+   |  ______________________-
+51 | |         &user,
+52 | |         &String::from_str(&env, ...
+53 | |         &String::from_str(&env, ...
+...  |
+57 | |         &None,
+58 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src/test_treasury.rs:77:11
+   |
+77 |     token.mint(&user, &1000);
+   |           ^^^^ method not found in `Client<'_>`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test_treasury.rs:87:7
+   |
+79 |       let project_id = client.regi...
+   |  ______________________-
+80 | |         &user,
+81 | |         &String::from_str(&env, ...
+82 | |         &String::from_str(&env, ...
+...  |
+86 | |         &None,
+87 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+   --> src/test_treasury.rs:108:11
+    |
+108 |     token.mint(&user, &1000);
+    |           ^^^^ method not found in `Client<'_>`
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:58
+    |
+110 | ...user, &"P".into(), &"D".into()...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8348603813004109312.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:71
+    |
+110 | ...to(), &"D".into(), &"C".into()...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-7477822316841538193.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:84
+    |
+110 | ...to(), &"C".into(), &None, &Non...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-17477094683969317530.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+   --> src/test_treasury.rs:110:113
+    |
+110 | ..., &None).unwrap();
+    |             ^^^^^^ method not found in `u64`
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:111:58
+    |
+111 | ...user, &"E".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1544933982581009207.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `dongle-contract` (lib) generated 8 warnings
+error: could not compile `dongle-contract` (lib) due to 1 previous error; 8 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0106, E0277, E0425, E0599.
+For more information about an error, try `rustc --explain E0106`.
+warning: `dongle-contract` (lib test) generated 20 warnings (7 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 20 previous errors; 20 warnings emitted

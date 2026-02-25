@@ -42,6 +42,15 @@ pub enum ContractError {
     /// Treasury address not set
     TreasuryNotSet = 18,
     /// User has already reviewed this project
+    AlreadyReviewed = 19,
+    /// Insufficient balance in treasury
+    InsufficientBalance = 20,
+    /// Invalid withdrawal amount
+    InvalidAmount = 21,
+    /// Fee not configured for this token
+    FeeNotConfigured = 22,
+    /// Treasury address not set
+    TreasuryAddressNotSet = 23,
     AlreadyReviewed = 19, // I added your error here with a new unique ID
     /// Review is already deleted
     ReviewAlreadyDeleted = 20,

@@ -1,4 +1,6 @@
 use crate::events::publish_review_event;
+use crate::types::{Review, ReviewAction};
+use crate::storage_keys::StorageKey;
 use crate::types::{Review, ReviewAction, ReviewEventData, DataKey, ProjectStats};
 use crate::errors::ContractError;
 use crate::rating_calculator::RatingCalculator;
@@ -16,6 +18,26 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) {
+        let key = StorageKey::Review(project_id, reviewer.clone());
+        
+        let review = Review {
+            project_id,
+            reviewer: reviewer.clone(),
+            rating,
+            comment_cid: comment_cid.clone(),
+            timestamp: env.ledger().timestamp(),
+        };
+
+        // If it's a new review, add reviewer to the project list
+        if !env.storage().persistent().has(&key) {
+            let list_key = StorageKey::ProjectReviewers(project_id);
+            let mut list = env.storage().persistent().get::<_, soroban_sdk::Vec<Address>>(&list_key)
+                .unwrap_or_else(|| soroban_sdk::vec![&env]);
+            list.push_back(reviewer.clone());
+            env.storage().persistent().set(&list_key, &list);
+        }
+
+        env.storage().persistent().set(&key, &review);
         reviewer.require_auth();
 
         let review_key = DataKey::Review(project_id, reviewer.clone());
@@ -52,6 +74,40 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) {
+        let key = StorageKey::Review(project_id, reviewer.clone());
+        
+        if let Some(mut review) = env.storage().persistent().get::<_, Review>(&key) {
+            review.rating = rating;
+            review.comment_cid = comment_cid.clone();
+            review.timestamp = env.ledger().timestamp();
+            
+            env.storage().persistent().set(&key, &review);
+
+            publish_review_event(
+                &env,
+                project_id,
+                reviewer,
+                ReviewAction::Updated,
+                comment_cid,
+            );
+        }
+    }
+
+    pub fn delete_review(env: Env, project_id: u64, reviewer: Address) {
+        let key = StorageKey::Review(project_id, reviewer.clone());
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+            
+            // Note: We don't remove from the ProjectReviewers list for simplicity and gas efficiency,
+            // get_reviews_by_project will skip missing reviews.
+            
+            publish_review_event(&env, project_id, reviewer, ReviewAction::Deleted, None);
+        }
+    }
+
+    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
+        let key = StorageKey::Review(project_id, reviewer);
+        env.storage().persistent().get(&key)
         reviewer.require_auth();
 
         let review_key = DataKey::Review(project_id, reviewer.clone());
@@ -249,24 +305,17 @@ mod test {
         assert_eq!(event_data.comment_cid, Some(comment_cid));
     }
 
-    #[test]
-    fn test_delete_review_event() {
-        let env = Env::default();
-        let reviewer = Address::generate(&env);
-        let contract_id = env.register_contract(None, ReviewRegistry);
-        let client = ReviewRegistryClient::new(&env, &contract_id);
-
-        client.delete_review(&1, &reviewer);
-
-        let events = env.events().all();
-        assert_eq!(events.len(), 1);
-
-        let (_, topics, data) = events.last().unwrap();
-        let topic1: soroban_sdk::Symbol = topics.get(1).unwrap().into_val(&env);
-        assert_eq!(topic1, soroban_sdk::symbol_short!("DELETED"));
-
-        let event_data: ReviewEventData = data.into_val(&env);
-        assert_eq!(event_data.action, ReviewAction::Deleted);
-        assert_eq!(event_data.comment_cid, None);
+    pub fn get_reviews_by_project(env: Env, project_id: u64) -> soroban_sdk::Vec<Review> {
+        let list_key = StorageKey::ProjectReviewers(project_id);
+        let reviewers = env.storage().persistent().get::<_, soroban_sdk::Vec<Address>>(&list_key)
+            .unwrap_or_else(|| soroban_sdk::vec![&env]);
+        
+        let mut reviews = soroban_sdk::vec![&env];
+        for reviewer in reviewers.iter() {
+            if let Some(review) = Self::get_review(env.clone(), project_id, reviewer) {
+                reviews.push_back(review);
+            }
+        }
+        reviews
     }
 }

@@ -8,6 +8,7 @@ pub struct Review {
     pub rating: u32,
     pub timestamp: u64,
     pub comment_cid: Option<String>,
+    pub timestamp: u64,
     pub is_deleted: bool,
 }
 
@@ -79,8 +80,28 @@ pub enum VerificationStatus {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Project {
+    pub id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub website: Option<String>,
+    pub logo_cid: Option<String>,
+    pub metadata_cid: Option<String>,
+    pub verification_status: VerificationStatus,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
+    pub project_id: u64,
     pub status: VerificationStatus,
+    pub requester: Address,
+    pub evidence_cid: String,
+    pub timestamp: u64,
 }
 
 /// Fee configuration for contract operations

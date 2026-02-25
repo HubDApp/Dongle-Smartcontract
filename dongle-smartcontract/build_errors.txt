@@ -1,0 +1,1592 @@
+   Compiling dongle-contract v0.1.0 (/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract)
+error[E0753]: expected outer doc comment
+  --> src/lib.rs:11:1
+   |
+11 | //! # Dongle Smart Contract
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+11 - //! # Dongle Smart Contract
+11 + // # Dongle Smart Contract
+   |
+
+error[E0753]: expected outer doc comment
+  --> src/lib.rs:12:1
+   |
+12 | //! 
+   | ^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+12 - //! 
+12 + // 
+   |
+
+error[E0753]: expected outer doc comment
+  --> src/lib.rs:13:1
+   |
+13 | //! A d... Stellar/Soroban.
+   | ^^^^^^^...^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+13 - //! A decentralized project registry and discovery platform built on Stellar/Soroban.
+13 + // A decentralized project registry and discovery platform built on Stellar/Soroban.
+   |
+
+error[E0753]: expected outer doc comment
+  --> src/lib.rs:14:1
+   |
+14 | //! Thi...ity reviews, and 
+   | ^^^^^^^...^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+14 - //! This contract enables transparent project registration, community reviews, and 
+14 + // This contract enables transparent project registration, community reviews, and 
+   |
+
+error[E0753]: expected outer doc comment
+  --> src/lib.rs:15:1
+   |
+15 | //! verification processes for the Stellar ecosystem.
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |
+17 | mod types;
+   | ---------- the inner doc comment doesn't annotate this module
+   |
+help: to annotate the module, change the doc comment from inner to outer style
+   |
+15 - //! verification processes for the Stellar ecosystem.
+15 + /// verification processes for the Stellar ecosystem.
+   |
+
+error[E0428]: the name `types` is defined multiple times
+  --> src/lib.rs:17:1
+   |
+ 7 | pub mod types;
+   | -------------- previous definition of the module `types` here
+...
+17 | mod types;
+   | ^^^^^^^^^^ `types` redefined here
+   |
+   = note: `types` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `errors` is defined multiple times
+  --> src/lib.rs:18:1
+   |
+ 2 | pub mod errors;
+   | --------------- previous definition of the module `errors` here
+...
+18 | mod errors;
+   | ^^^^^^^^^^^ `errors` redefined here
+   |
+   = note: `errors` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `project_registry` is defined multiple times
+  --> src/lib.rs:19:1
+   |
+ 5 | pub mod project_registry;
+   | ------------------------- previous definition of the module `project_registry` here
+...
+19 | mod project_registry;
+   | ^^^^^^^^^^^^^^^^^^^^^ `project_registry` redefined here
+   |
+   = note: `project_registry` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `review_registry` is defined multiple times
+  --> src/lib.rs:20:1
+   |
+ 6 | pub mod review_registry;
+   | ------------------------ previous definition of the module `review_registry` here
+...
+20 | mod review_registry;
+   | ^^^^^^^^^^^^^^^^^^^^ `review_registry` redefined here
+   |
+   = note: `review_registry` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `verification_registry` is defined multiple times
+  --> src/lib.rs:21:1
+   |
+ 9 | pub mod verification_registry;
+   | ------------------------------ previous definition of the module `verification_registry` here
+...
+21 | mod verification_registry;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^ `verification_registry` redefined here
+   |
+   = note: `verification_registry` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `fee_manager` is defined multiple times
+  --> src/lib.rs:22:1
+   |
+ 4 | pub mod fee_manager;
+   | -------------------- previous definition of the module `fee_manager` here
+...
+22 | mod fee_manager;
+   | ^^^^^^^^^^^^^^^^ `fee_manager` redefined here
+   |
+   = note: `fee_manager` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `utils` is defined multiple times
+  --> src/lib.rs:23:1
+   |
+ 8 | pub mod utils;
+   | -------------- previous definition of the module `utils` here
+...
+23 | mod utils;
+   | ^^^^^^^^^^ `utils` redefined here
+   |
+   = note: `utils` must be defined only once in the type namespace of this module
+
+error[E0432]: unresolved import `crate::events::VerificationApproved`
+ --> src/verification_registry.rs:5:5
+  |
+5 | use crate::events::VerificationApproved;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `VerificationApproved` in `events`
+
+error[E0432]: unresolved import `crate::events::VerificationRejected`
+ --> src/verification_registry.rs:6:5
+  |
+6 | use crate::events::VerificationRejected;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `VerificationRejected` in `events`
+
+error[E0432]: unresolved import `crate::events::VerificationRequested`
+ --> src/verification_registry.rs:7:5
+  |
+7 | use crate::events::VerificationRequested;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `VerificationRequested` in `events`
+
+error[E0432]: unresolved import `crate::storage_keys`
+ --> src/fee_manager.rs:3:12
+  |
+3 | use crate::storage_keys::StorageKey;
+  |            ^^^^^^^^^^^^ could not find `storage_keys` in the crate root
+
+error[E0432]: unresolved import `crate::storage_keys`
+ --> src/project_registry.rs:2:12
+  |
+2 | use crate::storage_keys::StorageKey;
+  |            ^^^^^^^^^^^^ could not find `storage_keys` in the crate root
+
+error[E0432]: unresolved import `crate::storage_keys`
+ --> src/utils.rs:2:12
+  |
+2 | use crate::storage_keys::StorageKey;
+  |            ^^^^^^^^^^^^ could not find `storage_keys` in the crate root
+
+error[E0432]: unresolved import `crate::constants`
+ --> src/verification_registry.rs:3:12
+  |
+3 | use crate::constants::MAX_CID_LEN;
+  |            ^^^^^^^^^ could not find `constants` in the crate root
+
+error[E0432]: unresolved import `crate::storage_keys`
+ --> src/verification_registry.rs:8:12
+  |
+8 | use crate::storage_keys::StorageKey;
+  |            ^^^^^^^^^^^^ could not find `storage_keys` in the crate root
+
+error[E0432]: unresolved import `crate::constants`
+ --> src/test.rs:3:12
+  |
+3 | use crate::constants::MAX_PROJECTS_P...
+  |            ^^^^^^^^^ could not find `constants` in the crate root
+
+error[E0432]: unresolved import `crate::errors::Error`
+ --> src/test.rs:4:5
+  |
+4 | use crate::errors::Error;
+  |     ^^^^^^^^^^^^^^^^^^^^ no `Error` in `errors`
+  |
+help: consider importing one of these items instead
+  |
+4 - use crate::errors::Error;
+4 + use core::error::Error;
+  |
+4 - use crate::errors::Error;
+4 + use core::fmt::Error;
+  |
+4 - use crate::errors::Error;
+4 + use soroban_sdk::Error;
+  |
+4 - use crate::errors::Error;
+4 + use soroban_sdk::testutils::ed25519::Error;
+  |
+  = and 5 other candidates
+
+error: cannot find macro `format` in this scope
+   --> src/test.rs:354:14
+    |
+354 | ...   &format!("Project {}", i),
+    |        ^^^^^^
+
+error: cannot find macro `format` in this scope
+   --> src/test.rs:147:17
+    |
+147 | ...   let n = format!("{} {}", nam...
+    |               ^^^^^^
+
+error[E0425]: cannot find type `DataKey` in this scope
+  --> src/utils.rs:60:38
+   |
+60 | ...ata_key: DataKey) -> DataKey {
+   |             ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `DataKey` in this scope
+  --> src/utils.rs:60:50
+   |
+60 | ...aKey) -> DataKey {
+   |             ^^^^^^^ not found in this scope
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+  --> src/lib.rs:51:9
+   |
+51 |         FeeManager::set_admin(&env,...
+   |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+   |
+help: consider importing this struct
+   |
+30 + use crate::fee_manager::FeeManager;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+  --> src/lib.rs:56:9
+   |
+56 |         FeeManager::set_admin(&env,...
+   |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+   |
+help: consider importing this struct
+   |
+30 + use crate::fee_manager::FeeManager;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `ProjectRegistry`
+  --> src/lib.rs:73:9
+   |
+73 |         ProjectRegistry::register_p...
+   |         ^^^^^^^^^^^^^^^ use of undeclared type `ProjectRegistry`
+   |
+help: consider importing this struct
+   |
+30 + use crate::project_registry::ProjectRegistry;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `ProjectRegistry`
+  --> src/lib.rs:87:9
+   |
+87 |         ProjectRegistry::update_pro...
+   |         ^^^^^^^^^^^^^^^ use of undeclared type `ProjectRegistry`
+   |
+help: consider importing this struct
+   |
+30 + use crate::project_registry::ProjectRegistry;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `ProjectRegistry`
+  --> src/lib.rs:91:9
+   |
+91 |         ProjectRegistry::get_projec...
+   |         ^^^^^^^^^^^^^^^ use of undeclared type `ProjectRegistry`
+   |
+help: consider importing this struct
+   |
+30 + use crate::project_registry::ProjectRegistry;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `ProjectRegistry`
+  --> src/lib.rs:95:9
+   |
+95 |         ProjectRegistry::list_proje...
+   |         ^^^^^^^^^^^^^^^ use of undeclared type `ProjectRegistry`
+   |
+help: consider importing this struct
+   |
+30 + use crate::project_registry::ProjectRegistry;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `ProjectRegistry`
+  --> src/lib.rs:99:9
+   |
+99 |         ProjectRegistry::get_projec...
+   |         ^^^^^^^^^^^^^^^ use of undeclared type `ProjectRegistry`
+   |
+help: consider importing this struct
+   |
+30 + use crate::project_registry::ProjectRegistry;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+   --> src/lib.rs:144:9
+    |
+144 |         FeeManager::pay_fee(&env, ...
+    |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::fee_manager::FeeManager;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `VerificationRegistry`
+   --> src/lib.rs:147:9
+    |
+147 |         VerificationRegistry::requ...
+    |         ^^^^^^^^^^^^^^^^^^^^ use of undeclared type `VerificationRegistry`
+    |
+help: a struct with a similar name exists
+    |
+147 -         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid);
+147 +         VerificationRecord::request_verification(&env, project_id, requester, evidence_cid);
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::verification_registry::VerificationRegistry;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `VerificationRegistry`
+   --> src/lib.rs:156:9
+    |
+156 |         VerificationRegistry::appr...
+    |         ^^^^^^^^^^^^^^^^^^^^ use of undeclared type `VerificationRegistry`
+    |
+help: a struct with a similar name exists
+    |
+156 -         VerificationRegistry::approve_verification(&env, project_id, admin)
+156 +         VerificationRecord::approve_verification(&env, project_id, admin)
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::verification_registry::VerificationRegistry;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+   --> src/lib.rs:170:9
+    |
+170 |         FeeManager::set_fee(&env, ...
+    |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::fee_manager::FeeManager;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+   --> src/lib.rs:174:9
+    |
+174 |         FeeManager::get_fee_config...
+    |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::fee_manager::FeeManager;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+   --> src/lib.rs:184:9
+    |
+184 |         FeeManager::withdraw_treas...
+    |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::fee_manager::FeeManager;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `FeeManager`
+   --> src/lib.rs:188:9
+    |
+188 |         FeeManager::get_treasury_b...
+    |         ^^^^^^^^^^ use of undeclared type `FeeManager`
+    |
+help: consider importing this struct
+    |
+ 30 + use crate::fee_manager::FeeManager;
+    |
+
+error[E0106]: missing lifetime specifier
+ --> src/test_treasury.rs:7:25
+  |
+7 | ...Env, DongleContractClient, Addres...
+  |         ^^^^^^^^^^^^^^^^^^^^ expected named lifetime parameter
+  |
+  = help: this function's return type contains a borrowed value, but there is no value for it to be borrowed from
+help: consider using the `'static` lifetime, but this is uncommon unless you're returning a borrowed value from a `const` or a `static`, or if you will only have owned values
+  |
+7 | fn setup_env() -> (Env, DongleContractClient<'static>, Address) {
+  |                                             +++++++++
+
+warning: unused import: `ReviewEventData`
+ --> src/review_registry.rs:2:42
+  |
+2 | ...wAction, ReviewEventData};
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `VerificationRecord`
+  --> src/lib.rs:32:30
+   |
+32 | ...eview, VerificationRecord, FeeCo...
+   |           ^^^^^^^^^^^^^^^^^^
+
+error[E0433]: failed to resolve: use of undeclared type `Vec`
+   --> src/test.rs:350:19
+    |
+350 |     let mut ids = Vec::new();
+    |                   ^^^ use of undeclared type `Vec`
+    |
+help: consider importing one of these structs
+    |
+  3 + use crate::Vec;
+    |
+  3 + use soroban_sdk::Vec;
+    |
+
+warning: unused import: `TryIntoVal`
+  --> src/review_registry.rs:63:31
+   |
+63 | ...l, String, TryIntoVal,
+   |               ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `FeeConfig` and `VerificationStatus`
+ --> src/test_treasury.rs:2:20
+  |
+2 | ...::{VerificationStatus, FeeConfig};
+  |       ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `crate::errors::ContractError`
+ --> src/test_treasury.rs:3:5
+  |
+3 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Events` and `vec`
+ --> src/test_treasury.rs:4:45
+  |
+4 | ..._, Events}, Address, Env, String, vec};
+  |       ^^^^^^                         ^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> src/review_registry.rs:72:31
+   |
+72 | ... = env.register_contract(None, R...
+   |           ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+   --> src/review_registry.rs:106:31
+    |
+106 | ... = env.register_contract(None, ...
+    |           ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+   --> src/review_registry.rs:127:31
+    |
+127 | ... = env.register_contract(None, ...
+    |           ^^^^^^^^^^^^^^^^^
+
+error[E0433]: failed to resolve: use of undeclared type `StorageKey`
+  --> src/lib.rs:48:44
+   |
+48 | ...t().has(&StorageKey::Admin) {
+   |             ^^^^^^^^^^ use of undeclared type `StorageKey`
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> src/review_registry.rs:72:31
+   |
+72 | ... = env.register_contract(None, R...
+   |           ^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:14:9
+   |
+14 |         rating: u32, // Matches typ...
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:34:9
+   |
+34 |         rating: u32,
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+warning: unused variable: `env`
+  --> src/review_registry.rs:54:23
+   |
+54 | ...get_review(env: Env, project_id:...
+   |               ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+
+warning: unused variable: `project_id`
+  --> src/review_registry.rs:54:33
+   |
+54 | ...nv: Env, project_id: u64, review...
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `reviewer`
+  --> src/review_registry.rs:54:50
+   |
+54 | ...id: u64, reviewer: Address) -> O...
+   |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reviewer`
+
+error[E0061]: this method takes 2 arguments but 1 argument was supplied
+  --> src/test.rs:16:12
+   |
+16 |     client.set_admin(&admin);
+   |            ^^^^^^^^^-------- argument #2 of type `&soroban_sdk::Address` is missing
+   |
+note: method defined here
+  --> src/lib.rs:55:12
+   |
+55 | ...fn set_admin(env: Env, caller: Address, new_admin: Address) -...
+   |       ^^^^^^^^^                            ------------------
+help: provide the argument
+   |
+16 |     client.set_admin(&admin, /* &soroban_sdk::Address */);
+   |                            +++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:27:22
+    |
+ 27 |         &"Project A".into(),
+    |                      ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-945062286019461585.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:28:26
+    |
+ 28 |         &"Description A".into(),
+    |                          ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-10536917802964033711.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:29:17
+    |
+ 29 |         &"DeFi".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-12739544092201990946.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `unwrap` found for struct `types::Project` in the current scope
+  --> src/test.rs:42:43
+   |
+42 | ...oject(&id).unwrap();
+   |               ^^^^^^ method not found in `types::Project`
+   |
+  ::: src/types.rs:41:1
+   |
+41 | pub struct Project {
+   | ------------------ method `unwrap` not found for this struct
+   |
+help: some of the expressions' fields have a method of the same name
+   |
+42 |     let project = client.get_project(&id).logo_cid.unwrap();
+   |                                           +++++++++
+42 |     let project = client.get_project(&id).metadata_cid.unwrap();
+   |                                           +++++++++++++
+42 |     let project = client.get_project(&id).website.unwrap();
+   |                                           ++++++++
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+  --> src/test.rs:45:23
+   |
+45 | ...nt.get_owner_project_count(&owne...
+   |       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+   |
+  ::: src/lib.rs:37:1
+   |
+37 | #[contract]
+   | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:54:13
+    |
+ 54 |         &"".into(),
+    |             ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-5694889425550258568.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:55:17
+    |
+ 55 |         &"Desc".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1892591751077806600.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:56:16
+    |
+ 56 |         &"Cat".into(),
+    |                ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8220243401945174347.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:70:16
+    |
+ 70 |         &"   ".into(),
+    |                ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-5694889425550258568.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:71:17
+    |
+ 71 |         &"Desc".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1892591751077806600.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:72:16
+    |
+ 72 |         &"Cat".into(),
+    |                ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8220243401945174347.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:86:17
+    |
+ 86 |         &"Name".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-5694889425550258568.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:87:13
+    |
+ 87 |         &"".into(),
+    |             ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1892591751077806600.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:88:16
+    |
+ 88 |         &"Cat".into(),
+    |                ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8220243401945174347.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:102:17
+    |
+102 |         &"Name".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-5694889425550258568.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:103:17
+    |
+103 |         &"Desc".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1892591751077806600.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:104:13
+    |
+104 |         &"".into(),
+    |             ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8220243401945174347.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `Option<...>: From<...>` is not satisfied
+   --> src/test.rs:121:18
+    |
+121 |         &"Name2".into(),
+    |                  ^^^^ unsatisfied trait bound
+    |
+    = help: the trait `From<&str>` is not implemented for `Option<String>`
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `Option<Length>` implements `From<IndefiniteLength>`
+              `Option<AccountId>` implements `From<SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<Option<String>>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-7572148112764300434.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `Option<...>: From<...>` is not satisfied
+   --> src/test.rs:122:18
+    |
+122 |         &"Desc2".into(),
+    |                  ^^^^ unsatisfied trait bound
+    |
+    = help: the trait `From<&str>` is not implemented for `Option<String>`
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `Option<Length>` implements `From<IndefiniteLength>`
+              `Option<AccountId>` implements `From<SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<Option<String>>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-7572148112764300434.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `Option<...>: From<...>` is not satisfied
+   --> src/test.rs:123:17
+    |
+123 |         &"Cat2".into(),
+    |                 ^^^^ unsatisfied trait bound
+    |
+    = help: the trait `From<&str>` is not implemented for `Option<String>`
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `Option<Length>` implements `From<IndefiniteLength>`
+              `Option<AccountId>` implements `From<SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<Option<String>>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-7572148112764300434.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src/test.rs:143:26
+    |
+143 |     let name = "Project".to_string();
+    |                          ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src/test.rs:144:30
+    |
+144 | ...ription".to_string();
+    |             ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src/test.rs:145:22
+    |
+145 |     let cat = "DeFi".to_string();
+    |                      ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:159:23
+    |
+159 | ...nt.get_owner_project_count(&own...
+    |       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:162:21
+    |
+162 |         &"One more".into(),
+    |                     ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-12166720740807376677.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:237:12
+    |
+237 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+237 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:238:79
+    |
+238 | ...dence_cid".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8989302440517245360.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:248:12
+    |
+248 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+248 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:249:12
+    |
+249 |     client.pay_fee(&owner, &id, &N...
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:251:79
+    |
+251 | ...dence_cid".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-3192716633976472211.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:261:12
+    |
+261 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+261 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:262:12
+    |
+262 |     client.pay_fee(&owner, &id, &N...
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:263:67
+    |
+263 | ...owner, &"".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-22903799512381696.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:273:12
+    |
+273 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+273 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:274:12
+    |
+274 |     client.pay_fee(&owner, &id, &N...
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:275:58
+    |
+275 | ..."evidence".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-22903799512381696.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:287:12
+    |
+287 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+287 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:288:12
+    |
+288 |     client.pay_fee(&owner, &id, &N...
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:289:58
+    |
+289 | ..."evidence".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-22903799512381696.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `get_verification` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:291:22
+    |
+291 | ...client.get_verification(&id).ex...
+    |           ^^^^^^^^^^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `get_verification` not found for this struct
+    |
+help: there is a method `request_verification` with a similar name, but with different arguments
+   --> src/lib.rs:41:1
+    |
+ 41 | #[contractimpl]
+    | ^^^^^^^^^^^^^^^
+    = note: this error originates in the attribute macro `soroban_sdk::contractclient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:301:12
+    |
+301 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+301 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:302:12
+    |
+302 |     client.pay_fee(&owner, &id, &N...
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:303:58
+    |
+303 | ..."evidence".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-22903799512381696.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+warning: unused variable: `rating`
+  --> src/review_registry.rs:14:9
+   |
+14 |         rating: u32, // Matches typ...
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rating`
+
+error[E0599]: no method named `reject_verification` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:304:12
+    |
+304 |     client.reject_verification(&id...
+    |            ^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `reject_verification` not found for this struct
+    |
+help: there is a method `request_verification` with a similar name, but with different arguments
+   --> src/lib.rs:41:1
+    |
+ 41 | #[contractimpl]
+    | ^^^^^^^^^^^^^^^
+    = note: this error originates in the attribute macro `soroban_sdk::contractclient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `get_verification` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:305:22
+    |
+305 | ...client.get_verification(&id).ex...
+    |           ^^^^^^^^^^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `get_verification` not found for this struct
+    |
+help: there is a method `request_verification` with a similar name, but with different arguments
+   --> src/lib.rs:41:1
+    |
+ 41 | #[contractimpl]
+    | ^^^^^^^^^^^^^^^
+    = note: this error originates in the attribute macro `soroban_sdk::contractclient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `try_set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:315:25
+    |
+315 | ... = client.try_set_fee(&non_admi...
+    |              ^^^^^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `try_set_fee` not found for this struct
+    |
+help: there is a method `try_set_fee_config` with a similar name
+    |
+315 |     let result = client.try_set_fee_config(&non_admin, &None, &100, &treasury);
+    |                                    +++++++
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:317:12
+    |
+317 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+317 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+Some errors have detailed explanations: E0425, E0428, E0432, E0433, E0753.
+For more information about an error, try `rustc --explain E0425`.
+error[E0599]: no method named `try_set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:325:25
+    |
+325 | ... = client.try_set_fee(&admin, &...
+    |              ^^^^^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `try_set_fee` not found for this struct
+    |
+help: there is a method `try_set_fee_config` with a similar name
+    |
+325 |     let result = client.try_set_fee_config(&admin, &None, &0, &treasury);
+    |                                    +++++++
+
+warning: `dongle-contract` (lib) generated 12 warnings (4 duplicates)
+error: could not compile `dongle-contract` (lib) due to 37 previous errors; 12 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no method named `try_pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:334:25
+    |
+334 | ...client.try_pay_fee(&owner, &id,...
+    |           ^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `try_pay_fee` not found for this struct
+
+error[E0599]: no method named `is_none` found for struct `types::Project` in the current scope
+   --> src/test.rs:343:21
+    |
+343 |     assert!(project.is_none());
+    |                     ^^^^^^^ method not found in `types::Project`
+    |
+   ::: src/types.rs:41:1
+    |
+ 41 | pub struct Project {
+    | ------------------ method `is_none` not found for this struct
+    |
+help: some of the expressions' fields have a method of the same name
+    |
+343 |     assert!(project.logo_cid.is_none());
+    |                     +++++++++
+343 |     assert!(project.metadata_cid.is_none());
+    |                     +++++++++++++
+343 |     assert!(project.website.is_none());
+    |                     ++++++++
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:355:21
+    |
+355 |             &"Desc".into(),
+    |                     ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-349677605968768742.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test.rs:356:20
+    |
+356 |             &"Cat".into(),
+    |                    ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-1192274155980166190.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:364:23
+    |
+364 | ...nt.get_owner_project_count(&own...
+    |       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src/test.rs:372:12
+    |
+372 |     client.set_fee(&admin, &None, ...
+    |            ^^^^^^^
+    |
+   ::: src/lib.rs:37:1
+    |
+ 37 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+372 |     client.set_fee_config(&admin, &None, &500, &treasury);
+    |                   +++++++
+
+error[E0609]: no field `amount` on type `types::FeeConfig`
+   --> src/test.rs:374:23
+    |
+374 |     assert_eq!(config.amount, 500);
+    |                       ^^^^^^ unknown field
+    |
+    = note: available fields are: `token`, `verification_fee`, `registration_fee`
+
+error[E0609]: no field `treasury` on type `types::FeeConfig`
+   --> src/test.rs:375:23
+    |
+375 | ...fig.treasury, treasury);
+    |        ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `token`, `verification_fee`, `registration_fee`
+
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> src/test_treasury.rs:12:27
+   |
+12 | ... = env.register_contract(None, D...
+   |           ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
+  --> src/test_treasury.rs:21:27
+   |
+21 | ...nv.register_stellar_asset_contract(ad...
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `unwrap` found for struct `types::FeeConfig` in the current scope
+  --> src/test_treasury.rs:33:42
+   |
+33 | ...e_config().unwrap();
+   |               ^^^^^^ method not found in `types::FeeConfig`
+   |
+  ::: src/types.rs:68:1
+   |
+68 | pub struct FeeConfig {
+   | -------------------- method `unwrap` not found for this struct
+   |
+help: one of the expressions' fields has a method of the same name
+   |
+33 |     let config = client.get_fee_config().token.unwrap();
+   |                                          ++++++
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src/test_treasury.rs:48:11
+   |
+48 |     token.mint(&user, &5000);
+   |           ^^^^ method not found in `Client<'_>`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test_treasury.rs:58:7
+   |
+50 |       let project_id = client.regis...
+   |  ______________________-
+51 | |         &user,
+52 | |         &String::from_str(&env, "...
+53 | |         &String::from_str(&env, "...
+...  |
+57 | |         &None,
+58 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+  --> src/test_treasury.rs:77:11
+   |
+77 |     token.mint(&user, &1000);
+   |           ^^^^ method not found in `Client<'_>`
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+  --> src/test_treasury.rs:87:7
+   |
+79 |       let project_id = client.regis...
+   |  ______________________-
+80 | |         &user,
+81 | |         &String::from_str(&env, "...
+82 | |         &String::from_str(&env, "...
+...  |
+86 | |         &None,
+87 | |     ).unwrap();
+   | |      -^^^^^^ method not found in `u64`
+   | |______|
+   |
+
+error[E0599]: no method named `mint` found for struct `Client<'a>` in the current scope
+   --> src/test_treasury.rs:108:11
+    |
+108 |     token.mint(&user, &1000);
+    |           ^^^^ method not found in `Client<'_>`
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:58
+    |
+110 | ...user, &"P".into(), &"D".into(),...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-11460011743124368085.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:71
+    |
+110 | ...to(), &"D".into(), &"C".into(),...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8989302440517245360.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:110:84
+    |
+110 | ...to(), &"C".into(), &None, &None...
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-8044604119293209651.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `unwrap` found for type `u64` in the current scope
+   --> src/test_treasury.rs:110:113
+    |
+110 | ..., &None).unwrap();
+    |             ^^^^^^ method not found in `u64`
+
+error[E0277]: the trait bound `String: From<&str>` is not satisfied
+   --> src/test_treasury.rs:111:58
+    |
+111 | ...user, &"E".into());
+    |               ^^^^ unsatisfied trait bound
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> /home/robi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-sdk-22.0.10/src/string.rs:135:1
+    |
+135 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+    = note: the full name for the type has been written to '/home/robi/Desktop/Dongle-Smartcontract/dongle-smartcontract/target/debug/deps/dongle_contract-4e30645807e05f46.long-type-6890079729681520674.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+Some errors have detailed explanations: E0061, E0106, E0277, E0425, E0428, E0432, E0433, E0599, E0609...
+For more information about an error, try `rustc --explain E0061`.
+warning: `dongle-contract` (lib test) generated 23 warnings (13 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 111 previous errors; 23 warnings emitted
