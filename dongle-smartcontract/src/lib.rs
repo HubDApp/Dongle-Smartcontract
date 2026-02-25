@@ -1,3 +1,5 @@
+#![no_std]
+
 mod constants;
 mod errors;
 mod events;

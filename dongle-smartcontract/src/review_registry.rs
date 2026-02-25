@@ -20,7 +20,7 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
 
-        if rating < 1 || rating > 5 {
+        if !(1..=5).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
 
@@ -99,7 +99,7 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
 
-        if rating < 1 || rating > 5 {
+        if !(1..=5).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
 
