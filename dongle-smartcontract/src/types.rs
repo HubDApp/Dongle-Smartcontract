@@ -100,3 +100,10 @@ pub struct FeeConfig {
     pub verification_fee: u128,
     pub registration_fee: u128,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Default)]
+pub struct ProjectAggregate {
+    pub total_rating: u64,
+    pub review_count: u64,
+}
