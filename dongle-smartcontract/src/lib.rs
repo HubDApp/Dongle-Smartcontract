@@ -1,5 +1,6 @@
- #![no_std]
+#![no_std]
 
+mod admin_manager;
 mod constants;
 mod errors;
 mod events;
@@ -8,16 +9,29 @@ mod project_registry;
 mod rating_calculator;
 mod review_registry;
 mod storage_keys;
-mod verification_registry;   // ← added (used below)
+mod verification_registry;
 mod types;
 
 #[cfg(test)]
 mod test;
 
+#[cfg(test)]
+mod admin_tests;
+
+#[cfg(test)]
+mod registration_tests;
+
+#[cfg(test)]
+mod verification_tests;
+
+use crate::admin_manager::AdminManager;
+use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
-use crate::types::{FeeConfig, Project, Review, VerificationRecord};
+use crate::types::{
+    FeeConfig, Project, ProjectRegistrationParams, ProjectUpdateParams, Review, VerificationRecord,
+};
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
@@ -26,54 +40,43 @@ pub struct DongleContract;
 
 #[contractimpl]
 impl DongleContract {
-    // ──────────────────────────────────────────────────────────────
-    // Project Registry
-    // ──────────────────────────────────────────────────────────────
+    // --- Initialization & Admin Management ---
+
+    pub fn initialize(env: Env, admin: Address) {
+        AdminManager::initialize(&env, admin);
+    }
+
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
+        let _ = AdminManager::add_admin(&env, caller, new_admin);
+    }
+
+    pub fn remove_admin(env: Env, caller: Address, admin_to_remove: Address) {
+        let _ = AdminManager::remove_admin(&env, caller, admin_to_remove);
+    }
+
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        AdminManager::is_admin(&env, &address)
+    }
+
+    pub fn get_admin_list(env: Env) -> Vec<Address> {
+        AdminManager::get_admin_list(&env)
+    }
+
+    pub fn get_admin_count(env: Env) -> u32 {
+        AdminManager::get_admin_count(&env)
+    }
+
+    // --- Project Registry ---
 
     pub fn register_project(
         env: Env,
-        owner: Address,
-        name: String,
-        description: String,
-        category: String,
-        website: Option<String>,
-        logo_cid: Option<String>,
-        metadata_cid: Option<String>,
-    ) -> u64 {
-        ProjectRegistry::register_project(
-            &env,
-            owner,
-            name,
-            description,
-            category,
-            website,
-            logo_cid,
-            metadata_cid,
-        )
+        params: ProjectRegistrationParams,
+    ) -> Result<u64, ContractError> {
+        ProjectRegistry::register_project(&env, params)
     }
 
-    pub fn update_project(
-        env: Env,
-        project_id: u64,
-        caller: Address,
-        name: Option<String>,
-        description: Option<String>,
-        category: Option<String>,
-        website: Option<Option<String>>,
-        logo_cid: Option<Option<String>>,
-        metadata_cid: Option<Option<String>>,
-    ) -> Option<Project> {
-        ProjectRegistry::update_project(
-            &env,
-            project_id,
-            caller,
-            name,
-            description,
-            category,
-            website,
-            logo_cid,
-            metadata_cid,
-        )
+    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Option<Project> {
+        ProjectRegistry::update_project(&env, params)
     }
 
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
@@ -88,9 +91,11 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_owner(&env, owner)
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Review Registry
-    // ──────────────────────────────────────────────────────────────
+    pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
+        ProjectRegistry::get_projects_by_owner(&env, owner).len()
+    }
+
+    // --- Review Registry ---
 
     pub fn add_review(
         env: Env,
@@ -98,8 +103,8 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) {
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid);
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
     pub fn update_review(
@@ -108,46 +113,58 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
-    ) {
-        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid);
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
-    pub fn delete_review(env: Env, project_id: u64, reviewer: Address) {
-        let _ = ReviewRegistry::delete_review(&env, project_id, reviewer);
+    pub fn delete_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::delete_review(&env, project_id, reviewer)
     }
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Verification Registry
-    // ──────────────────────────────────────────────────────────────
+    pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+        ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    }
+
+    // --- Verification Registry ---
 
     pub fn request_verification(
         env: Env,
         project_id: u64,
         requester: Address,
         evidence_cid: String,
-    ) {
-        VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid);
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
-    pub fn approve_verification(env: Env, project_id: u64, admin: Address) {
-        let _ = VerificationRegistry::approve_verification(&env, project_id, admin);
+    pub fn approve_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::approve_verification(&env, project_id, admin)
     }
 
-    pub fn reject_verification(env: Env, project_id: u64, admin: Address) {
-        let _ = VerificationRegistry::reject_verification(&env, project_id, admin);
+    pub fn reject_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
     pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id).ok()
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Fee Manager
-    // ──────────────────────────────────────────────────────────────
+    // --- Fee Manager ---
 
     pub fn set_fee(
         env: Env,
@@ -155,37 +172,20 @@ impl DongleContract {
         token: Option<Address>,
         amount: u128,
         treasury: Address,
-    ) {
-        let _ = FeeManager::set_fee(&env, admin, token, amount, treasury);
+    ) -> Result<(), ContractError> {
+        FeeManager::set_fee(&env, admin, token, amount, treasury)
     }
 
-    pub fn pay_fee(env: Env, payer: Address, project_id: u64, token: Option<Address>) {
-        let _ = FeeManager::pay_fee(&env, payer, project_id, token);
+    pub fn pay_fee(
+        env: Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
-    pub fn get_fee_config(env: Env) -> FeeConfig {
-        FeeManager::get_fee_config(&env).unwrap_or(FeeConfig {
-            token: None,
-            verification_fee: 0,
-            registration_fee: 0,
-        })
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Admin / Utils
-    // ──────────────────────────────────────────────────────────────
-
-    pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
-        ProjectRegistry::get_projects_by_owner(&env, owner).len()
-    }
-
-    pub fn set_admin(env: Env, admin: Address) {
-        env.storage()
-            .persistent()
-            .set(&crate::types::DataKey::Admin(admin), &());
-    }
-
-    pub fn initialize(env: Env, admin: Address) {
-        Self::set_admin(env, admin);
+    pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
+        FeeManager::get_fee_config(&env)
     }
 }

@@ -1,0 +1,254 @@
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: unused import: `Project`
+ --> src\verification_registry.rs:8:20
+  |
+8 | use crate::types::{Project, VerificationRecord, VerificationStatus};
+  |                    ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::constants::MAX_PROJECTS_PER_USER`
+ --> src\test.rs:3:5
+  |
+3 | use crate::constants::MAX_PROJECTS_PER_USER;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::errors::ContractError as Error`
+ --> src\test.rs:4:5
+  |
+4 | use crate::errors::ContractError as Error;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `FeeConfig` and `VerificationStatus`
+ --> src\test.rs:5:20
+  |
+5 | use crate::types::{FeeConfig, VerificationStatus};
+  |                    ^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Vec`
+ --> src\test.rs:9:58
+  |
+9 | use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+  |                                                          ^^^
+
+warning: variable does not need to be mutable
+   --> src\review_registry.rs:126:13
+    |
+126 |         let mut user_reviews: soroban_sdk::Vec<u64> = env
+    |             ----^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `MAX_PROJECTS_PER_USER` is never used
+ --> src\constants.rs:4:11
+  |
+4 | pub const MAX_PROJECTS_PER_USER: u32 = 50;
+  |           ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `MIN_STRING_LEN` is never used
+ --> src\constants.rs:7:11
+  |
+7 | pub const MIN_STRING_LEN: usize = 1;
+  |           ^^^^^^^^^^^^^^
+
+warning: constant `MAX_NAME_LEN` is never used
+  --> src\constants.rs:10:11
+   |
+10 | pub const MAX_NAME_LEN: usize = 128;
+   |           ^^^^^^^^^^^^
+
+warning: constant `MAX_DESCRIPTION_LEN` is never used
+  --> src\constants.rs:13:11
+   |
+13 | pub const MAX_DESCRIPTION_LEN: usize = 2048;
+   |           ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MAX_CATEGORY_LEN` is never used
+  --> src\constants.rs:16:11
+   |
+16 | pub const MAX_CATEGORY_LEN: usize = 64;
+   |           ^^^^^^^^^^^^^^^^
+
+warning: constant `MAX_WEBSITE_LEN` is never used
+  --> src\constants.rs:19:11
+   |
+19 | pub const MAX_WEBSITE_LEN: usize = 256;
+   |           ^^^^^^^^^^^^^^^
+
+warning: constant `MAX_CID_LEN` is never used
+  --> src\constants.rs:22:11
+   |
+22 | pub const MAX_CID_LEN: usize = 128;
+   |           ^^^^^^^^^^^
+
+warning: constant `RATING_MIN` is never used
+  --> src\constants.rs:25:11
+   |
+25 | pub const RATING_MIN: u32 = 1;
+   |           ^^^^^^^^^^
+
+warning: constant `RATING_MAX` is never used
+  --> src\constants.rs:26:11
+   |
+26 | pub const RATING_MAX: u32 = 5;
+   |           ^^^^^^^^^^
+
+warning: associated function `set_treasury` is never used
+  --> src\fee_manager.rs:77:12
+   |
+11 | impl FeeManager {
+   | --------------- associated function in this implementation
+...
+77 |     pub fn set_treasury(
+   |            ^^^^^^^^^^^^
+
+warning: associated function `get_reviews_by_user` is never used
+   --> src\review_registry.rs:155:12
+    |
+ 12 | impl ReviewRegistry {
+    | ------------------- associated function in this implementation
+...
+155 |     pub fn get_reviews_by_user(
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `Utils` is never constructed
+ --> src\utils.rs:5:12
+  |
+5 | pub struct Utils;
+  |            ^^^^^
+
+warning: associated functions `add_rating` and `update_rating` are never used
+  --> src\rating_calculator.rs:34:12
+   |
+ 8 | impl RatingCalculator {
+   | --------------------- associated functions in this implementation
+...
+34 |     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
+   |            ^^^^^^^^^^
+...
+52 |     pub fn update_rating(
+   |            ^^^^^^^^^^^^^
+
+warning: multiple associated functions are never used
+  --> src\utils.rs:8:12
+   |
+ 7 | impl Utils {
+   | ---------- associated functions in this implementation
+ 8 |     pub fn get_current_timestamp(env: &Env) -> u64 {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+...
+12 |     pub fn is_admin(env: &Env, address: &Address) -> bool {
+   |            ^^^^^^^^
+...
+20 |     pub fn require_admin(env: &Env, address: &Address) -> Result<(), ContractError> {
+   |            ^^^^^^^^^^^^^
+...
+27 |     pub fn validate_string_length(
+   |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+42 |     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
+   |            ^^^^^^^^^^^^^^^^^
+...
+47 |     pub fn is_valid_url(_url: &String) -> bool {
+   |            ^^^^^^^^^^^^
+...
+51 |     pub fn sanitize_string(input: &String) -> String {
+   |            ^^^^^^^^^^^^^^^
+...
+55 |     pub fn is_valid_category(_category: &String) -> bool {
+   |            ^^^^^^^^^^^^^^^^^
+...
+59 |     pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `list_pending_verifications`, `verification_exists`, `get_verification_status`, `update_verification_evidence`, `validate_evidence_cid`, and `get_verification_stats` are never used
+   --> src\verification_registry.rs:121:12
+    |
+ 16 | impl VerificationRegistry {
+    | ------------------------- associated functions in this implementation
+...
+121 |     pub fn list_pending_verifications(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+146 |     pub fn verification_exists(env: &Env, project_id: u64) -> bool {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+150 |     pub fn get_verification_status(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+...
+158 |     pub fn update_verification_evidence(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+167 |     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
+    |            ^^^^^^^^^^^^^^^^^^^^^
+...
+174 |     pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> src\test.rs:11:15
+   |
+11 | fn setup(env: &Env) -> (DongleContractClient, Address, Address) {
+   |               ^^^^      ^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |               |
+   |               the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+   |
+11 | fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address) {
+   |                                             ++++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+ --> src\registration_tests.rs:6:15
+  |
+6 | fn setup(env: &Env) -> (DongleContractClient, Address) {
+  |               ^^^^      ^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+  |               |
+  |               the lifetime is elided here
+  |
+  = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+  |
+6 | fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
+  |                                             ++++
+
+warning: `dongle-contract` (lib test) generated 22 warnings (1 duplicate) (run `cargo fix --lib -p dongle-contract --tests` to apply 7 suggestions)
+warning: `dongle-contract` (lib) generated 17 warnings (15 duplicates) (run `cargo fix --lib -p dongle-contract` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.43s
+     Running unittests src\lib.rs (target\debug\deps\dongle_contract-a300b76b9d4a7117.exe)
+
+running 19 tests
+test rating_calculator::tests::test_add_rating_subsequent_review ... ok
+test rating_calculator::tests::test_add_rating_first_review ... ok
+test rating_calculator::tests::test_calculate_average_multiple_reviews ... ok
+test rating_calculator::tests::test_calculate_average_precision ... ok
+test rating_calculator::tests::test_calculate_average_single_review ... ok
+test rating_calculator::tests::test_remove_rating_multiple_reviews ... ok
+test rating_calculator::tests::test_calculate_average_zero_reviews ... ok
+test rating_calculator::tests::test_remove_rating_last_review ... ok
+test rating_calculator::tests::test_update_rating_decrease ... ok
+test rating_calculator::tests::test_update_rating_increase ... ok
+test rating_calculator::tests::test_update_rating_no_change ... ok
+test test::test_get_project_invalid_id_zero ... ok
+test test::test_get_project_none_for_nonexistent_id ... ok
+test registration_tests::test_register_project_success ... ok
+test registration_tests::test_register_duplicate_project_fails ... ok
+test test::test_register_project_success ... ok
+test review_registry::test::test_add_review_event ... ok
+test registration_tests::test_register_different_projects_success ... ok
+test test::test_list_projects ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+   Doc-tests dongle_contract
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

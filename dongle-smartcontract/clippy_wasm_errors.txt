@@ -1,0 +1,20 @@
+    Checking dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+error: manual `!RangeInclusive::contains` implementation
+  --> src\review_registry.rs:23:12
+   |
+23 |         if rating < 1 || rating > 5 {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^ help: use: `!(1..=5).contains(&rating)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_range_contains
+   = note: `-D clippy::manual-range-contains` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_range_contains)]`
+
+error: manual `!RangeInclusive::contains` implementation
+   --> src\review_registry.rs:102:12
+    |
+102 |         if rating < 1 || rating > 5 {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^ help: use: `!(1..=5).contains(&rating)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_range_contains
+
+error: could not compile `dongle-contract` (lib) due to 2 previous errors

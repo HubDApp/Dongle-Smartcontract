@@ -65,4 +65,6 @@ pub enum ContractError {
 
     /// Review already deleted
     ReviewAlreadyDeleted = 20,
+    NotReviewer = 22,
+    InvalidProjectNameFormat = 21,
 }
