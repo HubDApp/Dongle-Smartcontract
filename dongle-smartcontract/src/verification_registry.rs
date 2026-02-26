@@ -1,15 +1,22 @@
 //! Verification requests with ownership and fee checks, and events.
 
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
+use crate::events::{publish_verification_approved_event, publish_verification_rejected_event};
+use crate::types::{DataKey, VerificationRecord, VerificationStatus};
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
     publish_verification_requested_event,
 };
-use crate::types::{DataKey, VerificationRecord, VerificationStatus};
+use crate::fee_manager::FeeManager;
+use crate::project_registry::ProjectRegistry;
+use crate::storage_keys::StorageKey;
+use crate::types::{VerificationRecord, VerificationStatus};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct VerificationRegistry;
 
+#[allow(dead_code)]
 impl VerificationRegistry {
     pub fn request_verification(
         env: &Env,
@@ -65,12 +72,11 @@ impl VerificationRegistry {
     ) -> Result<(), ContractError> {
         admin.require_auth();
 
-        // Check admin
-        if !env.storage().persistent().has(&DataKey::Admin(admin.clone())) {
-            return Err(ContractError::AdminOnly);
-        }
+        // Verify admin privileges
+        AdminManager::require_admin(env, &admin)?;
 
-        let mut record = env
+        // Get verification record
+        let mut record: VerificationRecord = env
             .storage()
             .persistent()
             .get(&DataKey::Verification(project_id))
@@ -85,15 +91,36 @@ impl VerificationRegistry {
             .persistent()
             .set(&DataKey::Verification(project_id), &record);
 
-        // Update project
-        let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
-        project.verification_status = VerificationStatus::Verified;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Project(project_id), &project);
+// 1. SECURITY: Authorize the admin (From Incoming)
+let stored_admin: Address = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Admin)
+    .ok_or(ContractError::Unauthorized)?;
 
-        publish_verification_approved_event(env, project_id, admin);
+admin.require_auth(); 
+
+// 2. LOGIC: Update the project (Hybrid)
+let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
+    .ok_or(ContractError::ProjectNotFound)?;
+
+project.verification_status = VerificationStatus::Verified;
+project.updated_at = env.ledger().timestamp(); // Keeps your data current
+
+env.storage()
+    .persistent()
+    .set(&DataKey::Project(project_id), &project);
+
+// 3. STATE: Create the separate verification record (From Incoming)
+let record = VerificationRecord {
+    status: VerificationStatus::Verified,
+};
+env.storage()
+    .persistent()
+    .set(&StorageKey::Verification(project_id), &record);
+
+// 4. EVENT: Notify the network
+publish_verification_approved_event(env, project_id, admin);
         Ok(())
     }
 
@@ -104,35 +131,64 @@ impl VerificationRegistry {
     ) -> Result<(), ContractError> {
         admin.require_auth();
 
-        // Check admin
-        if !env.storage().persistent().has(&DataKey::Admin(admin.clone())) {
-            return Err(ContractError::AdminOnly);
-        }
+// Verify admin privileges
+AdminManager::require_admin(env, &admin)?;
 
-        let mut record = env
+// Get verification record
+let mut record: VerificationRecord = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Verification(project_id)) // Ensure this matches your key type
+    .ok_or(ContractError::RecordNotFound)?;
             .storage()
             .persistent()
             .get(&DataKey::Verification(project_id))
             .ok_or(ContractError::VerificationNotFound)?;
 
-        if record.status != VerificationStatus::Pending {
-            return Err(ContractError::InvalidStatusTransition);
-        }
+// Check if already processed
+if record.status != VerificationStatus::Pending {
+    return Err(ContractError::InvalidStatusTransition);
+}
 
-        record.status = VerificationStatus::Rejected;
+// Update status
+record.status = VerificationStatus::Rejected;ected;
         env.storage()
             .persistent()
             .set(&DataKey::Verification(project_id), &record);
 
-        // Update project
-        let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
-        project.verification_status = VerificationStatus::Rejected;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Project(project_id), &project);
+// 1. Authorize Admin (From Incoming)
+let stored_admin: Address = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Admin)
+    .ok_or(ContractError::Unauthorized)?;
 
-        publish_verification_rejected_event(env, project_id, admin);
+if admin != stored_admin {
+    return Err(ContractError::Unauthorized);
+}
+admin.require_auth(); // This is the most critical security line
+
+// 2. Update Project Status to Rejected
+let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
+    .ok_or(ContractError::ProjectNotFound)?;
+
+project.verification_status = VerificationStatus::Rejected;
+project.updated_at = env.ledger().timestamp(); // Keeps your data history accurate
+
+env.storage()
+    .persistent()
+    .set(&DataKey::Project(project_id), &project);
+
+// 3. Update the Verification Record (New required state)
+let record = VerificationRecord {
+    status: VerificationStatus::Rejected,
+};
+env.storage()
+    .persistent()
+    .set(&StorageKey::Verification(project_id), &record);
+
+// 4. Emit the Event exactly once
+publish_verification_rejected_event(env, project_id);
         Ok(())
     }
 
@@ -142,30 +198,63 @@ impl VerificationRegistry {
     ) -> Result<VerificationRecord, ContractError> {
         env.storage()
             .persistent()
-            .get(&DataKey::Verification(project_id))
-            .ok_or(ContractError::VerificationNotFound)
+.get(&StorageKey::Verification(project_id))
+.ok_or(ContractError::VerificationNotFound)
     }
 
+    #[allow(dead_code)]
     pub fn list_pending_verifications(
-        _env: &Env,
+        env: &Env,
         _admin: Address,
-        _start_project_id: u64,
-        _limit: u32,
+        start_project_id: u64,
+        limit: u32,
     ) -> Result<Vec<VerificationRecord>, ContractError> {
-        todo!("Pending verification listing logic not implemented")
+        // Simple implementation for now: iterate projects and collect pending
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+        let mut pending = Vec::new(env);
+        let mut checked = 0;
+        let mut current_id = start_project_id;
+
+        while checked < limit && current_id <= count {
+            if let Some(record) = env
+                .storage()
+                .persistent()
+                .get::<_, VerificationRecord>(&StorageKey::Verification(current_id))
+            {
+                if record.status == VerificationStatus::Pending {
+                    pending.push_back(record);
+                    checked += 1;
+                }
+            }
+            current_id += 1;
+        }
+
+        Ok(pending)
     }
 
+    #[allow(dead_code)]
     pub fn verification_exists(_env: &Env, _project_id: u64) -> bool {
         false
+    pub fn verification_exists(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .has(&StorageKey::Verification(project_id))
     }
 
+    #[allow(dead_code)]
     pub fn get_verification_status(
-        _env: &Env,
-        _project_id: u64,
+        env: &Env,
+        project_id: u64,
     ) -> Result<VerificationStatus, ContractError> {
-        todo!("Verification status retrieval not implemented")
+        let record = Self::get_verification(env, project_id)?;
+        Ok(record.status)
     }
 
+    #[allow(dead_code)]
     pub fn update_verification_evidence(
         _env: &Env,
         _project_id: u64,
@@ -175,6 +264,7 @@ impl VerificationRegistry {
         todo!("Verification evidence update logic not implemented")
     }
 
+    #[allow(dead_code)]
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
@@ -182,6 +272,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_verification_stats(_env: &Env) -> (u32, u32, u32) {
         (0, 0, 0)
     }

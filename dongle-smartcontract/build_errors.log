@@ -1,0 +1,81 @@
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+error[E0753]: expected outer doc comment
+  --> src\lib.rs:11:1
+   |
+11 | //! # Dongle Smart Contract
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+11 - //! # Dongle Smart Contract
+11 + // # Dongle Smart Contract
+   |
+
+error[E0753]: expected outer doc comment
+  --> src\lib.rs:12:1
+   |
+12 | //! 
+   | ^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+12 - //! 
+12 + // 
+   |
+
+error[E0753]: expected outer doc comment
+  --> src\lib.rs:13:1
+   |
+13 | //! A decentralized project registry and discovery platform built on Stellar/Soroban.
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+13 - //! A decentralized project registry and discovery platform built on Stellar/Soroban.
+13 + // A decentralized project registry and discovery platform built on Stellar/Soroban.
+   |
+
+error[E0753]: expected outer doc comment
+  --> src\lib.rs:14:1
+   |
+14 | //! This contract enables transparent project registration, community reviews, and 
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inner doc comments like this (starting with `//!` or `/*!`) can only appear before items
+help: you might have meant to write a regular comment
+   |
+14 - //! This contract enables transparent project registration, community reviews, and 
+14 + // This contract enables transparent project registration, community reviews, and 
+   |
+
+error[E0753]: expected outer doc comment
+  --> src\lib.rs:15:1
+   |
+15 | //! verification processes for the Stellar ecosystem.
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |
+17 | mod types;
+   | ---------- the inner doc comment doesn't annotate this module
+   |
+help: to annotate the module, change the doc comment from inner to outer style
+   |
+15 - //! verification processes for the Stellar ecosystem.
+15 + /// verification processes for the Stellar ecosystem.
+   |
+
+error: expected item, found keyword `let`
+   --> src\lib.rs:175:9
+    |
+175 |         let owner = Address::generate(&env);
+    |         ^^^
+    |         |
+    |         `let` cannot be used for global variables
+    |         help: consider using `static` or `const` instead of `let`
+    |
+    = note: for a full list of items that can appear in modules, see <https://doc.rust-lang.org/reference/items.html>
+
+For more information about this error, try `rustc --explain E0753`.
+error: could not compile `dongle-contract` (lib) due to 6 previous errors

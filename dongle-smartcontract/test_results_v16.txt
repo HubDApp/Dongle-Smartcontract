@@ -1,0 +1,106 @@
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: unused import: `Vec`
+ --> src\types.rs:1:50
+  |
+1 | use soroban_sdk::{Address, String, contracttype, Vec};
+  |                                                  ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `ReviewAction`, `ReviewEventData`, and `VerificationStatus`
+  --> src\lib.rs:18:33
+   |
+18 |     FeeConfig, Project, Review, ReviewAction, ReviewEventData, VerificationRecord,
+   |                                 ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+19 |     VerificationStatus, ProjectRegistrationParams, ProjectUpdateParams
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::errors::ContractError as Error`
+ --> src\test.rs:3:5
+  |
+3 | use crate::errors::ContractError as Error;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::types::VerificationStatus`
+ --> src\test.rs:4:5
+  |
+4 | use crate::types::VerificationStatus;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Vec`
+ --> src\test.rs:8:58
+  |
+8 | use soroban_sdk::{Address, Env, String as SorobanString, Vec};
+  |                                                          ^^^
+
+error[E0308]: mismatched types
+  --> src\lib.rs:71:9
+   |
+70 |     ) -> Result<(), ContractError> {
+   |          ------------------------- expected `std::result::Result<(), ContractError>` because of return type
+71 |         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Result<(), ContractError>`, found `()`
+   |
+   = note:   expected enum `std::result::Result<(), ContractError>`
+           found unit type `()`
+help: try adding an expression at the end of the block
+   |
+71 ~         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid);
+72 +         Ok(())
+   |
+
+error[E0308]: mismatched types
+  --> src\lib.rs:81:9
+   |
+80 |     ) -> Result<(), ContractError> {
+   |          ------------------------- expected `std::result::Result<(), ContractError>` because of return type
+81 |         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Result<(), ContractError>`, found `()`
+   |
+   = note:   expected enum `std::result::Result<(), ContractError>`
+           found unit type `()`
+help: try adding an expression at the end of the block
+   |
+81 ~         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid);
+82 +         Ok(())
+   |
+
+error[E0599]: no function or associated item named `list_reviews` found for struct `ReviewRegistry` in the current scope
+   --> src\lib.rs:93:25
+    |
+ 93 |         ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    |                         ^^^^^^^^^^^^ function or associated item not found in `ReviewRegistry`
+    |
+   ::: src\review_registry.rs:10:1
+    |
+ 10 | pub struct ReviewRegistry;
+    | ------------------------- function or associated item `list_reviews` not found for this struct
+    |
+help: there is an associated function `get_review` with a similar name
+   --> src\review_registry.rs:150:5
+    |
+150 |     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\lib.rs:132:9
+    |
+131 |     pub fn get_fee_config(env: Env) -> FeeConfig {
+    |                                        --------- expected `FeeConfig` because of return type
+132 |         FeeManager::get_fee_config(&env)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `FeeConfig`, found `Result<FeeConfig, ContractError>`
+    |
+    = note: expected struct `FeeConfig`
+                 found enum `std::result::Result<FeeConfig, ContractError>`
+help: consider using `Result::expect` to unwrap the `std::result::Result<FeeConfig, ContractError>` value, panicking if the value is a `Result::Err`
+    |
+132 |         FeeManager::get_fee_config(&env).expect("REASON")
+    |                                         +++++++++++++++++
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+warning: `dongle-contract` (lib) generated 2 warnings
+error: could not compile `dongle-contract` (lib) due to 4 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `dongle-contract` (lib test) generated 5 warnings (2 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 4 previous errors; 5 warnings emitted
