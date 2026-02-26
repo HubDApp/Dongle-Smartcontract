@@ -1,18 +1,19 @@
 /// RatingCalculator provides utility functions for computing and updating
 /// project rating aggregates efficiently without floating-point arithmetic.
-/// 
+///
 /// All ratings are scaled by 100 to maintain two decimal places of precision.
 /// For example, a rating of 4.50 is stored as 450.
 pub struct RatingCalculator;
 
+#[allow(dead_code)]
 impl RatingCalculator {
     /// Calculate average rating from sum and count.
     /// Returns 0 if review_count is 0 (handles division by zero).
-    /// 
+    ///
     /// # Arguments
     /// * `rating_sum` - Sum of all ratings (scaled by 100)
     /// * `review_count` - Number of active reviews
-    /// 
+    ///
     /// # Returns
     /// Average rating scaled by 100 (e.g., 450 = 4.50)
     pub fn calculate_average(rating_sum: u64, review_count: u32) -> u32 {
@@ -23,12 +24,12 @@ impl RatingCalculator {
     }
 
     /// Update rating aggregates when adding a new review.
-    /// 
+    ///
     /// # Arguments
     /// * `current_sum` - Current rating sum (scaled by 100)
     /// * `current_count` - Current review count
     /// * `new_rating` - New rating value (1-5)
-    /// 
+    ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
@@ -40,13 +41,13 @@ impl RatingCalculator {
     }
 
     /// Update rating aggregates when updating an existing review.
-    /// 
+    ///
     /// # Arguments
     /// * `current_sum` - Current rating sum (scaled by 100)
     /// * `current_count` - Current review count
     /// * `old_rating` - Previous rating value (1-5)
     /// * `new_rating` - New rating value (1-5)
-    /// 
+    ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
     pub fn update_rating(
@@ -63,12 +64,12 @@ impl RatingCalculator {
     }
 
     /// Update rating aggregates when deleting a review.
-    /// 
+    ///
     /// # Arguments
     /// * `current_sum` - Current rating sum (scaled by 100)
     /// * `current_count` - Current review count
     /// * `rating` - Rating value being removed (1-5)
-    /// 
+    ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
     pub fn remove_rating(current_sum: u64, current_count: u32, rating: u32) -> (u64, u32, u32) {

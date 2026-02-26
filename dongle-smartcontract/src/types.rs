@@ -1,4 +1,37 @@
-use soroban_sdk::{Address, String, contracttype};
+use soroban_sdk::{contracttype, Address, String};
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ProjectRegistrationParams {
+    pub owner: Address,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub website: Option<String>,
+    pub logo_cid: Option<String>,
+    pub metadata_cid: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ProjectUpdateParams {
+    pub project_id: u64,
+    pub caller: Address,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub website: Option<Option<String>>,
+    pub logo_cid: Option<Option<String>>,
+    pub metadata_cid: Option<Option<String>>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectStats {
+    pub rating_sum: u64,
+    pub review_count: u32,
+    pub average_rating: u32,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -6,6 +39,7 @@ pub struct Review {
     pub project_id: u64,
     pub reviewer: Address,
     pub rating: u32,
+    pub timestamp: u64,
     pub comment_cid: Option<String>,
 }
 
@@ -31,21 +65,22 @@ pub struct ReviewEventData {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub website: Option<String>,
+    pub logo_cid: Option<String>,
+    pub metadata_cid: Option<String>,
+    pub verification_status: VerificationStatus,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 
 #[contracttype]
-pub enum DataKey {
-    Project(u64),
-    Review(u64, Address),
-    Verification(u64),
-    NextProjectId,
-    Admin(Address),
-    FeeConfig,
-    Treasury,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
+    Unverified,
     Pending,
     Verified,
     Rejected,

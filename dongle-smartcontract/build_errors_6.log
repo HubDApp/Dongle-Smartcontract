@@ -1,0 +1,344 @@
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: unused import: `crate::constants::MAX_CID_LEN`
+ --> src\verification_registry.rs:3:5
+  |
+3 | use crate::constants::MAX_CID_LEN;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `publish_verification_approved_event`, `publish_verification_rejected_event`, and `publish_verification_requested_event`
+ --> src\verification_registry.rs:6:5
+  |
+6 |     publish_verification_approved_event, publish_verification_rejected_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |     publish_verification_requested_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\verification_registry.rs:9:60
+  |
+9 | use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+  |                                                            ^^^^^^^
+
+warning: unused imports: `publish_fee_paid_event` and `publish_fee_set_event`
+ --> src\fee_manager.rs:4:21
+  |
+4 | use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+  |                     ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\fee_manager.rs:5:31
+  |
+5 | use crate::types::{FeeConfig, DataKey};
+  |                               ^^^^^^^
+
+warning: unused import: `FeeConfig`
+  --> src\lib.rs:22:50
+   |
+22 | use types::{Project, Review, VerificationRecord, FeeConfig};
+   |                                                  ^^^^^^^^^
+
+error[E0277]: the trait bound `VerificationStatus: TryFromVal<Env, soroban_sdk::Val>` is not satisfied
+  --> src\types.rs:56:1
+   |
+56 | #[contracttype]
+   | ^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `TryFromVal<Env, soroban_sdk::Val>` is not implemented for `VerificationStatus`
+  --> src\types.rs:50:1
+   |
+50 | pub enum VerificationStatus {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: the following other types implement trait `TryFromVal<E, V>`:
+             `()` implements `TryFromVal<E, [soroban_sdk::Val; 0]>`
+             `()` implements `TryFromVal<E, soroban_sdk::Val>`
+             `()` implements `TryFromVal<Env, ()>`
+             `(T0, T1)` implements `TryFromVal<E, [soroban_sdk::Val; N]>`
+             `(T0, T1)` implements `TryFromVal<E, soroban_sdk::Val>`
+             `(T0, T1, T2)` implements `TryFromVal<E, [soroban_sdk::Val; N]>`
+             `(T0, T1, T2)` implements `TryFromVal<E, soroban_sdk::Val>`
+             `(T0, T1, T2, T3)` implements `TryFromVal<E, [soroban_sdk::Val; N]>`
+           and 327 others
+   = note: required for `soroban_sdk::Val` to implement `TryIntoVal<Env, VerificationStatus>`
+   = note: the full name for the type has been written to 'C:\Users\user\Dongle-Smartcontract\dongle-smartcontract\target\debug\deps\dongle_contract.long-type-2280732467449148111.txt'
+   = note: consider using `--verbose` to print the full type name to the console
+   = note: this error originates in the attribute macro `contracttype` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `soroban_sdk::Val: TryFromVal<Env, VerificationStatus>` is not satisfied
+  --> src\types.rs:56:1
+   |
+56 | #[contracttype]
+   | ^^^^^^^^^^^^^^^ the trait `TryFromVal<Env, VerificationStatus>` is not implemented for `soroban_sdk::Val`
+   |
+   = help: the following other types implement trait `TryFromVal<E, V>`:
+             `soroban_sdk::Val` implements `TryFromVal<E, &[u8]>`
+             `soroban_sdk::Val` implements `TryFromVal<E, &str>`
+             `soroban_sdk::Val` implements `TryFromVal<E, ()>`
+             `soroban_sdk::Val` implements `TryFromVal<E, (T0, T1)>`
+             `soroban_sdk::Val` implements `TryFromVal<E, (T0, T1, T2)>`
+             `soroban_sdk::Val` implements `TryFromVal<E, (T0, T1, T2, T3)>`
+             `soroban_sdk::Val` implements `TryFromVal<E, (T0, T1, T2, T3, T4)>`
+             `soroban_sdk::Val` implements `TryFromVal<E, (T0, T1, T2, T3, T4, T5)>`
+           and 113 others
+   = note: required for `VerificationStatus` to implement `TryIntoVal<Env, soroban_sdk::Val>`
+   = note: the full name for the type has been written to 'C:\Users\user\Dongle-Smartcontract\dongle-smartcontract\target\debug\deps\dongle_contract.long-type-2280732467449148111.txt'
+   = note: consider using `--verbose` to print the full type name to the console
+   = note: this error originates in the attribute macro `contracttype` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no variant or associated item named `ProjectCount` found for enum `DataKey` in the current scope
+  --> src\project_registry.rs:23:28
+   |
+23 |             .get(&DataKey::ProjectCount)
+   |                            ^^^^^^^^^^^^ variant or associated item not found in `DataKey`
+   |
+  ::: src\types.rs:38:1
+   |
+38 | pub enum DataKey {
+   | ---------------- variant or associated item `ProjectCount` not found for this enum
+
+error[E0560]: struct `Project` has no field named `owner`
+  --> src\project_registry.rs:30:13
+   |
+30 |             owner: owner.clone(),
+   |             ^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `name`
+  --> src\project_registry.rs:31:13
+   |
+31 |             name,
+   |             ^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `description`
+  --> src\project_registry.rs:32:13
+   |
+32 |             description,
+   |             ^^^^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `category`
+  --> src\project_registry.rs:33:13
+   |
+33 |             category,
+   |             ^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `website`
+  --> src\project_registry.rs:34:13
+   |
+34 |             website,
+   |             ^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `logo_cid`
+  --> src\project_registry.rs:35:13
+   |
+35 |             logo_cid,
+   |             ^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `metadata_cid`
+  --> src\project_registry.rs:36:13
+   |
+36 |             metadata_cid,
+   |             ^^^^^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `verification_status`
+  --> src\project_registry.rs:37:13
+   |
+37 |             verification_status: VerificationStatus::Unverified,
+   |             ^^^^^^^^^^^^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0599]: no variant or associated item named `Unverified` found for enum `VerificationStatus` in the current scope
+  --> src\project_registry.rs:37:54
+   |
+37 |             verification_status: VerificationStatus::Unverified,
+   |                                                      ^^^^^^^^^^ variant or associated item not found in `VerificationStatus`
+   |
+  ::: src\types.rs:50:1
+   |
+50 | pub enum VerificationStatus {
+   | --------------------------- variant or associated item `Unverified` not found for this enum
+   |
+help: there is a variant with a similar name
+   |
+37 -             verification_status: VerificationStatus::Unverified,
+37 +             verification_status: VerificationStatus::Verified,
+   |
+
+error[E0560]: struct `Project` has no field named `created_at`
+  --> src\project_registry.rs:38:13
+   |
+38 |             created_at: now,
+   |             ^^^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `Project` has no field named `updated_at`
+  --> src\project_registry.rs:39:13
+   |
+39 |             updated_at: now,
+   |             ^^^^^^^^^^ `Project` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0599]: no variant or associated item named `ProjectCount` found for enum `DataKey` in the current scope
+  --> src\project_registry.rs:47:28
+   |
+47 |             .set(&DataKey::ProjectCount, &count);
+   |                            ^^^^^^^^^^^^ variant or associated item not found in `DataKey`
+   |
+  ::: src\types.rs:38:1
+   |
+38 | pub enum DataKey {
+   | ---------------- variant or associated item `ProjectCount` not found for this enum
+
+error[E0599]: no variant or associated item named `OwnerProjects` found for enum `DataKey` in the current scope
+  --> src\project_registry.rs:52:28
+   |
+52 |             .get(&DataKey::OwnerProjects(owner.clone()))
+   |                            ^^^^^^^^^^^^^ variant or associated item not found in `DataKey`
+   |
+  ::: src\types.rs:38:1
+   |
+38 | pub enum DataKey {
+   | ---------------- variant or associated item `OwnerProjects` not found for this enum
+
+error[E0599]: no variant or associated item named `OwnerProjects` found for enum `DataKey` in the current scope
+  --> src\project_registry.rs:57:28
+   |
+57 |             .set(&DataKey::OwnerProjects(owner.clone()), &owner_projects);
+   |                            ^^^^^^^^^^^^^ variant or associated item not found in `DataKey`
+   |
+  ::: src\types.rs:38:1
+   |
+38 | pub enum DataKey {
+   | ---------------- variant or associated item `OwnerProjects` not found for this enum
+
+error[E0609]: no field `owner` on type `Project`
+  --> src\project_registry.rs:76:20
+   |
+76 |         if project.owner != caller {
+   |                    ^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `name` on type `Project`
+  --> src\project_registry.rs:81:21
+   |
+81 |             project.name = value;
+   |                     ^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `description` on type `Project`
+  --> src\project_registry.rs:84:21
+   |
+84 |             project.description = value;
+   |                     ^^^^^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `category` on type `Project`
+  --> src\project_registry.rs:87:21
+   |
+87 |             project.category = value;
+   |                     ^^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `website` on type `Project`
+  --> src\project_registry.rs:90:21
+   |
+90 |             project.website = value;
+   |                     ^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `logo_cid` on type `Project`
+  --> src\project_registry.rs:93:21
+   |
+93 |             project.logo_cid = value;
+   |                     ^^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `metadata_cid` on type `Project`
+  --> src\project_registry.rs:96:21
+   |
+96 |             project.metadata_cid = value;
+   |                     ^^^^^^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0609]: no field `updated_at` on type `Project`
+  --> src\project_registry.rs:99:17
+   |
+99 |         project.updated_at = env.ledger().timestamp();
+   |                 ^^^^^^^^^^ unknown field
+   |
+   = note: available field is: `id`
+
+error[E0599]: no variant or associated item named `OwnerProjects` found for enum `DataKey` in the current scope
+   --> src\project_registry.rs:117:28
+    |
+117 |             .get(&DataKey::OwnerProjects(owner))
+    |                            ^^^^^^^^^^^^^ variant or associated item not found in `DataKey`
+    |
+   ::: src\types.rs:38:1
+    |
+ 38 | pub enum DataKey {
+    | ---------------- variant or associated item `OwnerProjects` not found for this enum
+
+warning: variable does not need to be mutable
+  --> src\review_registry.rs:78:17
+   |
+78 |             let mut user_reviews: soroban_sdk::Vec<u64> = env
+   |                 ----^^^^^^^^^^^^
+   |                 |
+   |                 help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `env`
+  --> src\verification_registry.rs:16:9
+   |
+16 |         env: &Env,
+   |         ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `project_id`
+  --> src\verification_registry.rs:17:9
+   |
+17 |         project_id: u64,
+   |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `requester`
+  --> src\verification_registry.rs:18:9
+   |
+18 |         requester: Address,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_requester`
+
+warning: unused variable: `evidence_cid`
+  --> src\verification_registry.rs:19:9
+   |
+19 |         evidence_cid: String,
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_evidence_cid`
+
+Some errors have detailed explanations: E0277, E0560, E0599, E0609.
+For more information about an error, try `rustc --explain E0277`.
+warning: `dongle-contract` (lib) generated 11 warnings
+error: could not compile `dongle-contract` (lib) due to 26 previous errors; 11 warnings emitted

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Contract limits and validation constants. Kept in one place for easy future updates.
 
 /// Maximum number of projects a single user (address) can register. Prevents abuse.
