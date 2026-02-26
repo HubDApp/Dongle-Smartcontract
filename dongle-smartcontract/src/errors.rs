@@ -42,11 +42,7 @@ pub enum ContractError {
     /// Treasury address not set
     TreasuryNotSet = 18,
     /// User has already reviewed this project
-    DuplicateReview = 19,
-    /// Review is already deleted
-    ReviewAlreadyDeleted = 20,
-    /// Cannot remove the last admin
-    CannotRemoveLastAdmin = 21,
-    /// Admin not found
-    AdminNotFound = 22,
+    AlreadyReviewed = 19,
+    NotReviewer = 20,
+    InvalidProjectNameFormat = 21,
 }

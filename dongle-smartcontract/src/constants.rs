@@ -10,8 +10,7 @@ pub const MAX_PROJECTS_PER_USER: u32 = 50;
 pub const MIN_STRING_LEN: usize = 1;
 
 /// Maximum length for project name.
-#[allow(dead_code)]
-pub const MAX_NAME_LEN: usize = 128;
+pub const MAX_NAME_LEN: usize = 50;
 
 /// Maximum length for project description.
 #[allow(dead_code)]
