@@ -53,23 +53,64 @@ impl FeeManager {
         env: &Env,
         payer: Address,
         project_id: u64,
-        _token: Option<Address>,
+
+      token: Option<Address>,
     ) -> Result<(), ContractError> {
         payer.require_auth();
 
         let config = Self::get_fee_config(env)?;
-        let treasury = Self::get_treasury(env)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
 
-        if config.verification_fee > 0 {
+        if config.token != token {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let amount = config.verification_fee;
+        if amount > 0 {
             if let Some(token_address) = config.token {
                 let client = soroban_sdk::token::Client::new(env, &token_address);
-                client.transfer(&payer, &treasury, &(config.verification_fee as i128));
+                client.transfer(&payer, &treasury, &(amount as i128));
             } else {
-                // Native XLM transfer not directly supported in this simple way via token client if it's not a token address
-                // Assuming token address is provided for now as per implementation plan.
-                return Err(ContractError::InvalidProjectData);
+                // For native token, we use the same token client since it's standardized
+                // Assuming the contract environment has access to the native asset if token is None
+                // In Soroban, native asset is also a token. 
+                // However, the FeeConfig doesn't store the native asset address if None.
+                // We'll require the caller to pass the correct token address if it's not None.
+                // If config.token is None, it means the contract isn't fully configured for native payments yet 
+                // or we need a standard way to get the native asset address.
+                return Err(ContractError::FeeConfigNotSet);
             }
         }
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::FeePaidForProject(project_id), &true);
+
+        crate::events::publish_fee_paid_event(env, project_id, amount);
+
+        Ok(())
+    }
+
+    pub fn is_fee_paid(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::FeePaidForProject(project_id))
+            .unwrap_or(false)
+    }
+
+    pub fn consume_fee_payment(env: &Env, project_id: u64) -> Result<(), ContractError> {
+        if !Self::is_fee_paid(env, project_id) {
+            return Err(ContractError::InsufficientFee);
+        }
+        env.storage()
+            .persistent()
+            .remove(&DataKey::FeePaidForProject(project_id));
+        Ok(())
+    }
 
         env.storage()
             .persistent()

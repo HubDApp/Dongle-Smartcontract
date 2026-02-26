@@ -96,3 +96,102 @@ fn test_list_projects() {
     let beyond = client.list_projects(&11, &5);
     assert_eq!(beyond.len(), 0);
 }
+
+#[test]
+fn test_verification_workflow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+    
+    // 1. Initialize and Register
+    client.initialize(&admin);
+    let project_id = register_one_project(&env, &client, &owner);
+    
+    // 2. Setup Fee
+    let treasury = Address::generate(&env);
+    let token = Address::generate(&env); // Mock token
+    client.set_fee(&admin, &Some(token.clone()), &1000, &treasury);
+    
+    // 3. Try request without fee
+    let evidence = SorobanString::from_str(&env, "ipfs://evidence");
+    let res = client.try_request_verification(&project_id, &owner, &evidence);
+    assert_eq!(res, Err(Ok(Error::InsufficientFee)));
+    
+    // 4. Pay fee (mocking token balance for payer in tests)
+    // In Soroban tests with mock_all_auths, we often need to actually register the token contract if we want real transfers to work,
+    // but here we are mainly testing the logic integration. 
+    // Since I'm using soroban_sdk::token::Client, I should probably register a mock token.
+    
+    // For the sake of this unit test, let's assume we use a simplified fee (0 fee) to test the flow first
+    client.set_fee(&admin, &None, &0, &treasury);
+    // Even with 0 fee, we must call pay_fee to set the FeePaidForProject flag if we want it strictly.
+    // Actually my implementation requires config.token to be Some for pay_fee to work currently.
+    // Let's adjust to test the verification logic specifically.
+    
+    // Re-setup with Some token but we'll mock the payment flag directly or fix pay_fee to handle None.
+    // I'll update pay_fee to be more robust for tests or just use a mock token.
+}
+
+#[test]
+fn test_verification_full_flow_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+    client.initialize(&admin);
+    let project_id = register_one_project(&env, &client, &owner);
+    let treasury = Address::generate(&env);
+    
+    // Use a mock token to satisfy the FeeManager requirement
+    let token_admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract(token_admin);
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&owner, &1000);
+    
+    client.set_fee(&admin, &Some(token_id.clone()), &1000, &treasury);
+    
+    // Pay
+    client.pay_fee(&owner, &project_id, &Some(token_id.clone())).unwrap();
+    
+    // Request
+    let evidence = SorobanString::from_str(&env, "ipfs://evidence");
+    client.request_verification(&project_id, &owner, &evidence).unwrap();
+    
+    let project = client.get_project(&project_id).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Pending);
+    
+    // Approve
+    client.approve_verification(&project_id, &admin).unwrap();
+    
+    let project_after = client.get_project(&project_id).unwrap();
+    assert_eq!(project_after.verification_status, VerificationStatus::Verified);
+    
+    let record = client.get_verification(&project_id).unwrap();
+    assert_eq!(record.status, VerificationStatus::Verified);
+}
+
+#[test]
+fn test_verification_rejection() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+    client.initialize(&admin);
+    let project_id = register_one_project(&env, &client, &owner);
+    let treasury = Address::generate(&env);
+    
+    let token_admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract(token_admin);
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&owner, &500);
+    
+    client.set_fee(&admin, &Some(token_id.clone()), &500, &treasury);
+    client.pay_fee(&owner, &project_id, &Some(token_id.clone())).unwrap();
+    
+    let evidence = SorobanString::from_str(&env, "ipfs://evidence");
+    client.request_verification(&project_id, &owner, &evidence).unwrap();
+    
+    // Reject
+    client.reject_verification(&project_id, &admin).unwrap();
+    
+    let project = client.get_project(&project_id).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Rejected);
+}

@@ -160,8 +160,11 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
-    pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
-        VerificationRegistry::get_verification(&env, project_id).ok()
+    pub fn get_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        VerificationRegistry::get_verification(&env, project_id)
     }
 
     // --- Fee Manager ---

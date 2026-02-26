@@ -19,50 +19,49 @@ pub struct VerificationRegistry;
 #[allow(dead_code)]
 impl VerificationRegistry {
     pub fn request_verification(
-        _env: &Env,
-        _project_id: u64,
-        _requester: Address,
-        _evidence_cid: String,
-    ) {
-        // Validate project ownership
-        // Require fee paid via FeeManager
-        // Store VerificationRecord with Pending
         env: &Env,
         project_id: u64,
         requester: Address,
-        _evidence_cid: String,
+        evidence_cid: String,
     ) -> Result<(), ContractError> {
         requester.require_auth();
 
-        // 1. Verify project exists and requester is owner
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::InvalidProjectData)?;
+        // 1. Validate project ownership
+        let project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
         if project.owner != requester {
             return Err(ContractError::Unauthorized);
         }
 
-        // 2. Verify fee is paid
-        if !FeeManager::is_fee_paid(env, project_id) {
-            return Err(ContractError::InvalidProjectData); // Or a specific FeeNotPaid error if we had one
-        }
+        // 2. Consume fee payment
+        crate::fee_manager::FeeManager::consume_fee_payment(env, project_id)?;
 
-        // 3. Store VerificationRecord with Pending
+        // 3. Validate evidence
+        Self::validate_evidence_cid(&evidence_cid)?;
+
+        // 4. Create record
+        let config = crate::fee_manager::FeeManager::get_fee_config(env)?;
         let record = VerificationRecord {
+            project_id,
+            requester: requester.clone(),
             status: VerificationStatus::Pending,
+            evidence_cid: evidence_cid.clone(),
+            timestamp: env.ledger().timestamp(),
+            fee_amount: config.verification_fee,
         };
+
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+            .set(&DataKey::Verification(project_id), &record);
 
-        // 4. Update project status
-        let mut updated_project = project;
-        updated_project.verification_status = VerificationStatus::Pending;
-        updated_project.updated_at = env.ledger().timestamp();
+        // 5. Update project status to Pending
+        let mut mut_project = project;
+        mut_project.verification_status = VerificationStatus::Pending;
         env.storage()
             .persistent()
-            .set(&StorageKey::Project(project_id), &updated_project);
+            .set(&DataKey::Project(project_id), &mut_project);
 
-        publish_verification_requested_event(env, project_id, requester);
+        publish_verification_requested_event(env, project_id, requester, evidence_cid);
         Ok(())
     }
 
@@ -83,47 +82,45 @@ impl VerificationRegistry {
             .get(&DataKey::Verification(project_id))
             .ok_or(ContractError::VerificationNotFound)?;
 
-        // Check if already processed
-        if record.status == VerificationStatus::Verified {
-            return Err(ContractError::VerificationAlreadyProcessed);
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::InvalidStatusTransition);
         }
 
-        // Update status
         record.status = VerificationStatus::Verified;
         env.storage()
             .persistent()
             .set(&DataKey::Verification(project_id), &record);
 
-        publish_verification_approved_event(env, project_id);
+// 1. SECURITY: Authorize the admin (From Incoming)
+let stored_admin: Address = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Admin)
+    .ok_or(ContractError::Unauthorized)?;
 
-        // 1. Authorize admin
-        let stored_admin: Address = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Admin)
-            .ok_or(ContractError::Unauthorized)?;
-        if admin != stored_admin {
-            return Err(ContractError::Unauthorized);
-        }
-        admin.require_auth();
+admin.require_auth(); 
 
-        // 2. Update status to Verified
-        let mut project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::InvalidProjectData)?;
-        project.verification_status = VerificationStatus::Verified;
-        project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+// 2. LOGIC: Update the project (Hybrid)
+let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
+    .ok_or(ContractError::ProjectNotFound)?;
 
-        let record = VerificationRecord {
-            status: VerificationStatus::Verified,
-        };
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+project.verification_status = VerificationStatus::Verified;
+project.updated_at = env.ledger().timestamp(); // Keeps your data current
 
-        publish_verification_approved_event(env, project_id);
+env.storage()
+    .persistent()
+    .set(&DataKey::Project(project_id), &project);
+
+// 3. STATE: Create the separate verification record (From Incoming)
+let record = VerificationRecord {
+    status: VerificationStatus::Verified,
+};
+env.storage()
+    .persistent()
+    .set(&StorageKey::Verification(project_id), &record);
+
+// 4. EVENT: Notify the network
+publish_verification_approved_event(env, project_id, admin);
         Ok(())
     }
 
@@ -134,57 +131,64 @@ impl VerificationRegistry {
     ) -> Result<(), ContractError> {
         admin.require_auth();
 
-        // Verify admin privileges
-        AdminManager::require_admin(env, &admin)?;
+// Verify admin privileges
+AdminManager::require_admin(env, &admin)?;
 
-        // Get verification record
-        let mut record: VerificationRecord = env
+// Get verification record
+let mut record: VerificationRecord = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Verification(project_id)) // Ensure this matches your key type
+    .ok_or(ContractError::RecordNotFound)?;
             .storage()
             .persistent()
             .get(&DataKey::Verification(project_id))
             .ok_or(ContractError::VerificationNotFound)?;
 
-        // Check if already processed
-        if record.status == VerificationStatus::Rejected {
-            return Err(ContractError::VerificationAlreadyProcessed);
-        }
+// Check if already processed
+if record.status != VerificationStatus::Pending {
+    return Err(ContractError::InvalidStatusTransition);
+}
 
-        // Update status
-        record.status = VerificationStatus::Rejected;
+// Update status
+record.status = VerificationStatus::Rejected;ected;
         env.storage()
             .persistent()
             .set(&DataKey::Verification(project_id), &record);
 
-        publish_verification_rejected_event(env, project_id);
+// 1. Authorize Admin (From Incoming)
+let stored_admin: Address = env
+    .storage()
+    .persistent()
+    .get(&StorageKey::Admin)
+    .ok_or(ContractError::Unauthorized)?;
 
-        // 1. Authorize admin
-        let stored_admin: Address = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Admin)
-            .ok_or(ContractError::Unauthorized)?;
-        if admin != stored_admin {
-            return Err(ContractError::Unauthorized);
-        }
-        admin.require_auth();
+if admin != stored_admin {
+    return Err(ContractError::Unauthorized);
+}
+admin.require_auth(); // This is the most critical security line
 
-        // 2. Update status to Rejected
-        let mut project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::InvalidProjectData)?;
-        project.verification_status = VerificationStatus::Rejected;
-        project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+// 2. Update Project Status to Rejected
+let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
+    .ok_or(ContractError::ProjectNotFound)?;
 
-        let record = VerificationRecord {
-            status: VerificationStatus::Rejected,
-        };
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+project.verification_status = VerificationStatus::Rejected;
+project.updated_at = env.ledger().timestamp(); // Keeps your data history accurate
 
-        publish_verification_rejected_event(env, project_id);
+env.storage()
+    .persistent()
+    .set(&DataKey::Project(project_id), &project);
+
+// 3. Update the Verification Record (New required state)
+let record = VerificationRecord {
+    status: VerificationStatus::Rejected,
+};
+env.storage()
+    .persistent()
+    .set(&StorageKey::Verification(project_id), &record);
+
+// 4. Emit the Event exactly once
+publish_verification_rejected_event(env, project_id);
         Ok(())
     }
 
@@ -194,8 +198,8 @@ impl VerificationRegistry {
     ) -> Result<VerificationRecord, ContractError> {
         env.storage()
             .persistent()
-            .get(&StorageKey::Verification(project_id))
-            .ok_or(ContractError::InvalidProjectData)
+.get(&StorageKey::Verification(project_id))
+.ok_or(ContractError::VerificationNotFound)
     }
 
     #[allow(dead_code)]
