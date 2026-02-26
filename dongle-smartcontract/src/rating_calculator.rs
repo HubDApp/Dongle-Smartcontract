@@ -32,6 +32,7 @@ impl RatingCalculator {
     ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
+    #[allow(dead_code)]
     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (new_rating as u64) * 100;
         let new_sum = current_sum + scaled_rating;
@@ -50,6 +51,7 @@ impl RatingCalculator {
     ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
+    #[allow(dead_code)]
     pub fn update_rating(
         current_sum: u64,
         current_count: u32,

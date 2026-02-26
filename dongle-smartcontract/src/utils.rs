@@ -2,6 +2,7 @@ use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
+#[allow(dead_code)]
 pub struct Utils;
 
 #[allow(dead_code)]

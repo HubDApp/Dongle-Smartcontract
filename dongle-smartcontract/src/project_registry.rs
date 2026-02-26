@@ -9,6 +9,7 @@ use soroban_sdk::{Address, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
@@ -16,6 +17,13 @@ impl ProjectRegistry {
         params.owner.require_auth();
 
         // Validation
+        if name.is_empty() {
+            panic!("InvalidProjectName");
+        }
+        if description.is_empty() {
+            panic!("InvalidProjectDescription");
+        }
+        if category.is_empty() {
         if params.name.is_empty() {
             panic!("InvalidProjectName");
         }
@@ -80,6 +88,22 @@ impl ProjectRegistry {
         Ok(count)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        name: Option<String>,
+        description: Option<String>,
+        category: Option<String>,
+        website: Option<Option<String>>,
+        logo_cid: Option<Option<String>>,
+        metadata_cid: Option<Option<String>>,
+    ) -> Option<Project> {
+        let mut project = Self::get_project(env, project_id)?;
+
+        caller.require_auth();
+        if project.owner != caller {
     pub fn update_project(env: &Env, params: ProjectUpdateParams) -> Option<Project> {
         let mut project = Self::get_project(env, params.project_id)?;
 
@@ -201,6 +225,7 @@ mod tests {
             return Err(ContractError::InvalidProjectData);
         }
         if description.is_empty() {
+            return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
             return Err(ContractError::ProjectDescriptionTooLong);
         }
         if category.is_empty() {

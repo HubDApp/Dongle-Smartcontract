@@ -234,6 +234,14 @@ impl ReviewRegistry {
             .get(&StorageKey::Review(project_id, reviewer))
     }
 
+    #[allow(dead_code)]
+    pub fn get_reviews_by_user(
+        env: &Env,
+        user: Address,
+        offset: u32,
+        limit: u32,
+    ) -> soroban_sdk::Vec<Review> {
+        let project_ids: soroban_sdk::Vec<u64> = env
     pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         let reviewers: Vec<Address> = env
             .storage()

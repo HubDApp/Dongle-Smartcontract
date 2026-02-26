@@ -1,5 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::events::{publish_fee_paid_event, publish_fee_set_event};
 use crate::storage_keys::StorageKey;
@@ -17,6 +18,11 @@ impl FeeManager {
         amount: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
+        admin.require_auth();
+
+        // Verify admin privileges
+        AdminManager::require_admin(env, &admin)?;
+
         // Authorization check
         let stored_admin: Address = env
             .storage()

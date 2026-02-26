@@ -1,5 +1,6 @@
 #![no_std]
 
+mod admin_manager;
 mod constants;
 mod errors;
 mod events;
@@ -12,6 +13,13 @@ mod types;
 mod utils;
 mod verification_registry;
 
+#[cfg(test)]
+mod test;
+
+#[cfg(test)]
+mod admin_tests;
+
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -34,8 +42,52 @@ impl DongleContract {
             .set(&crate::storage_keys::StorageKey::Admin, &admin);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: Env,
+        owner: Address,
+        name: String,
+        description: String,
+        category: String,
+        website: Option<String>,
+        logo_cid: Option<String>,
+        metadata_cid: Option<String>,
+    ) -> u64 {
+        ProjectRegistry::register_project(
+            &env,
+            owner,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        name: Option<String>,
+        description: Option<String>,
+        category: Option<String>,
+        website: Option<Option<String>>,
+        logo_cid: Option<Option<String>>,
+        metadata_cid: Option<Option<String>>,
+    ) -> Option<Project> {
+        ProjectRegistry::update_project(
+            &env,
+            project_id,
+            caller,
+            name,
+            description,
+            category,
+            website,
+            logo_cid,
+            metadata_cid,
+        )
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
         ProjectRegistry::register_project(&env, params)
@@ -153,6 +205,38 @@ impl DongleContract {
 #[cfg(test)]
 mod test;
 
+    // --- Admin Management ---
+
+    pub fn initialize(env: Env, admin: Address) {
+        AdminManager::initialize(&env, admin);
+    }
+
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
+        let _ = AdminManager::add_admin(&env, caller, new_admin);
+    }
+
+    pub fn remove_admin(env: Env, caller: Address, admin_to_remove: Address) {
+        let _ = AdminManager::remove_admin(&env, caller, admin_to_remove);
+    }
+
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        AdminManager::is_admin(&env, &address)
+    }
+
+    pub fn get_admin_list(env: Env) -> Vec<Address> {
+        AdminManager::get_admin_list(&env)
+    }
+
+    pub fn get_admin_count(env: Env) -> u32 {
+        AdminManager::get_admin_count(&env)
+    }
+
+    pub fn set_admin(env: Env, admin: Address) {
+        env.storage()
+            .persistent()
+            .set(&crate::types::DataKey::Admin(admin), &());
+    }
+}
 #[cfg(test)]
 mod registration_tests;
 
