@@ -1,0 +1,1171 @@
+   Compiling dongle-contract v0.1.0 (C:\Users\user\Dongle-Smartcontract\dongle-smartcontract)
+warning: unused import: `ReviewEventData`
+ --> src\review_registry.rs:2:42
+  |
+2 | use crate::types::{Review, ReviewAction, ReviewEventData, DataKey};
+  |                                          ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::constants::MAX_CID_LEN`
+ --> src\verification_registry.rs:3:5
+  |
+3 | use crate::constants::MAX_CID_LEN;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `publish_verification_approved_event`, `publish_verification_rejected_event`, and `publish_verification_requested_event`
+ --> src\verification_registry.rs:6:5
+  |
+6 |     publish_verification_approved_event, publish_verification_rejected_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |     publish_verification_requested_event,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\verification_registry.rs:9:60
+  |
+9 | use crate::types::{VerificationRecord, VerificationStatus, DataKey};
+  |                                                            ^^^^^^^
+
+warning: unused imports: `publish_fee_paid_event` and `publish_fee_set_event`
+ --> src\fee_manager.rs:4:21
+  |
+4 | use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+  |                     ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DataKey`
+ --> src\fee_manager.rs:5:31
+  |
+5 | use crate::types::{FeeConfig, DataKey};
+  |                               ^^^^^^^
+
+warning: unused import: `FeeConfig`
+  --> src\lib.rs:22:50
+   |
+22 | use types::{Project, Review, VerificationRecord, FeeConfig};
+   |                                                  ^^^^^^^^^
+
+error: cannot find macro `format` in this scope
+   --> src\test.rs:377:14
+    |
+377 |             &format!("Project {}", i),
+    |              ^^^^^^
+
+error: cannot find macro `format` in this scope
+   --> src\test.rs:170:17
+    |
+170 |         let n = format!("{} {}", name, i);
+    |                 ^^^^^^
+
+error[E0433]: failed to resolve: use of undeclared type `Vec`
+   --> src\test.rs:373:19
+    |
+373 |     let mut ids = Vec::new();
+    |                   ^^^ use of undeclared type `Vec`
+    |
+help: consider importing one of these structs
+    |
+  3 + use crate::Vec;
+    |
+  3 + use soroban_sdk::Vec;
+    |
+
+warning: unused import: `TryIntoVal`
+   --> src\review_registry.rs:135:31
+    |
+135 |         Env, IntoVal, String, TryIntoVal,
+    |                               ^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src\review_registry.rs:78:17
+   |
+78 |             let mut user_reviews: soroban_sdk::Vec<u64> = env
+   |                 ----^^^^^^^^^^^^
+   |                 |
+   |                 help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `env`
+  --> src\verification_registry.rs:16:9
+   |
+16 |         env: &Env,
+   |         ^^^ help: if this is intentional, prefix it with an underscore: `_env`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `project_id`
+  --> src\verification_registry.rs:17:9
+   |
+17 |         project_id: u64,
+   |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_id`
+
+warning: unused variable: `requester`
+  --> src\verification_registry.rs:18:9
+   |
+18 |         requester: Address,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_requester`
+
+warning: unused variable: `evidence_cid`
+  --> src\verification_registry.rs:19:9
+   |
+19 |         evidence_cid: String,
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_evidence_cid`
+
+error[E0599]: no method named `register` found for reference `&Env` in the current scope
+  --> src\test.rs:12:27
+   |
+12 |     let contract_id = env.register(DongleContract, ());
+   |                           ^^^^^^^^ method not found in `&Env`
+
+error[E0061]: this method takes 2 arguments but 1 argument was supplied
+  --> src\test.rs:17:12
+   |
+17 |     client.set_admin(&admin);
+   |            ^^^^^^^^^-------- argument #2 of type `&soroban_sdk::Address` is missing
+   |
+note: method defined here
+  --> src\lib.rs:41:12
+   |
+41 |     pub fn set_admin(_env: Env, _caller: Address, _new_admin: Address) -> Result<(), ContractError> {
+   |            ^^^^^^^^^                              -------------------
+help: provide the argument
+   |
+17 |     client.set_admin(&admin, /* &soroban_sdk::Address */);
+   |                            +++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:28:22
+    |
+ 28 |         &"Project A".into(),
+    |                      ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:29:26
+    |
+ 29 |         &"Description A".into(),
+    |                          ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:30:17
+    |
+ 30 |         &"DeFi".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no method named `unwrap` found for struct `Project` in the current scope
+  --> src\test.rs:43:43
+   |
+43 |     let project = client.get_project(&id).unwrap();
+   |                                           ^^^^^^ method not found in `Project`
+   |
+  ::: src\types.rs:33:1
+   |
+33 | pub struct Project {
+   | ------------------ method `unwrap` not found for this struct
+   |
+help: some of the expressions' fields have a method of the same name
+   |
+43 |     let project = client.get_project(&id).logo_cid.unwrap();
+   |                                           +++++++++
+43 |     let project = client.get_project(&id).metadata_cid.unwrap();
+   |                                           +++++++++++++
+43 |     let project = client.get_project(&id).website.unwrap();
+   |                                           ++++++++
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+  --> src\test.rs:46:23
+   |
+46 |     assert_eq!(client.get_owner_project_count(&owner), 1);
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+   |
+  ::: src\lib.rs:27:1
+   |
+27 | #[contract]
+   | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:60:22
+    |
+ 60 |         &"Project A".into(),
+    |                      ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:61:23
+    |
+ 61 |         &"Other Desc".into(),
+    |                       ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:62:22
+    |
+ 62 |         &"Other Cat".into(),
+    |                      ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:77:13
+    |
+ 77 |         &"".into(),
+    |             ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:78:17
+    |
+ 78 |         &"Desc".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:79:16
+    |
+ 79 |         &"Cat".into(),
+    |                ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `InvalidProjectName` found for enum `ContractError` in the current scope
+  --> src\test.rs:84:38
+   |
+84 |     assert_eq!(result, Err(Ok(Error::InvalidProjectName)));
+   |                                      ^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+   |
+  ::: src\errors.rs:7:1
+   |
+ 7 | pub enum ContractError {
+   | ---------------------- variant or associated item `InvalidProjectName` not found for this enum
+   |
+help: there is a variant with a similar name
+   |
+84 -     assert_eq!(result, Err(Ok(Error::InvalidProjectName)));
+84 +     assert_eq!(result, Err(Ok(Error::InvalidProjectData));
+   |
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:93:16
+    |
+ 93 |         &"   ".into(),
+    |                ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:94:17
+    |
+ 94 |         &"Desc".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:95:16
+    |
+ 95 |         &"Cat".into(),
+    |                ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `InvalidProjectName` found for enum `ContractError` in the current scope
+   --> src\test.rs:100:38
+    |
+100 |     assert_eq!(result, Err(Ok(Error::InvalidProjectName)));
+    |                                      ^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `InvalidProjectName` not found for this enum
+    |
+help: there is a variant with a similar name
+    |
+100 -     assert_eq!(result, Err(Ok(Error::InvalidProjectName)));
+100 +     assert_eq!(result, Err(Ok(Error::InvalidProjectData));
+    |
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:109:17
+    |
+109 |         &"Name".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:110:13
+    |
+110 |         &"".into(),
+    |             ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:111:16
+    |
+111 |         &"Cat".into(),
+    |                ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `InvalidProjectDescription` found for enum `ContractError` in the current scope
+   --> src\test.rs:116:38
+    |
+116 |     assert_eq!(result, Err(Ok(Error::InvalidProjectDescription)));
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `InvalidProjectDescription` not found for this enum
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:125:17
+    |
+125 |         &"Name".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:126:17
+    |
+126 |         &"Desc".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:127:13
+    |
+127 |         &"".into(),
+    |             ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `core::option::Option<soroban_sdk::String>: From<&str>` is not satisfied
+   --> src\test.rs:144:18
+    |
+144 |         &"Name2".into(),
+    |                  ^^^^ the trait `From<&str>` is not implemented for `core::option::Option<soroban_sdk::String>`
+    |
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&core::option::Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut core::option::Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<crypto_bigint::checked::Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `core::option::Option<der::length::Length>` implements `From<der::length::IndefiniteLength>`
+              `core::option::Option<soroban_sdk::xdr::AccountId>` implements `From<soroban_sdk::xdr::SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<core::option::Option<soroban_sdk::String>>`
+
+error[E0277]: the trait bound `core::option::Option<soroban_sdk::String>: From<&str>` is not satisfied
+   --> src\test.rs:145:18
+    |
+145 |         &"Desc2".into(),
+    |                  ^^^^ the trait `From<&str>` is not implemented for `core::option::Option<soroban_sdk::String>`
+    |
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&core::option::Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut core::option::Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<crypto_bigint::checked::Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `core::option::Option<der::length::Length>` implements `From<der::length::IndefiniteLength>`
+              `core::option::Option<soroban_sdk::xdr::AccountId>` implements `From<soroban_sdk::xdr::SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<core::option::Option<soroban_sdk::String>>`
+
+error[E0277]: the trait bound `core::option::Option<soroban_sdk::String>: From<&str>` is not satisfied
+   --> src\test.rs:146:17
+    |
+146 |         &"Cat2".into(),
+    |                 ^^^^ the trait `From<&str>` is not implemented for `core::option::Option<soroban_sdk::String>`
+    |
+    = help: the following other types implement trait `From<T>`:
+              `core::option::Option<&T>` implements `From<&core::option::Option<T>>`
+              `core::option::Option<&mut T>` implements `From<&mut core::option::Option<T>>`
+              `core::option::Option<T>` implements `From<T>`
+              `core::option::Option<T>` implements `From<VecM<T, 1>>`
+              `core::option::Option<T>` implements `From<crypto_bigint::checked::Checked<T>>`
+              `core::option::Option<T>` implements `From<subtle::CtOption<T>>`
+              `core::option::Option<der::length::Length>` implements `From<der::length::IndefiniteLength>`
+              `core::option::Option<soroban_sdk::xdr::AccountId>` implements `From<soroban_sdk::xdr::SponsorshipDescriptor>`
+    = note: required for `&str` to implement `Into<core::option::Option<soroban_sdk::String>>`
+
+error[E0599]: no variant or associated item named `NotProjectOwner` found for enum `ContractError` in the current scope
+   --> src\test.rs:151:38
+    |
+151 |     assert_eq!(result, Err(Ok(Error::NotProjectOwner)));
+    |                                      ^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `NotProjectOwner` not found for this enum
+
+error[E0599]: no variant or associated item named `InvalidProjectId` found for enum `ContractError` in the current scope
+   --> src\test.rs:159:38
+    |
+159 |     assert_eq!(result, Err(Ok(Error::InvalidProjectId)));
+    |                                      ^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `InvalidProjectId` not found for this enum
+    |
+help: there is a variant with a similar name
+    |
+159 -     assert_eq!(result, Err(Ok(Error::InvalidProjectId)));
+159 +     assert_eq!(result, Err(Ok(Error::InvalidProjectData));
+    |
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src\test.rs:166:26
+    |
+166 |     let name = "Project".to_string();
+    |                          ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src\test.rs:167:30
+    |
+167 |     let desc = "Description".to_string();
+    |                              ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `to_string` found for reference `&'static str` in the current scope
+   --> src\test.rs:168:22
+    |
+168 |     let cat = "DeFi".to_string();
+    |                      ^^^^^^^^^ method not found in `&'static str`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `ToString` which provides `to_string` is implemented but not in scope; perhaps you want to import it
+    |
+  3 + use crate::__donglecontract_fn_set_registry::std::string::ToString;
+    |
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:182:23
+    |
+182 |     assert_eq!(client.get_owner_project_count(&owner), MAX_PROJECTS_PER_USER);
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:185:21
+    |
+185 |         &"One more".into(),
+    |                     ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `MaxProjectsPerUserExceeded` found for enum `ContractError` in the current scope
+   --> src\test.rs:192:38
+    |
+192 |     assert_eq!(result, Err(Ok(Error::MaxProjectsPerUserExceeded)));
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `MaxProjectsPerUserExceeded` not found for this enum
+
+error[E0599]: no variant or associated item named `DuplicateReview` found for enum `ContractError` in the current scope
+   --> src\test.rs:226:46
+    |
+226 |             assert_eq!(result, Err(Ok(Error::DuplicateReview)), "second review same reviewer");
+    |                                              ^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `DuplicateReview` not found for this enum
+
+error[E0599]: no variant or associated item named `DuplicateReview` found for enum `ContractError` in the current scope
+   --> src\test.rs:239:38
+    |
+239 |     assert_eq!(result, Err(Ok(Error::DuplicateReview)));
+    |                                      ^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `DuplicateReview` not found for this enum
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:260:12
+    |
+260 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+260 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:261:79
+    |
+261 |     let result = client.try_request_verification(&id, &owner, &"evidence_cid".into());
+    |                                                                               ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `FeeNotPaid` found for enum `ContractError` in the current scope
+   --> src\test.rs:262:38
+    |
+262 |     assert_eq!(result, Err(Ok(Error::FeeNotPaid)));
+    |                                      ^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `FeeNotPaid` not found for this enum
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:271:12
+    |
+271 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+271 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:272:12
+    |
+272 |     client.pay_fee(&owner, &id, &None);
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:274:79
+    |
+274 |     let result = client.try_request_verification(&id, &other, &"evidence_cid".into());
+    |                                                                               ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `NotProjectOwnerForVerification` found for enum `ContractError` in the current scope
+   --> src\test.rs:275:38
+    |
+275 |     assert_eq!(result, Err(Ok(Error::NotProjectOwnerForVerification)));
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `NotProjectOwnerForVerification` not found for this enum
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:284:12
+    |
+284 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+284 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:285:12
+    |
+285 |     client.pay_fee(&owner, &id, &None);
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:286:67
+    |
+286 |     let result = client.try_request_verification(&id, &owner, &"".into());
+    |                                                                   ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `InvalidEvidenceCid` found for enum `ContractError` in the current scope
+   --> src\test.rs:287:38
+    |
+287 |     assert_eq!(result, Err(Ok(Error::InvalidEvidenceCid)));
+    |                                      ^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `InvalidEvidenceCid` not found for this enum
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:296:12
+    |
+296 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+296 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:297:12
+    |
+297 |     client.pay_fee(&owner, &id, &None);
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:298:58
+    |
+298 |     client.request_verification(&id, &owner, &"evidence".into());
+    |                                                          ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no variant or associated item named `UnauthorizedVerifier` found for enum `ContractError` in the current scope
+   --> src\test.rs:301:38
+    |
+301 |     assert_eq!(result, Err(Ok(Error::UnauthorizedVerifier)));
+    |                                      ^^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `UnauthorizedVerifier` not found for this enum
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:310:12
+    |
+310 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+310 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:311:12
+    |
+311 |     client.pay_fee(&owner, &id, &None);
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:312:58
+    |
+312 |     client.request_verification(&id, &owner, &"evidence".into());
+    |                                                          ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no method named `expect` found for struct `VerificationRecord` in the current scope
+   --> src\test.rs:314:44
+    |
+314 |     let rec = client.get_verification(&id).expect("verification record");
+    |                                            ^^^^^^ method not found in `VerificationRecord`
+    |
+   ::: src\types.rs:73:1
+    |
+ 73 | pub struct VerificationRecord {
+    | ----------------------------- method `expect` not found for this struct
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:324:12
+    |
+324 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+324 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:325:12
+    |
+325 |     client.pay_fee(&owner, &id, &None);
+    |            ^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `pay_fee` not found for this struct
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:326:58
+    |
+326 |     client.request_verification(&id, &owner, &"evidence".into());
+    |                                                          ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no method named `reject_verification` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:327:12
+    |
+327 |     client.reject_verification(&id, &admin);
+    |            ^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `reject_verification` not found for this struct
+    |
+help: there is a method `request_verification` with a similar name, but with different arguments
+   --> src\lib.rs:31:1
+    |
+ 31 | #[contractimpl]
+    | ^^^^^^^^^^^^^^^
+    = note: this error originates in the attribute macro `soroban_sdk::contractclient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `expect` found for struct `VerificationRecord` in the current scope
+   --> src\test.rs:328:44
+    |
+328 |     let rec = client.get_verification(&id).expect("verification record");
+    |                                            ^^^^^^ method not found in `VerificationRecord`
+    |
+   ::: src\types.rs:73:1
+    |
+ 73 | pub struct VerificationRecord {
+    | ----------------------------- method `expect` not found for this struct
+
+error[E0599]: no method named `try_set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:338:25
+    |
+338 |     let result = client.try_set_fee(&non_admin, &None, &100, &treasury);
+    |                         ^^^^^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `try_set_fee` not found for this struct
+    |
+help: there is a method `try_set_fee_config` with a similar name
+    |
+338 |     let result = client.try_set_fee_config(&non_admin, &None, &100, &treasury);
+    |                                    +++++++
+
+error[E0599]: no variant or associated item named `UnauthorizedAdmin` found for enum `ContractError` in the current scope
+   --> src\test.rs:339:38
+    |
+339 |     assert_eq!(result, Err(Ok(Error::UnauthorizedAdmin)));
+    |                                      ^^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `UnauthorizedAdmin` not found for this enum
+    |
+help: there is a variant with a similar name
+    |
+339 -     assert_eq!(result, Err(Ok(Error::UnauthorizedAdmin)));
+339 +     assert_eq!(result, Err(Ok(Error::Unauthorized));
+    |
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:340:12
+    |
+340 |     client.set_fee(&admin, &None, &100, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+340 |     client.set_fee_config(&admin, &None, &100, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `try_set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:348:25
+    |
+348 |     let result = client.try_set_fee(&admin, &None, &0, &treasury);
+    |                         ^^^^^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `try_set_fee` not found for this struct
+    |
+help: there is a method `try_set_fee_config` with a similar name
+    |
+348 |     let result = client.try_set_fee_config(&admin, &None, &0, &treasury);
+    |                                    +++++++
+
+error[E0599]: no method named `try_pay_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:357:25
+    |
+357 |     let result = client.try_pay_fee(&owner, &id, &None);
+    |                         ^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `try_pay_fee` not found for this struct
+
+error[E0599]: no variant or associated item named `FeeNotConfigured` found for enum `ContractError` in the current scope
+   --> src\test.rs:358:38
+    |
+358 |     assert_eq!(result, Err(Ok(Error::FeeNotConfigured)));
+    |                                      ^^^^^^^^^^^^^^^^ variant or associated item not found in `ContractError`
+    |
+   ::: src\errors.rs:7:1
+    |
+  7 | pub enum ContractError {
+    | ---------------------- variant or associated item `FeeNotConfigured` not found for this enum
+
+error[E0599]: no method named `is_none` found for struct `Project` in the current scope
+   --> src\test.rs:366:21
+    |
+366 |     assert!(project.is_none());
+    |                     ^^^^^^^ method not found in `Project`
+    |
+   ::: src\types.rs:33:1
+    |
+ 33 | pub struct Project {
+    | ------------------ method `is_none` not found for this struct
+    |
+help: some of the expressions' fields have a method of the same name
+    |
+366 |     assert!(project.logo_cid.is_none());
+    |                     +++++++++
+366 |     assert!(project.metadata_cid.is_none());
+    |                     +++++++++++++
+366 |     assert!(project.website.is_none());
+    |                     ++++++++
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:378:21
+    |
+378 |             &"Desc".into(),
+    |                     ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0277]: the trait bound `soroban_sdk::String: From<&str>` is not satisfied
+   --> src\test.rs:379:20
+    |
+379 |             &"Cat".into(),
+    |                    ^^^^ the trait `From<&str>` is not implemented for `soroban_sdk::String`
+    |
+help: the trait `From<&str>` is not implemented for `soroban_sdk::String`
+      but trait `From<&soroban_sdk::String>` is implemented for it
+   --> C:\Users\user\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-sdk-21.7.7\src\string.rs:132:1
+    |
+132 | impl From<&String> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `soroban_sdk::String`, found `str`
+    = note: required for `&str` to implement `Into<soroban_sdk::String>`
+
+error[E0599]: no method named `get_owner_project_count` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:387:23
+    |
+387 |     assert_eq!(client.get_owner_project_count(&owner), 5);
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^ method not found in `DongleContractClient<'_>`
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `get_owner_project_count` not found for this struct
+
+error[E0599]: no method named `set_fee` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:395:12
+    |
+395 |     client.set_fee(&admin, &None, &500, &treasury);
+    |            ^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `set_fee` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name
+    |
+395 |     client.set_fee_config(&admin, &None, &500, &treasury);
+    |                   +++++++
+
+error[E0599]: no method named `get_fee_config` found for struct `DongleContractClient<'a>` in the current scope
+   --> src\test.rs:396:36
+    |
+396 |     let config: FeeConfig = client.get_fee_config();
+    |                                    ^^^^^^^^^^^^^^
+    |
+   ::: src\lib.rs:27:1
+    |
+ 27 | #[contract]
+    | ----------- method `get_fee_config` not found for this struct
+    |
+help: there is a method `set_fee_config` with a similar name, but with different arguments
+   --> src\lib.rs:31:1
+    |
+ 31 | #[contractimpl]
+    | ^^^^^^^^^^^^^^^
+    = note: this error originates in the attribute macro `soroban_sdk::contractclient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+Some errors have detailed explanations: E0061, E0277, E0433, E0599.
+For more information about an error, try `rustc --explain E0061`.
+warning: `dongle-contract` (lib test) generated 12 warnings (11 duplicates)
+error: could not compile `dongle-contract` (lib test) due to 77 previous errors; 12 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `dongle-contract` (lib) generated 12 warnings (run `cargo fix --lib -p dongle-contract` to apply 12 suggestions)
