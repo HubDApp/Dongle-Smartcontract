@@ -16,14 +16,6 @@ impl ProjectRegistry {
     ) -> Result<u64, ContractError> {
         params.owner.require_auth();
 
-        // Validation
-        if name.is_empty() {
-            panic!("InvalidProjectName");
-        }
-        if description.is_empty() {
-            panic!("InvalidProjectDescription");
-        }
-        if category.is_empty() {
         if params.name.is_empty() {
             panic!("InvalidProjectName");
         }
@@ -88,22 +80,6 @@ impl ProjectRegistry {
         Ok(count)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn update_project(
-        env: &Env,
-        project_id: u64,
-        caller: Address,
-        name: Option<String>,
-        description: Option<String>,
-        category: Option<String>,
-        website: Option<Option<String>>,
-        logo_cid: Option<Option<String>>,
-        metadata_cid: Option<Option<String>>,
-    ) -> Option<Project> {
-        let mut project = Self::get_project(env, project_id)?;
-
-        caller.require_auth();
-        if project.owner != caller {
     pub fn update_project(env: &Env, params: ProjectUpdateParams) -> Option<Project> {
         let mut project = Self::get_project(env, params.project_id)?;
 
@@ -153,18 +129,51 @@ impl ProjectRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let mut projects = Vec::new(env);
-        for project_id in ids.iter() {
-            if let Some(project) = Self::get_project(env, project_id) {
-                projects.push_back(project);
+        let len = ids.len();
+        for i in 0..len {
+            if let Some(project_id) = ids.get(i) {
+                if let Some(project) = Self::get_project(env, project_id) {
+                    projects.push_back(project);
+                }
             }
         }
 
         projects
     }
 
-    /// Returns the number of projects registered by an owner (for tests and admin).
+    fn owner_project_count(env: &Env, owner: &Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(owner.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+            .len()
+    }
+
     pub fn get_owner_project_count(env: &Env, owner: &Address) -> u32 {
         Self::owner_project_count(env, owner)
+    }
+
+    pub fn list_projects(env: &Env, start_id: u64, limit: u32) -> Vec<Project> {
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if start_id == 0 || start_id > count {
+            return projects;
+        }
+        let end = core::cmp::min(
+            start_id.saturating_add(limit as u64),
+            count.saturating_add(1),
+        );
+        for id in start_id..end {
+            if let Some(project) = Self::get_project(env, id) {
+                projects.push_back(project);
+            }
+        }
+        projects
     }
 
     pub fn validate_project_data(
@@ -200,39 +209,9 @@ impl ProjectRegistry {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DongleContract, DongleContractClient};
-    use soroban_sdk::{
-        testutils::{Address as _, Events, Ledger, LedgerInfo},
-        Address, Env, String,
-    };
-
-    fn ledger_at(timestamp: u64) -> LedgerInfo {
-        LedgerInfo {
-            timestamp,
-            protocol_version: 20,
-            sequence_number: 1,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 16,
-            min_persistent_entry_ttl: 100_000,
-            max_entry_ttl: 10_000_000,
-    pub fn validate_project_data(
-        name: &String,
-        description: &String,
-        category: &String,
-    ) -> Result<(), ContractError> {
-        if name.is_empty() {
-            return Err(ContractError::InvalidProjectData);
-        }
-        if description.is_empty() {
-            return Err(ContractError::ProjectDescriptionTooLong); // Just picking one for now to match ContractError
-            return Err(ContractError::ProjectDescriptionTooLong);
-        }
-        if category.is_empty() {
-            return Err(ContractError::InvalidProjectCategory);
-        }
-        Ok(())
-    }
+    use crate::errors::ContractError;
+    use crate::project_registry::ProjectRegistry;
+    use soroban_sdk::{Address, Env, String};
 
     #[test]
     fn test_valid_project_name() {
@@ -285,6 +264,5 @@ mod tests {
             &String::from_str(&env, "Cat")
         );
         assert_eq!(result, Err(ContractError::ProjectNameTooLong));
-    }
     }
 }

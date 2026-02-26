@@ -31,7 +31,7 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params);
+        let project_id = client.register_project(&params).unwrap();
 
         // 1. Initially unverified
         let project = client.get_project(&project_id).unwrap();
@@ -88,7 +88,7 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params);
+        let project_id = client.register_project(&params).unwrap();
 
         // Set fee and pay
         let token_admin = Address::generate(&env);

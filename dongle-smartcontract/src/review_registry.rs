@@ -303,7 +303,7 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params);
+        let project_id = client.register_project(&params).unwrap();
         client.add_review(&project_id, &reviewer, &5, &Some(comment_cid.clone()));
 
         let events = env.events().all();

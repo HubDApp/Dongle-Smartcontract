@@ -46,12 +46,16 @@ impl DongleContract {
         AdminManager::initialize(&env, admin);
     }
 
-    pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
-        let _ = AdminManager::add_admin(&env, caller, new_admin);
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
+        AdminManager::add_admin(&env, caller, new_admin)
     }
 
-    pub fn remove_admin(env: Env, caller: Address, admin_to_remove: Address) {
-        let _ = AdminManager::remove_admin(&env, caller, admin_to_remove);
+    pub fn remove_admin(
+        env: Env,
+        caller: Address,
+        admin_to_remove: Address,
+    ) -> Result<(), ContractError> {
+        AdminManager::remove_admin(&env, caller, admin_to_remove)
     }
 
     pub fn is_admin(env: Env, address: Address) -> bool {
@@ -92,7 +96,7 @@ impl DongleContract {
     }
 
     pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
-        ProjectRegistry::get_projects_by_owner(&env, owner).len()
+        ProjectRegistry::get_owner_project_count(&env, &owner)
     }
 
     // --- Review Registry ---

@@ -27,7 +27,7 @@ fn register_one_project(_env: &Env, client: &DongleContractClient, owner: &Addre
         logo_cid: None,
         metadata_cid: None,
     };
-    client.mock_all_auths().register_project(&params)
+    client.mock_all_auths().register_project(&params).unwrap()
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn test_list_projects() {
             logo_cid: None,
             metadata_cid: None,
         };
-        client.mock_all_auths().register_project(&params);
+        client.mock_all_auths().register_project(&params).unwrap();
     }
 
     // List first 5
