@@ -2,7 +2,7 @@
 
 mod admin_manager;
 mod constants;
-mod errors;
+pub mod errors;
 mod events;
 mod fee_manager;
 mod project_registry;
@@ -10,7 +10,7 @@ mod rating_calculator;
 mod review_registry;
 mod storage_keys;
 mod verification_registry;
-mod types;
+pub mod types;
 
 #[cfg(test)]
 mod test;

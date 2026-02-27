@@ -1,4 +1,4 @@
- //! Review submission with validation, duplicate handling, hard-delete,
+//! Review submission with validation, duplicate handling, hard-delete,
 //! user review index, events, and proper aggregate updates.
 
 use crate::errors::ContractError;
@@ -30,12 +30,14 @@ impl ReviewRegistry {
             return Err(ContractError::DuplicateReview);
         }
 
+        let now = env.ledger().timestamp();
         let review = Review {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            timestamp: env.ledger().timestamp(),
             comment_cid: comment_cid.clone(),
+            created_at: now,
+            updated_at: now,
         };
         env.storage().persistent().set(&review_key, &review);
 
@@ -89,6 +91,8 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Submitted,
             comment_cid,
+            now,
+            now,
         );
         Ok(())
     }
@@ -114,9 +118,10 @@ impl ReviewRegistry {
             .ok_or(ContractError::ReviewNotFound)?;
 
         let old_rating = review.rating;
+        let now = env.ledger().timestamp();
         review.rating = rating;
         review.comment_cid = comment_cid.clone();
-        review.timestamp = env.ledger().timestamp();
+        review.updated_at = now;
         env.storage().persistent().set(&review_key, &review);
 
         // Update aggregate stats
@@ -138,6 +143,8 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Updated,
             comment_cid,
+            review.created_at,
+            now,
         );
         Ok(())
     }
@@ -215,7 +222,15 @@ impl ReviewRegistry {
             .persistent()
             .set(&StorageKey::ProjectReviews(project_id), &new_project_reviews);
 
-        publish_review_event(env, project_id, reviewer, ReviewAction::Deleted, None);
+        publish_review_event(
+            env,
+            project_id,
+            reviewer,
+            ReviewAction::Deleted,
+            None,
+            review.created_at,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -275,7 +290,7 @@ mod test {
     use crate::{DongleContract, DongleContractClient};
     use soroban_sdk::String as SorobanString;
     use soroban_sdk::{
-        testutils::{Address as _, Events},
+        testutils::{Address as _, Events, Ledger},
         Env, IntoVal, String,
     };
 
@@ -283,6 +298,7 @@ mod test {
     fn test_add_review_event() {
         let env = Env::default();
         env.mock_all_auths();
+        env.ledger().set_timestamp(1_000_000); // Set non-zero timestamp so created_at > 0
         let reviewer = Address::generate(&env);
         let owner = Address::generate(&env);
         let comment_cid = String::from_str(&env, "QmHash");
@@ -303,7 +319,7 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params).unwrap();
+        let project_id = client.register_project(&params);
         client.add_review(&project_id, &reviewer, &5, &Some(comment_cid.clone()));
 
         let events = env.events().all();
@@ -327,5 +343,7 @@ mod test {
         assert_eq!(event_data.reviewer, reviewer);
         assert_eq!(event_data.action, ReviewAction::Submitted);
         assert_eq!(event_data.comment_cid, Some(comment_cid));
+        assert!(event_data.created_at > 0);
+        assert_eq!(event_data.created_at, event_data.updated_at);
     }
 }

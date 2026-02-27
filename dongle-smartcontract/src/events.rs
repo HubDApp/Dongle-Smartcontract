@@ -9,12 +9,15 @@ pub fn publish_review_event(
     reviewer: Address,
     action: ReviewAction,
     comment_cid: Option<String>,
+    created_at: u64,
+    updated_at: u64,
 ) {
     let event_data = ReviewEventData {
         project_id,
         reviewer: reviewer.clone(),
         action: action.clone(),
-        timestamp: env.ledger().timestamp(),
+        created_at,
+        updated_at,
         comment_cid,
     };
 

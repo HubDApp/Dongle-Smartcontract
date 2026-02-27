@@ -31,7 +31,7 @@ fn test_register_project_success() {
         metadata_cid: None,
     };
 
-    let id = client.register_project(&params).unwrap();
+    let id = client.register_project(&params);
 
     assert_eq!(id, 1);
 
@@ -60,7 +60,7 @@ fn test_register_duplicate_project_fails() {
     };
 
     // Register first project
-    client.register_project(&params).unwrap();
+    client.register_project(&params);
 
     // Attempt to register another project with the same name
     let result = client.try_register_project(&params);
@@ -87,7 +87,7 @@ fn test_register_different_projects_success() {
         logo_cid: None,
         metadata_cid: None,
     };
-    let id1 = client.register_project(&params1).unwrap();
+    let id1 = client.register_project(&params1);
     assert_eq!(id1, 1);
 
     let params2 = ProjectRegistrationParams {
@@ -99,6 +99,6 @@ fn test_register_different_projects_success() {
         logo_cid: None,
         metadata_cid: None,
     };
-    let id2 = client.register_project(&params2).unwrap();
+    let id2 = client.register_project(&params2);
     assert_eq!(id2, 2);
 }

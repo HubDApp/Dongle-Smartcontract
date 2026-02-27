@@ -145,7 +145,7 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .get(&StorageKey::OwnerProjects(owner.clone()))
-            .unwrap_or_else(|| Vec::new(env))
+            .unwrap_or_else(|| Vec::<u64>::new(env))
             .len()
     }
 

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod test {
     use crate::types::{ProjectRegistrationParams, VerificationStatus};
+    use crate::errors::ContractError;
     use crate::DongleContract;
     use crate::DongleContractClient;
     use soroban_sdk::{testutils::Address as _, Address, Env, String};
@@ -31,7 +32,7 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params).unwrap();
+        let project_id = client.register_project(&params);
 
         // 1. Initially unverified
         let project = client.get_project(&project_id).unwrap();
@@ -42,9 +43,7 @@ mod test {
 
         // 3. Pay fee (using owner)
         let token_admin = Address::generate(&env);
-        let token_address = env
-            .register_stellar_asset_contract_v2(token_admin)
-            .address();
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
 
         // Mock token balance for owner
@@ -88,13 +87,11 @@ mod test {
             logo_cid: None,
             metadata_cid: None,
         };
-        let project_id = client.register_project(&params).unwrap();
+        let project_id = client.register_project(&params);
 
         // Set fee and pay
         let token_admin = Address::generate(&env);
-        let token_address = env
-            .register_stellar_asset_contract_v2(token_admin)
-            .address();
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
         token_client.mint(&owner, &100);
         client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
