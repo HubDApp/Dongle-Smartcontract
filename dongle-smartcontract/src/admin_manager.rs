@@ -137,6 +137,7 @@ impl AdminManager {
 mod tests {
     use crate::DongleContract;
     use crate::DongleContractClient;
+    use crate::errors::ContractError;
     use soroban_sdk::{testutils::Address as _, Address, Env};
 
     #[test]
@@ -177,9 +178,9 @@ mod tests {
         let new_admin = Address::generate(&env);
 
         client.mock_all_auths().initialize(&admin);
-        client.mock_all_auths().add_admin(&non_admin, &new_admin);
+        let result = client.mock_all_auths().try_add_admin(&non_admin, &new_admin);
 
-        // The new admin should not be added
+        assert_eq!(result, Err(Ok(ContractError::AdminOnly)));
         assert!(!client.is_admin(&new_admin));
     }
 
@@ -207,9 +208,9 @@ mod tests {
         let admin = Address::generate(&env);
 
         client.mock_all_auths().initialize(&admin);
-        client.mock_all_auths().remove_admin(&admin, &admin);
+        let result = client.mock_all_auths().try_remove_admin(&admin, &admin);
 
-        // Should still be admin
+        assert_eq!(result, Err(Ok(ContractError::CannotRemoveLastAdmin)));
         assert!(client.is_admin(&admin));
     }
 
@@ -224,9 +225,9 @@ mod tests {
 
         client.mock_all_auths().initialize(&admin);
         client.mock_all_auths().add_admin(&admin, &another_admin);
-        client.mock_all_auths().remove_admin(&admin, &non_admin);
+        let result = client.mock_all_auths().try_remove_admin(&admin, &non_admin);
 
-        // another_admin should still be there
+        assert_eq!(result, Err(Ok(ContractError::AdminNotFound)));
         assert!(client.is_admin(&another_admin));
     }
 

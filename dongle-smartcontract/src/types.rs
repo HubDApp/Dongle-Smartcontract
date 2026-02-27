@@ -39,8 +39,13 @@ pub struct Review {
     pub project_id: u64,
     pub reviewer: Address,
     pub rating: u32,
-    pub timestamp: u64,
     pub comment_cid: Option<String>,
+
+    /// Unix timestamp (seconds) when the review was first submitted.
+    pub created_at: u64,
+
+    /// Unix timestamp (seconds) of the most recent modification to this review.
+    pub updated_at: u64,
 }
 
 #[contracttype]
@@ -57,8 +62,9 @@ pub struct ReviewEventData {
     pub project_id: u64,
     pub reviewer: Address,
     pub action: ReviewAction,
-    pub timestamp: u64,
     pub comment_cid: Option<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 
 #[contracttype]
