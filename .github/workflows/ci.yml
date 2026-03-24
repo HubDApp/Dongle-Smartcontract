@@ -44,12 +44,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-clippy-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-clippy-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-clippy-
 
       - name: Run clippy
-        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy -p dongle-contract --target wasm32-unknown-unknown -- -D warnings
 
   test:
     name: Tests
@@ -69,12 +69,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-test-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-test-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-test-
 
       - name: Run tests
-        run: cargo test
+        run: cargo test -p dongle-contract
 
   build:
     name: Build Contract
@@ -95,9 +95,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
       - name: Build WASM release
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release

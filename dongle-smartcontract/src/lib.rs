@@ -34,6 +34,40 @@ use crate::storage_keys::StorageKey;
 
 
 use soroban_sdk::{contract, contractimpl, Env, Address, String};
+mod admin_manager;
+mod constants;
+pub mod errors;
+mod events;
+mod fee_manager;
+mod project_registry;
+mod rating_calculator;
+mod review_registry;
+mod storage_keys;
+mod verification_registry;
+pub mod types;
+
+#[cfg(test)]
+mod test;
+
+#[cfg(test)]
+mod admin_tests;
+
+#[cfg(test)]
+mod registration_tests;
+
+#[cfg(test)]
+mod verification_tests;
+
+use crate::admin_manager::AdminManager;
+use crate::errors::ContractError;
+use crate::fee_manager::FeeManager;
+use crate::project_registry::ProjectRegistry;
+use crate::review_registry::ReviewRegistry;
+use crate::types::{
+    FeeConfig, Project, ProjectRegistrationParams, ProjectUpdateParams, Review, VerificationRecord,
+};
+use crate::verification_registry::VerificationRegistry;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
 pub struct DongleContract;
@@ -154,17 +188,23 @@ impl DongleContract {
 /// Panics with descriptive message on invalid input.
 pub fn register_project(_env: Env, _owner: Address, _name: String, description: String /* other params */) {
     let desc_len = description.len() as u32;
+    // --- Initialization & Admin Management ---
 
-    if desc_len == 0 {
-        panic!("Description cannot be empty");
+    pub fn initialize(env: Env, admin: Address) {
+        AdminManager::initialize(&env, admin);
     }
-    if desc_len < 200 {
-        panic!("Description must be at least 200 characters long");
+
+    pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
+        AdminManager::add_admin(&env, caller, new_admin)
     }
-    if desc_len > 1000 {
-        panic!("Description exceeds maximum length of 1000 characters");
+
+    pub fn remove_admin(
+        env: Env,
+        caller: Address,
+        admin_to_remove: Address,
+    ) -> Result<(), ContractError> {
+        AdminManager::remove_admin(&env, caller, admin_to_remove)
     }
-}
 
     pub fn approve_verification(
         env: Env,
@@ -235,48 +275,141 @@ pub fn register_project(_env: Env, _owner: Address, _name: String, description: 
 mod tests {
     use super::*;
     use soroban_sdk::{Env, Address, String};
-
-    #[test]
-    #[should_panic]
-    fn test_empty_description_panics() {
-        let env = Env::default();
-        let owner = Address::from_string(&String::from_str(&env, "GAEXAMPLEADDRESS1234567890"));
-        let name = String::from_str(&env, "Test Project");
-        let empty_desc = String::from_str(&env, "");
-
-        let _ = DongleContract::register_project(env.clone(), owner, name, empty_desc);
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        AdminManager::is_admin(&env, &address)
     }
 
-    #[test]
-    #[should_panic]
-    fn test_short_description_panics() {
-        let env = Env::default();
-        let owner = Address::from_string(&String::from_str(&env, "GAEXAMPLEADDRESS1234567890"));
-        let name = String::from_str(&env, "Test Project");
-        let short_desc = String::from_str(&env, "short description"); // < 200 chars
-
-        let _ = DongleContract::register_project(env.clone(), owner, name, short_desc);
+    pub fn get_admin_list(env: Env) -> Vec<Address> {
+        AdminManager::get_admin_list(&env)
     }
 
-    #[test]
-    #[should_panic]
-    fn test_long_description_panics() {
-        let env = Env::default();
-        let owner = Address::from_string(&String::from_str(&env, "GAEXAMPLEADDRESS1234567890"));
-        let name = String::from_str(&env, "Test Project");
-        let long_desc = String::from_str(&env, &("a".repeat(1001))); // > 1000 chars
-
-        let _ = DongleContract::register_project(env.clone(), owner, name, long_desc);
+    pub fn get_admin_count(env: Env) -> u32 {
+        AdminManager::get_admin_count(&env)
     }
 
-    #[test]
-    fn test_valid_description_does_not_panic() {
-        let env = Env::default();
-        let owner = Address::from_string(&String::from_str(&env, "GAEXAMPLEADDRESS1234567890"));
-        let name = String::from_str(&env, "Test Project");
-        let valid_desc = String::from_str(&env, &("a".repeat(500))); // 500 chars = valid
+    // --- Project Registry ---
 
-        let _ = DongleContract::register_project(env.clone(), owner, name, valid_desc);
-        // No panic → test passes automatically
+    pub fn register_project(
+        env: Env,
+        params: ProjectRegistrationParams,
+    ) -> Result<u64, ContractError> {
+        ProjectRegistry::register_project(&env, params)
+    }
+
+    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Option<Project> {
+        ProjectRegistry::update_project(&env, params)
+    }
+
+    pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
+        ProjectRegistry::get_project(&env, project_id)
+    }
+
+    pub fn list_projects(env: Env, start_id: u64, limit: u32) -> Vec<Project> {
+        ProjectRegistry::list_projects(&env, start_id, limit)
+    }
+
+    pub fn get_projects_by_owner(env: Env, owner: Address) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_owner(&env, owner)
+    }
+
+    pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
+        ProjectRegistry::get_owner_project_count(&env, &owner)
+    }
+
+    // --- Review Registry ---
+
+    pub fn add_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+    }
+
+    pub fn update_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        comment_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+    }
+
+    pub fn delete_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::delete_review(&env, project_id, reviewer)
+    }
+
+    pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
+        ReviewRegistry::get_review(&env, project_id, reviewer)
+    }
+
+    pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+        ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    }
+
+    // --- Verification Registry ---
+
+    pub fn request_verification(
+        env: Env,
+        project_id: u64,
+        requester: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
+    }
+
+    pub fn approve_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::approve_verification(&env, project_id, admin)
+    }
+
+    pub fn reject_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::reject_verification(&env, project_id, admin)
+    }
+
+    pub fn get_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        VerificationRegistry::get_verification(&env, project_id)
+    }
+
+    // --- Fee Manager ---
+
+    pub fn set_fee(
+        env: Env,
+        admin: Address,
+        token: Option<Address>,
+        amount: u128,
+        treasury: Address,
+    ) -> Result<(), ContractError> {
+        FeeManager::set_fee(&env, admin, token, amount, treasury)
+    }
+
+    pub fn pay_fee(
+        env: Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        FeeManager::pay_fee(&env, payer, project_id, token)
+    }
+
+    pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
+        FeeManager::get_fee_config(&env)
     }
 }

@@ -1,11 +1,33 @@
 use crate::errors::ContractError;
 use soroban_sdk::{String};
 use crate::types::DataKey;
+use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env, String};
 
+#[allow(dead_code)]
 pub struct Utils;
 
+#[allow(dead_code)]
 impl Utils {
+    pub fn get_current_timestamp(env: &Env) -> u64 {
+        env.ledger().timestamp()
+    }
+
+    pub fn is_admin(env: &Env, address: &Address) -> bool {
+        let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
+        match admin {
+            Some(a) => a == *address,
+            None => false,
+        }
+    }
+
+    pub fn require_admin(env: &Env, address: &Address) -> Result<(), ContractError> {
+        if !Self::is_admin(env, address) {
+            return Err(ContractError::Unauthorized);
+        }
+        Ok(())
+    }
+
     pub fn validate_string_length(
         value: &String,
         min_length: u32,
@@ -16,6 +38,9 @@ impl Utils {
 
         if length < min_length || length > max_length {
             return Err(ContractError::InvalidProjectData);
+            Err(ContractError::InvalidProjectData)
+        } else {
+            Ok(())
         }
         
         Ok(())
