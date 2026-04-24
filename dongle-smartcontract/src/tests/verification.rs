@@ -135,8 +135,7 @@ fn test_duplicate_payment_rejected() {
     client.pay_fee(&owner, &project_id, &Some(token_address.clone()));
 
     // Second payment in same cycle must be rejected
-    let result = client
-        .try_pay_fee(&owner, &project_id, &Some(token_address.clone()));
+    let result = client.try_pay_fee(&owner, &project_id, &Some(token_address.clone()));
     assert_eq!(result, Err(Ok(ContractError::FeeAlreadyPaid)));
 }
 
