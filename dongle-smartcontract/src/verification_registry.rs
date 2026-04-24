@@ -10,6 +10,7 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String};
 
 pub struct VerificationRegistry;
@@ -158,10 +159,7 @@ impl VerificationRegistry {
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
-        if evidence_cid.is_empty() {
-            return Err(ContractError::InvalidProjectData);
-        }
-        Ok(())
+        Utils::validate_evidence_cid(evidence_cid)
     }
 
     #[allow(dead_code)]

@@ -54,7 +54,7 @@ impl FeeManager {
             .ok_or(ContractError::TreasuryNotSet)?;
 
         if config.token != token {
-            return Err(ContractError::InvalidProjectData);
+            return Err(ContractError::InvalidFeeToken);
         }
 
         let amount = config.verification_fee;

@@ -6,6 +6,7 @@ use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::types::{ProjectStats, Review, ReviewAction};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
@@ -20,9 +21,11 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
 
-        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
-            return Err(ContractError::InvalidRating);
-        }
+        // Validate rating
+        Utils::validate_rating(rating)?;
+
+        // Validate comment CID if provided
+        Utils::validate_comment_cid(&comment_cid)?;
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         if env.storage().persistent().has(&review_key) {
@@ -107,9 +110,11 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
 
-        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
-            return Err(ContractError::InvalidRating);
-        }
+        // Validate rating
+        Utils::validate_rating(rating)?;
+
+        // Validate comment CID if provided
+        Utils::validate_comment_cid(&comment_cid)?;
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let mut review: Review = env
