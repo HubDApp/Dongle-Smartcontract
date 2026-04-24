@@ -2,6 +2,7 @@
 
 // Existing test modules
 mod admin;
+mod rate_limiting;
 mod registration;
 mod verification;
 

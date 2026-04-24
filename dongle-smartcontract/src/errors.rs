@@ -41,6 +41,8 @@ pub enum ContractError {
     CannotRemoveLastAdmin = 17,
     /// Admin not found
     AdminNotFound = 18,
+    /// Rate limit exceeded - too many actions in short time
+    RateLimitExceeded = 19,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

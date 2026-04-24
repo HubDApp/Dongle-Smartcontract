@@ -65,6 +65,7 @@ make deploy-testnet
 - **Verification**: Request and approve project verification
 - **Fee Management**: Configurable fees for operations
 - **Access Control**: Owner-based permissions
+- **Rate Limiting**: Anti-spam protection for write actions with configurable cooldowns
 
 ## Contract Functions
 
@@ -95,6 +96,11 @@ make deploy-testnet
 - `set_admin` - Update admin address
 - `set_fee_config` - Configure fees
 - `set_treasury` - Set treasury address
+
+### Rate Limiting
+
+- `get_review_action_cooldown_remaining` - Check remaining cooldown for review actions
+- `get_verification_request_cooldown_remaining` - Check remaining cooldown for verification requests
 
 ## Development
 
@@ -130,24 +136,16 @@ cargo clippy
 cargo clean
 ```
 
-## Testing
+## Rate Limiting
 
-The contract includes comprehensive tests covering:
+The contract implements anti-spam protection through cooldown-based rate limiting:
 
-- Project registration and validation
-- Ownership and authorization
-- Review submission and updates
-- Verification workflow
-- Fee management
-- Edge cases and error handling
+- **Review Actions** (add/update/delete): 60-second cooldown per user
+- **Verification Requests**: 300-second (5-minute) cooldown per user
 
-Run tests:
-```bash
-cargo test
-```
+Rate limits are enforced per user and apply across all projects. Users can check their remaining cooldown time using the provided query functions.
 
-Run specific test:
-```bash
+This prevents abuse while maintaining reasonable usability for legitimate users.
 cargo test test_register_project_success
 ```
 

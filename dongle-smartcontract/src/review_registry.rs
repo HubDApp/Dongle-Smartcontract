@@ -4,6 +4,7 @@ use crate::constants::{RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
+use crate::rate_limiter::RateLimiter;
 use crate::storage_keys::StorageKey;
 use crate::types::{ProjectStats, Review, ReviewAction};
 use soroban_sdk::{Address, Env, String, Vec};
@@ -19,6 +20,9 @@ impl ReviewRegistry {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
+
+        // Check rate limit
+        RateLimiter::check_review_action_cooldown(env, &reviewer)?;
 
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
@@ -107,6 +111,9 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
 
+        // Check rate limit
+        RateLimiter::check_review_action_cooldown(env, &reviewer)?;
+
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
@@ -169,6 +176,9 @@ impl ReviewRegistry {
         reviewer: Address,
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
+
+        // Check rate limit
+        RateLimiter::check_review_action_cooldown(env, &reviewer)?;
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let existing: Review = env

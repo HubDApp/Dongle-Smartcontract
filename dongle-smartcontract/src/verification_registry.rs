@@ -8,6 +8,7 @@ use crate::events::{
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
+use crate::rate_limiter::RateLimiter;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
 use soroban_sdk::{Address, Env, String};
@@ -22,6 +23,9 @@ impl VerificationRegistry {
         evidence_cid: String,
     ) -> Result<(), ContractError> {
         requester.require_auth();
+
+        // Check rate limit
+        RateLimiter::check_verification_request_cooldown(env, &requester)?;
 
         // 1. Validate project existence and ownership
         let mut project =

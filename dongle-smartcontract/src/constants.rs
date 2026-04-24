@@ -33,3 +33,10 @@ pub const MAX_CID_LEN: usize = 128;
 pub const RATING_MIN: u32 = 1;
 #[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
+
+/// Rate limiting constants (in seconds)
+/// Minimum time between review actions (add/update/delete) per user
+pub const REVIEW_ACTION_COOLDOWN: u64 = 60; // 1 minute
+
+/// Minimum time between verification requests per user
+pub const VERIFICATION_REQUEST_COOLDOWN: u64 = 300; // 5 minutes
