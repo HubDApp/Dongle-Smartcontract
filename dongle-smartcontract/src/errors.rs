@@ -41,11 +41,10 @@ pub enum ContractError {
     CannotRemoveLastAdmin = 17,
     /// Admin not found
     AdminNotFound = 18,
-    /// Fee already paid for this project in the current verification cycle
+/// Fee already paid for this project in the current verification cycle
     FeeAlreadyPaid = 19,
     /// Token provided does not match the configured payment token
     InvalidToken = 20,
 }
-
 // Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;

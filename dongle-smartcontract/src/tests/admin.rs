@@ -6,7 +6,7 @@ use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, Env};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
-    let contract_id = env.register_contract(None, DongleContract);
+    let contract_id = env.register(DongleContract, ());
     let client = DongleContractClient::new(env, &contract_id);
     let admin = Address::generate(env);
     client.mock_all_auths().initialize(&admin);

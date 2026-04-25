@@ -1,7 +1,12 @@
+use crate::auth::{require_owner_auth, require_self_auth};
 use crate::errors::ContractError;
+use crate::events::{publish_project_registered_event, publish_project_updated_event};
 use crate::storage_keys::StorageKey;
 use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
 use soroban_sdk::{Address, Env, Vec};
+
+/// Maximum number of items returned per paginated list call.
+pub const MAX_PAGE_LIMIT: u32 = 100;
 
 pub struct ProjectRegistry;
 
@@ -11,7 +16,7 @@ impl ProjectRegistry {
         env: &Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
-        params.owner.require_auth();
+        require_self_auth(&params.owner);
 
         if params.name.is_empty() {
             panic!("InvalidProjectName");
@@ -70,20 +75,30 @@ impl ProjectRegistry {
             .get(&StorageKey::OwnerProjects(params.owner.clone()))
             .unwrap_or_else(|| Vec::new(env));
         owner_projects.push_back(count);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::OwnerProjects(params.owner), &owner_projects);
+        env.storage().persistent().set(
+            &StorageKey::OwnerProjects(params.owner.clone()),
+            &owner_projects,
+        );
+
+        publish_project_registered_event(
+            env,
+            count,
+            params.owner,
+            project.name.clone(),
+            project.category.clone(),
+        );
 
         Ok(count)
     }
 
-    pub fn update_project(env: &Env, params: ProjectUpdateParams) -> Option<Project> {
-        let mut project = Self::get_project(env, params.project_id)?;
+    pub fn update_project(
+        env: &Env,
+        params: ProjectUpdateParams,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, params.project_id).ok_or(ContractError::ProjectNotFound)?;
 
-        params.caller.require_auth();
-        if project.owner != params.caller {
-            return None;
-        }
+        require_owner_auth(&params.caller, &project.owner)?;
 
         if let Some(value) = params.name {
             project.name = value;
@@ -109,7 +124,9 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(params.project_id), &project);
 
-        Some(project)
+        publish_project_updated_event(env, params.project_id, project.owner.clone());
+
+        Ok(project)
     }
 
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
@@ -151,6 +168,13 @@ impl ProjectRegistry {
     }
 
     pub fn list_projects(env: &Env, start_id: u64, limit: u32) -> Vec<Project> {
+        // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
         let count: u64 = env
             .storage()
             .persistent()
@@ -158,14 +182,23 @@ impl ProjectRegistry {
             .unwrap_or(0);
 
         let mut projects = Vec::new(env);
-        if start_id == 0 || start_id > count {
+        if count == 0 {
             return projects;
         }
+
+        // start_id is 1-based (projects are stored with IDs starting at 1).
+        // Clamp to valid range.
+        let first = if start_id == 0 { 1u64 } else { start_id };
+        if first > count {
+            return projects;
+        }
+
         let end = core::cmp::min(
-            start_id.saturating_add(limit as u64),
+            first.saturating_add(effective_limit as u64),
             count.saturating_add(1),
         );
-        for id in start_id..end {
+
+        for id in first..end {
             if let Some(project) = Self::get_project(env, id) {
                 projects.push_back(project);
             }
@@ -179,8 +212,7 @@ impl ProjectRegistry {
 #[cfg(test)]
 mod tests {
     use crate::errors::ContractError;
-    use crate::project_registry::ProjectRegistry;
-    use soroban_sdk::{Address, Env, String};
+    use soroban_sdk::{Env, String};
 
     // Validation function only used in tests
     fn validate_project_data(

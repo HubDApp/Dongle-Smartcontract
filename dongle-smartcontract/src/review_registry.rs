@@ -1,5 +1,6 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
+use crate::auth::require_self_auth;
 use crate::constants::{RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
@@ -18,7 +19,7 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        reviewer.require_auth();
+        require_self_auth(&reviewer);
 
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
@@ -105,7 +106,7 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        reviewer.require_auth();
+        require_self_auth(&reviewer);
 
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
@@ -168,7 +169,7 @@ impl ReviewRegistry {
         project_id: u64,
         reviewer: Address,
     ) -> Result<(), ContractError> {
-        reviewer.require_auth();
+        require_self_auth(&reviewer);
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let existing: Review = env
@@ -265,7 +266,26 @@ impl ReviewRegistry {
             .get(&StorageKey::Review(project_id, reviewer))
     }
 
+    pub fn get_project_stats(env: &Env, project_id: u64) -> ProjectStats {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ProjectStats(project_id))
+            .unwrap_or(ProjectStats {
+                rating_sum: 0,
+                review_count: 0,
+                average_rating: 0,
+            })
+    }
+
     pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+        // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
+        const MAX_PAGE_LIMIT: u32 = 100;
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
         let reviewers: Vec<Address> = env
             .storage()
             .persistent()
@@ -274,7 +294,10 @@ impl ReviewRegistry {
 
         let mut reviews = Vec::new(env);
         let len = reviewers.len();
-        let end = core::cmp::min(start_id.saturating_add(limit), len);
+        if start_id >= len {
+            return reviews;
+        }
+        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
 
         for i in start_id..end {
             if let Some(reviewer) = reviewers.get(i) {

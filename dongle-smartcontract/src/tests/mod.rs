@@ -3,8 +3,13 @@
 // Existing test modules
 mod admin;
 mod registration;
+mod review;
 mod verification;
-mod verification_state_machine;
+
+// New test modules
+mod authorization;
+mod events;
+mod pagination;
 
 // Test infrastructure
 pub mod fixtures;
