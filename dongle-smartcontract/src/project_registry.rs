@@ -6,21 +6,21 @@ use soroban_sdk::{Address, Env, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
-    #[allow(clippy::too_many_arguments)]
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
+        // Validation phase
         params.owner.require_auth();
 
         if params.name.is_empty() {
-            panic!("InvalidProjectName");
+            return Err(ContractError::InvalidProjectData);
         }
         if params.description.is_empty() {
-            panic!("InvalidProjectDescription");
+            return Err(ContractError::InvalidProjectData);
         }
         if params.category.is_empty() {
-            panic!("InvalidProjectCategory");
+            return Err(ContractError::InvalidProjectData);
         }
 
         // Check if project name already exists
@@ -32,6 +32,7 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
+        // Mutation phase
         let mut count: u64 = env
             .storage()
             .persistent()
@@ -54,6 +55,14 @@ impl ProjectRegistry {
             updated_at: now,
         };
 
+        // Get current owner projects
+        let mut owner_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(params.owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Perform all mutations
         env.storage()
             .persistent()
             .set(&StorageKey::Project(count), &project);
@@ -64,11 +73,6 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
 
-        let mut owner_projects: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::OwnerProjects(params.owner.clone()))
-            .unwrap_or_else(|| Vec::new(env));
         owner_projects.push_back(count);
         env.storage()
             .persistent()
