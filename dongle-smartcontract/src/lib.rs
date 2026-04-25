@@ -11,6 +11,7 @@ pub mod review_registry;
 pub mod storage_keys;
 pub mod types;
 mod verification_registry;
+mod verification_state_machine;
 
 #[cfg(test)]
 mod tests;

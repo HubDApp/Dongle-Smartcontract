@@ -10,6 +10,7 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
+use crate::verification_state_machine::VerificationStateMachine;
 use soroban_sdk::{Address, Env, String};
 
 pub struct VerificationRegistry;
@@ -31,20 +32,24 @@ impl VerificationRegistry {
             return Err(ContractError::Unauthorized);
         }
 
-        // 2. Check if already verified or pending
-        if project.verification_status != VerificationStatus::Unverified
-            && project.verification_status != VerificationStatus::Rejected
-        {
+        // 2. Check if project can request verification using state machine
+        if !VerificationStateMachine::can_request_verification(project.verification_status) {
             return Err(ContractError::InvalidStatusTransition);
         }
+        
+        // 3. Validate state transition using centralized state machine
+        VerificationStateMachine::validate_transition(
+            project.verification_status,
+            VerificationStatus::Pending,
+        )?;
 
-        // 3. Consume fee payment
+        // 4. Consume fee payment
         FeeManager::consume_fee_payment(env, project_id)?;
 
-        // 4. Validate evidence
+        // 5. Validate evidence
         Self::validate_evidence_cid(&evidence_cid)?;
 
-        // 5. Create record
+        // 6. Create record
         let config = FeeManager::get_fee_config(env)?;
         let now = env.ledger().timestamp();
         let record = VerificationRecord {
@@ -60,7 +65,7 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
 
-        // 6. Update project status to Pending
+        // 7. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
         project.updated_at = now;
         env.storage()
@@ -86,9 +91,11 @@ impl VerificationRegistry {
         // Get verification record
         let mut record = Self::get_verification(env, project_id)?;
 
-        if record.status != VerificationStatus::Pending {
-            return Err(ContractError::InvalidStatusTransition);
-        }
+        // Validate state transition using centralized state machine
+        VerificationStateMachine::validate_transition(
+            record.status,
+            VerificationStatus::Verified,
+        )?;
 
         let now = env.ledger().timestamp();
 
@@ -124,9 +131,11 @@ impl VerificationRegistry {
         // Get verification record
         let mut record = Self::get_verification(env, project_id)?;
 
-        if record.status != VerificationStatus::Pending {
-            return Err(ContractError::InvalidStatusTransition);
-        }
+        // Validate state transition using centralized state machine
+        VerificationStateMachine::validate_transition(
+            record.status,
+            VerificationStatus::Rejected,
+        )?;
 
         let now = env.ledger().timestamp();
 
