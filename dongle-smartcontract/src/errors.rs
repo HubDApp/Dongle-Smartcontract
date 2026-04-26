@@ -41,6 +41,12 @@ pub enum ContractError {
     CannotRemoveLastAdmin = 17,
     /// Admin not found
     AdminNotFound = 18,
+    /// Invalid project name - empty or whitespace only
+    InvalidProjectName = 19,
+    /// Invalid project description - empty or whitespace only
+    InvalidProjectDescription = 20,
+    /// Invalid project category - empty or whitespace only
+    InvalidProjectCategory = 21,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

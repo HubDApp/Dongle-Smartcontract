@@ -103,7 +103,7 @@ pub enum DataKey {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
     Unverified,
     Pending,
