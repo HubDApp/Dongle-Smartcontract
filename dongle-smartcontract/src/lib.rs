@@ -11,6 +11,7 @@ pub mod rating_calculator;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod types;
+pub mod validation;
 mod verification_registry;
 
 #[cfg(test)]

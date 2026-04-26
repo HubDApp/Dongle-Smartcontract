@@ -28,8 +28,16 @@ pub const MAX_WEBSITE_LEN: usize = 256;
 #[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
 
+/// Minimum length for CID validation.
+#[allow(dead_code)]
+pub const MIN_CID_LEN: usize = 10;
+
 /// Valid rating range (inclusive). Reviews must be in [RATING_MIN, RATING_MAX]. u32 for Soroban Val.
 #[allow(dead_code)]
 pub const RATING_MIN: u32 = 1;
 #[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
+
+/// Maximum number of items that can be returned in a single pagination request.
+#[allow(dead_code)]
+pub const MAX_PAGINATION_LIMIT: u32 = 100;

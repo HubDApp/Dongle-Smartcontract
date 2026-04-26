@@ -280,13 +280,6 @@ impl VerificationRegistry {
             .ok_or(ContractError::VerificationNotFound)
     }
 
-    pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
-        if evidence_cid.is_empty() {
-            return Err(ContractError::InvalidProjectData);
-        }
-        Ok(())
-    }
-
     #[allow(dead_code)]
     pub fn verification_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
