@@ -1,6 +1,7 @@
 #![no_std]
 
 mod admin_manager;
+pub mod auth;
 pub mod constants;
 pub mod errors;
 pub mod events;
@@ -22,7 +23,8 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::types::{
-    FeeConfig, Project, ProjectRegistrationParams, ProjectUpdateParams, Review, VerificationRecord,
+    FeeConfig, Project, ProjectRegistrationParams, ProjectStats, ProjectUpdateParams, Review,
+    VerificationRecord,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -71,7 +73,7 @@ impl DongleContract {
         ProjectRegistry::register_project(&env, params)
     }
 
-    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Option<Project> {
+    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -127,6 +129,10 @@ impl DongleContract {
 
     pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    }
+
+    pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {
+        ReviewRegistry::get_project_stats(&env, project_id)
     }
 
     // --- Verification Registry ---
