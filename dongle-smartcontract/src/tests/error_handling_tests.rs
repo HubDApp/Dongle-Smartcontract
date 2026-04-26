@@ -1,16 +1,25 @@
 //! Tests for typed error handling - ensuring no panics occur
 
 use crate::errors::ContractError;
-use crate::tests::fixtures::create_test_env;
 use crate::types::{ProjectRegistrationParams, ProjectUpdateParams};
 use crate::DongleContract;
+use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
+
+fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
+    let contract_id = env.register(DongleContract, ());
+    let client = DongleContractClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin);
+    (client, admin)
+}
 
 // ── Project Registration Error Tests ──
 
 #[test]
 fn test_register_project_empty_name_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -24,13 +33,14 @@ fn test_register_project_empty_name_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::register_project(env.clone(), params);
-    assert_eq!(result, Err(ContractError::InvalidProjectName));
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectName)));
 }
 
 #[test]
 fn test_register_project_empty_description_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -44,13 +54,14 @@ fn test_register_project_empty_description_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::register_project(env.clone(), params);
-    assert_eq!(result, Err(ContractError::InvalidProjectDescription));
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectDescription)));
 }
 
 #[test]
 fn test_register_project_empty_category_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -64,13 +75,14 @@ fn test_register_project_empty_category_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::register_project(env.clone(), params);
-    assert_eq!(result, Err(ContractError::InvalidProjectCategory));
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectCategory)));
 }
 
 #[test]
 fn test_register_project_duplicate_name_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -85,7 +97,7 @@ fn test_register_project_duplicate_name_returns_error() {
     };
 
     // First registration should succeed
-    let result1 = DongleContract::register_project(env.clone(), params1);
+    let result1 = client.try_register_project(&params1);
     assert!(result1.is_ok());
 
     // Second registration with same name should fail
@@ -99,13 +111,14 @@ fn test_register_project_duplicate_name_returns_error() {
         metadata_cid: None,
     };
 
-    let result2 = DongleContract::register_project(env.clone(), params2);
-    assert_eq!(result2, Err(ContractError::ProjectAlreadyExists));
+    let result2 = client.try_register_project(&params2);
+    assert_eq!(result2, Err(Ok(ContractError::ProjectAlreadyExists)));
 }
 
 #[test]
 fn test_register_project_valid_inputs_succeeds() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -119,9 +132,10 @@ fn test_register_project_valid_inputs_succeeds() {
         metadata_cid: Some(String::from_str(&env, "QmValidMetadata456")),
     };
 
-    let result = DongleContract::register_project(env.clone(), params);
+    let result = client.try_register_project(&params);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 1);
+    let project_id = result.unwrap().unwrap();
+    assert_eq!(project_id, 1);
 }
 
 // ── Project Update Error Tests ──
@@ -129,6 +143,7 @@ fn test_register_project_valid_inputs_succeeds() {
 #[test]
 fn test_update_project_not_found_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let caller = Address::generate(&env);
@@ -143,13 +158,14 @@ fn test_update_project_not_found_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), params);
-    assert_eq!(result, Err(ContractError::ProjectNotFound));
+    let result = client.try_update_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
 }
 
 #[test]
 fn test_update_project_unauthorized_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -163,7 +179,7 @@ fn test_update_project_unauthorized_returns_error() {
         metadata_cid: None,
     };
 
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     // Try to update with different caller
     let unauthorized_caller = Address::generate(&env);
@@ -178,13 +194,14 @@ fn test_update_project_unauthorized_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), update_params);
-    assert_eq!(result, Err(ContractError::Unauthorized));
+    let result = client.try_update_project(&update_params);
+    assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
 }
 
 #[test]
 fn test_update_project_empty_name_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -198,7 +215,7 @@ fn test_update_project_empty_name_returns_error() {
         metadata_cid: None,
     };
 
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     let update_params = ProjectUpdateParams {
         project_id,
@@ -211,13 +228,14 @@ fn test_update_project_empty_name_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), update_params);
-    assert_eq!(result, Err(ContractError::InvalidProjectName));
+    let result = client.try_update_project(&update_params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectName)));
 }
 
 #[test]
 fn test_update_project_empty_description_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -231,7 +249,7 @@ fn test_update_project_empty_description_returns_error() {
         metadata_cid: None,
     };
 
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     let update_params = ProjectUpdateParams {
         project_id,
@@ -244,13 +262,14 @@ fn test_update_project_empty_description_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), update_params);
-    assert_eq!(result, Err(ContractError::InvalidProjectDescription));
+    let result = client.try_update_project(&update_params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectDescription)));
 }
 
 #[test]
 fn test_update_project_empty_category_returns_error() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -264,7 +283,7 @@ fn test_update_project_empty_category_returns_error() {
         metadata_cid: None,
     };
 
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     let update_params = ProjectUpdateParams {
         project_id,
@@ -277,13 +296,14 @@ fn test_update_project_empty_category_returns_error() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), update_params);
-    assert_eq!(result, Err(ContractError::InvalidProjectCategory));
+    let result = client.try_update_project(&update_params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectCategory)));
 }
 
 #[test]
 fn test_update_project_valid_inputs_succeeds() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -297,7 +317,7 @@ fn test_update_project_valid_inputs_succeeds() {
         metadata_cid: None,
     };
 
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     let update_params = ProjectUpdateParams {
         project_id,
@@ -310,10 +330,7 @@ fn test_update_project_valid_inputs_succeeds() {
         metadata_cid: None,
     };
 
-    let result = DongleContract::update_project(env.clone(), update_params);
-    assert!(result.is_ok());
-
-    let updated_project = result.unwrap();
+    let updated_project = client.update_project(&update_params);
     assert_eq!(updated_project.name, String::from_str(&env, "UpdatedProject"));
     assert_eq!(
         updated_project.description,
@@ -327,12 +344,13 @@ fn test_update_project_valid_inputs_succeeds() {
 #[test]
 fn test_no_panic_on_invalid_inputs() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
 
     // Test all invalid input combinations - none should panic
-    let test_cases = vec![
+    let test_cases = [
         ("", "desc", "cat", ContractError::InvalidProjectName),
         ("name", "", "cat", ContractError::InvalidProjectDescription),
         ("name", "desc", "", ContractError::InvalidProjectCategory),
@@ -349,14 +367,15 @@ fn test_no_panic_on_invalid_inputs() {
             metadata_cid: None,
         };
 
-        let result = DongleContract::register_project(env.clone(), params);
-        assert_eq!(result, Err(expected_error));
+        let result = client.try_register_project(&params);
+        assert_eq!(result, Err(Ok(expected_error)));
     }
 }
 
 #[test]
 fn test_multiple_operations_no_panic() {
     let env = Env::default();
+    let (client, _admin) = setup(&env);
     env.mock_all_auths();
 
     let owner = Address::generate(&env);
@@ -371,10 +390,10 @@ fn test_multiple_operations_no_panic() {
         logo_cid: None,
         metadata_cid: None,
     };
-    let project_id = DongleContract::register_project(env.clone(), params).unwrap();
+    let project_id = client.register_project(&params);
 
     // Try invalid updates - should return errors, not panic
-    let invalid_updates = vec![
+    let invalid_updates = [
         (Some(String::from_str(&env, "")), None, None),
         (None, Some(String::from_str(&env, "")), None),
         (None, None, Some(String::from_str(&env, ""))),
@@ -392,7 +411,7 @@ fn test_multiple_operations_no_panic() {
             metadata_cid: None,
         };
 
-        let result = DongleContract::update_project(env.clone(), update_params);
+        let result = client.try_update_project(&update_params);
         assert!(result.is_err());
     }
 }
