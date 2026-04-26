@@ -18,14 +18,15 @@ impl ProjectRegistry {
     ) -> Result<u64, ContractError> {
         require_self_auth(&params.owner);
 
+        // Validate inputs - return typed errors instead of panicking
         if params.name.is_empty() {
-            panic!("InvalidProjectName");
+            return Err(ContractError::InvalidProjectName);
         }
         if params.description.is_empty() {
-            panic!("InvalidProjectDescription");
+            return Err(ContractError::InvalidProjectDescription);
         }
         if params.category.is_empty() {
-            panic!("InvalidProjectCategory");
+            return Err(ContractError::InvalidProjectCategory);
         }
 
         // Check if project name already exists
@@ -95,18 +96,31 @@ impl ProjectRegistry {
         env: &Env,
         params: ProjectUpdateParams,
     ) -> Result<Project, ContractError> {
-        let mut project =
-            Self::get_project(env, params.project_id).ok_or(ContractError::ProjectNotFound)?;
+        let mut project = Self::get_project(env, params.project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
 
-        require_owner_auth(&params.caller, &project.owner)?;
+        params.caller.require_auth();
+        if project.owner != params.caller {
+            return Err(ContractError::Unauthorized);
+        }
 
+        // Validate and update fields
         if let Some(value) = params.name {
+            if value.is_empty() {
+                return Err(ContractError::InvalidProjectName);
+            }
             project.name = value;
         }
         if let Some(value) = params.description {
+            if value.is_empty() {
+                return Err(ContractError::InvalidProjectDescription);
+            }
             project.description = value;
         }
         if let Some(value) = params.category {
+            if value.is_empty() {
+                return Err(ContractError::InvalidProjectCategory);
+            }
             project.category = value;
         }
         if let Some(value) = params.website {
@@ -123,8 +137,6 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(params.project_id), &project);
-
-        publish_project_updated_event(env, params.project_id, project.owner.clone());
 
         Ok(project)
     }
