@@ -1,6 +1,6 @@
 use crate::auth::require_self_auth;
 use crate::errors::ContractError;
-use crate::events::publish_project_registered_event;
+use crate::events::{publish_project_registered_event, publish_project_updated_event};
 use crate::storage_keys::StorageKey;
 use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
 use soroban_sdk::{Address, Env, Vec};
@@ -141,6 +141,8 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(params.project_id), &project);
+
+        publish_project_updated_event(env, params.project_id, project.owner.clone());
 
         Ok(project)
     }

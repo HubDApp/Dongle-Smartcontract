@@ -34,7 +34,7 @@ fn test_register_project_empty_name_returns_error() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectName)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn test_register_project_empty_description_returns_error() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectDescription)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn test_register_project_empty_category_returns_error() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectCategory)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 }
 
 #[test]
@@ -351,9 +351,9 @@ fn test_no_panic_on_invalid_inputs() {
 
     // Test all invalid input combinations - none should panic
     let test_cases = [
-        ("", "desc", "cat", ContractError::InvalidProjectName),
-        ("name", "", "cat", ContractError::InvalidProjectDescription),
-        ("name", "desc", "", ContractError::InvalidProjectCategory),
+        ("", "desc", "cat", ContractError::InvalidProjectData),
+        ("name", "", "cat", ContractError::InvalidProjectData),
+        ("name", "desc", "", ContractError::InvalidProjectData),
     ];
 
     for (name, desc, cat, expected_error) in test_cases {

@@ -83,6 +83,13 @@ impl ReviewRegistry {
 
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
+            &ProjectStats {
+                rating_sum: new_sum,
+                review_count: new_count,
+                average_rating: new_avg,
+            },
+        );
+
         publish_review_event(
             env,
             project_id,
