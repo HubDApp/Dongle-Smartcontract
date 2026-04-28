@@ -26,6 +26,9 @@ impl ReviewRegistry {
             return Err(ContractError::InvalidRating);
         }
 
+        // Validate optional comment CID field
+        crate::utils::Utils::validate_optional_comment_cid(&comment_cid)?;
+
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         if env.storage().persistent().has(&review_key) {
             return Err(ContractError::DuplicateReview);
@@ -122,6 +125,9 @@ impl ReviewRegistry {
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
+
+        // Validate optional comment CID field
+        crate::utils::Utils::validate_optional_comment_cid(&comment_cid)?;
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let mut review: Review = env
