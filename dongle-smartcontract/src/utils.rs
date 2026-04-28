@@ -12,11 +12,10 @@ impl Utils {
     }
 
     pub fn is_admin(env: &Env, address: &Address) -> bool {
-        let admin: Option<Address> = env.storage().persistent().get(&StorageKey::Admin);
-        match admin {
-            Some(a) => a == *address,
-            None => false,
-        }
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Admin(address.clone()))
+            .unwrap_or(false)
     }
 
     pub fn require_admin(env: &Env, address: &Address) -> Result<(), ContractError> {
@@ -63,6 +62,44 @@ impl Utils {
 
         if limit == 0 || limit > MAX_LIMIT {
             return Err(ContractError::InvalidProjectData);
+        }
+
+        Ok(())
+    }
+
+    /// Validates a description field with comprehensive checks:
+    /// - Not empty or whitespace-only
+    /// - Within maximum length constraint (MAX_DESCRIPTION_LEN)
+    /// - No invalid special characters (allows alphanumeric, spaces, common punctuation)
+    pub fn validate_description(description: &String) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        let desc_str = description.to_string();
+
+        // 1. Check for empty or whitespace-only strings
+        if desc_str.trim().is_empty() {
+            return Err(ContractError::InvalidProjectDescription);
+        }
+
+        // 2. Check maximum length constraint
+        if desc_str.len() > crate::constants::MAX_DESCRIPTION_LEN {
+            return Err(ContractError::ProjectDescriptionTooLong);
+        }
+
+        // 3. Validate characters - allow alphanumeric, spaces, and common punctuation
+        // Allowed: letters, digits, spaces, and: . , ! ? - ( ) ' " : ; / &
+        for c in desc_str.chars() {
+            let is_valid = c.is_ascii_alphanumeric()
+                || c.is_whitespace()
+                || matches!(
+                    c,
+                    '.' | ',' | '!' | '?' | '-' | '(' | ')' | '\'' | '"' | ':' | ';' | '/' | '&'
+                );
+
+            if !is_valid {
+                return Err(ContractError::InvalidProjectDescriptionFormat);
+            }
         }
 
         Ok(())
