@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_add_admin_duplicate() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, DongleContract);
+        let contract_id = env.register(DongleContract, ());
         let client = DongleContractClient::new(&env, &contract_id);
         let admin1 = Address::generate(&env);
         let admin2 = Address::generate(&env);
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn test_remove_admin_twice() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, DongleContract);
+        let contract_id = env.register(DongleContract, ());
         let client = DongleContractClient::new(&env, &contract_id);
         let admin1 = Address::generate(&env);
         let admin2 = Address::generate(&env);
