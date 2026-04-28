@@ -7,6 +7,7 @@ use crate::auth::require_admin_auth;
 use crate::errors::ContractError;
 use crate::events::{publish_admin_added_event, publish_admin_removed_event};
 use crate::storage_keys::StorageKey;
+use crate::storage_manager::StorageManager;
 use soroban_sdk::{Address, Env, Vec};
 
 pub struct AdminManager;
@@ -32,6 +33,9 @@ impl AdminManager {
             .persistent()
             .set(&StorageKey::AdminList, &admins);
 
+        // Extend TTL for admin data
+        StorageManager::extend_all_admin_ttl(env, &admin);
+
         publish_admin_added_event(env, admin);
     }
 
@@ -55,6 +59,9 @@ impl AdminManager {
         env.storage()
             .persistent()
             .set(&StorageKey::AdminList, &admins);
+
+        // Extend TTL for admin data
+        StorageManager::extend_all_admin_ttl(env, &new_admin);
 
         publish_admin_added_event(env, new_admin);
 
@@ -103,10 +110,18 @@ impl AdminManager {
 
     /// Check if an address is an admin
     pub fn is_admin(env: &Env, address: &Address) -> bool {
-        env.storage()
+        let is_admin = env
+            .storage()
             .persistent()
             .get(&StorageKey::Admin(address.clone()))
-            .unwrap_or(false)
+            .unwrap_or(false);
+
+        // Bump TTL on read if admin exists
+        if is_admin {
+            StorageManager::extend_admin_ttl(env, address);
+        }
+
+        is_admin
     }
 
     /// Require that the caller is an admin, otherwise return an error
@@ -169,7 +184,7 @@ mod tests {
     #[test]
     fn test_add_admin_duplicate() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, DongleContract);
+        let contract_id = env.register(DongleContract, ());
         let client = DongleContractClient::new(&env, &contract_id);
         let admin1 = Address::generate(&env);
         let admin2 = Address::generate(&env);
@@ -251,7 +266,7 @@ mod tests {
     #[test]
     fn test_remove_admin_twice() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, DongleContract);
+        let contract_id = env.register(DongleContract, ());
         let client = DongleContractClient::new(&env, &contract_id);
         let admin1 = Address::generate(&env);
         let admin2 = Address::generate(&env);

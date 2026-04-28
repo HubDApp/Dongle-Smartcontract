@@ -65,6 +65,47 @@ make deploy-testnet
 - **Verification**: Request and approve project verification
 - **Fee Management**: Configurable fees for operations
 - **Access Control**: Owner-based permissions
+- **TTL Management**: Automatic and manual Time-To-Live extension for persistent storage
+
+## TTL (Time To Live) Management
+
+The contract implements comprehensive TTL management for Soroban persistent storage to ensure data doesn't expire unexpectedly. See [TTL_STRATEGY.md](../TTL_STRATEGY.md) for detailed information.
+
+### Key Features
+
+- **Automatic TTL Extension**: TTL is automatically extended on write and read operations
+- **Manual TTL Extension**: Public functions available for proactive TTL management
+- **Categorized Thresholds**: Different TTL durations for critical, project, review, verification, and user data
+- **Defensive Programming**: All TTL operations check for key existence before extending
+
+### TTL Thresholds
+
+- **Critical Data** (admin, fees, treasury): 30 days
+- **Project Data**: 90 days
+- **Review Data**: 60 days
+- **Verification Data**: 45 days
+- **User Data**: 60 days
+
+### Manual TTL Extension Functions
+
+```rust
+// Extend TTL for a specific project
+extend_project_ttl(env, project_id)
+
+// Extend TTL for critical configuration
+extend_critical_config_ttl(env)
+
+// Extend TTL for user data
+extend_user_ttl(env, user_address)
+
+// Extend TTL for a review
+extend_review_ttl(env, project_id, reviewer)
+
+// Extend TTL for verification data
+extend_verification_ttl(env, project_id)
+```
+
+For complete TTL strategy documentation, see [TTL_STRATEGY.md](../TTL_STRATEGY.md).
 
 ## Contract Functions
 
@@ -160,7 +201,7 @@ See [SETUP.md](../SETUP.md) for detailed setup, deployment, and usage instructio
 ```
 src/
 ├── lib.rs                    # Main contract interface
-├── constants.rs              # Constants and limits
+├── constants.rs              # Constants, limits, and TTL thresholds
 ├── errors.rs                 # Error definitions
 ├── events.rs                 # Event emissions
 ├── fee_manager.rs            # Fee handling
@@ -169,6 +210,7 @@ src/
 ├── verification_registry.rs  # Verification logic
 ├── rating_calculator.rs      # Rating calculations
 ├── storage_keys.rs           # Storage keys
+├── storage_manager.rs        # TTL management
 ├── types.rs                  # Data structures
 ├── utils.rs                  # Utilities
 └── test.rs                   # Tests

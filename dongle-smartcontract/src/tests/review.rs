@@ -5,7 +5,7 @@ use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env};
 
-fn setup(env: &Env) -> (DongleContractClient, Address) {
+fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
     setup_contract(env)
 }
 

@@ -1,11 +1,11 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
-use crate::auth::require_self_auth;
 use crate::constants::{RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
+use crate::storage_manager::StorageManager;
 use crate::types::{ProjectStats, Review, ReviewAction};
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -89,6 +89,12 @@ impl ReviewRegistry {
                 average_rating: new_avg,
             },
         );
+
+        // Extend TTL for review-related data
+        StorageManager::extend_review_ttl(env, project_id, &reviewer);
+        StorageManager::extend_user_reviews_ttl(env, &reviewer);
+        StorageManager::extend_project_reviews_ttl(env, project_id);
+        StorageManager::extend_project_stats_ttl(env, project_id);
 
         publish_review_event(
             env,
@@ -221,11 +227,7 @@ impl ReviewRegistry {
 
         // Calculate new stats
         let (new_sum, new_count, new_avg) = if stats.review_count > 0 {
-            RatingCalculator::remove_rating(
-                stats.rating_sum,
-                stats.review_count,
-                existing.rating,
-            )
+            RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
         };
