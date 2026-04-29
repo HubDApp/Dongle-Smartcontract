@@ -50,32 +50,47 @@ impl Utils {
             return false;
         }
 
-        // CIDv0 must start with 'Q' (base58 encoded)
-        if cid.len() >= 1 {
-            let first_char = cid.as_bytes()[0];
-            if first_char == b'Q' {
-                // CIDv0 format: starts with Q, followed by base58 characters
-                // Basic validation: check if it starts with Qm pattern (most common)
-                if cid.len() >= 2 {
-                    let second_char = cid.as_bytes()[1];
-                    if second_char != b'm' {
-                        // Not standard Qm pattern, but could still be valid Qx pattern
-                        // For simplicity, we'll reject non-Qm patterns
-                        return false;
-                    }
-                }
-            } else {
-                // Could be CIDv1 (base32 or base36 encoded)
-                // Basic validation: allow alphanumeric characters
-                // Full validation would require more complex parsing
-                let cid_str = cid.clone();
-                for byte in cid_str.as_bytes().iter() {
-                    // Allow base32 lowercase alphabet and numbers (for CIDv1 default encoding)
-                    if !((*byte >= b'a' && *byte <= b'z') || (*byte >= b'0' && *byte <= b'9')) {
-                        return false;
-                    }
+        let bytes = cid.as_bytes();
+        if bytes.is_empty() {
+            return false;
+        }
+
+        let first_char = bytes[0];
+        if first_char == b'Q' {
+            // CIDv0: must start with Qm (most common base58 encoded)
+            if len < 2 || bytes[1] != b'm' {
+                return false;
+            }
+            // Check all characters are base58
+            for &byte in bytes.iter() {
+                if !((byte >= b'1' && byte <= b'9') ||
+                     (byte >= b'A' && byte <= b'H') ||
+                     (byte >= b'J' && byte <= b'N') ||
+                     (byte >= b'P' && byte <= b'Z') ||
+                     (byte >= b'a' && byte <= b'k') ||
+                     (byte >= b'm' && byte <= b'z')) {
+                    return false;
                 }
             }
+        } else if first_char == b'b' {
+            // CIDv1 with base32 encoding (most common)
+            // Check all characters are base32: a-z 2-7
+            for &byte in bytes.iter() {
+                if !((byte >= b'a' && byte <= b'z') || (byte >= b'2' && byte <= b'7')) {
+                    return false;
+                }
+            }
+        } else if first_char == b'f' {
+            // CIDv1 with base16 encoding
+            // Check all characters are hex: 0-9 a-f
+            for &byte in bytes.iter() {
+                if !((byte >= b'0' && byte <= b'9') || (byte >= b'a' && byte <= b'f')) {
+                    return false;
+                }
+            }
+        } else {
+            // Other CIDv1 encodings or invalid
+            return false;
         }
 
         true
@@ -89,10 +104,9 @@ impl Utils {
             return false;
         }
 
-        // Basic URL validation: must contain :// pattern
-        let url_str = url.clone();
-        let bytes = url_str.as_bytes();
+        let bytes = url.as_bytes();
         
+        // Must contain :// pattern
         let mut found_protocol = false;
         for i in 0..bytes.len().saturating_sub(3) {
             if bytes[i] == b':' && bytes[i + 1] == b'/' && bytes[i + 2] == b'/' {
@@ -106,14 +120,41 @@ impl Utils {
         }
 
         // Must start with http:// or https://
-        if url_str.starts_with("http://") || url_str.starts_with("https://") {
-            // Basic domain validation: must have at least one character after ://
-            if url_str.len() > 7 {
-                return true;
+        if url.starts_with("http://") || url.starts_with("https://") {
+            // Must have at least one character after ://
+            if url.len() <= 7 {
+                return false;
             }
+            
+            // Check for invalid characters (no spaces, control chars)
+            for &byte in bytes.iter() {
+                if byte < 32 || byte == 127 { // Control characters
+                    return false;
+                }
+                if byte == b' ' { // No spaces
+                    return false;
+                }
+            }
+            
+            // Basic domain validation: after ://, should have valid domain chars
+            let after_protocol = if url.starts_with("https://") { 8 } else { 7 };
+            if after_protocol >= bytes.len() {
+                return false;
+            }
+            
+            // First character after :// should be alphanumeric or valid domain start
+            let first_domain = bytes[after_protocol];
+            if !((first_domain >= b'a' && first_domain <= b'z') ||
+                 (first_domain >= b'A' && first_domain <= b'Z') ||
+                 (first_domain >= b'0' && first_domain <= b'9') ||
+                 first_domain == b'_') {
+                return false;
+            }
+            
+            true
+        } else {
+            false
         }
-
-        false
     }
 
     pub fn sanitize_string(input: &String) -> String {
