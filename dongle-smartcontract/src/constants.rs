@@ -40,3 +40,37 @@ pub const REVIEW_ACTION_COOLDOWN: u64 = 60; // 1 minute
 
 /// Minimum time between verification requests per user
 pub const VERIFICATION_REQUEST_COOLDOWN: u64 = 300; // 5 minutes
+// ── TTL (Time To Live) Constants ──────────────────────────────────────────
+
+/// TTL for critical contract data (admin list, fee config, treasury).
+/// Set to ~30 days (30 * 24 * 60 * 60 / 5 seconds per ledger = 518,400 ledgers).
+/// This data should persist long-term and be extended regularly.
+pub const LEDGER_THRESHOLD_CRITICAL: u32 = 518_400;
+
+/// TTL for project data (projects, project stats, project counts).
+/// Set to ~90 days (90 * 24 * 60 * 60 / 5 = 1,555,200 ledgers).
+/// Projects are core entities and should have long persistence.
+pub const LEDGER_THRESHOLD_PROJECT: u32 = 1_555_200;
+
+/// TTL for review data (reviews, review stats).
+/// Set to ~60 days (60 * 24 * 60 * 60 / 5 = 1,036,800 ledgers).
+/// Reviews are important but can be archived if inactive.
+pub const LEDGER_THRESHOLD_REVIEW: u32 = 1_036_800;
+
+/// TTL for verification data (verification records, fee payments).
+/// Set to ~45 days (45 * 24 * 60 * 60 / 5 = 777,600 ledgers).
+/// Verification data is moderately important.
+pub const LEDGER_THRESHOLD_VERIFICATION: u32 = 777_600;
+
+/// TTL for user-related data (owner projects, user reviews).
+/// Set to ~60 days (60 * 24 * 60 * 60 / 5 = 1,036,800 ledgers).
+/// User data should persist reasonably long.
+pub const LEDGER_THRESHOLD_USER: u32 = 1_036_800;
+
+/// TTL bump amount - how much to extend when bumping.
+/// Set to the same as the threshold to maintain consistent lifetime.
+pub const LEDGER_BUMP_CRITICAL: u32 = LEDGER_THRESHOLD_CRITICAL;
+pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
+pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;
+pub const LEDGER_BUMP_VERIFICATION: u32 = LEDGER_THRESHOLD_VERIFICATION;
+pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;

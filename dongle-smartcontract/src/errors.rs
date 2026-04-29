@@ -43,6 +43,18 @@ pub enum ContractError {
     AdminNotFound = 18,
     /// Rate limit exceeded - too many actions in short time
     RateLimitExceeded = 19,
+    /// Invalid project name - empty or whitespace only
+    InvalidProjectName = 19,
+    /// Invalid project description - empty or whitespace only
+    InvalidProjectDescription = 20,
+    /// Invalid project category - empty or whitespace only
+    InvalidProjectCategory = 21,
+    /// Project description too long
+    ProjectDescriptionTooLong = 22,
+    /// Project description contains invalid characters
+    InvalidProjectDescriptionFormat = 23,
+    /// User has exceeded maximum number of projects allowed
+    MaxProjectsExceeded = 24,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

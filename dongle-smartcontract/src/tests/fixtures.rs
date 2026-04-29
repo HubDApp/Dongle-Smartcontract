@@ -7,11 +7,16 @@ use crate::DongleContract;
 use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
+/// Initialize contract with a default admin and return client + admin address.
+///
+/// This is the most basic setup function used by most tests.
 pub fn setup_contract(env: &Env) -> (DongleContractClient<'_>, Address) {
     let contract_id = env.register(DongleContract, ());
     let client = DongleContractClient::new(env, &contract_id);
+
     let admin = Address::generate(env);
     client.mock_all_auths().initialize(&admin);
+
     (client, admin)
 }
 
@@ -23,6 +28,9 @@ pub fn generate_test_users(env: &Env, count: u32) -> Vec<Address> {
     users
 }
 
+/// Setup contract with fee configuration enabled.
+///
+/// Returns (client, admin, treasury) tuple.
 pub fn setup_with_fees(
     env: &Env,
     fee_amount: u128,
@@ -35,7 +43,10 @@ pub fn setup_with_fees(
     (client, admin, treasury)
 }
 
-pub fn create_test_project(client: &DongleContractClient, owner: &Address, name: &str) -> u64 {
+/// Create a test project with default parameters.
+///
+/// Returns the project ID.
+pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
@@ -51,7 +62,7 @@ pub fn create_test_project(client: &DongleContractClient, owner: &Address, name:
 
 pub fn create_project_with_reviews(
     env: &Env,
-    client: &DongleContractClient,
+    client: &DongleContractClient<'_>,
     review_count: u32,
 ) -> (u64, Vec<Address>) {
     let owner = Address::generate(env);

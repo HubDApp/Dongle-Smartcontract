@@ -11,7 +11,9 @@ pub mod rating_calculator;
 mod rate_limiter;
 pub mod review_registry;
 pub mod storage_keys;
+pub mod storage_manager;
 pub mod types;
+pub mod utils;
 mod verification_registry;
 
 #[cfg(test)]
@@ -22,6 +24,7 @@ use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::storage_manager::StorageManager;
 use crate::types::{
     FeeConfig, Project, ProjectRegistrationParams, ProjectStats, ProjectUpdateParams, Review,
     VerificationRecord,
@@ -202,5 +205,39 @@ impl DongleContract {
 
     pub fn get_verification_request_cooldown_remaining(env: Env, user: Address) -> u64 {
         crate::rate_limiter::RateLimiter::get_verification_request_cooldown_remaining(&env, &user)
+    // --- TTL Management ---
+
+    /// Extend TTL for a specific project and its related data
+    pub fn extend_project_ttl(env: Env, project_id: u64) {
+        if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
+            StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
+        }
+    }
+
+    /// Extend TTL for a specific review
+    pub fn extend_review_ttl(env: Env, project_id: u64, reviewer: Address) {
+        StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+    }
+
+    /// Extend TTL for all admin-related data
+    pub fn extend_admin_ttl(env: Env, admin: Address) {
+        StorageManager::extend_all_admin_ttl(&env, &admin);
+    }
+
+    /// Extend TTL for critical contract configuration (admin list, fee config, treasury)
+    pub fn extend_critical_config_ttl(env: Env) {
+        StorageManager::extend_critical_config_ttl(&env);
+    }
+
+    /// Extend TTL for user-related data (owner projects, user reviews)
+    pub fn extend_user_ttl(env: Env, user: Address) {
+        StorageManager::extend_owner_projects_ttl(&env, &user);
+        StorageManager::extend_user_reviews_ttl(&env, &user);
+    }
+
+    /// Extend TTL for verification data
+    pub fn extend_verification_ttl(env: Env, project_id: u64) {
+        StorageManager::extend_verification_ttl(&env, project_id);
+        StorageManager::extend_fee_paid_ttl(&env, project_id);
     }
 }

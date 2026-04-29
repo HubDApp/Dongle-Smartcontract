@@ -153,7 +153,7 @@ fn test_valid_state_transitions() {
 
     // Test 1: Unverified -> Pending (verification request)
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project 1");
-    
+
     let project = client.get_project(&project_id).unwrap();
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
 
@@ -173,14 +173,14 @@ fn test_valid_state_transitions() {
 
     // Test 3: Rejected -> Pending (re-request verification)
     let project_id2 = setup_project_with_fee(&client, &env, &admin, &owner, "Project 2");
-    
+
     client.request_verification(
         &project_id2,
         &owner,
         &String::from_str(&env, "ipfs://evidence2"),
     );
     client.reject_verification(&project_id2, &admin);
-    
+
     let project = client.get_project(&project_id2).unwrap();
     assert_eq!(project.verification_status, VerificationStatus::Rejected);
 
@@ -199,7 +199,7 @@ fn test_valid_state_transitions() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2_updated"),
     );
-    
+
     let project = client.get_project(&project_id2).unwrap();
     assert_eq!(project.verification_status, VerificationStatus::Pending);
 
@@ -216,14 +216,14 @@ fn test_invalid_transitions_from_unverified() {
     let (client, admin, owner) = setup(&env);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Invalid 1");
-    
-    // Cannot approve directly from Unverified
-    let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
 
-    // Cannot reject directly from Unverified
+    // Cannot approve directly from Unverified - no verification record exists
+    let result = client.try_approve_verification(&project_id, &admin);
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotFound)));
+
+    // Cannot reject directly from Unverified - no verification record exists
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotFound)));
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn test_invalid_transitions_from_pending() {
     let (client, admin, owner) = setup(&env);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Invalid 2");
-    
+
     client.request_verification(
         &project_id,
         &owner,
@@ -256,7 +256,7 @@ fn test_invalid_transitions_from_verified() {
     let (client, admin, owner) = setup(&env);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Invalid 3");
-    
+
     client.request_verification(
         &project_id,
         &owner,
@@ -288,7 +288,7 @@ fn test_invalid_transitions_from_rejected() {
     let (client, admin, owner) = setup(&env);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Invalid 4");
-    
+
     client.request_verification(
         &project_id,
         &owner,
@@ -381,7 +381,7 @@ fn test_idempotent_transitions() {
     let (client, admin, owner) = setup(&env);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Idempotent");
-    
+
     // Initial state should be Unverified
     assert_eq!(
         client.get_project(&project_id).unwrap().verification_status,
@@ -414,7 +414,7 @@ fn test_state_machine_with_different_admins() {
     client.add_admin(&admin, &admin2);
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Multi Admin");
-    
+
     client.request_verification(
         &project_id,
         &owner,

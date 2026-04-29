@@ -3,6 +3,7 @@
 // Existing test modules
 mod admin;
 mod rate_limiting;
+mod error_handling_tests;
 mod registration;
 mod review;
 mod verification;
