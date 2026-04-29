@@ -32,6 +32,11 @@ impl ProjectRegistry {
             return Err(ContractError::InvalidProjectData);
         }
 
+        // Validate optional fields
+        Utils::validate_optional_website(&params.website)?;
+        Utils::validate_optional_logo_cid(&params.logo_cid)?;
+        Utils::validate_optional_metadata_cid(&params.metadata_cid)?;
+
         // Check if owner has exceeded maximum projects limit
         let owner_project_count = Self::owner_project_count(env, &params.owner);
         if owner_project_count >= MAX_PROJECTS_PER_USER {
@@ -163,12 +168,15 @@ impl ProjectRegistry {
             project.category = value;
         }
         if let Some(value) = params.website {
+            Utils::validate_optional_website(&value)?;
             project.website = value;
         }
         if let Some(value) = params.logo_cid {
+            Utils::validate_optional_logo_cid(&value)?;
             project.logo_cid = value;
         }
         if let Some(value) = params.metadata_cid {
+            Utils::validate_optional_metadata_cid(&value)?;
             project.metadata_cid = value;
         }
 
