@@ -277,7 +277,7 @@ impl ProjectRegistry {
         projects
     }
 
-    pub fn list_projects_by_verification_status(
+    pub fn list_projects_by_status(
         env: &Env,
         status: VerificationStatus,
         start_id: u64,

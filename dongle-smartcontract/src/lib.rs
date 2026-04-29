@@ -99,13 +99,13 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_ids(&env, ids)
     }
 
-    pub fn list_projects_by_verification_status(
+    pub fn list_projects_by_status(
         env: Env,
         status: VerificationStatus,
         start_id: u64,
         limit: u32,
     ) -> Vec<Project> {
-        ProjectRegistry::list_projects_by_verification_status(&env, status, start_id, limit)
+        ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
     }
 
     // --- Review Registry ---
