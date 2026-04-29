@@ -285,6 +285,19 @@ impl ReviewRegistry {
         Ok(())
     }
 
+    pub fn get_reviews_by_ids(env: &Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        let mut reviews = Vec::new(env);
+        let len = ids.len();
+        for i in 0..len {
+            if let Some((project_id, reviewer)) = ids.get(i) {
+                if let Some(review) = Self::get_review(env, project_id, reviewer) {
+                    reviews.push_back(review);
+                }
+            }
+        }
+        reviews
+    }
+
     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
         env.storage()
             .persistent()
