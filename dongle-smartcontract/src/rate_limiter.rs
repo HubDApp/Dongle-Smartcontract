@@ -17,7 +17,7 @@ impl RateLimiter {
         let last_action_key = StorageKey::UserLastReviewAction(user.clone());
         let now = env.ledger().timestamp();
 
-        if let Some(last_timestamp) = env.storage().persistent().get(&last_action_key) {
+        if let Some(last_timestamp) = env.storage().persistent().get::<StorageKey, u64>(&last_action_key) {
             if now < last_timestamp + REVIEW_ACTION_COOLDOWN {
                 return Err(ContractError::RateLimitExceeded);
             }
@@ -33,7 +33,7 @@ impl RateLimiter {
         let last_request_key = StorageKey::UserLastVerificationRequest(user.clone());
         let now = env.ledger().timestamp();
 
-        if let Some(last_timestamp) = env.storage().persistent().get(&last_request_key) {
+        if let Some(last_timestamp) = env.storage().persistent().get::<StorageKey, u64>(&last_request_key) {
             if now < last_timestamp + VERIFICATION_REQUEST_COOLDOWN {
                 return Err(ContractError::RateLimitExceeded);
             }
@@ -50,7 +50,7 @@ impl RateLimiter {
         let last_action_key = StorageKey::UserLastReviewAction(user.clone());
         let now = env.ledger().timestamp();
 
-        if let Some(last_timestamp) = env.storage().persistent().get(&last_action_key) {
+        if let Some(last_timestamp) = env.storage().persistent().get::<StorageKey, u64>(&last_action_key) {
             let cooldown_end = last_timestamp + REVIEW_ACTION_COOLDOWN;
             if now < cooldown_end {
                 return cooldown_end - now;
@@ -65,7 +65,7 @@ impl RateLimiter {
         let last_request_key = StorageKey::UserLastVerificationRequest(user.clone());
         let now = env.ledger().timestamp();
 
-        if let Some(last_timestamp) = env.storage().persistent().get(&last_request_key) {
+        if let Some(last_timestamp) = env.storage().persistent().get::<StorageKey, u64>(&last_request_key) {
             let cooldown_end = last_timestamp + VERIFICATION_REQUEST_COOLDOWN;
             if now < cooldown_end {
                 return cooldown_end - now;

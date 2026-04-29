@@ -190,11 +190,11 @@ impl DongleContract {
 
     // --- Rate Limiting ---
 
-    pub fn get_review_action_cooldown_remaining(env: Env, user: Address) -> u64 {
+    pub fn review_cooldown_remaining(env: Env, user: Address) -> u64 {
         crate::rate_limiter::RateLimiter::get_review_action_cooldown_remaining(&env, &user)
     }
 
-    pub fn get_verification_request_cooldown_remaining(env: Env, user: Address) -> u64 {
+    pub fn verify_cooldown_remaining(env: Env, user: Address) -> u64 {
         crate::rate_limiter::RateLimiter::get_verification_request_cooldown_remaining(&env, &user)
     }
 }
