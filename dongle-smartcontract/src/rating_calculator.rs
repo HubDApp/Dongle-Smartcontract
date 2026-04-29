@@ -60,7 +60,9 @@ impl RatingCalculator {
     ) -> (u64, u32, u32) {
         let scaled_old = (old_rating as u64) * 100;
         let scaled_new = (new_rating as u64) * 100;
-        let new_sum = current_sum - scaled_old + scaled_new;
+        let new_sum = current_sum
+            .saturating_sub(scaled_old)
+            .saturating_add(scaled_new);
         let new_average = Self::calculate_average(new_sum, current_count);
         (new_sum, current_count, new_average)
     }
@@ -76,8 +78,8 @@ impl RatingCalculator {
     /// Tuple of (new_sum, new_count, new_average)
     pub fn remove_rating(current_sum: u64, current_count: u32, rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (rating as u64) * 100;
-        let new_sum = current_sum - scaled_rating;
-        let new_count = current_count - 1;
+        let new_sum = current_sum.saturating_sub(scaled_rating);
+        let new_count = current_count.saturating_sub(1);
         let new_average = Self::calculate_average(new_sum, new_count);
         (new_sum, new_count, new_average)
     }
