@@ -26,7 +26,7 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
     FeeConfig, Project, ProjectRegistrationParams, ProjectStats, ProjectUpdateParams, Review,
-    VerificationRecord,
+    VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -95,6 +95,19 @@ impl DongleContract {
         ProjectRegistry::get_owner_project_count(&env, &owner)
     }
 
+    pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_ids(&env, ids)
+    }
+
+    pub fn list_projects_by_verification_status(
+        env: Env,
+        status: VerificationStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_verification_status(&env, status, start_id, limit)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(
@@ -127,6 +140,10 @@ impl DongleContract {
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
+    }
+
+    pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        ReviewRegistry::get_reviews_by_ids(&env, ids)
     }
 
     pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {

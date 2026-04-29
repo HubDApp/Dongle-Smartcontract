@@ -264,6 +264,62 @@ impl ProjectRegistry {
         Self::owner_project_count(env, owner)
     }
 
+    pub fn get_projects_by_ids(env: &Env, ids: Vec<u64>) -> Vec<Project> {
+        let mut projects = Vec::new(env);
+        let len = ids.len();
+        for i in 0..len {
+            if let Some(id) = ids.get(i) {
+                if let Some(project) = Self::get_project(env, id) {
+                    projects.push_back(project);
+                }
+            }
+        }
+        projects
+    }
+
+    pub fn list_projects_by_verification_status(
+        env: &Env,
+        status: VerificationStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if count == 0 {
+            return projects;
+        }
+
+        let first = if start_id == 0 { 1u64 } else { start_id };
+        if first > count {
+            return projects;
+        }
+
+        let mut collected: u32 = 0;
+        for id in first..=count {
+            if collected >= effective_limit {
+                break;
+            }
+            if let Some(project) = Self::get_project(env, id) {
+                if project.verification_status == status {
+                    projects.push_back(project);
+                    collected += 1;
+                }
+            }
+        }
+        projects
+    }
+
     pub fn list_projects(env: &Env, start_id: u64, limit: u32) -> Vec<Project> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
