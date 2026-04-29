@@ -397,7 +397,10 @@ fn test_review_event_comment_cid_included() {
     let params = make_project_params(&env, &owner, "CommentReview");
     let project_id = client.mock_all_auths().register_project(&params);
 
-    let cid = Some(String::from_str(&env, "QmTestCid123"));
+    let cid = Some(String::from_str(
+        &env,
+        "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz",
+    ));
     client
         .mock_all_auths()
         .add_review(&project_id, &reviewer, &4, &cid);
@@ -407,7 +410,11 @@ fn test_review_event_comment_cid_included() {
         decode_event::<ReviewEventData>(&env, &data)
             .map(|e| {
                 e.project_id == project_id
-                    && e.comment_cid == Some(String::from_str(&env, "QmTestCid123"))
+                    && e.comment_cid
+                        == Some(String::from_str(
+                            &env,
+                            "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz",
+                        ))
             })
             .unwrap_or(false)
     });
