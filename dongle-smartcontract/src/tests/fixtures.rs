@@ -15,12 +15,6 @@ pub fn setup_contract(env: &Env) -> (DongleContractClient<'_>, Address) {
     let client = DongleContractClient::new(env, &contract_id);
 
     let admin = Address::generate(env);
-
-    (client, admin)
-}
-    let client = DongleContractClient::new(env, &contract_id);
-
-    let admin = Address::generate(env);
     client.mock_all_auths().initialize(&admin);
 
     (client, admin)
@@ -41,17 +35,6 @@ pub fn setup_with_fees(
     env: &Env,
     fee_amount: u128,
 ) -> (DongleContractClient<'_>, Address, Address) {
-    let contract_id = env.register_contract(None, DongleContract);
-    let client = DongleContractClient::new(env, &contract_id);
-
-    let admin = Address::generate(env);
-    let treasury = Address::generate(env);
-
-    // assuming your contract has a function to set fees
-    client.initialize(&admin, &treasury, &fee_amount);
-
-    (client, admin, treasury)
-}
     let (client, admin) = setup_contract(env);
     let treasury = Address::generate(env);
     client
