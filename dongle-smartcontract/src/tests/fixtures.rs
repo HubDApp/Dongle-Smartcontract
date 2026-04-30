@@ -88,3 +88,18 @@ pub fn assert_project_state(
     assert_eq!(project.owner, *expected_owner);
     assert_eq!(project.verification_status, expected_status);
 }
+
+/// Get a test environment (convenience function).
+pub fn get_test_env() -> Env {
+    Env::default()
+}
+
+/// Get a test admin address.
+pub fn get_admin(env: &Env) -> Address {
+    Address::generate(env)
+}
+
+/// Get a test user address.
+pub fn get_user(env: &Env) -> Address {
+    Address::generate(env)
+}

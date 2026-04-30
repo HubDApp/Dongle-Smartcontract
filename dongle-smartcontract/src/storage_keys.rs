@@ -38,4 +38,8 @@ pub enum StorageKey {
     Treasury,
     /// List of reviewer addresses for a project (by project_id).
     ProjectReviews(u64),
+    /// Last timestamp of review action by user (for rate limiting).
+    UserLastReviewAction(Address),
+    /// Last timestamp of verification request by user (for rate limiting).
+    UserLastVerificationRequest(Address),
 }

@@ -41,6 +41,8 @@ pub enum ContractError {
     CannotRemoveLastAdmin = 17,
     /// Admin not found
     AdminNotFound = 18,
+    /// Rate limit exceeded - too many actions in short time
+    RateLimitExceeded = 19,
     /// Invalid project name - empty or whitespace only
     InvalidProjectName = 19,
     /// Invalid project description - empty or whitespace only
