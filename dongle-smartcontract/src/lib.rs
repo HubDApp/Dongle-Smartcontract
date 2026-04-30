@@ -205,6 +205,8 @@ impl DongleContract {
 
     pub fn verify_cooldown_remaining(env: Env, user: Address) -> u64 {
         crate::rate_limiter::RateLimiter::get_verification_request_cooldown_remaining(&env, &user)
+    }
+
     // --- TTL Management ---
 
     /// Extend TTL for a specific project and its related data
