@@ -19,8 +19,10 @@ pub fn setup_contract(env: &Env) -> (DongleContractClient<'_>, Address) {
     (client, admin)
 }
     let client = DongleContractClient::new(env, &contract_id);
+
     let admin = Address::generate(env);
     client.mock_all_auths().initialize(&admin);
+
     (client, admin)
 }
 
@@ -58,7 +60,10 @@ pub fn setup_with_fees(
     (client, admin, treasury)
 }
 
-pub fn create_test_project(client: &DongleContractClient, owner: &Address, name: &str) -> u64 {
+/// Create a test project with default parameters.
+///
+/// Returns the project ID.
+pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
@@ -74,7 +79,7 @@ pub fn create_test_project(client: &DongleContractClient, owner: &Address, name:
 
 pub fn create_project_with_reviews(
     env: &Env,
-    client: &DongleContractClient,
+    client: &DongleContractClient<'_>,
     review_count: u32,
 ) -> (u64, Vec<Address>) {
     let owner = Address::generate(env);

@@ -3,9 +3,9 @@
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::DongleContractClient;
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
-fn setup(env: &Env) -> (DongleContractClient, Address) {
+fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
     setup_contract(env)
 }
 
@@ -439,4 +439,68 @@ fn test_re_review_after_delete() {
     assert_eq!(stats.review_count, 1);
     assert_eq!(stats.rating_sum, 400);
     assert_eq!(stats.average_rating, 400);
+}
+
+#[test]
+fn test_submit_review_stores_and_fetches_cid() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+    let project_id = create_test_project(&client, &admin, "ProjectX");
+
+    let reviewer = Address::generate(&env);
+    let cid = String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz");
+
+    client.submit_review(&project_id, &reviewer, &5, &cid);
+
+    let stored = client.get_review(&project_id, &reviewer).unwrap();
+    assert_eq!(
+        stored.ipfs_cid,
+        Some(String::from_str(
+            &env,
+            "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz"
+        ))
+    );
+    assert_eq!(
+        client.get_review_cid(&project_id, &reviewer),
+        Some(String::from_str(
+            &env,
+            "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz"
+        ))
+    );
+}
+
+#[test]
+fn test_submit_review_invalid_cid_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+    let project_id = create_test_project(&client, &admin, "ProjectY");
+
+    let reviewer = Address::generate(&env);
+    let result =
+        client.try_submit_review(&project_id, &reviewer, &4, &String::from_str(&env, "bad"));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
+}
+
+#[test]
+fn test_get_project_review_cids_returns_all_entries() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+    let project_id = create_test_project(&client, &admin, "ProjectZ");
+
+    let reviewer_a = Address::generate(&env);
+    let reviewer_b = Address::generate(&env);
+    let cid_a = String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz");
+    let cid_b = String::from_str(
+        &env,
+        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+    );
+
+    client.submit_review(&project_id, &reviewer_a, &5, &cid_a);
+    client.submit_review(&project_id, &reviewer_b, &3, &cid_b);
+
+    let cids = client.get_project_review_cids(&project_id);
+    assert_eq!(cids.len(), 2);
 }

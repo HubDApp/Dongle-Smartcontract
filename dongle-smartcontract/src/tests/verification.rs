@@ -7,7 +7,7 @@ use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address) {
-    let contract_id = env.register_contract(None, DongleContract);
+    let contract_id = env.register(DongleContract, ());
     let client = DongleContractClient::new(env, &contract_id);
 
     let admin = Address::generate(env);
@@ -126,10 +126,8 @@ fn test_valid_state_transitions() {
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project 1");
 
-    assert_eq!(
-        client.get_project(&project_id).unwrap().verification_status,
-        VerificationStatus::Unverified
-    );
+    let project = client.get_project(&project_id).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Unverified);
 
     client.request_verification(
         &project_id,
@@ -159,6 +157,9 @@ fn test_valid_state_transitions() {
 
     client.reject_verification(&project_id2, &admin);
 
+    let project = client.get_project(&project_id2).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Rejected);
+
     assert_eq!(
         client.get_project(&project_id2).unwrap().verification_status,
         VerificationStatus::Rejected
@@ -180,6 +181,9 @@ fn test_valid_state_transitions() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2_updated"),
     );
+
+    let project = client.get_project(&project_id2).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Pending);
 
     assert_eq!(
         client.get_project(&project_id2).unwrap().verification_status,
@@ -286,11 +290,13 @@ fn test_invalid_transitions_from_unverified() {
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Invalid 1");
 
+    // Cannot approve directly from Unverified - no verification record exists
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotFound)));
 
+    // Cannot reject directly from Unverified - no verification record exists
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotFound)));
 }
 
 #[test]
@@ -452,6 +458,7 @@ fn test_idempotent_transitions() {
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Idempotent");
 
+    // Initial state should be Unverified
     assert_eq!(
         client.get_project(&project_id).unwrap().verification_status,
         VerificationStatus::Unverified
@@ -478,8 +485,7 @@ fn test_state_machine_with_different_admins() {
     let admin2 = Address::generate(&env);
     client.add_admin(&admin, &admin2);
 
-    let project_id =
-        setup_project_with_fee(&client, &env, &admin, &owner, "Project Multi Admin");
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Multi Admin");
 
     client.request_verification(
         &project_id,
