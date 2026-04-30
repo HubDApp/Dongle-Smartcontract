@@ -42,7 +42,26 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        (46..=100).contains(&len)
+        if !(46..=128).contains(&len) {
+            return false;
+        }
+
+        extern crate alloc;
+        use alloc::vec;
+        let mut bytes = vec![0u8; len as usize];
+        cid.copy_into_slice(bytes.as_mut_slice());
+
+        // CIDv0: starts with "Qm"
+        if bytes.len() >= 2 {
+            let first = bytes[0];
+            let second = bytes[1];
+            if first == b'Q' && second == b'm' {
+                return true;
+            }
+        }
+
+        // CIDv1 base32 typically starts with 'b' (e.g. bafy...)
+        bytes[0] == b'b'
     }
 
     pub fn is_valid_url(_url: &String) -> bool {

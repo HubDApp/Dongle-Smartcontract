@@ -138,8 +138,26 @@ impl DongleContract {
         ReviewRegistry::delete_review(&env, project_id, reviewer)
     }
 
+    pub fn submit_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        review_cid: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+    }
+
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
+    }
+
+    pub fn get_review_cid(env: Env, project_id: u64, reviewer: Address) -> Option<String> {
+        ReviewRegistry::get_review_cid(&env, project_id, reviewer)
+    }
+
+    pub fn get_project_review_cids(env: Env, project_id: u64) -> Vec<(Address, String)> {
+        ReviewRegistry::get_project_review_cids(&env, project_id)
     }
 
     pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {

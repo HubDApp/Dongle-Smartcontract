@@ -118,10 +118,13 @@ For complete TTL strategy documentation, see [TTL_STRATEGY.md](../TTL_STRATEGY.m
 
 ### Reviews
 
-- `add_review` - Submit a project review
+- `add_review` - Submit a project review (legacy path using optional CID field)
+- `submit_review` - Submit a review with required IPFS CID
 - `update_review` - Update your review
 - `get_review` - Get a specific review
-- `get_project_reviews` - List project reviews
+- `get_review_cid` - Fetch review CID by project ID and reviewer
+- `get_project_review_cids` - Fetch all reviewer/CID pairs for a project
+- `list_reviews` - List project reviews
 
 ### Verification
 

@@ -1,17 +1,25 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
-use crate::constants::{RATING_MAX, RATING_MIN};
+use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{ProjectStats, Review, ReviewAction};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
 
 impl ReviewRegistry {
+    fn validate_review_cid(cid: &String) -> Result<(), ContractError> {
+        if !Utils::is_valid_ipfs_cid(cid) || cid.len() as usize > MAX_CID_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+        Ok(())
+    }
+
     pub fn add_review(
         env: &Env,
         project_id: u64,
@@ -19,6 +27,10 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
+        if let Some(cid) = comment_cid.as_ref() {
+            Self::validate_review_cid(cid)?;
+        }
+
         // Validation phase
         reviewer.require_auth();
 
@@ -37,7 +49,7 @@ impl ReviewRegistry {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            ipfs_cid: None,
+            ipfs_cid: comment_cid.clone(),
             comment_cid: comment_cid.clone(),
             created_at: now,
             updated_at: now,
@@ -101,12 +113,23 @@ impl ReviewRegistry {
             project_id,
             reviewer,
             ReviewAction::Submitted,
-            None,
+            comment_cid.clone(),
             comment_cid,
             now,
             now,
         );
         Ok(())
+    }
+
+    pub fn submit_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        review_cid: String,
+    ) -> Result<(), ContractError> {
+        Self::validate_review_cid(&review_cid)?;
+        Self::add_review(env, project_id, reviewer, rating, Some(review_cid))
     }
 
     pub fn update_review(
@@ -116,6 +139,10 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
+        if let Some(cid) = comment_cid.as_ref() {
+            Self::validate_review_cid(cid)?;
+        }
+
         // Validation phase
         reviewer.require_auth();
 
@@ -138,6 +165,7 @@ impl ReviewRegistry {
         let old_rating = review.rating;
         let now = env.ledger().timestamp();
         review.rating = rating;
+        review.ipfs_cid = comment_cid.clone();
         review.comment_cid = comment_cid.clone();
         review.updated_at = now;
 
@@ -176,7 +204,7 @@ impl ReviewRegistry {
             project_id,
             reviewer,
             ReviewAction::Updated,
-            None,
+            comment_cid.clone(),
             comment_cid,
             review.created_at,
             now,
@@ -302,6 +330,35 @@ impl ReviewRegistry {
         env.storage()
             .persistent()
             .get(&StorageKey::Review(project_id, reviewer))
+    }
+
+    pub fn get_review_cid(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
+        Self::get_review(env, project_id, reviewer).and_then(|review| {
+            if let Some(cid) = review.ipfs_cid {
+                Some(cid)
+            } else {
+                review.comment_cid
+            }
+        })
+    }
+
+    pub fn get_project_review_cids(env: &Env, project_id: u64) -> Vec<(Address, String)> {
+        let reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut cids = Vec::new(env);
+        let len = reviewers.len();
+        for i in 0..len {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(cid) = Self::get_review_cid(env, project_id, reviewer.clone()) {
+                    cids.push_back((reviewer, cid));
+                }
+            }
+        }
+        cids
     }
 
     pub fn get_project_stats(env: &Env, project_id: u64) -> ProjectStats {
