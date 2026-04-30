@@ -52,8 +52,12 @@ impl FeeManager {
             .get(&StorageKey::Treasury)
             .ok_or(ContractError::TreasuryNotSet)?;
 
+        if Self::is_fee_paid(env, project_id) {
+            return Err(ContractError::FeeAlreadyPaid);
+        }
+
         if config.token != token {
-            return Err(ContractError::InvalidProjectData);
+            return Err(ContractError::InvalidToken);
         }
 
         let amount = config.verification_fee;

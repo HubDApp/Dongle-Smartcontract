@@ -11,7 +11,7 @@ use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 ///
 /// This is the most basic setup function used by most tests.
 pub fn setup_contract(env: &Env) -> (DongleContractClient<'_>, Address) {
-    let contract_id = env.register(DongleContract, ());
+    let contract_id = env.register_contract(None, DongleContract);
     let client = DongleContractClient::new(env, &contract_id);
 
     let admin = Address::generate(env);

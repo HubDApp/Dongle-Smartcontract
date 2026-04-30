@@ -1,5 +1,4 @@
 use soroban_sdk::contracterror;
-
 /// Error types for the Dongle smart contract
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -53,7 +52,10 @@ pub enum ContractError {
     InvalidProjectDescriptionFormat = 23,
     /// User has exceeded maximum number of projects allowed
     MaxProjectsExceeded = 24,
+    /// Fee already paid for this project in the current verification cycle
+    FeeAlreadyPaid = 25,
+    /// Token provided does not match the configured payment token
+    InvalidToken = 26,
 }
-
 // Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;
