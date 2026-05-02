@@ -42,7 +42,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len();
-        
+
         // Check length is within valid IPFS CID range
         // Valid CIDv0: 46 chars (Qm + 44 chars)
         // Valid CIDv1: 60+ chars typically
