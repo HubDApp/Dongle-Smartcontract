@@ -161,6 +161,28 @@ mod optional_field_validation_tests {
         assert!(!Utils::is_valid_ipfs_cid(&cid));
     }
 
+    #[test]
+    fn test_cidv1_base32_validity() {
+        let env = Env::default();
+        // CIDv1 base32 string starting with 'b' and valid characters
+        let cid = SorobanString::from_slice(
+            &env,
+            b"bafybeigdyrztkowi2qrax2ajrlb67lsqz7s6q2hohwqg7y5sx3v7g3qu4e",
+        );
+        assert!(Utils::is_valid_ipfs_cid(&cid));
+    }
+
+    #[test]
+    fn test_cidv1_base32_invalid_chars() {
+        let env = Env::default();
+        // CIDv1 base32 string with invalid uppercase characters
+        let cid = SorobanString::from_slice(
+            &env,
+            b"bAFYBEIGDYRZTKOWI2QRAX2AJRLB67LSQZ7S6Q2HOHWQG7Y5SX3V7G3QU4E",
+        );
+        assert!(!Utils::is_valid_ipfs_cid(&cid));
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Tests for validate_optional_website()
     // ─────────────────────────────────────────────────────────────
