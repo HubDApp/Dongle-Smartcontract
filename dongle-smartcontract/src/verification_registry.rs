@@ -281,10 +281,7 @@ impl VerificationRegistry {
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
-        if evidence_cid.is_empty() {
-            return Err(ContractError::InvalidProjectData);
-        }
-        Ok(())
+        Utils::validate_evidence_cid(evidence_cid)
     }
 
     #[allow(dead_code)]

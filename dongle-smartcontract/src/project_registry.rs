@@ -162,13 +162,22 @@ impl ProjectRegistry {
             }
             project.category = value;
         }
+
+        // Validate and update website
         if let Some(value) = params.website {
+            Utils::validate_website_url(&value)?;
             project.website = value;
         }
+
+        // Validate and update logo_cid
         if let Some(value) = params.logo_cid {
+            Utils::validate_logo_cid(&value)?;
             project.logo_cid = value;
         }
+
+        // Validate and update metadata_cid
         if let Some(value) = params.metadata_cid {
+            Utils::validate_metadata_cid(&value)?;
             project.metadata_cid = value;
         }
 
@@ -367,48 +376,12 @@ mod tests {
     use crate::errors::ContractError;
     use soroban_sdk::{Env, String};
 
-    // Validation function only used in tests
-    fn validate_project_data(
-        name: &String,
-        _description: &String,
-        _category: &String,
-    ) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
-        let name_str = name.to_string();
-
-        // 1. Validate Non-empty and not only whitespace
-        if name_str.trim().is_empty() {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        // 2. Validate max length using the CONSTANT
-        let max_len = crate::constants::MAX_NAME_LEN;
-        if name_str.len() > max_len {
-            return Err(ContractError::ProjectNameTooLong);
-        }
-
-        // 3. Validate alphanumeric, underscore, hyphen
-        for c in name_str.chars() {
-            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidProjectNameFormat);
-            }
-        }
-
-        Ok(())
-    }
-
     #[test]
     fn test_valid_project_name() {
         let env = Env::default();
         let name = String::from_str(&env, "Valid-Project_Name123");
 
-        let result = validate_project_data(
-            &name,
-            &String::from_str(&env, "Desc"),
-            &String::from_str(&env, "Cat"),
-        );
+        let result = Utils::validate_project_name(&name);
         assert!(result.is_ok());
     }
 
@@ -417,12 +390,8 @@ mod tests {
         let env = Env::default();
         let name = String::from_str(&env, "   ");
 
-        let result = validate_project_data(
-            &name,
-            &String::from_str(&env, "Desc"),
-            &String::from_str(&env, "Cat"),
-        );
-        assert_eq!(result, Err(ContractError::InvalidProjectData));
+        let result = Utils::validate_project_name(&name);
+        assert_eq!(result, Err(ContractError::ProjectNameEmpty));
     }
 
     #[test]
@@ -430,11 +399,7 @@ mod tests {
         let env = Env::default();
         let name = String::from_str(&env, "My Project *");
 
-        let result = validate_project_data(
-            &name,
-            &String::from_str(&env, "Desc"),
-            &String::from_str(&env, "Cat"),
-        );
+        let result = Utils::validate_project_name(&name);
         assert_eq!(result, Err(ContractError::InvalidProjectNameFormat));
     }
 
@@ -444,11 +409,7 @@ mod tests {
         // 51 characters
         let name = String::from_str(&env, "ThisProjectNameIsWayTooLongAndExceedsTheFiftyCharL1");
 
-        let result = validate_project_data(
-            &name,
-            &String::from_str(&env, "Desc"),
-            &String::from_str(&env, "Cat"),
-        );
+        let result = Utils::validate_project_name(&name);
         assert_eq!(result, Err(ContractError::ProjectNameTooLong));
     }
 
