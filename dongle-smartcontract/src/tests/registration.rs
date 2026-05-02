@@ -5,7 +5,7 @@ use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
-    let contract_id = env.register_contract(None, DongleContract);
+    let contract_id = env.register(DongleContract, ());
     let client = DongleContractClient::new(env, &contract_id);
     let owner = Address::generate(env);
     env.mock_all_auths();

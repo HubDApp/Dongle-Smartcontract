@@ -1,6 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
-use crate::admin_manager::AdminManager;
+use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
 use crate::events::{publish_fee_paid_event, publish_fee_set_event};
 use crate::storage_keys::StorageKey;
@@ -18,8 +18,7 @@ impl FeeManager {
         amount: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
-        admin.require_auth();
-        AdminManager::require_admin(env, &admin)?;
+        require_admin_auth(env, &admin)?;
 
         let config = FeeConfig {
             token,
@@ -44,7 +43,7 @@ impl FeeManager {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
-        payer.require_auth();
+        require_self_auth(&payer);
 
         let config = Self::get_fee_config(env)?;
         let treasury: Address = env
@@ -68,7 +67,7 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
 
-        publish_fee_paid_event(env, project_id, amount);
+        publish_fee_paid_event(env, project_id, payer, amount);
         Ok(())
     }
 
@@ -102,8 +101,7 @@ impl FeeManager {
     /// Set the treasury address (admin only)
     #[allow(dead_code)]
     pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
-        admin.require_auth();
-        AdminManager::require_admin(env, &admin)?;
+        require_admin_auth(env, &admin)?;
 
         env.storage()
             .persistent()

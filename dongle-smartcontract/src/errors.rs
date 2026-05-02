@@ -41,24 +41,18 @@ pub enum ContractError {
     CannotRemoveLastAdmin = 17,
     /// Admin not found
     AdminNotFound = 18,
-    /// Project name is empty or whitespace
-    ProjectNameEmpty = 19,
-    /// Project description is empty or whitespace
-    ProjectDescriptionEmpty = 20,
-    /// Project category is empty or whitespace
-    ProjectCategoryEmpty = 21,
-    /// Website URL is invalid
-    InvalidWebsiteUrl = 22,
-    /// Logo CID is invalid
-    InvalidLogoCid = 23,
-    /// Metadata CID is invalid
-    InvalidMetadataCid = 24,
-    /// Evidence CID is empty or invalid
-    InvalidEvidenceCid = 25,
-    /// Comment CID is invalid
-    InvalidCommentCid = 26,
-    /// Invalid fee token provided
-    InvalidFeeToken = 28,
+    /// Invalid project name - empty or whitespace only
+    InvalidProjectName = 19,
+    /// Invalid project description - empty or whitespace only
+    InvalidProjectDescription = 20,
+    /// Invalid project category - empty or whitespace only
+    InvalidProjectCategory = 21,
+    /// Project description too long
+    ProjectDescriptionTooLong = 22,
+    /// Project description contains invalid characters
+    InvalidProjectDescriptionFormat = 23,
+    /// User has exceeded maximum number of projects allowed
+    MaxProjectsExceeded = 24,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

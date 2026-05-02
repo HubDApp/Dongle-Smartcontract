@@ -1,6 +1,7 @@
 #![no_std]
 
 mod admin_manager;
+pub mod auth;
 pub mod constants;
 pub mod errors;
 pub mod events;
@@ -9,7 +10,9 @@ mod project_registry;
 pub mod rating_calculator;
 pub mod review_registry;
 pub mod storage_keys;
+pub mod storage_manager;
 pub mod types;
+pub mod utils;
 mod verification_registry;
 
 #[cfg(test)]
@@ -20,8 +23,10 @@ use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::storage_manager::StorageManager;
 use crate::types::{
-    FeeConfig, Project, ProjectRegistrationParams, ProjectUpdateParams, Review, VerificationRecord,
+    FeeConfig, Project, ProjectRegistrationParams, ProjectStats, ProjectUpdateParams, Review,
+    VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -70,7 +75,7 @@ impl DongleContract {
         ProjectRegistry::register_project(&env, params)
     }
 
-    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Option<Project>, ContractError> {
+    pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -88,6 +93,19 @@ impl DongleContract {
 
     pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
         ProjectRegistry::get_owner_project_count(&env, &owner)
+    }
+
+    pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_ids(&env, ids)
+    }
+
+    pub fn list_projects_by_status(
+        env: Env,
+        status: VerificationStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
     }
 
     // --- Review Registry ---
@@ -120,12 +138,38 @@ impl DongleContract {
         ReviewRegistry::delete_review(&env, project_id, reviewer)
     }
 
+    pub fn submit_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        review_cid: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+    }
+
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
     }
 
+    pub fn get_review_cid(env: Env, project_id: u64, reviewer: Address) -> Option<String> {
+        ReviewRegistry::get_review_cid(&env, project_id, reviewer)
+    }
+
+    pub fn get_project_review_cids(env: Env, project_id: u64) -> Vec<(Address, String)> {
+        ReviewRegistry::get_project_review_cids(&env, project_id)
+    }
+
+    pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        ReviewRegistry::get_reviews_by_ids(&env, ids)
+    }
+
     pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    }
+
+    pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {
+        ReviewRegistry::get_project_stats(&env, project_id)
     }
 
     // --- Verification Registry ---
@@ -185,5 +229,41 @@ impl DongleContract {
 
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
         FeeManager::get_fee_config(&env)
+    }
+
+    // --- TTL Management ---
+
+    /// Extend TTL for a specific project and its related data
+    pub fn extend_project_ttl(env: Env, project_id: u64) {
+        if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
+            StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
+        }
+    }
+
+    /// Extend TTL for a specific review
+    pub fn extend_review_ttl(env: Env, project_id: u64, reviewer: Address) {
+        StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+    }
+
+    /// Extend TTL for all admin-related data
+    pub fn extend_admin_ttl(env: Env, admin: Address) {
+        StorageManager::extend_all_admin_ttl(&env, &admin);
+    }
+
+    /// Extend TTL for critical contract configuration (admin list, fee config, treasury)
+    pub fn extend_critical_config_ttl(env: Env) {
+        StorageManager::extend_critical_config_ttl(&env);
+    }
+
+    /// Extend TTL for user-related data (owner projects, user reviews)
+    pub fn extend_user_ttl(env: Env, user: Address) {
+        StorageManager::extend_owner_projects_ttl(&env, &user);
+        StorageManager::extend_user_reviews_ttl(&env, &user);
+    }
+
+    /// Extend TTL for verification data
+    pub fn extend_verification_ttl(env: Env, project_id: u64) {
+        StorageManager::extend_verification_ttl(&env, project_id);
+        StorageManager::extend_fee_paid_ttl(&env, project_id);
     }
 }
