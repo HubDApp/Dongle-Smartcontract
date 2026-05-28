@@ -64,16 +64,60 @@ impl Utils {
         bytes[0] == b'b'
     }
 
-    pub fn is_valid_url(_url: &String) -> bool {
-        true
+    pub fn validate_website(website: &String) -> Result<(), ContractError> {
+        let len = website.len();
+        if len == 0 {
+            return Err(ContractError::InvalidProjectWebsite);
+        }
+        if len > crate::constants::MAX_WEBSITE_LEN as u32 {
+            return Err(ContractError::ProjectWebsiteTooLong);
+        }
+        
+        extern crate alloc;
+        use alloc::string::ToString;
+        let web_str = website.to_string();
+        
+        if !web_str.starts_with("http://") && !web_str.starts_with("https://") {
+            return Err(ContractError::InvalidProjectWebsite);
+        }
+        Ok(())
     }
 
     pub fn sanitize_string(input: &String) -> String {
         input.clone()
     }
 
-    pub fn is_valid_category(_category: &String) -> bool {
-        true
+    pub fn validate_category_field(category: &String) -> Result<(), ContractError> {
+        let len = category.len();
+        if len == 0 {
+            return Err(ContractError::InvalidProjectCategory);
+        }
+        if len > crate::constants::MAX_CATEGORY_LEN as u32 {
+            return Err(ContractError::ProjectCategoryTooLong);
+        }
+        
+        extern crate alloc;
+        use alloc::string::ToString;
+        let cat_str = category.to_string();
+        if cat_str.trim().is_empty() {
+            return Err(ContractError::InvalidProjectCategory);
+        }
+        
+        Ok(())
+    }
+
+    pub fn validate_logo_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidProjectLogoCid);
+        }
+        Ok(())
+    }
+
+    pub fn validate_metadata_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidProjectMetadataCid);
+        }
+        Ok(())
     }
 
     pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {

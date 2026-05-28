@@ -28,8 +28,16 @@ impl ProjectRegistry {
         // Validate description with comprehensive checks
         Utils::validate_description(&params.description)?;
 
-        if params.category.is_empty() {
-            return Err(ContractError::InvalidProjectData);
+        Utils::validate_category_field(&params.category)?;
+
+        if let Some(website) = &params.website {
+            Utils::validate_website(website)?;
+        }
+        if let Some(logo_cid) = &params.logo_cid {
+            Utils::validate_logo_cid(logo_cid)?;
+        }
+        if let Some(metadata_cid) = &params.metadata_cid {
+            Utils::validate_metadata_cid(metadata_cid)?;
         }
 
         // Check if owner has exceeded maximum projects limit
@@ -157,18 +165,25 @@ impl ProjectRegistry {
             project.description = value;
         }
         if let Some(value) = params.category {
-            if value.is_empty() {
-                return Err(ContractError::InvalidProjectCategory);
-            }
+            Utils::validate_category_field(&value)?;
             project.category = value;
         }
         if let Some(value) = params.website {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+            }
             project.website = value;
         }
         if let Some(value) = params.logo_cid {
+            if let Some(ref cid) = value {
+                Utils::validate_logo_cid(cid)?;
+            }
             project.logo_cid = value;
         }
         if let Some(value) = params.metadata_cid {
+            if let Some(ref cid) = value {
+                Utils::validate_metadata_cid(cid)?;
+            }
             project.metadata_cid = value;
         }
 

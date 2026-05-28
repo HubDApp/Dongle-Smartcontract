@@ -51,8 +51,17 @@ pub enum ContractError {
     ProjectDescriptionTooLong = 22,
     /// Project description contains invalid characters
     InvalidProjectDescriptionFormat = 23,
-    /// User has exceeded maximum number of projects allowed
     MaxProjectsExceeded = 24,
+    /// Invalid project website
+    InvalidProjectWebsite = 25,
+    /// Invalid project logo CID
+    InvalidProjectLogoCid = 26,
+    /// Invalid project metadata CID
+    InvalidProjectMetadataCid = 27,
+    /// Project category too long
+    ProjectCategoryTooLong = 28,
+    /// Project website too long
+    ProjectWebsiteTooLong = 29,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
