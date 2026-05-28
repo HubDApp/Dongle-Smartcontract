@@ -267,6 +267,14 @@ impl ProjectRegistry {
         Self::owner_project_count(env, owner)
     }
 
+    /// Total number of projects ever registered (monotonic counter; safe resume cursor for indexers).
+    pub fn get_project_count(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0)
+    }
+
     pub fn get_projects_by_ids(env: &Env, ids: Vec<u64>) -> Vec<Project> {
         let mut projects = Vec::new(env);
         let len = ids.len();

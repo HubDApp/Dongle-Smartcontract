@@ -120,6 +120,10 @@ impl DongleContract {
         ProjectRegistry::get_owner_project_count(&env, &owner)
     }
 
+    pub fn get_project_count(env: Env) -> u64 {
+        ProjectRegistry::get_project_count(&env)
+    }
+
     pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
         ProjectRegistry::get_projects_by_ids(&env, ids)
     }
@@ -197,6 +201,10 @@ impl DongleContract {
         ReviewRegistry::get_project_stats(&env, project_id)
     }
 
+    pub fn get_stats_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
+        ReviewRegistry::get_stats_batch(&env, ids)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
@@ -238,6 +246,13 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         VerificationRegistry::get_verification(&env, project_id)
+    }
+
+    pub fn get_verifications_batch(
+        env: Env,
+        ids: Vec<u64>,
+    ) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
     // --- Fee Manager ---

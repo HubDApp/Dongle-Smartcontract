@@ -288,6 +288,26 @@ impl VerificationRegistry {
             .ok_or(ContractError::VerificationNotFound)
     }
 
+    /// Batch-fetch verification records for multiple project IDs.
+    /// Silently skips IDs with no record. Clamped to 100 entries.
+    pub fn get_verifications_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        const MAX_PAGE_LIMIT: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = ids.get(i) {
+                if let Some(record) = env
+                    .storage()
+                    .persistent()
+                    .get(&StorageKey::Verification(id))
+                {
+                    out.push_back((id, record));
+                }
+            }
+        }
+        out
+    }
+
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
