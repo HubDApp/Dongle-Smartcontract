@@ -83,6 +83,31 @@ impl DongleContract {
         ProjectRegistry::get_project(&env, project_id)
     }
 
+    pub fn initiate_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        new_owner: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
+    }
+
+    pub fn cancel_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::cancel_transfer(&env, project_id, caller)
+    }
+
+    pub fn accept_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::accept_transfer(&env, project_id, caller)
+    }
+
     pub fn list_projects(env: Env, start_id: u64, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects(&env, start_id, limit)
     }

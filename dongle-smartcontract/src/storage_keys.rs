@@ -38,4 +38,6 @@ pub enum StorageKey {
     Treasury,
     /// List of reviewer addresses for a project (by project_id).
     ProjectReviews(u64),
+    /// Pending ownership transfer recipient for a project.
+    PendingTransfer(u64),
 }

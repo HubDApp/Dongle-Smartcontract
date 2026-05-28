@@ -5,6 +5,7 @@ mod admin;
 mod error_handling_tests;
 mod registration;
 mod review;
+mod transfer;
 mod verification;
 
 // New test modules
