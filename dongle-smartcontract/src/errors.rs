@@ -53,6 +53,8 @@ pub enum ContractError {
     InvalidProjectDescriptionFormat = 23,
     /// User has exceeded maximum number of projects allowed
     MaxProjectsExceeded = 24,
+    /// Project is not in a revocable state (must be Verified)
+    VerificationNotRevocable = 25,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

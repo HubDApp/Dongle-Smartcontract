@@ -398,7 +398,7 @@ fn test_idempotent_transitions() {
     // Approve verification
     client.approve_verification(&project_id, &admin);
 
-    // Try to approve again - should fail because Verified is a terminal state
+    // Try to approve again - should fail (already Verified)
     let result = client.try_approve_verification(&project_id, &admin);
     assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
 }
@@ -426,5 +426,159 @@ fn test_state_machine_with_different_admins() {
     assert_eq!(
         client.get_project(&project_id).unwrap().verification_status,
         VerificationStatus::Verified
+    );
+}
+
+// --- Revocation Tests ---
+
+#[test]
+fn test_revoke_verification_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Revoke");
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    client.approve_verification(&project_id, &admin);
+
+    assert_eq!(
+        client.get_project(&project_id).unwrap().verification_status,
+        VerificationStatus::Verified
+    );
+
+    client.revoke_verification(
+        &project_id,
+        &admin,
+        &String::from_str(&env, "Project became malicious"),
+    );
+
+    let project = client.get_project(&project_id).unwrap();
+    assert_eq!(project.verification_status, VerificationStatus::Unverified);
+
+    let record = client.get_verification(&project_id);
+    assert_eq!(record.status, VerificationStatus::Unverified);
+    assert_eq!(
+        record.revoke_reason,
+        Some(String::from_str(&env, "Project became malicious"))
+    );
+}
+
+#[test]
+fn test_revoke_non_verified_project_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Not Verified");
+
+    // Cannot revoke an unverified project
+    let result = client.try_revoke_verification(
+        &project_id,
+        &admin,
+        &String::from_str(&env, "reason"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+
+    // Cannot revoke a pending project
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    let result = client.try_revoke_verification(
+        &project_id,
+        &admin,
+        &String::from_str(&env, "reason"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+}
+
+#[test]
+fn test_revoke_by_non_admin_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Non Admin");
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    client.approve_verification(&project_id, &admin);
+
+    let non_admin = Address::generate(&env);
+    let result = client.try_revoke_verification(
+        &project_id,
+        &non_admin,
+        &String::from_str(&env, "reason"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::AdminOnly)));
+}
+
+#[test]
+fn test_revoke_nonexistent_project_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _owner) = setup(&env);
+
+    let result = client.try_revoke_verification(
+        &9999,
+        &admin,
+        &String::from_str(&env, "reason"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
+}
+
+#[test]
+fn test_revoked_project_can_re_request_verification() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Re-request");
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    client.approve_verification(&project_id, &admin);
+    client.revoke_verification(
+        &project_id,
+        &admin,
+        &String::from_str(&env, "Stale project"),
+    );
+
+    assert_eq!(
+        client.get_project(&project_id).unwrap().verification_status,
+        VerificationStatus::Unverified
+    );
+
+    // Pay fee again and re-request
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&owner, &1000);
+    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.pay_fee(&owner, &project_id, &Some(token_address));
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://new-evidence"),
+    );
+
+    assert_eq!(
+        client.get_project(&project_id).unwrap().verification_status,
+        VerificationStatus::Pending
     );
 }

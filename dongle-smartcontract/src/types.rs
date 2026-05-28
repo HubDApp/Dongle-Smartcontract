@@ -120,6 +120,7 @@ pub struct VerificationRecord {
     pub evidence_cid: String,
     pub timestamp: u64,
     pub fee_amount: u128,
+    pub revoke_reason: Option<String>,
 }
 
 /// Fee configuration for contract operations

@@ -53,6 +53,16 @@ pub struct VerificationRejectedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a verification is revoked by an admin.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevokedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
 /// Emitted when an admin is added.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -229,6 +239,24 @@ pub fn publish_verification_rejected_event(env: &Env, project_id: u64, admin: Ad
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REJ"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revoked_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = VerificationRevokedEvent {
+        project_id,
+        admin,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("REVOKED"), project_id),
         event_data,
     );
 }

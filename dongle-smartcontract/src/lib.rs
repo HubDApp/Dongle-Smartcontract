@@ -199,6 +199,15 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    pub fn revoke_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
+    }
+
     pub fn get_verification(
         env: Env,
         project_id: u64,
