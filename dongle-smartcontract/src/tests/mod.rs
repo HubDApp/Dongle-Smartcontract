@@ -3,6 +3,7 @@
 // Existing test modules
 mod admin;
 mod error_handling_tests;
+mod fee;
 mod registration;
 mod review;
 mod transfer;
