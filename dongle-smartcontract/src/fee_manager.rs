@@ -3,6 +3,7 @@
 use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
 use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
 use soroban_sdk::{Address, Env};
@@ -36,7 +37,8 @@ impl FeeManager {
         Ok(())
     }
 
-    /// Pay the verification fee for a project
+    /// Pay the verification fee for a project.
+    /// Only the project owner may pay; third-party payments are rejected.
     pub fn pay_fee(
         env: &Env,
         payer: Address,
@@ -44,6 +46,13 @@ impl FeeManager {
         token: Option<Address>,
     ) -> Result<(), ContractError> {
         require_self_auth(&payer);
+
+        // Enforce owner-only payment
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != payer {
+            return Err(ContractError::Unauthorized);
+        }
 
         let config = Self::get_fee_config(env)?;
         let treasury: Address = env

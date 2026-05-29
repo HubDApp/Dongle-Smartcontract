@@ -83,6 +83,31 @@ impl DongleContract {
         ProjectRegistry::get_project(&env, project_id)
     }
 
+    pub fn initiate_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        new_owner: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
+    }
+
+    pub fn cancel_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::cancel_transfer(&env, project_id, caller)
+    }
+
+    pub fn accept_transfer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::accept_transfer(&env, project_id, caller)
+    }
+
     pub fn list_projects(env: Env, start_id: u64, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects(&env, start_id, limit)
     }
@@ -93,6 +118,10 @@ impl DongleContract {
 
     pub fn get_owner_project_count(env: Env, owner: Address) -> u32 {
         ProjectRegistry::get_owner_project_count(&env, &owner)
+    }
+
+    pub fn get_project_count(env: Env) -> u64 {
+        ProjectRegistry::get_project_count(&env)
     }
 
     pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
@@ -172,6 +201,10 @@ impl DongleContract {
         ReviewRegistry::get_project_stats(&env, project_id)
     }
 
+    pub fn get_stats_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
+        ReviewRegistry::get_stats_batch(&env, ids)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
@@ -199,11 +232,27 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    pub fn revoke_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
+    }
+
     pub fn get_verification(
         env: Env,
         project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         VerificationRegistry::get_verification(&env, project_id)
+    }
+
+    pub fn get_verifications_batch(
+        env: Env,
+        ids: Vec<u64>,
+    ) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
     // --- Fee Manager ---
