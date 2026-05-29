@@ -76,7 +76,7 @@ fn test_register_project_empty_category_returns_error() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectCategory)));
 }
 
 #[test]
@@ -128,8 +128,8 @@ fn test_register_project_valid_inputs_succeeds() {
         description: String::from_str(&env, "A valid project description"),
         category: String::from_str(&env, "DeFi"),
         website: Some(String::from_str(&env, "https://example.com")),
-        logo_cid: Some(String::from_str(&env, "QmValidCID123")),
-        metadata_cid: Some(String::from_str(&env, "QmValidMetadata456")),
+        logo_cid: Some(String::from_str(&env, "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G")),
+        metadata_cid: Some(String::from_str(&env, "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G")),
     };
 
     let result = client.try_register_project(&params);
@@ -356,7 +356,7 @@ fn test_no_panic_on_invalid_inputs() {
     let test_cases = [
         ("", "desc", "cat", ContractError::InvalidProjectData),
         ("name", "", "cat", ContractError::InvalidProjectDescription),
-        ("name", "desc", "", ContractError::InvalidProjectData),
+        ("name", "desc", "", ContractError::InvalidProjectCategory),
     ];
 
     for (name, desc, cat, expected_error) in test_cases {
@@ -851,4 +851,136 @@ fn test_update_project_multiple_name_changes() {
         metadata_cid: None,
     };
     client.register_project(&new_params2);
+}
+
+// ── Validation Tests for Website, Category, CIDs ──
+
+#[test]
+fn test_register_project_invalid_website_fails() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    env.mock_all_auths();
+    let owner = Address::generate(&env);
+
+    let test_cases = [
+        "ftp://example.com",     // invalid scheme
+        "",                      // empty
+        "example.com",           // no scheme
+    ];
+
+    for website in test_cases {
+        let params = ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(&env, "ValidName"),
+            description: String::from_str(&env, "Valid desc"),
+            category: String::from_str(&env, "DeFi"),
+            website: Some(String::from_str(&env, website)),
+            logo_cid: None,
+            metadata_cid: None,
+        };
+        let result = client.try_register_project(&params);
+        assert_eq!(result, Err(Ok(ContractError::InvalidProjectWebsite)));
+    }
+}
+
+#[test]
+fn test_register_project_website_too_long_fails() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    env.mock_all_auths();
+    let owner = Address::generate(&env);
+
+    extern crate alloc;
+    let mut long_website = alloc::string::String::from("https://");
+    long_website.push_str(&"a".repeat(300));
+
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "ValidName"),
+        description: String::from_str(&env, "Valid desc"),
+        category: String::from_str(&env, "DeFi"),
+        website: Some(String::from_str(&env, &long_website)),
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::ProjectWebsiteTooLong)));
+}
+
+#[test]
+fn test_register_project_invalid_logo_cid_fails() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    env.mock_all_auths();
+    let owner = Address::generate(&env);
+
+    let test_cases = [
+        "invalid_cid",
+        "",
+        "QmShort",
+    ];
+
+    for cid in test_cases {
+        let params = ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(&env, "ValidName"),
+            description: String::from_str(&env, "Valid desc"),
+            category: String::from_str(&env, "DeFi"),
+            website: None,
+            logo_cid: Some(String::from_str(&env, cid)),
+            metadata_cid: None,
+        };
+        let result = client.try_register_project(&params);
+        assert_eq!(result, Err(Ok(ContractError::InvalidProjectLogoCid)));
+    }
+}
+
+#[test]
+fn test_register_project_invalid_metadata_cid_fails() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    env.mock_all_auths();
+    let owner = Address::generate(&env);
+
+    let test_cases = [
+        "invalid_cid",
+        "",
+        "QmShort",
+    ];
+
+    for cid in test_cases {
+        let params = ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(&env, "ValidName"),
+            description: String::from_str(&env, "Valid desc"),
+            category: String::from_str(&env, "DeFi"),
+            website: None,
+            logo_cid: None,
+            metadata_cid: Some(String::from_str(&env, cid)),
+        };
+        let result = client.try_register_project(&params);
+        assert_eq!(result, Err(Ok(ContractError::InvalidProjectMetadataCid)));
+    }
+}
+
+#[test]
+fn test_register_project_category_too_long_fails() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    env.mock_all_auths();
+    let owner = Address::generate(&env);
+
+    let long_category = "a".repeat(100);
+
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "ValidName"),
+        description: String::from_str(&env, "Valid desc"),
+        category: String::from_str(&env, &long_category),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::ProjectCategoryTooLong)));
 }
