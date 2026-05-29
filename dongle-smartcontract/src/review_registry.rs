@@ -372,6 +372,20 @@ impl ReviewRegistry {
             })
     }
 
+    /// Batch-fetch stats for multiple project IDs. Returns one entry per ID (defaults to zero stats
+    /// for projects with no reviews). Clamped to MAX_PAGE_LIMIT entries.
+    pub fn get_stats_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
+        const MAX_PAGE_LIMIT: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = ids.get(i) {
+                out.push_back((id, Self::get_project_stats(env, id)));
+            }
+        }
+        out
+    }
+
     pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
         const MAX_PAGE_LIMIT: u32 = 100;

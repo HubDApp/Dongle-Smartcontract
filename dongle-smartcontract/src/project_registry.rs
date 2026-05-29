@@ -1,6 +1,9 @@
 use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
-use crate::events::{publish_project_registered_event, publish_project_updated_event};
+use crate::events::{
+    publish_ownership_transferred_event, publish_project_registered_event,
+    publish_project_updated_event,
+};
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
@@ -264,6 +267,14 @@ impl ProjectRegistry {
         Self::owner_project_count(env, owner)
     }
 
+    /// Total number of projects ever registered (monotonic counter; safe resume cursor for indexers).
+    pub fn get_project_count(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0)
+    }
+
     pub fn get_projects_by_ids(env: &Env, ids: Vec<u64>) -> Vec<Project> {
         let mut projects = Vec::new(env);
         let len = ids.len();
@@ -357,6 +368,129 @@ impl ProjectRegistry {
             }
         }
         projects
+    }
+
+    /// Step 1: Current owner proposes a transfer to `new_owner`.
+    /// Overwrites any existing pending transfer for this project.
+    pub fn initiate_transfer(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_owner: Address,
+    ) -> Result<(), ContractError> {
+        let project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::PendingTransfer(project_id), &new_owner);
+        StorageManager::extend_owner_projects_ttl(env, &caller);
+        Ok(())
+    }
+
+    /// Step 1b: Current owner cancels a pending transfer.
+    pub fn cancel_transfer(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if !env
+            .storage()
+            .persistent()
+            .has(&StorageKey::PendingTransfer(project_id))
+        {
+            return Err(ContractError::TransferNotFound);
+        }
+
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::PendingTransfer(project_id));
+        Ok(())
+    }
+
+    /// Step 2: Designated new owner accepts the transfer.
+    pub fn accept_transfer(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        let pending_new_owner: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::PendingTransfer(project_id))
+            .ok_or(ContractError::TransferNotFound)?;
+
+        caller.require_auth();
+        if caller != pending_new_owner {
+            return Err(ContractError::NotPendingTransferRecipient);
+        }
+
+        let old_owner = project.owner.clone();
+
+        // Remove project_id from old owner's list
+        let mut old_owner_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(old_owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut updated_old: Vec<u64> = Vec::new(env);
+        for i in 0..old_owner_projects.len() {
+            if let Some(id) = old_owner_projects.get(i) {
+                if id != project_id {
+                    updated_old.push_back(id);
+                }
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&StorageKey::OwnerProjects(old_owner.clone()), &updated_old);
+
+        // Add project_id to new owner's list
+        let mut new_owner_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(pending_new_owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        new_owner_projects.push_back(project_id);
+        env.storage().persistent().set(
+            &StorageKey::OwnerProjects(pending_new_owner.clone()),
+            &new_owner_projects,
+        );
+
+        // Update project owner
+        project.owner = pending_new_owner.clone();
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        // Clean up pending transfer
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::PendingTransfer(project_id));
+
+        StorageManager::extend_project_ttl(env, project_id);
+        StorageManager::extend_owner_projects_ttl(env, &old_owner);
+        StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
+
+        publish_ownership_transferred_event(env, project_id, old_owner, pending_new_owner);
+        Ok(())
     }
 }
 

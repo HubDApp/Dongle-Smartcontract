@@ -53,6 +53,26 @@ pub struct VerificationRejectedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a verification is revoked by an admin.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevokedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when project ownership is transferred.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectOwnershipTransferredEvent {
+    pub project_id: u64,
+    pub old_owner: Address,
+    pub new_owner: Address,
+    pub timestamp: u64,
+}
+
 /// Emitted when an admin is added.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -229,6 +249,44 @@ pub fn publish_verification_rejected_event(env: &Env, project_id: u64, admin: Ad
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REJ"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revoked_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = VerificationRevokedEvent {
+        project_id,
+        admin,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("REVOKED"), project_id),
+        event_data,
+    );
+}
+
+// ── Admin events ──────────────────────────────────────────────────────────────
+
+pub fn publish_ownership_transferred_event(
+    env: &Env,
+    project_id: u64,
+    old_owner: Address,
+    new_owner: Address,
+) {
+    let event_data = ProjectOwnershipTransferredEvent {
+        project_id,
+        old_owner,
+        new_owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("TRANSFER"), project_id),
         event_data,
     );
 }

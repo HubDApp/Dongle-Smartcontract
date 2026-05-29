@@ -4,7 +4,7 @@ use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
-    publish_verification_requested_event,
+    publish_verification_requested_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -41,6 +41,9 @@ impl VerificationStateMachine {
 
             // Pending -> Rejected (admin rejection)
             (VerificationStatus::Pending, VerificationStatus::Rejected) => Ok(()),
+
+            // Verified -> Unverified (admin revocation)
+            (VerificationStatus::Verified, VerificationStatus::Unverified) => Ok(()),
 
             // Same state (no change) - this should fail as it's not a valid transition
             (current, target) if current == target => Err(ContractError::InvalidStatusTransition),
@@ -128,7 +131,11 @@ impl VerificationStateMachine {
                 v.push_back(VerificationStatus::Pending);
                 v
             }
-            VerificationStatus::Verified => Vec::new(env), // Terminal state
+            VerificationStatus::Verified => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Unverified); // revocable by admin
+                v
+            }
         }
     }
 }
@@ -175,6 +182,7 @@ impl VerificationRegistry {
             evidence_cid: evidence_cid.clone(),
             timestamp: now,
             fee_amount: config.verification_fee,
+            revoke_reason: None,
         };
 
         env.storage()
@@ -280,6 +288,26 @@ impl VerificationRegistry {
             .ok_or(ContractError::VerificationNotFound)
     }
 
+    /// Batch-fetch verification records for multiple project IDs.
+    /// Silently skips IDs with no record. Clamped to 100 entries.
+    pub fn get_verifications_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        const MAX_PAGE_LIMIT: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = ids.get(i) {
+                if let Some(record) = env
+                    .storage()
+                    .persistent()
+                    .get(&StorageKey::Verification(id))
+                {
+                    out.push_back((id, record));
+                }
+            }
+        }
+        out
+    }
+
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
@@ -292,6 +320,41 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .has(&StorageKey::Verification(project_id))
+    }
+
+    pub fn revoke_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        let mut project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if project.verification_status != VerificationStatus::Verified {
+            return Err(ContractError::VerificationNotRevocable);
+        }
+
+        let mut record = Self::get_verification(env, project_id)?;
+
+        let now = env.ledger().timestamp();
+
+        record.status = VerificationStatus::Unverified;
+        record.revoke_reason = Some(reason.clone());
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        project.verification_status = VerificationStatus::Unverified;
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        publish_verification_revoked_event(env, project_id, admin, reason);
+        Ok(())
     }
 }
 
@@ -436,6 +499,10 @@ mod tests {
 
         let verified_states =
             VerificationStateMachine::get_possible_next_states(&env, VerificationStatus::Verified);
-        assert_eq!(verified_states.len(), 0);
+        assert_eq!(verified_states.len(), 1);
+        assert_eq!(
+            verified_states.get(0).unwrap(),
+            VerificationStatus::Unverified
+        );
     }
 }

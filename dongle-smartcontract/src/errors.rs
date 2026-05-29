@@ -53,6 +53,12 @@ pub enum ContractError {
     InvalidProjectDescriptionFormat = 23,
     /// User has exceeded maximum number of projects allowed
     MaxProjectsExceeded = 24,
+    /// Project is not in a revocable state (must be Verified)
+    VerificationNotRevocable = 25,
+    /// No pending ownership transfer found for this project
+    TransferNotFound = 26,
+    /// Caller is not the designated recipient of the pending transfer
+    NotPendingTransferRecipient = 27,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
