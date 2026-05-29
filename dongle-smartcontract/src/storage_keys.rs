@@ -40,4 +40,6 @@ pub enum StorageKey {
     ProjectReviews(u64),
     /// Pending ownership transfer recipient for a project.
     PendingTransfer(u64),
+    /// List of project IDs by category.
+    CategoryProjects(String),
 }

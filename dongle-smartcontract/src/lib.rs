@@ -137,6 +137,15 @@ impl DongleContract {
         ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
     }
 
+    pub fn list_projects_by_category(
+        env: Env,
+        category: String,
+        start_id: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(
