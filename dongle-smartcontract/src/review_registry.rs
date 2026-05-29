@@ -3,6 +3,7 @@
 use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
+use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
@@ -33,6 +34,11 @@ impl ReviewRegistry {
 
         // Validation phase
         reviewer.require_auth();
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
 
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
@@ -146,6 +152,11 @@ impl ReviewRegistry {
         // Validation phase
         reviewer.require_auth();
 
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
@@ -219,6 +230,11 @@ impl ReviewRegistry {
     ) -> Result<(), ContractError> {
         // Validation phase
         reviewer.require_auth();
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let existing: Review = env

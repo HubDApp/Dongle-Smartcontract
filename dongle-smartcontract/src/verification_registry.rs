@@ -1,6 +1,7 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
 use crate::auth::{require_admin_auth, require_owner_auth};
+use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
@@ -10,6 +11,7 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::{VerificationRecord, VerificationStatus};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 /// Centralized verification state machine
@@ -310,6 +312,9 @@ impl VerificationRegistry {
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
         if evidence_cid.is_empty() {
+            return Err(ContractError::InvalidProjectData);
+        }
+        if !Utils::is_valid_ipfs_cid(evidence_cid) || evidence_cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidProjectData);
         }
         Ok(())

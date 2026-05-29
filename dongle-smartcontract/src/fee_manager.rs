@@ -16,15 +16,16 @@ impl FeeManager {
         env: &Env,
         admin: Address,
         token: Option<Address>,
-        amount: u128,
+        verification_fee: u128,
+        registration_fee: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
         let config = FeeConfig {
             token,
-            verification_fee: amount,
-            registration_fee: 0,
+            verification_fee,
+            registration_fee,
         };
         env.storage()
             .persistent()
@@ -33,7 +34,7 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
 
-        publish_fee_set_event(env, amount, 0);
+        publish_fee_set_event(env, verification_fee, registration_fee);
         Ok(())
     }
 
@@ -136,5 +137,59 @@ impl FeeManager {
             "registration" => Ok(config.registration_fee),
             _ => Err(ContractError::InvalidProjectData),
         }
+    }
+
+    /// Pay the registration fee for a project.
+    /// Only the project owner may pay; third-party payments are rejected.
+    pub fn pay_registration_fee(
+        env: &Env,
+        payer: Address,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        require_self_auth(&payer);
+
+        let config = Self::get_fee_config(env)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
+
+        if config.token != token {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let amount = config.registration_fee;
+        if amount > 0 {
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
+            let client = soroban_sdk::token::Client::new(env, &token_address);
+            client.transfer(&payer, &treasury, &(amount as i128));
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
+
+        publish_fee_paid_event(env, 0, payer, amount);
+        Ok(())
+    }
+
+    /// Check if the registration fee has been paid for an address
+    pub fn is_registration_fee_paid(env: &Env, address: &Address) -> bool {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::RegistrationFeePaidForAddress(address.clone()))
+            .unwrap_or(false)
+    }
+
+    /// Consume the registration fee payment (used during project registration)
+    pub fn consume_registration_fee_payment(env: &Env, address: &Address) -> Result<(), ContractError> {
+        if !Self::is_registration_fee_paid(env, address) {
+            return Err(ContractError::InsufficientFee);
+        }
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
+        Ok(())
     }
 }
