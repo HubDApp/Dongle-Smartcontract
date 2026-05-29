@@ -63,11 +63,11 @@ pub enum ContractError {
     /// Project website too long
     ProjectWebsiteTooLong = 29,
     /// Project is not in a revocable state (must be Verified)
-    VerificationNotRevocable = 25,
+    VerificationNotRevocable = 30,
     /// No pending ownership transfer found for this project
-    TransferNotFound = 26,
+    TransferNotFound = 31,
     /// Caller is not the designated recipient of the pending transfer
-    NotPendingTransferRecipient = 27,
+    NotPendingTransferRecipient = 32,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

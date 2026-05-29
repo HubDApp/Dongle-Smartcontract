@@ -459,7 +459,7 @@ impl ProjectRegistry {
         let old_owner = project.owner.clone();
 
         // Remove project_id from old owner's list
-        let mut old_owner_projects: Vec<u64> = env
+        let old_owner_projects: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StorageKey::OwnerProjects(old_owner.clone()))

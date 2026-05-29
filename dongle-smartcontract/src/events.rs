@@ -118,6 +118,7 @@ pub fn publish_review_event(
     action: ReviewAction,
     ipfs_cid: Option<String>,
     comment_cid: Option<String>,
+    owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
 ) {
@@ -130,6 +131,7 @@ pub fn publish_review_event(
         created_at,
         updated_at,
         comment_cid,
+        owner_response,
     };
 
     let action_sym = match action {

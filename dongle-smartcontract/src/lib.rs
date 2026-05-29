@@ -177,6 +177,20 @@ impl DongleContract {
         ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
     }
 
+    pub fn respond_to_review(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reviewer: Address,
+        response: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::respond_to_review(&env, project_id, caller, reviewer, response)
+    }
+
+    pub fn get_review_response(env: Env, project_id: u64, reviewer: Address) -> Option<String> {
+        ReviewRegistry::get_review_response(&env, project_id, reviewer)
+    }
+
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {
         ReviewRegistry::get_review(&env, project_id, reviewer)
     }
