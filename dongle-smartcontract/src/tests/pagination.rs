@@ -400,3 +400,128 @@ fn test_list_reviews_all_pages_cover_all_reviews() {
         "paginating through all pages should yield all 5 reviews"
     );
 }
+
+// ── list_projects_by_category pagination ────────────────────────────────────────
+
+#[test]
+fn test_list_projects_by_category_empty() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+
+    let result = client.list_projects_by_category(&String::from_str(&env, "NonExistent"), &0, &10);
+    assert_eq!(result.len(), 0);
+}
+
+#[test]
+fn test_list_projects_by_category_basic() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+    let owner = Address::generate(&env);
+
+    let params1 = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "ProjCat1"),
+        description: String::from_str(&env, "Description"),
+        category: String::from_str(&env, "Web3"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    client.mock_all_auths().register_project(&params1);
+
+    let params2 = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "ProjCat2"),
+        description: String::from_str(&env, "Description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    client.mock_all_auths().register_project(&params2);
+
+    let result_web3 = client.list_projects_by_category(&String::from_str(&env, "Web3"), &0, &10);
+    assert_eq!(result_web3.len(), 1);
+    assert_eq!(result_web3.get(0).unwrap().name, String::from_str(&env, "ProjCat1"));
+
+    let result_defi = client.list_projects_by_category(&String::from_str(&env, "DeFi"), &0, &10);
+    assert_eq!(result_defi.len(), 1);
+    assert_eq!(result_defi.get(0).unwrap().name, String::from_str(&env, "ProjCat2"));
+}
+
+#[test]
+fn test_list_projects_by_category_update_moves_project() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+    let owner = Address::generate(&env);
+
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "ProjMove"),
+        description: String::from_str(&env, "Description"),
+        category: String::from_str(&env, "OldCat"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    let project_id = client.mock_all_auths().register_project(&params);
+
+    // Verify it's in OldCat
+    let result_old = client.list_projects_by_category(&String::from_str(&env, "OldCat"), &0, &10);
+    assert_eq!(result_old.len(), 1);
+
+    // Update to NewCat
+    use crate::types::ProjectUpdateParams;
+    let update_params = ProjectUpdateParams {
+        project_id,
+        caller: owner.clone(),
+        name: None,
+        description: None,
+        category: Some(String::from_str(&env, "NewCat")),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    client.mock_all_auths().update_project(&update_params);
+
+    // Verify it's removed from OldCat and added to NewCat
+    let result_old_after = client.list_projects_by_category(&String::from_str(&env, "OldCat"), &0, &10);
+    assert_eq!(result_old_after.len(), 0);
+
+    let result_new = client.list_projects_by_category(&String::from_str(&env, "NewCat"), &0, &10);
+    assert_eq!(result_new.len(), 1);
+    assert_eq!(result_new.get(0).unwrap().id, project_id);
+}
+
+#[test]
+fn test_list_projects_by_category_pagination() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+    let owner = Address::generate(&env);
+
+    for i in 0..5 {
+        let name_str = match i {
+            0 => "ProjMulti0",
+            1 => "ProjMulti1",
+            2 => "ProjMulti2",
+            3 => "ProjMulti3",
+            _ => "ProjMulti4",
+        };
+        let params = ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(&env, name_str),
+            description: String::from_str(&env, "Description"),
+            category: String::from_str(&env, "MultiCat"),
+            website: None,
+            logo_cid: None,
+            metadata_cid: None,
+        };
+        client.mock_all_auths().register_project(&params);
+    }
+
+    let page1 = client.list_projects_by_category(&String::from_str(&env, "MultiCat"), &0, &2);
+    assert_eq!(page1.len(), 2);
+
+    let page2 = client.list_projects_by_category(&String::from_str(&env, "MultiCat"), &2, &5);
+    assert_eq!(page2.len(), 3);
+}

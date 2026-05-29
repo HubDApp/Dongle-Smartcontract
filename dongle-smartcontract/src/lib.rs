@@ -137,6 +137,15 @@ impl DongleContract {
         ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
     }
 
+    pub fn list_projects_by_category(
+        env: Env,
+        category: String,
+        start_id: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(
@@ -175,6 +184,20 @@ impl DongleContract {
         review_cid: String,
     ) -> Result<(), ContractError> {
         ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+    }
+
+    pub fn respond_to_review(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reviewer: Address,
+        response: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::respond_to_review(&env, project_id, caller, reviewer, response)
+    }
+
+    pub fn get_review_response(env: Env, project_id: u64, reviewer: Address) -> Option<String> {
+        ReviewRegistry::get_review_response(&env, project_id, reviewer)
     }
 
     pub fn get_review(env: Env, project_id: u64, reviewer: Address) -> Option<Review> {

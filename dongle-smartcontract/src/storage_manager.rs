@@ -104,6 +104,21 @@ impl StorageManager {
         }
     }
 
+    /// Extend TTL for category projects index
+    pub fn extend_category_projects_ttl(env: &Env, category: &String) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::CategoryProjects(category.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::CategoryProjects(category.clone()),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+    }
+
     /// Extend TTL for project stats
     pub fn extend_project_stats_ttl(env: &Env, project_id: u64) {
         if env
