@@ -4,6 +4,7 @@ use crate::events::{
     publish_ownership_transferred_event, publish_project_registered_event,
     publish_project_updated_event,
 };
+use crate::fee_manager::FeeManager;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
@@ -24,8 +25,12 @@ impl ProjectRegistry {
         params.owner.require_auth();
 
         // Validate inputs - return typed errors instead of panicking
-        if params.name.is_empty() {
-            return Err(ContractError::InvalidProjectData);
+        Utils::validate_project_name(&params.name)?;
+
+        // Check registration fee payment
+        let config = FeeManager::get_fee_config(env)?;
+        if config.registration_fee > 0 {
+            FeeManager::consume_registration_fee_payment(env, &params.owner)?;
         }
 
         // Validate description with comprehensive checks

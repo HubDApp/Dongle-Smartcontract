@@ -28,6 +28,8 @@ pub enum StorageKey {
     FeeConfig,
     /// Whether verification fee has been paid for project_id.
     FeePaidForProject(u64),
+    /// Whether registration fee has been paid for address.
+    RegistrationFeePaidForAddress(Address),
     /// Admin address mapping (for role-based access control).
     Admin(soroban_sdk::Address),
     /// List of all admin addresses.

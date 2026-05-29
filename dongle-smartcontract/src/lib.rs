@@ -261,10 +261,11 @@ impl DongleContract {
         env: Env,
         admin: Address,
         token: Option<Address>,
-        amount: u128,
+        verification_fee: u128,
+        registration_fee: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
-        FeeManager::set_fee(&env, admin, token, amount, treasury)
+        FeeManager::set_fee(&env, admin, token, verification_fee, registration_fee, treasury)
     }
 
     pub fn pay_fee(
