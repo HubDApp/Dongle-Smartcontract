@@ -9,7 +9,7 @@ use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
 /// Maximum number of items returned per paginated list call.
 pub const MAX_PAGE_LIMIT: u32 = 100;
@@ -110,11 +110,23 @@ impl ProjectRegistry {
             &owner_projects,
         );
 
+        let mut category_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CategoryProjects(project.category.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        category_projects.push_back(count);
+        env.storage().persistent().set(
+            &StorageKey::CategoryProjects(project.category.clone()),
+            &category_projects,
+        );
+
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
+        StorageManager::extend_category_projects_ttl(env, &project.category);
 
         publish_project_registered_event(
             env,
@@ -142,6 +154,9 @@ impl ProjectRegistry {
         // Store old name for cleanup if name is being updated
         let old_name = project.name.clone();
         let mut name_updated = false;
+
+        let old_category = project.category.clone();
+        let mut category_updated = false;
 
         // Validate and update fields
         if let Some(value) = params.name {
@@ -174,7 +189,10 @@ impl ProjectRegistry {
         }
         if let Some(value) = params.category {
             Utils::validate_category_field(&value)?;
-            project.category = value;
+            if value != old_category {
+                project.category = value;
+                category_updated = true;
+            }
         }
         if let Some(value) = params.website {
             if let Some(ref url) = value {
@@ -214,9 +232,46 @@ impl ProjectRegistry {
             );
         }
 
+        // If category was updated, update the CategoryProjects mappings
+        if category_updated {
+            // Remove from old category
+            let old_category_projects: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::CategoryProjects(old_category.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            let mut updated_old: Vec<u64> = Vec::new(env);
+            for i in 0..old_category_projects.len() {
+                if let Some(id) = old_category_projects.get(i) {
+                    if id != params.project_id {
+                        updated_old.push_back(id);
+                    }
+                }
+            }
+            env.storage().persistent().set(
+                &StorageKey::CategoryProjects(old_category.clone()),
+                &updated_old,
+            );
+
+            // Add to new category
+            let mut new_category_projects: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::CategoryProjects(project.category.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            new_category_projects.push_back(params.project_id);
+            env.storage().persistent().set(
+                &StorageKey::CategoryProjects(project.category.clone()),
+                &new_category_projects,
+            );
+            
+            StorageManager::extend_category_projects_ttl(env, &old_category);
+        }
+
         // Extend TTL for updated project data
         StorageManager::extend_project_ttl(env, params.project_id);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Only extend stats TTL if stats exist (they may not exist for projects without reviews)
         if env
@@ -390,6 +445,42 @@ impl ProjectRegistry {
         projects
     }
 
+    pub fn list_projects_by_category(
+        env: &Env,
+        category: String,
+        start_id: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let category_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CategoryProjects(category))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut projects = Vec::new(env);
+        let len = category_projects.len();
+        if start_id >= len {
+            return projects;
+        }
+
+        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+
+        for i in start_id..end {
+            if let Some(id) = category_projects.get(i) {
+                if let Some(project) = Self::get_project(env, id) {
+                    projects.push_back(project);
+                }
+            }
+        }
+        projects
+    }
+
     /// Step 1: Current owner proposes a transfer to `new_owner`.
     /// Overwrites any existing pending transfer for this project.
     pub fn initiate_transfer(
@@ -464,7 +555,7 @@ impl ProjectRegistry {
         let old_owner = project.owner.clone();
 
         // Remove project_id from old owner's list
-        let mut old_owner_projects: Vec<u64> = env
+        let old_owner_projects: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StorageKey::OwnerProjects(old_owner.clone()))

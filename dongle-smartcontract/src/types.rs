@@ -41,6 +41,7 @@ pub struct Review {
     pub rating: u32,
     pub ipfs_cid: Option<String>,
     pub comment_cid: Option<String>,
+    pub owner_response: Option<String>,
 
     /// Unix timestamp (seconds) when the review was first submitted.
     pub created_at: u64,
@@ -66,6 +67,7 @@ pub struct ReviewEventData {
     pub timestamp: u64,
     pub ipfs_cid: Option<String>,
     pub comment_cid: Option<String>,
+    pub owner_response: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
 }

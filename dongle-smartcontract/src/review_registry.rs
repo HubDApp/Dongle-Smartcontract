@@ -7,7 +7,7 @@ use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
-use crate::types::{ProjectStats, Review, ReviewAction};
+use crate::types::{Project, ProjectStats, Review, ReviewAction};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -57,6 +57,7 @@ impl ReviewRegistry {
             rating,
             ipfs_cid: comment_cid.clone(),
             comment_cid: comment_cid.clone(),
+            owner_response: None,
             created_at: now,
             updated_at: now,
         };
@@ -121,6 +122,7 @@ impl ReviewRegistry {
             ReviewAction::Submitted,
             comment_cid.clone(),
             comment_cid,
+            None,
             now,
             now,
         );
@@ -217,6 +219,7 @@ impl ReviewRegistry {
             ReviewAction::Updated,
             comment_cid.clone(),
             comment_cid,
+            review.owner_response.clone(),
             review.created_at,
             now,
         );
@@ -323,6 +326,7 @@ impl ReviewRegistry {
             ReviewAction::Deleted,
             None,
             None,
+            existing.owner_response.clone(),
             existing.created_at,
             now,
         );
@@ -340,6 +344,58 @@ impl ReviewRegistry {
             }
         }
         reviews
+    }
+
+    pub fn respond_to_review(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        reviewer: Address,
+        response: String,
+    ) -> Result<(), ContractError> {
+        // Validation phase
+        caller.require_auth();
+
+        let project: Project = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Project(project_id))
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        // Mutation phase
+        let now = env.ledger().timestamp();
+        review.owner_response = Some(response);
+        review.updated_at = now;
+
+        env.storage().persistent().set(&review_key, &review);
+
+        publish_review_event(
+            env,
+            project_id,
+            reviewer,
+            ReviewAction::Updated,
+            review.ipfs_cid.clone(),
+            review.comment_cid.clone(),
+            review.owner_response.clone(),
+            review.created_at,
+            now,
+        );
+        Ok(())
+    }
+
+    pub fn get_review_response(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
+        Self::get_review(env, project_id, reviewer).and_then(|review| review.owner_response)
     }
 
     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
