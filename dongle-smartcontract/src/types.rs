@@ -5,6 +5,7 @@ use soroban_sdk::{contracttype, Address, String};
 pub struct ProjectRegistrationParams {
     pub owner: Address,
     pub name: String,
+    pub slug: String,
     pub description: String,
     pub category: String,
     pub website: Option<String>,
@@ -18,6 +19,7 @@ pub struct ProjectUpdateParams {
     pub project_id: u64,
     pub caller: Address,
     pub name: Option<String>,
+    pub slug: Option<String>,
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
@@ -85,6 +87,7 @@ pub struct Project {
     pub id: u64,
     pub owner: Address,
     pub name: String,
+    pub slug: String,
     pub description: String,
     pub category: String,
     pub website: Option<String>,

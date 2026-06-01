@@ -48,9 +48,16 @@ pub fn setup_with_fees(
 /// Returns the project ID.
 pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
+    
+    // Generate slug from name: lowercase, replace spaces with hyphens
+    extern crate alloc;
+    use alloc::string::ToString;
+    let slug_str = name.to_lowercase().replace(" ", "-");
+    
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &slug_str),
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
