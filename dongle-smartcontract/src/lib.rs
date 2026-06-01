@@ -278,6 +278,36 @@ impl DongleContract {
         VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
+    /// Returns true if the verification is Verified and has not expired.
+    pub fn is_verification_active(env: Env, project_id: u64) -> bool {
+        VerificationRegistry::is_verification_active(&env, project_id)
+    }
+
+    /// Admin: configure how long (seconds) a verification stays valid after approval.
+    /// Pass `None` to disable expiry entirely.
+    pub fn set_verification_duration(
+        env: Env,
+        admin: Address,
+        duration_secs: Option<u64>,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_verification_duration(&env, admin, duration_secs)
+    }
+
+    /// Owner: renew an existing verified project, extending its expiry from now.
+    /// Requires a new fee payment before calling.
+    pub fn renew_verification(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::renew_verification(&env, project_id, caller)
+    }
+
+    /// Returns the currently configured verification duration in seconds (None = no expiry).
+    pub fn get_verification_duration(env: Env) -> Option<u64> {
+        VerificationRegistry::get_verification_duration(&env)
+    }
+
     // --- Fee Manager ---
 
     pub fn set_fee(

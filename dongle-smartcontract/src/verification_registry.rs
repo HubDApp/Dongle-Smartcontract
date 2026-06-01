@@ -1,16 +1,17 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
 use crate::auth::{require_admin_auth, require_owner_auth};
-use crate::constants::MAX_CID_LEN;
+use crate::constants::{DEFAULT_VERIFICATION_DURATION_SECS, MAX_CID_LEN};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
     publish_verification_requested_event, publish_verification_revoked_event,
+    publish_verification_renewed_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::{VerificationRecord, VerificationStatus};
+use crate::types::{VerificationConfig, VerificationRecord, VerificationStatus};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -185,6 +186,7 @@ impl VerificationRegistry {
             timestamp: now,
             fee_amount: config.verification_fee,
             revoke_reason: None,
+            expires_at: None,
         };
 
         env.storage()
@@ -224,8 +226,13 @@ impl VerificationRegistry {
 
         let now = env.ledger().timestamp();
 
+        // Compute expiry from configured duration (default 365 days)
+        let duration = Self::get_verification_duration(env);
+        let expires_at = duration.map(|d| now + d);
+
         // Update record
         record.status = VerificationStatus::Verified;
+        record.expires_at = expires_at;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
@@ -308,6 +315,80 @@ impl VerificationRegistry {
             }
         }
         out
+    }
+
+    /// Returns true if the verification record exists, is Verified, and has not expired.
+    pub fn is_verification_active(env: &Env, project_id: u64) -> bool {
+        let record: VerificationRecord = match env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id))
+        {
+            Some(r) => r,
+            None => return false,
+        };
+        if record.status != VerificationStatus::Verified {
+            return false;
+        }
+        match record.expires_at {
+            None => true,
+            Some(exp) => env.ledger().timestamp() < exp,
+        }
+    }
+
+    /// Admin: set the verification duration (seconds). Pass `None` to disable expiry.
+    pub fn set_verification_duration(
+        env: &Env,
+        admin: Address,
+        duration_secs: Option<u64>,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        let config = VerificationConfig { duration_secs };
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationConfig, &config);
+        Ok(())
+    }
+
+    /// Owner: renew an active (or expired) verification, extending `expires_at` from now.
+    /// The project must currently be Verified (status). Requires a new fee payment.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        require_owner_auth(&caller, &project.owner)?;
+
+        let mut record = Self::get_verification(env, project_id)?;
+        if record.status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        FeeManager::consume_fee_payment(env, project_id)?;
+
+        let now = env.ledger().timestamp();
+        let duration = Self::get_verification_duration(env);
+        record.expires_at = duration.map(|d| now + d);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        publish_verification_renewed_event(env, project_id, caller, record.expires_at);
+        Ok(())
+    }
+
+    /// Returns the configured duration in seconds, falling back to the default.
+    pub fn get_verification_duration(env: &Env) -> Option<u64> {
+        let config: Option<VerificationConfig> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::VerificationConfig);
+        match config {
+            Some(c) => c.duration_secs,
+            None => Some(DEFAULT_VERIFICATION_DURATION_SECS),
+        }
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
