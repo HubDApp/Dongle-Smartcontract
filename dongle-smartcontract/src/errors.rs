@@ -86,6 +86,14 @@ pub enum ContractError {
     ReviewAlreadyHidden = 40,
     /// Review is not hidden
     ReviewNotHidden = 41,
+    /// Verification renewal not found
+    VerificationRenewalNotFound = 42,
+    /// Verification renewal already pending
+    VerificationRenewalAlreadyPending = 43,
+    /// Cannot renew unverified project
+    CannotRenewUnverified = 44,
+    /// Verification has not expired yet
+    VerificationNotExpired = 45,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

@@ -131,6 +131,23 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp when verification expires (0 = no expiry)
+    pub expires_at: u64,
+    /// Unix timestamp when verification was last renewed
+    pub last_renewed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewalRecord {
+    pub project_id: u64,
+    pub requester: Address,
+    pub status: VerificationStatus,
+    pub evidence_cid: String,
+    pub timestamp: u64,
+    pub fee_amount: u128,
+    /// Unix timestamp when the renewed verification expires
+    pub expires_at: u64,
 }
 
 /// Fee configuration for contract operations

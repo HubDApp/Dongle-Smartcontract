@@ -433,3 +433,84 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, owner: Addr
         event_data,
     );
 }
+
+/// Emitted when a verification renewal is requested.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewalRequestedEvent {
+    pub project_id: u64,
+    pub requester: Address,
+    pub evidence_cid: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a verification renewal is approved.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewalApprovedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub expires_at: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when a verification renewal is rejected.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewalRejectedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_verification_renewal_requested_event(
+    env: &Env,
+    project_id: u64,
+    requester: Address,
+    evidence_cid: String,
+) {
+    let event_data = VerificationRenewalRequestedEvent {
+        project_id,
+        requester,
+        evidence_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEW_REQ"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_renewal_approved_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    expires_at: u64,
+) {
+    let event_data = VerificationRenewalApprovedEvent {
+        project_id,
+        admin,
+        expires_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEW_APP"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_renewal_rejected_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+) {
+    let event_data = VerificationRenewalRejectedEvent {
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEW_REJ"), project_id),
+        event_data,
+    );
+}
