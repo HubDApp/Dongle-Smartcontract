@@ -185,4 +185,51 @@ impl Utils {
 
         Ok(())
     }
+
+    /// Validates project slug with comprehensive checks:
+    /// - Not empty or whitespace-only
+    /// - Within maximum length constraint (MAX_SLUG_LEN)
+    /// - Lowercase alphanumeric, hyphen, and underscore only
+    /// - Must start with alphanumeric
+    /// - Must end with alphanumeric
+    pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        let slug_str = slug.to_string();
+
+        // 1. Validate non-empty and not only whitespace
+        if slug_str.trim().is_empty() {
+            return Err(ContractError::InvalidProjectSlug);
+        }
+
+        // 2. Validate max length
+        let max_len = crate::constants::MAX_SLUG_LEN;
+        if slug_str.len() > max_len {
+            return Err(ContractError::ProjectSlugTooLong);
+        }
+
+        // 3. Validate format: lowercase alphanumeric, hyphen, underscore
+        for c in slug_str.chars() {
+            if !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '-' && c != '_' {
+                return Err(ContractError::InvalidProjectSlugFormat);
+            }
+        }
+
+        // 4. Must start with alphanumeric
+        if let Some(first_char) = slug_str.chars().next() {
+            if !first_char.is_ascii_lowercase() && !first_char.is_ascii_digit() {
+                return Err(ContractError::InvalidProjectSlugFormat);
+            }
+        }
+
+        // 5. Must end with alphanumeric
+        if let Some(last_char) = slug_str.chars().last() {
+            if !last_char.is_ascii_lowercase() && !last_char.is_ascii_digit() {
+                return Err(ContractError::InvalidProjectSlugFormat);
+            }
+        }
+
+        Ok(())
+    }
 }

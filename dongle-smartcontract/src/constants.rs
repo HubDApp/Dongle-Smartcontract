@@ -12,6 +12,9 @@ pub const MIN_STRING_LEN: usize = 1;
 /// Maximum length for project name.
 pub const MAX_NAME_LEN: usize = 50;
 
+/// Maximum length for project slug.
+pub const MAX_SLUG_LEN: usize = 64;
+
 /// Maximum length for project description.
 #[allow(dead_code)]
 pub const MAX_DESCRIPTION_LEN: usize = 2048;
