@@ -72,6 +72,20 @@ pub enum ContractError {
     ProjectAlreadyArchived = 33,
     /// Project is not archived
     ProjectNotArchived = 34,
+    /// Invalid project slug - empty or whitespace only
+    InvalidProjectSlug = 35,
+    /// Project slug too long
+    ProjectSlugTooLong = 36,
+    /// Project slug format invalid
+    InvalidProjectSlugFormat = 37,
+    /// Project slug already exists
+    ProjectSlugAlreadyExists = 38,
+    /// Review already reported by this user
+    ReviewAlreadyReported = 39,
+    /// Review is already hidden
+    ReviewAlreadyHidden = 40,
+    /// Review is not hidden
+    ReviewNotHidden = 41,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

@@ -48,6 +48,13 @@ pub struct Review {
 
     /// Unix timestamp (seconds) of the most recent modification to this review.
     pub updated_at: u64,
+
+    /// Whether the review is hidden by moderation.
+    pub hidden: bool,
+
+    /// Number of times this review has been reported.
+    pub report_count: u32,
+}
 }
 
 #[contracttype]
