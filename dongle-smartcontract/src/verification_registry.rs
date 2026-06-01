@@ -185,6 +185,8 @@ impl VerificationRegistry {
             timestamp: now,
             fee_amount: config.verification_fee,
             revoke_reason: None,
+            expires_at: 0,
+            last_renewed_at: 0,
         };
 
         env.storage()
