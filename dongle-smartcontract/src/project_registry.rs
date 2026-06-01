@@ -1,7 +1,8 @@
 use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_ownership_transferred_event, publish_project_registered_event,
+    publish_ownership_transferred_event, publish_project_archived_event,
+    publish_project_reactivated_event, publish_project_registered_event,
     publish_project_updated_event,
 };
 use crate::fee_manager::FeeManager;
@@ -84,6 +85,7 @@ impl ProjectRegistry {
             verification_status: VerificationStatus::Unverified,
             created_at: now,
             updated_at: now,
+            archived: false,
         };
 
         // Get current owner projects
@@ -322,7 +324,9 @@ impl ProjectRegistry {
         for i in 0..len {
             if let Some(project_id) = ids.get(i) {
                 if let Some(project) = Self::get_project(env, project_id) {
-                    projects.push_back(project);
+                    if !project.archived {
+                        projects.push_back(project);
+                    }
                 }
             }
         }
@@ -397,7 +401,7 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
-                if project.verification_status == status {
+                if project.verification_status == status && !project.archived {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -437,9 +441,16 @@ impl ProjectRegistry {
             count.saturating_add(1),
         );
 
+        let mut collected: u32 = 0;
         for id in first..end {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(project) = Self::get_project(env, id) {
-                projects.push_back(project);
+                if !project.archived {
+                    projects.push_back(project);
+                    collected += 1;
+                }
             }
         }
         projects
@@ -471,10 +482,17 @@ impl ProjectRegistry {
 
         let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
 
+        let mut collected: u32 = 0;
         for i in start_id..end {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(id) = category_projects.get(i) {
                 if let Some(project) = Self::get_project(env, id) {
-                    projects.push_back(project);
+                    if !project.archived {
+                        projects.push_back(project);
+                        collected += 1;
+                    }
                 }
             }
         }
@@ -601,6 +619,69 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
         publish_ownership_transferred_event(env, project_id, old_owner, pending_new_owner);
+        Ok(())
+    }
+
+    /// Archive a project. Only the project owner can archive their project.
+    /// Archived projects no longer appear in listing APIs.
+    pub fn archive_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if project.archived {
+            return Err(ContractError::ProjectAlreadyArchived);
+        }
+
+        project.archived = true;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_archived_event(env, project_id, caller);
+        Ok(())
+    }
+
+    /// Reactivate an archived project. Only the project owner can reactivate their project.
+    /// Reactivated projects appear again in listing APIs.
+    /// Updates updated_at timestamp.
+    pub fn reactivate_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if !project.archived {
+            return Err(ContractError::ProjectNotArchived);
+        }
+
+        project.archived = false;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_reactivated_event(env, project_id, caller);
         Ok(())
     }
 }

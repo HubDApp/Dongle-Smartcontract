@@ -146,6 +146,22 @@ impl DongleContract {
         ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
     }
 
+    pub fn archive_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::archive_project(&env, project_id, caller)
+    }
+
+    pub fn reactivate_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(

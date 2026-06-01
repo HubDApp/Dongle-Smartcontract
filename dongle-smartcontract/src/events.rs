@@ -73,6 +73,24 @@ pub struct ProjectOwnershipTransferredEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a project is archived.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectArchivedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project is reactivated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReactivatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 /// Emitted when an admin is added.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -311,6 +329,38 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     };
     env.events().publish(
         (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
+        event_data,
+    );
+}
+
+pub fn publish_project_archived_event(env: &Env, project_id: u64, owner: Address) {
+    let event_data = ProjectArchivedEvent {
+        project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("ARCHIVED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_reactivated_event(env: &Env, project_id: u64, owner: Address) {
+    let event_data = ProjectReactivatedEvent {
+        project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REACTIVATED"),
+            project_id,
+        ),
         event_data,
     );
 }

@@ -86,6 +86,7 @@ pub struct Project {
     pub verification_status: VerificationStatus,
     pub created_at: u64,
     pub updated_at: u64,
+    pub archived: bool,
 }
 
 #[contracttype]
