@@ -8,6 +8,7 @@ pub mod events;
 mod fee_manager;
 mod project_registry;
 pub mod rating_calculator;
+mod report_registry;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
@@ -22,10 +23,11 @@ use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
+use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    FeeConfig, Project, ProjectRegistrationParams, ProjectStats, ProjectUpdateParams, Review,
+    FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams, Review,
     VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -338,5 +340,56 @@ impl DongleContract {
     pub fn extend_verification_ttl(env: Env, project_id: u64) {
         StorageManager::extend_verification_ttl(&env, project_id);
         StorageManager::extend_fee_paid_ttl(&env, project_id);
+    }
+
+    // --- New Features ---
+
+    /// Set minimum project age before verification (admin only) - Issue #130
+    pub fn set_min_project_age(
+        env: Env,
+        admin: Address,
+        min_age_seconds: u64,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_min_project_age(&env, admin, min_age_seconds)
+    }
+
+    /// Get minimum project age configuration - Issue #130
+    pub fn get_min_project_age(env: Env) -> u64 {
+        VerificationRegistry::get_min_project_age(&env)
+    }
+
+    /// Report a project for spam, scams, broken links, or abusive metadata - Issue #127
+    pub fn report_project(
+        env: Env,
+        project_id: u64,
+        reporter: Address,
+        reason_cid: String,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
+    }
+
+    /// Get all reports for a project - Issue #127
+    pub fn get_project_reports(env: Env, project_id: u64) -> Vec<ProjectReport> {
+        ReportRegistry::get_project_reports(&env, project_id)
+    }
+
+    /// Get report count for a project - Issue #127
+    pub fn get_project_report_count(env: Env, project_id: u64) -> u32 {
+        ReportRegistry::get_project_report_count(&env, project_id)
+    }
+
+    /// Check if a user has already reported a project - Issue #127
+    pub fn has_user_reported(env: Env, project_id: u64, reporter: Address) -> bool {
+        ReportRegistry::has_user_reported(&env, project_id, &reporter)
+    }
+
+    /// List projects by tag - Issue #125
+    pub fn list_projects_by_tag(
+        env: Env,
+        tag: String,
+        start_id: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
     }
 }

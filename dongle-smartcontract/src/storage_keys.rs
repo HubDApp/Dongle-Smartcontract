@@ -34,6 +34,18 @@ pub enum StorageKey {
     Admin(soroban_sdk::Address),
     /// List of all admin addresses.
     AdminList,
+    /// Minimum project age configuration for verification.
+    MinProjectAge,
+    /// Project tags by project ID.
+    ProjectTags(u64),
+    /// Project social links by project ID.
+    ProjectSocialLinks(u64),
+    /// Project reports by project ID.
+    ProjectReports(u64),
+    /// Report count for a project.
+    ProjectReportCount(u64),
+    /// User report tracking (project_id, reporter).
+    UserReport(u64, Address),
     /// List of project IDs reviewed by a user.
     UserReviews(Address),
     /// Treasury address.

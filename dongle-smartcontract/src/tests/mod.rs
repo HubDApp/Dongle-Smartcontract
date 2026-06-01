@@ -12,6 +12,7 @@ mod verification;
 
 // New test modules
 mod authorization;
+mod basic_new_features;
 mod events;
 mod pagination;
 

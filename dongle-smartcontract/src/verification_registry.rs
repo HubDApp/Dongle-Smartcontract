@@ -157,24 +157,31 @@ impl VerificationRegistry {
 
         require_owner_auth(&requester, &project.owner)?;
 
-        // 2. Check if project can request verification using state machine
+        // 2. Check minimum project age
+        let min_age = Self::get_min_project_age(env);
+        let current_time = env.ledger().timestamp();
+        if current_time < project.created_at + min_age {
+            return Err(ContractError::ProjectTooYoung);
+        }
+
+        // 3. Check if project can request verification using state machine
         if !VerificationStateMachine::can_request_verification(project.verification_status) {
             return Err(ContractError::InvalidStatusTransition);
         }
 
-        // 3. Validate state transition using centralized state machine
+        // 4. Validate state transition using centralized state machine
         VerificationStateMachine::validate_transition(
             project.verification_status,
             VerificationStatus::Pending,
         )?;
 
-        // 4. Consume fee payment
+        // 5. Consume fee payment
         FeeManager::consume_fee_payment(env, project_id)?;
 
-        // 5. Validate evidence
+        // 6. Validate evidence
         Self::validate_evidence_cid(&evidence_cid)?;
 
-        // 6. Create record
+        // 7. Create record
         let config = FeeManager::get_fee_config(env)?;
         let now = env.ledger().timestamp();
         let record = VerificationRecord {
@@ -191,7 +198,7 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
 
-        // 7. Update project status to Pending
+        // 8. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
         project.updated_at = now;
         env.storage()
@@ -359,6 +366,26 @@ impl VerificationRegistry {
             .set(&StorageKey::Project(project_id), &project);
 
         publish_verification_revoked_event(env, project_id, admin, reason);
+        Ok(())
+    }
+
+    /// Get minimum project age configuration
+    pub fn get_min_project_age(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::MinProjectAge)
+            .unwrap_or(crate::constants::MIN_PROJECT_AGE_SECONDS)
+    }
+
+    /// Set minimum project age (admin only)
+    pub fn set_min_project_age(env: &Env, admin: Address, min_age_seconds: u64) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        
+        env.storage()
+            .persistent()
+            .set(&StorageKey::MinProjectAge, &min_age_seconds);
+            
+        crate::events::publish_min_project_age_set_event(env, min_age_seconds, admin);
         Ok(())
     }
 }
