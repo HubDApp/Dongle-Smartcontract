@@ -166,9 +166,10 @@ impl FeeManager {
             client.transfer(&payer, &treasury, &(amount as i128));
         }
 
-        env.storage()
-            .persistent()
-            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
+        env.storage().persistent().set(
+            &StorageKey::RegistrationFeePaidForAddress(payer.clone()),
+            &true,
+        );
 
         publish_fee_paid_event(env, 0, payer, amount);
         Ok(())
@@ -183,7 +184,10 @@ impl FeeManager {
     }
 
     /// Consume the registration fee payment (used during project registration)
-    pub fn consume_registration_fee_payment(env: &Env, address: &Address) -> Result<(), ContractError> {
+    pub fn consume_registration_fee_payment(
+        env: &Env,
+        address: &Address,
+    ) -> Result<(), ContractError> {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }

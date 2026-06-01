@@ -264,7 +264,7 @@ impl ProjectRegistry {
                 &StorageKey::CategoryProjects(project.category.clone()),
                 &new_category_projects,
             );
-            
+
             StorageManager::extend_category_projects_ttl(env, &old_category);
         }
 
@@ -489,8 +489,7 @@ impl ProjectRegistry {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {
@@ -510,8 +509,7 @@ impl ProjectRegistry {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {

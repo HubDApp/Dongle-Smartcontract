@@ -170,6 +170,7 @@ impl StorageManager {
 
     /// Extend TTL for verification record
     pub fn extend_verification_ttl(env: &Env, project_id: u64) {
+        // 1. Extend current verification record TTL
         if env
             .storage()
             .persistent()
@@ -180,6 +181,39 @@ impl StorageManager {
                 LEDGER_THRESHOLD_VERIFICATION,
                 LEDGER_BUMP_VERIFICATION,
             );
+        }
+
+        // 2. Extend history vector TTL
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectVerificationHistory(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectVerificationHistory(project_id),
+                LEDGER_THRESHOLD_VERIFICATION,
+                LEDGER_BUMP_VERIFICATION,
+            );
+            // 3. Extend all historical record TTLs
+            if let Some(history) = env.storage().persistent().get::<_, soroban_sdk::Vec<u64>>(
+                &StorageKey::ProjectVerificationHistory(project_id),
+            ) {
+                for i in 0..history.len() {
+                    if let Some(req_id) = history.get(i) {
+                        if env
+                            .storage()
+                            .persistent()
+                            .has(&StorageKey::VerificationRecord(req_id))
+                        {
+                            env.storage().persistent().extend_ttl(
+                                &StorageKey::VerificationRecord(req_id),
+                                LEDGER_THRESHOLD_VERIFICATION,
+                                LEDGER_BUMP_VERIFICATION,
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -72,11 +72,11 @@ impl Utils {
         if len > crate::constants::MAX_WEBSITE_LEN as u32 {
             return Err(ContractError::ProjectWebsiteTooLong);
         }
-        
+
         extern crate alloc;
         use alloc::string::ToString;
         let web_str = website.to_string();
-        
+
         if !web_str.starts_with("http://") && !web_str.starts_with("https://") {
             return Err(ContractError::InvalidProjectWebsite);
         }
@@ -95,14 +95,14 @@ impl Utils {
         if len > crate::constants::MAX_CATEGORY_LEN as u32 {
             return Err(ContractError::ProjectCategoryTooLong);
         }
-        
+
         extern crate alloc;
         use alloc::string::ToString;
         let cat_str = category.to_string();
         if cat_str.trim().is_empty() {
             return Err(ContractError::InvalidProjectCategory);
         }
-        
+
         Ok(())
     }
 

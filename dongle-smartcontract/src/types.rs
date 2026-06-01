@@ -116,6 +116,7 @@ pub enum VerificationStatus {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
+    pub request_id: u64,
     pub project_id: u64,
     pub requester: Address,
     pub status: VerificationStatus,

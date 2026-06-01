@@ -271,11 +271,12 @@ impl DongleContract {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
-    pub fn get_verifications_batch(
-        env: Env,
-        ids: Vec<u64>,
-    ) -> Vec<(u64, VerificationRecord)> {
+    pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_verification_history(&env, project_id)
     }
 
     // --- Fee Manager ---
@@ -288,7 +289,14 @@ impl DongleContract {
         registration_fee: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
-        FeeManager::set_fee(&env, admin, token, verification_fee, registration_fee, treasury)
+        FeeManager::set_fee(
+            &env,
+            admin,
+            token,
+            verification_fee,
+            registration_fee,
+            treasury,
+        )
     }
 
     pub fn pay_fee(

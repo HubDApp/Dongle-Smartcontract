@@ -24,6 +24,12 @@ pub enum StorageKey {
     Review(u64, Address),
     /// Verification record by project_id.
     Verification(u64),
+    /// Next verification request id (counter).
+    NextVerificationRequestId,
+    /// Verification record by request_id.
+    VerificationRecord(u64),
+    /// Project verification history: list of verification request IDs.
+    ProjectVerificationHistory(u64),
     /// Fee configuration (single global).
     FeeConfig,
     /// Whether verification fee has been paid for project_id.

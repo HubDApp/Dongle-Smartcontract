@@ -128,8 +128,14 @@ fn test_register_project_valid_inputs_succeeds() {
         description: String::from_str(&env, "A valid project description"),
         category: String::from_str(&env, "DeFi"),
         website: Some(String::from_str(&env, "https://example.com")),
-        logo_cid: Some(String::from_str(&env, "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G")),
-        metadata_cid: Some(String::from_str(&env, "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G")),
+        logo_cid: Some(String::from_str(
+            &env,
+            "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G",
+        )),
+        metadata_cid: Some(String::from_str(
+            &env,
+            "QmYyQSo1c1Ym7orWxLYvCrM2Wu3m39mY5A2zR3EebnXZ7G",
+        )),
     };
 
     let result = client.try_register_project(&params);
@@ -863,9 +869,9 @@ fn test_register_project_invalid_website_fails() {
     let owner = Address::generate(&env);
 
     let test_cases = [
-        "ftp://example.com",     // invalid scheme
-        "",                      // empty
-        "example.com",           // no scheme
+        "ftp://example.com", // invalid scheme
+        "",                  // empty
+        "example.com",       // no scheme
     ];
 
     for website in test_cases {
@@ -914,11 +920,7 @@ fn test_register_project_invalid_logo_cid_fails() {
     env.mock_all_auths();
     let owner = Address::generate(&env);
 
-    let test_cases = [
-        "invalid_cid",
-        "",
-        "QmShort",
-    ];
+    let test_cases = ["invalid_cid", "", "QmShort"];
 
     for cid in test_cases {
         let params = ProjectRegistrationParams {
@@ -942,11 +944,7 @@ fn test_register_project_invalid_metadata_cid_fails() {
     env.mock_all_auths();
     let owner = Address::generate(&env);
 
-    let test_cases = [
-        "invalid_cid",
-        "",
-        "QmShort",
-    ];
+    let test_cases = ["invalid_cid", "", "QmShort"];
 
     for cid in test_cases {
         let params = ProjectRegistrationParams {

@@ -268,7 +268,11 @@ pub fn publish_verification_revoked_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("REVOKED"), project_id),
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("REVOKED"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -288,7 +292,11 @@ pub fn publish_ownership_transferred_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("TRANSFER"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("TRANSFER"),
+            project_id,
+        ),
         event_data,
     );
 }

@@ -174,10 +174,22 @@ impl VerificationRegistry {
         // 5. Validate evidence
         Self::validate_evidence_cid(&evidence_cid)?;
 
-        // 6. Create record
+        // 6. Generate a unique request ID
+        let mut request_id = env
+            .storage()
+            .persistent()
+            .get::<_, u64>(&StorageKey::NextVerificationRequestId)
+            .unwrap_or(0);
+        request_id += 1;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::NextVerificationRequestId, &request_id);
+
+        // 7. Create record
         let config = FeeManager::get_fee_config(env)?;
         let now = env.ledger().timestamp();
         let record = VerificationRecord {
+            request_id,
             project_id,
             requester: requester.clone(),
             status: VerificationStatus::Pending,
@@ -187,11 +199,29 @@ impl VerificationRegistry {
             revoke_reason: None,
         };
 
+        // 8. Save to historical record
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(request_id), &record);
+
+        // 9. Save to current/latest backward-compatible record
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
 
-        // 7. Update project status to Pending
+        // 10. Append request_id to ProjectVerificationHistory
+        let mut history = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&StorageKey::ProjectVerificationHistory(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        history.push_back(request_id);
+        env.storage().persistent().set(
+            &StorageKey::ProjectVerificationHistory(project_id),
+            &history,
+        );
+
+        // 11. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
         project.updated_at = now;
         env.storage()
@@ -229,6 +259,9 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         // Update project
         project.verification_status = VerificationStatus::Verified;
@@ -268,6 +301,9 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         // Update project
         project.verification_status = VerificationStatus::Rejected;
@@ -310,6 +346,29 @@ impl VerificationRegistry {
         out
     }
 
+    /// Retrieve the complete verification request history for a project.
+    pub fn get_verification_history(env: &Env, project_id: u64) -> Vec<VerificationRecord> {
+        let mut out = Vec::new(env);
+        if let Some(history) = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&StorageKey::ProjectVerificationHistory(project_id))
+        {
+            for i in 0..history.len() {
+                if let Some(req_id) = history.get(i) {
+                    if let Some(record) = env
+                        .storage()
+                        .persistent()
+                        .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(req_id))
+                    {
+                        out.push_back(record);
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
@@ -324,7 +383,7 @@ impl VerificationRegistry {
     pub fn verification_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&StorageKey::Verification(project_id))
+            .has(&StorageKey::ProjectVerificationHistory(project_id))
     }
 
     pub fn revoke_verification(
@@ -351,6 +410,9 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         project.verification_status = VerificationStatus::Unverified;
         project.updated_at = now;
