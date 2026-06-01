@@ -123,6 +123,17 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp (seconds) when the verification expires. None = never expires.
+    pub expires_at: Option<u64>,
+}
+
+/// Admin-configurable verification settings.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationConfig {
+    /// How long (in seconds) a verification stays active after approval.
+    /// None means verifications never expire.
+    pub duration_secs: Option<u64>,
 }
 
 /// Fee configuration for contract operations

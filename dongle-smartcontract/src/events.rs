@@ -63,6 +63,16 @@ pub struct VerificationRevokedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a verification is renewed by the project owner.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub expires_at: Option<u64>,
+    pub timestamp: u64,
+}
+
 /// Emitted when project ownership is transferred.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -269,6 +279,24 @@ pub fn publish_verification_revoked_event(
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REVOKED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_renewed_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    expires_at: Option<u64>,
+) {
+    let event_data = VerificationRenewedEvent {
+        project_id,
+        caller,
+        expires_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEWED"), project_id),
         event_data,
     );
 }
