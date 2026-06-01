@@ -333,6 +333,75 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     );
 }
 
+/// Emitted when a review is reported.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewReportedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub reporter: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a review is hidden by moderation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewHiddenEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a review is restored by moderation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewRestoredEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
+    let event_data = ReviewReportedEvent {
+        project_id,
+        reviewer,
+        reporter,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("REPORTED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewHiddenEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewRestoredEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("RESTORED"), project_id),
+        event_data,
+    );
+}
+
 pub fn publish_project_archived_event(env: &Env, project_id: u64, owner: Address) {
     let event_data = ProjectArchivedEvent {
         project_id,

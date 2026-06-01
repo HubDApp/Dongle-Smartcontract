@@ -244,6 +244,33 @@ impl DongleContract {
         ReviewRegistry::get_stats_batch(&env, ids)
     }
 
+    pub fn report_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        reporter: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::report_review(&env, project_id, reviewer, reporter)
+    }
+
+    pub fn hide_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::hide_review(&env, project_id, reviewer, admin)
+    }
+
+    pub fn restore_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::restore_review(&env, project_id, reviewer, admin)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
