@@ -37,6 +37,11 @@ pub const RATING_MIN: u32 = 1;
 #[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
 
+/// Verification validity period in seconds (365 days).
+/// After this period, verified projects need to renew their verification.
+#[allow(dead_code)]
+pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
+
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
 /// TTL for critical contract data (admin list, fee config, treasury).

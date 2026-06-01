@@ -44,6 +44,12 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
-    /// Project by slug (for URL-friendly lookups).
-    ProjectBySlug(String),
+    /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
+    ReviewReport(u64, Address, Address),
+    /// Verification renewal request by project_id
+    VerificationRenewal(u64),
+    /// Verification renewal history: (project_id, renewal_index) -> VerificationRenewalRecord
+    VerificationRenewalHistory(u64, u32),
+    /// Renewal count for a project (tracks number of renewals)
+    VerificationRenewalCount(u64),
 }

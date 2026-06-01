@@ -80,6 +80,20 @@ pub enum ContractError {
     InvalidProjectSlugFormat = 37,
     /// Project slug already exists
     ProjectSlugAlreadyExists = 38,
+    /// Review already reported by this user
+    ReviewAlreadyReported = 39,
+    /// Review is already hidden
+    ReviewAlreadyHidden = 40,
+    /// Review is not hidden
+    ReviewNotHidden = 41,
+    /// Verification renewal not found
+    VerificationRenewalNotFound = 42,
+    /// Verification renewal already pending
+    VerificationRenewalAlreadyPending = 43,
+    /// Cannot renew unverified project
+    CannotRenewUnverified = 44,
+    /// Verification has not expired yet
+    VerificationNotExpired = 45,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

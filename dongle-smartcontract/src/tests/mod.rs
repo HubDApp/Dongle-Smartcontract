@@ -15,7 +15,8 @@ mod authorization;
 mod events;
 mod pagination;
 mod archive;
-mod slug;
+mod moderation;
+mod renewal;
 
 // Test infrastructure
 pub mod fixtures;
