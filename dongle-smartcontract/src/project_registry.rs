@@ -1,8 +1,8 @@
 use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_ownership_transferred_event, publish_project_registered_event,
-    publish_project_updated_event,
+    publish_ownership_transferred_event, publish_project_archived_event,
+    publish_project_registered_event, publish_project_updated_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::StorageKey;
@@ -82,6 +82,7 @@ impl ProjectRegistry {
             logo_cid: params.logo_cid,
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
+            is_archived: false,
             created_at: now,
             updated_at: now,
         };
@@ -432,14 +433,16 @@ impl ProjectRegistry {
             return projects;
         }
 
-        let end = core::cmp::min(
-            first.saturating_add(effective_limit as u64),
-            count.saturating_add(1),
-        );
-
-        for id in first..end {
+        let mut collected: u32 = 0;
+        for id in first..=count {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(project) = Self::get_project(env, id) {
-                projects.push_back(project);
+                if !project.is_archived {
+                    projects.push_back(project);
+                    collected += 1;
+                }
             }
         }
         projects
@@ -469,12 +472,17 @@ impl ProjectRegistry {
             return projects;
         }
 
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
-
-        for i in start_id..end {
+        let mut collected: u32 = 0;
+        for i in start_id..len {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(id) = category_projects.get(i) {
                 if let Some(project) = Self::get_project(env, id) {
-                    projects.push_back(project);
+                    if !project.is_archived {
+                        projects.push_back(project);
+                        collected += 1;
+                    }
                 }
             }
         }
@@ -601,6 +609,36 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
         publish_ownership_transferred_event(env, project_id, old_owner, pending_new_owner);
+        Ok(())
+    }
+
+    /// Archive a project. The owner can archive their own project; admins can force-archive any project.
+    pub fn archive_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+
+        let is_owner = project.owner == caller;
+        let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
+
+        if !is_owner && !is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        project.is_archived = true;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_archived_event(env, project_id, caller);
         Ok(())
     }
 }
