@@ -14,6 +14,7 @@ mod verification;
 mod authorization;
 mod events;
 mod pagination;
+mod review_settings;
 
 // Test infrastructure
 pub mod fixtures;

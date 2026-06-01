@@ -44,4 +44,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
+    ReviewsEnabled(u64),
 }

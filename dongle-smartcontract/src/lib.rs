@@ -228,6 +228,19 @@ impl DongleContract {
         ReviewRegistry::get_stats_batch(&env, ids)
     }
 
+    pub fn set_reviews_enabled(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::set_reviews_enabled(&env, project_id, caller, enabled)
+    }
+
+    pub fn get_reviews_enabled(env: Env, project_id: u64) -> bool {
+        ReviewRegistry::get_reviews_enabled(&env, project_id)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(

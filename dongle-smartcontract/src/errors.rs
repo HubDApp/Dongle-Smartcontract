@@ -68,6 +68,8 @@ pub enum ContractError {
     TransferNotFound = 31,
     /// Caller is not the designated recipient of the pending transfer
     NotPendingTransferRecipient = 32,
+    /// Reviews are disabled for this project
+    ReviewsDisabled = 33,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
