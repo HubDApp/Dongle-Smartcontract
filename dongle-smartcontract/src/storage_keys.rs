@@ -44,4 +44,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// List of featured project IDs.
+    FeaturedProjects,
 }

@@ -6,6 +6,7 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 mod fee_manager;
+mod featured_registry;
 mod project_registry;
 pub mod rating_calculator;
 pub mod review_registry;
@@ -21,6 +22,7 @@ mod tests;
 use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
+use crate::featured_registry::FeaturedRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
@@ -144,6 +146,21 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+    }
+
+    // --- Featured Registry ---
+
+    pub fn set_featured(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        featured: bool,
+    ) -> Result<(), ContractError> {
+        FeaturedRegistry::set_featured(&env, admin, project_id, featured)
+    }
+
+    pub fn list_featured_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
+        FeaturedRegistry::list_featured_projects(&env, start, limit)
     }
 
     // --- Review Registry ---

@@ -314,3 +314,22 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
         event_data,
     );
 }
+
+// ── Featured project events ───────────────────────────────────────────────────
+
+pub fn publish_featured_project_event(env: &Env, project_id: u64, featured: bool, admin: Address) {
+    use crate::types::FeaturedProjectEvent;
+    let event_data = FeaturedProjectEvent {
+        project_id,
+        featured,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    let action = if featured {
+        symbol_short!("FEATURED")
+    } else {
+        symbol_short!("UNFEATRD")
+    };
+    env.events()
+        .publish((symbol_short!("PROJECT"), action, project_id), event_data);
+}
