@@ -51,7 +51,7 @@ fn setup_with_token(
 
     client
         .mock_all_auths()
-        .set_fee(admin, &Some(token_address.clone()), &(fee as u128), admin);
+        .set_fee(admin, &Some(token_address.clone()), &(fee as u128), &0u128, &0u64, admin);
 
     let project_id = register_project(client, owner, "TokenProject");
     client
@@ -260,7 +260,7 @@ fn test_set_fee_by_non_admin_fails() {
 
     let result = client
         .mock_all_auths()
-        .try_set_fee(&non_admin, &None, &500u128, &treasury);
+        .try_set_fee(&non_admin, &None, &500u128, &0u128, &0u64, &treasury);
 
     assert_eq!(result, Err(Ok(ContractError::AdminOnly)));
 }
@@ -273,7 +273,7 @@ fn test_set_fee_by_admin_succeeds() {
 
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &1000u128, &treasury);
+        .set_fee(&admin, &None, &1000u128, &0u128, &0u64, &treasury);
 
     let config = client.get_fee_config();
     assert_eq!(config.verification_fee, 1000u128);
@@ -403,7 +403,7 @@ fn test_request_verification_without_fee_payment_fails() {
         .register_stellar_asset_contract_v2(token_admin)
         .address();
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &treasury);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &treasury);
 
     let project_id = register_project(&client, &owner, "NoFeeProject");
 

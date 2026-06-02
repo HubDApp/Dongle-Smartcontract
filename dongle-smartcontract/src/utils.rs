@@ -176,9 +176,9 @@ impl Utils {
             return Err(ContractError::ProjectNameTooLong);
         }
 
-        // 3. Validate alphanumeric, underscore, hyphen
+        // 3. Validate allowed characters: alphanumeric, underscore, hyphen, and space
         for c in name_str.chars() {
-            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' && c != ' ' {
                 return Err(ContractError::InvalidProjectNameFormat);
             }
         }

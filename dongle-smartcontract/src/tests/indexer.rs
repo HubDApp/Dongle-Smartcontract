@@ -38,7 +38,7 @@ fn setup_verified(
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(admin, &Some(token.clone()), &100, admin);
+    client.set_fee(admin, &Some(token.clone()), &100u128, &0u128, &0u64, admin);
     soroban_sdk::token::StellarAssetClient::new(env, &token).mint(owner, &100);
     client.pay_fee(owner, &project_id, &Some(token));
     client.request_verification(
@@ -251,7 +251,7 @@ fn test_verifications_batch_full() {
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(&admin, &Some(token.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token.clone()), &100u128, &0u128, &0u64, &admin);
     soroban_sdk::token::StellarAssetClient::new(&env, &token).mint(&owner, &100);
 
     let id2 = register(&client, &env, &owner, "VF2");

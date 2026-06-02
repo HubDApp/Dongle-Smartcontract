@@ -123,6 +123,7 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    pub expires_at: Option<u64>,
 }
 
 /// Fee configuration for contract operations
@@ -132,6 +133,7 @@ pub struct FeeConfig {
     pub token: Option<Address>,
     pub verification_fee: u128,
     pub registration_fee: u128,
+    pub verification_duration: u64,
 }
 
 #[contracttype]

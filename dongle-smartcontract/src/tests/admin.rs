@@ -67,7 +67,7 @@ fn test_admin_can_set_fees() {
 
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &fee_amount, &treasury);
+        .set_fee(&admin, &None, &fee_amount, &0u128, &0u64, &treasury);
 
     let config = client.get_fee_config();
     assert_eq!(config.verification_fee, fee_amount);
@@ -85,10 +85,10 @@ fn test_multiple_admins_can_perform_actions() {
     // Both admins can set fees
     client
         .mock_all_auths()
-        .set_fee(&admin1, &None, &1000u128, &treasury);
+        .set_fee(&admin1, &None, &1000u128, &0u128, &0u64, &treasury);
     client
         .mock_all_auths()
-        .set_fee(&admin2, &None, &2000u128, &treasury);
+        .set_fee(&admin2, &None, &2000u128, &0u128, &0u64, &treasury);
 
     let config = client.get_fee_config();
     assert_eq!(config.verification_fee, 2000u128);

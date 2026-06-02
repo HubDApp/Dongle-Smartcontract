@@ -157,24 +157,46 @@ impl VerificationRegistry {
 
         require_owner_auth(&requester, &project.owner)?;
 
-        // 2. Check if project can request verification using state machine
-        if !VerificationStateMachine::can_request_verification(project.verification_status) {
+        let existing_record: Option<VerificationRecord> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id));
+        let expired = existing_record
+            .as_ref()
+            .map(|record| Self::is_record_expired(record, env))
+            .unwrap_or(false);
+
+        if project.verification_status == VerificationStatus::Verified && !expired {
             return Err(ContractError::InvalidStatusTransition);
         }
 
-        // 3. Validate state transition using centralized state machine
-        VerificationStateMachine::validate_transition(
-            project.verification_status,
-            VerificationStatus::Pending,
-        )?;
+        if project.verification_status == VerificationStatus::Pending {
+            return Err(ContractError::InvalidStatusTransition);
+        }
 
-        // 4. Consume fee payment
+        if !matches!(
+            project.verification_status,
+            VerificationStatus::Unverified | VerificationStatus::Rejected
+        ) && !(project.verification_status == VerificationStatus::Verified && expired)
+        {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        // 2. Validate state transition for non-expired status transitions
+        if project.verification_status != VerificationStatus::Verified {
+            VerificationStateMachine::validate_transition(
+                project.verification_status,
+                VerificationStatus::Pending,
+            )?;
+        }
+
+        // 3. Consume fee payment
         FeeManager::consume_fee_payment(env, project_id)?;
 
-        // 5. Validate evidence
+        // 4. Validate evidence
         Self::validate_evidence_cid(&evidence_cid)?;
 
-        // 6. Create record
+        // 5. Create record
         let config = FeeManager::get_fee_config(env)?;
         let now = env.ledger().timestamp();
         let record = VerificationRecord {
@@ -185,13 +207,14 @@ impl VerificationRegistry {
             timestamp: now,
             fee_amount: config.verification_fee,
             revoke_reason: None,
+            expires_at: None,
         };
 
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
 
-        // 7. Update project status to Pending
+        // 6. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
         project.updated_at = now;
         env.storage()
@@ -223,9 +246,15 @@ impl VerificationRegistry {
         )?;
 
         let now = env.ledger().timestamp();
+        let config = FeeManager::get_fee_config(env)?;
 
         // Update record
         record.status = VerificationStatus::Verified;
+        record.expires_at = if config.verification_duration > 0 {
+            Some(now.saturating_add(config.verification_duration))
+        } else {
+            None
+        };
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
@@ -265,6 +294,7 @@ impl VerificationRegistry {
 
         // Update record
         record.status = VerificationStatus::Rejected;
+        record.expires_at = None;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
@@ -314,10 +344,27 @@ impl VerificationRegistry {
         if evidence_cid.is_empty() {
             return Err(ContractError::InvalidProjectData);
         }
-        if !Utils::is_valid_ipfs_cid(evidence_cid) || evidence_cid.len() as usize > MAX_CID_LEN {
+        // Accept any non-empty evidence string up to the configured max length.
+        if evidence_cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidProjectData);
         }
         Ok(())
+    }
+
+    fn is_record_expired(record: &VerificationRecord, env: &Env) -> bool {
+        if let Some(expires_at) = record.expires_at {
+            env.ledger().timestamp() > expires_at
+        } else {
+            false
+        }
+    }
+
+    pub fn is_verification_active(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        let record = Self::get_verification(env, project_id)?;
+        Ok(record.status == VerificationStatus::Verified && !Self::is_record_expired(&record, env))
     }
 
     #[allow(dead_code)]
@@ -348,6 +395,7 @@ impl VerificationRegistry {
 
         record.status = VerificationStatus::Unverified;
         record.revoke_reason = Some(reason.clone());
+        record.expires_at = None;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);

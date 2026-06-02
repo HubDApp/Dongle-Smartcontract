@@ -271,6 +271,13 @@ impl DongleContract {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
+    pub fn is_verification_active(
+        env: Env,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::is_verification_active(&env, project_id)
+    }
+
     pub fn get_verifications_batch(
         env: Env,
         ids: Vec<u64>,
@@ -286,9 +293,18 @@ impl DongleContract {
         token: Option<Address>,
         verification_fee: u128,
         registration_fee: u128,
+        verification_duration: u64,
         treasury: Address,
     ) -> Result<(), ContractError> {
-        FeeManager::set_fee(&env, admin, token, verification_fee, registration_fee, treasury)
+        FeeManager::set_fee(
+            &env,
+            admin,
+            token,
+            verification_fee,
+            registration_fee,
+            verification_duration,
+            treasury,
+        )
     }
 
     pub fn pay_fee(

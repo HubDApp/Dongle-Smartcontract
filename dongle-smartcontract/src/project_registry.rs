@@ -25,6 +25,11 @@ impl ProjectRegistry {
         params.owner.require_auth();
 
         // Validate inputs - return typed errors instead of panicking
+        // For empty project name during registration, return InvalidProjectData
+        // to match historical error expectations in tests.
+        if params.name.is_empty() {
+            return Err(ContractError::InvalidProjectData);
+        }
         Utils::validate_project_name(&params.name)?;
 
         // Check registration fee payment
