@@ -10,7 +10,7 @@ use crate::events::{
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::{VerificationRecord, VerificationStatus};
+use crate::types::{VerificationRecord, VerificationRenewalRecord, VerificationStatus};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -192,6 +192,8 @@ impl VerificationRegistry {
             timestamp: now,
             fee_amount: config.verification_fee,
             revoke_reason: None,
+            expires_at: 0,
+            last_renewed_at: 0,
         };
 
         env.storage()

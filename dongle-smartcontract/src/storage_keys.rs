@@ -18,6 +18,8 @@ pub enum StorageKey {
     OwnerProjects(Address),
     /// Project by name (for duplicate detection).
     ProjectByName(String),
+    /// Project by slug (for URL lookups).
+    ProjectBySlug(String),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -56,4 +58,12 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
+    ReviewReport(u64, Address, Address),
+    /// Verification renewal request by project_id
+    VerificationRenewal(u64),
+    /// Verification renewal history: (project_id, renewal_index) -> VerificationRenewalRecord
+    VerificationRenewalHistory(u64, u32),
+    /// Renewal count for a project (tracks number of renewals)
+    VerificationRenewalCount(u64),
 }

@@ -5,6 +5,7 @@ use soroban_sdk::{contracttype, Address, Map, String, Vec};
 pub struct ProjectRegistrationParams {
     pub owner: Address,
     pub name: String,
+    pub slug: String,
     pub description: String,
     pub category: String,
     pub website: Option<String>,
@@ -20,6 +21,7 @@ pub struct ProjectUpdateParams {
     pub project_id: u64,
     pub caller: Address,
     pub name: Option<String>,
+    pub slug: Option<String>,
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
@@ -52,7 +54,14 @@ pub struct Review {
 
     /// Unix timestamp (seconds) of the most recent modification to this review.
     pub updated_at: u64,
+
+    /// Whether the review is hidden by moderation.
+    pub hidden: bool,
+
+    /// Number of times this review has been reported.
+    pub report_count: u32,
 }
+
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -82,6 +91,7 @@ pub struct Project {
     pub id: u64,
     pub owner: Address,
     pub name: String,
+    pub slug: String,
     pub description: String,
     pub category: String,
     pub website: Option<String>,
@@ -138,6 +148,23 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp when verification expires (0 = no expiry)
+    pub expires_at: u64,
+    /// Unix timestamp when verification was last renewed
+    pub last_renewed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewalRecord {
+    pub project_id: u64,
+    pub requester: Address,
+    pub status: VerificationStatus,
+    pub evidence_cid: String,
+    pub timestamp: u64,
+    pub fee_amount: u128,
+    /// Unix timestamp when the renewed verification expires
+    pub expires_at: u64,
 }
 
 /// Fee configuration for contract operations

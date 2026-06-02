@@ -85,6 +85,10 @@ impl DongleContract {
         ProjectRegistry::get_project(&env, project_id)
     }
 
+    pub fn get_project_by_slug(env: Env, slug: String) -> Option<Project> {
+        ProjectRegistry::get_project_by_slug(&env, slug)
+    }
+
     pub fn initiate_transfer(
         env: Env,
         project_id: u64,
@@ -146,6 +150,22 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+    }
+
+    pub fn archive_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::archive_project(&env, project_id, caller)
+    }
+
+    pub fn reactivate_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
     // --- Review Registry ---
@@ -230,6 +250,33 @@ impl DongleContract {
         ReviewRegistry::get_stats_batch(&env, ids)
     }
 
+    pub fn report_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        reporter: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::report_review(&env, project_id, reviewer, reporter)
+    }
+
+    pub fn hide_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::hide_review(&env, project_id, reviewer, admin)
+    }
+
+    pub fn restore_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::restore_review(&env, project_id, reviewer, admin)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
@@ -278,6 +325,54 @@ impl DongleContract {
         ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn request_renewal(
+        env: Env,
+        project_id: u64,
+        requester: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::request_renewal(&env, project_id, requester, evidence_cid)
+    }
+
+    pub fn approve_renewal(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::approve_renewal(&env, project_id, admin)
+    }
+
+    pub fn reject_renewal(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::reject_renewal(&env, project_id, admin)
+    }
+
+    pub fn get_renewal_request(
+        env: Env,
+        project_id: u64,
+    ) -> Result<crate::types::VerificationRenewalRecord, ContractError> {
+        VerificationRegistry::get_renewal_request(&env, project_id)
+    }
+
+    pub fn get_renewal_history(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::VerificationRenewalRecord> {
+        VerificationRegistry::get_renewal_history(&env, project_id, start_index, limit)
+    }
+
+    pub fn is_verification_expired(
+        env: Env,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::is_verification_expired(&env, project_id)
     }
 
     // --- Fee Manager ---

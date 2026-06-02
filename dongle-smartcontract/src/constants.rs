@@ -12,6 +12,9 @@ pub const MIN_STRING_LEN: usize = 1;
 /// Maximum length for project name.
 pub const MAX_NAME_LEN: usize = 50;
 
+/// Maximum length for project slug.
+pub const MAX_SLUG_LEN: usize = 64;
+
 /// Maximum length for project description.
 #[allow(dead_code)]
 pub const MAX_DESCRIPTION_LEN: usize = 2048;
@@ -51,6 +54,11 @@ pub const MAX_SOCIAL_LINK_PLATFORM_LEN: usize = 32;
 pub const RATING_MIN: u32 = 1;
 #[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
+
+/// Verification validity period in seconds (365 days).
+/// After this period, verified projects need to renew their verification.
+#[allow(dead_code)]
+pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 

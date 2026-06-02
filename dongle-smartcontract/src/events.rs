@@ -73,6 +73,24 @@ pub struct ProjectOwnershipTransferredEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a project is archived.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectArchivedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project is reactivated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReactivatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 /// Emitted when an admin is added.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

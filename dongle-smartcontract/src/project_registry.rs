@@ -1,7 +1,8 @@
 use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_ownership_transferred_event, publish_project_registered_event,
+    publish_ownership_transferred_event, publish_project_archived_event,
+    publish_project_reactivated_event, publish_project_registered_event,
     publish_project_updated_event,
 };
 use crate::fee_manager::FeeManager;
@@ -26,6 +27,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
+        Utils::validate_project_slug(&params.slug)?;
 
         // Check registration fee payment
         let config = FeeManager::get_fee_config(env)?;
@@ -73,6 +75,15 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
+        // Check if project slug already exists
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectBySlug(params.slug.clone()))
+        {
+            return Err(ContractError::ProjectSlugAlreadyExists);
+        }
+
         // Mutation phase
         let mut count: u64 = env
             .storage()
@@ -86,6 +97,7 @@ impl ProjectRegistry {
             id: count,
             owner: params.owner.clone(),
             name: params.name.clone(),
+            slug: params.slug.clone(),
             description: params.description,
             category: params.category,
             website: params.website,
@@ -115,6 +127,9 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectBySlug(params.slug), &count);
 
         owner_projects.push_back(count);
         env.storage().persistent().set(
@@ -179,6 +194,10 @@ impl ProjectRegistry {
         let old_name = project.name.clone();
         let mut name_updated = false;
 
+        // Store old slug for cleanup if slug is being updated
+        let old_slug = project.slug.clone();
+        let mut slug_updated = false;
+
         let old_category = project.category.clone();
         let mut category_updated = false;
 
@@ -204,6 +223,27 @@ impl ProjectRegistry {
 
                 project.name = value;
                 name_updated = true;
+            }
+        }
+        if let Some(value) = params.slug {
+            Utils::validate_project_slug(&value)?;
+
+            // Check if new slug is different from current slug
+            if value != old_slug {
+                // Check if new slug already exists (assigned to a different project)
+                if let Some(existing_id) = env
+                    .storage()
+                    .persistent()
+                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(value.clone()))
+                {
+                    // If the slug exists and points to a different project, it's a duplicate
+                    if existing_id != params.project_id {
+                        return Err(ContractError::ProjectSlugAlreadyExists);
+                    }
+                }
+
+                project.slug = value;
+                slug_updated = true;
             }
         }
         if let Some(value) = params.description {
@@ -288,6 +328,20 @@ impl ProjectRegistry {
             // Create new name mapping
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
+                &params.project_id,
+            );
+        }
+
+        // If slug was updated, update the ProjectBySlug mappings
+        if slug_updated {
+            // Remove old slug mapping
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectBySlug(old_slug));
+
+            // Create new slug mapping
+            env.storage().persistent().set(
+                &StorageKey::ProjectBySlug(project.slug.clone()),
                 &params.project_id,
             );
         }
@@ -382,6 +436,17 @@ impl ProjectRegistry {
         project
     }
 
+    pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
+        // Get project ID from slug mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectBySlug(slug))?;
+
+        // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
     pub fn get_projects_by_owner(env: &Env, owner: Address) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
@@ -394,7 +459,9 @@ impl ProjectRegistry {
         for i in 0..len {
             if let Some(project_id) = ids.get(i) {
                 if let Some(project) = Self::get_project(env, project_id) {
-                    projects.push_back(project);
+                    if !project.archived {
+                        projects.push_back(project);
+                    }
                 }
             }
         }
@@ -469,7 +536,7 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
-                if project.verification_status == status {
+                if project.verification_status == status && !project.archived {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -509,9 +576,16 @@ impl ProjectRegistry {
             count.saturating_add(1),
         );
 
+        let mut collected: u32 = 0;
         for id in first..end {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(project) = Self::get_project(env, id) {
-                projects.push_back(project);
+                if !project.archived {
+                    projects.push_back(project);
+                    collected += 1;
+                }
             }
         }
         projects
@@ -543,10 +617,17 @@ impl ProjectRegistry {
 
         let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
 
+        let mut collected: u32 = 0;
         for i in start_id..end {
+            if collected >= effective_limit {
+                break;
+            }
             if let Some(id) = category_projects.get(i) {
                 if let Some(project) = Self::get_project(env, id) {
-                    projects.push_back(project);
+                    if !project.archived {
+                        projects.push_back(project);
+                        collected += 1;
+                    }
                 }
             }
         }
