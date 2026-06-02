@@ -427,7 +427,7 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, owner: Addr
     env.events().publish(
         (
             symbol_short!("PROJECT"),
-            symbol_short!("REACTIVATED"),
+            symbol_short!("REACTIVED"),
             project_id,
         ),
         event_data,

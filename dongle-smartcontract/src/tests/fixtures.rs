@@ -39,7 +39,7 @@ pub fn setup_with_fees(
     let treasury = Address::generate(env);
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &fee_amount, &treasury);
+        .set_fee(&admin, &None, &fee_amount, &fee_amount, &treasury);
     (client, admin, treasury)
 }
 

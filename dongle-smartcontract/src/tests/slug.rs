@@ -337,3 +337,6 @@ fn test_slug_ends_with_alphanumeric() {
         assert!(last_char.is_ascii_lowercase() || last_char.is_ascii_digit());
     }
 }
+
+
+

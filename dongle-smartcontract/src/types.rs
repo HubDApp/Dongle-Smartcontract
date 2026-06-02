@@ -57,7 +57,7 @@ pub struct Review {
     /// Number of times this review has been reported.
     pub report_count: u32,
 }
-}
+
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

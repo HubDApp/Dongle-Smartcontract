@@ -18,6 +18,8 @@ pub enum StorageKey {
     OwnerProjects(Address),
     /// Project by name (for duplicate detection).
     ProjectByName(String),
+    /// Project by slug (for URL lookups).
+    ProjectBySlug(String),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
