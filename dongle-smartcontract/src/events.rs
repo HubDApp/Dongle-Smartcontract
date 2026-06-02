@@ -173,8 +173,7 @@ pub fn publish_review_event(
     project_id: u64,
     reviewer: Address,
     action: ReviewAction,
-    ipfs_cid: Option<String>,
-    comment_cid: Option<String>,
+    content_cid: Option<String>,
     owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
@@ -184,10 +183,9 @@ pub fn publish_review_event(
         reviewer: reviewer.clone(),
         action: action.clone(),
         timestamp: env.ledger().timestamp(),
-        ipfs_cid,
+        content_cid,
         created_at,
         updated_at,
-        comment_cid,
         owner_response,
     };
 
@@ -422,5 +420,28 @@ pub fn publish_min_project_age_set_event(env: &Env, min_age_seconds: u64, admin:
     env.events().publish(
         (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
         event_data,
+    );
+}
+
+// ── Additional review events ──────────────────────────────────────────────────
+
+pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("REPORTED"), project_id),
+        (reviewer, reporter, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id),
+        (reviewer, admin, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("RESTORED"), project_id),
+        (reviewer, admin, env.ledger().timestamp()),
     );
 }

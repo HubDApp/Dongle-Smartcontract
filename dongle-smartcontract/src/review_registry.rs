@@ -55,8 +55,7 @@ impl ReviewRegistry {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            ipfs_cid: comment_cid.clone(),
-            comment_cid: comment_cid.clone(),
+            content_cid: comment_cid.clone(),
             owner_response: None,
             created_at: now,
             updated_at: now,
@@ -123,7 +122,6 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Submitted,
             comment_cid.clone(),
-            comment_cid,
             None,
             now,
             now,
@@ -180,8 +178,7 @@ impl ReviewRegistry {
         let old_rating = review.rating;
         let now = env.ledger().timestamp();
         review.rating = rating;
-        review.ipfs_cid = comment_cid.clone();
-        review.comment_cid = comment_cid.clone();
+        review.content_cid = comment_cid.clone();
         review.updated_at = now;
 
         // Get current stats
@@ -220,7 +217,6 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Updated,
             comment_cid.clone(),
-            comment_cid,
             review.owner_response.clone(),
             review.created_at,
             now,
@@ -327,7 +323,6 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Deleted,
             None,
-            None,
             existing.owner_response.clone(),
             existing.created_at,
             now,
@@ -387,8 +382,7 @@ impl ReviewRegistry {
             project_id,
             reviewer,
             ReviewAction::Updated,
-            review.ipfs_cid.clone(),
-            review.comment_cid.clone(),
+            review.content_cid.clone(),
             review.owner_response.clone(),
             review.created_at,
             now,
@@ -407,13 +401,7 @@ impl ReviewRegistry {
     }
 
     pub fn get_review_cid(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
-        Self::get_review(env, project_id, reviewer).and_then(|review| {
-            if let Some(cid) = review.ipfs_cid {
-                Some(cid)
-            } else {
-                review.comment_cid
-            }
-        })
+        Self::get_review(env, project_id, reviewer).and_then(|review| review.content_cid)
     }
 
     pub fn get_project_review_cids(env: &Env, project_id: u64) -> Vec<(Address, String)> {

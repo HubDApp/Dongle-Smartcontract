@@ -2,6 +2,7 @@
 
 // Existing test modules
 mod admin;
+mod canonical_cid_tests;
 mod fee;
 mod indexer;
 mod review;
