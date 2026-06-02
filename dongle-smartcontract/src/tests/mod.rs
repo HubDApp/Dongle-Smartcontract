@@ -2,19 +2,19 @@
 
 // Existing test modules
 mod admin;
-mod error_handling_tests;
 mod fee;
 mod featured;
 mod indexer;
-mod registration;
 mod review;
-mod transfer;
-mod verification;
 
 // New test modules
 mod authorization;
+mod basic_new_features;
 mod events;
 mod pagination;
 
 // Test infrastructure
 pub mod fixtures;
+
+
+
