@@ -11,7 +11,7 @@ use crate::events::{
 use crate::types::{ProjectRegistrationParams, ProjectUpdateParams, ReviewAction, ReviewEventData};
 use crate::DongleContract;
 use crate::DongleContractClient;
-use soroban_sdk::{
+    use soroban_sdk::{
     testutils::{Address as _, Events, Ledger, LedgerInfo},
     Address, Env, String, TryIntoVal,
 };
@@ -431,7 +431,7 @@ fn test_fee_set_event_fields() {
 
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &500u128, &treasury);
+        .set_fee(&admin, &None, &500u128, &0u128, &0u64, &treasury);
 
     let events = env.events().all();
     let found = events.iter().any(|(_, _, data)| {
@@ -450,7 +450,7 @@ fn test_fee_set_event_has_timestamp() {
 
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &100u128, &treasury);
+        .set_fee(&admin, &None, &100u128, &0u128, &0u64, &treasury);
 
     let events = env.events().all();
     let found = events.iter().any(|(_, _, data)| {
@@ -478,7 +478,7 @@ fn test_fee_paid_event_fields() {
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
 
-    client.set_fee(&admin, &Some(token_address.clone()), &200u128, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &200u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     let events = env.events().all();
@@ -510,7 +510,7 @@ fn test_fee_paid_event_has_timestamp() {
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     let events = env.events().all();
@@ -541,7 +541,7 @@ fn test_verification_requested_event_fields() {
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     let evidence = String::from_str(&env, "ipfs://evidence-cid");
@@ -581,7 +581,7 @@ fn test_verification_approved_event_fields() {
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
     client.request_verification(
         &project_id,
@@ -621,7 +621,7 @@ fn test_verification_rejected_event_fields() {
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
     client.request_verification(
         &project_id,

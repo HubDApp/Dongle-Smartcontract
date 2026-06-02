@@ -16,7 +16,7 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address, Address) {
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(&admin, &Some(token.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token.clone()), &100u128, &0u128, &0u64, &admin);
 
     (client, admin, Address::generate(env), token)
 }

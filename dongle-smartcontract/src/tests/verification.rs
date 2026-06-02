@@ -4,7 +4,10 @@ use crate::errors::ContractError;
 use crate::types::{ProjectRegistrationParams, VerificationStatus};
 use crate::DongleContract;
 use crate::DongleContractClient;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger, LedgerInfo},
+    Address, Env, String,
+};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address) {
     let contract_id = env.register(DongleContract, ());
@@ -37,7 +40,7 @@ fn setup_project_with_fee(
     let token_address = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(admin, &Some(token_address.clone()), &100, admin);
+    client.set_fee(admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, admin);
 
     // Mint tokens and pay fee
     let token_client = soroban_sdk::token::StellarAssetClient::new(env, &token_address);
@@ -71,14 +74,14 @@ fn test_verification_lifecycle() {
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
 
     // 2. Set fee (using admin)
-    client.set_fee(&admin, &None, &100, &admin);
+    client.set_fee(&admin, &None, &100u128, &0u128, &0u64, &admin);
 
     // 3. Pay fee (using owner)
     let token_admin = Address::generate(&env);
     let token_address = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
 
     // Mock token balance for owner
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
@@ -127,7 +130,7 @@ fn test_reject_verification() {
         .address();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &100);
-    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     client.request_verification(
@@ -191,7 +194,7 @@ fn test_valid_state_transitions() {
         .address();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
-    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id2, &Some(token_address));
 
     client.request_verification(
@@ -337,7 +340,7 @@ fn test_multiple_verification_cycles() {
         .address();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
-    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     client.request_verification(
@@ -363,7 +366,7 @@ fn test_multiple_verification_cycles() {
         .address();
     let token_client2 = soroban_sdk::token::StellarAssetClient::new(&env, &token_address2);
     token_client2.mint(&owner, &1000);
-    client.set_fee(&admin, &Some(token_address2.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address2.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address2));
 
     let result = client.try_request_verification(
@@ -426,6 +429,136 @@ fn test_state_machine_with_different_admins() {
     assert_eq!(
         client.get_project(&project_id).unwrap().verification_status,
         VerificationStatus::Verified
+    );
+}
+
+#[test]
+fn test_verification_expires_after_duration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set(LedgerInfo {
+        timestamp: 1_700_000_000,
+        protocol_version: 22,
+        sequence_number: 1,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 16,
+        min_persistent_entry_ttl: 4096,
+        max_entry_ttl: 6_312_000,
+    });
+
+    let (client, admin, owner) = setup(&env);
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "Project Expiry"),
+        description: String::from_str(&env, "Test project description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    let project_id = client.register_project(&params);
+
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &100u64, &admin);
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&owner, &1000);
+    client.pay_fee(&owner, &project_id, &Some(token_address.clone()));
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    client.approve_verification(&project_id, &admin);
+
+    let record = client.get_verification(&project_id);
+    assert_eq!(record.expires_at, Some(1_700_000_100));
+    assert!(client.is_verification_active(&project_id));
+
+    env.ledger().set(LedgerInfo {
+        timestamp: 1_700_000_101,
+        protocol_version: 22,
+        sequence_number: 2,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 16,
+        min_persistent_entry_ttl: 4096,
+        max_entry_ttl: 6_312_000,
+    });
+
+    assert!(!client.is_verification_active(&project_id));
+}
+
+#[test]
+fn test_expired_verification_can_be_renewed() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set(LedgerInfo {
+        timestamp: 1_700_000_000,
+        protocol_version: 22,
+        sequence_number: 1,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 16,
+        min_persistent_entry_ttl: 4096,
+        max_entry_ttl: 6_312_000,
+    });
+
+    let (client, admin, owner) = setup(&env);
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "Project Renew"),
+        description: String::from_str(&env, "Test project description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+    };
+    let project_id = client.register_project(&params);
+
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &100u64, &admin);
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&owner, &1000);
+    client.pay_fee(&owner, &project_id, &Some(token_address.clone()));
+
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+    client.approve_verification(&project_id, &admin);
+
+    env.ledger().set(LedgerInfo {
+        timestamp: 1_700_000_101,
+        protocol_version: 22,
+        sequence_number: 2,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 16,
+        min_persistent_entry_ttl: 4096,
+        max_entry_ttl: 6_312_000,
+    });
+
+    assert!(!client.is_verification_active(&project_id));
+
+    client.pay_fee(&owner, &project_id, &Some(token_address.clone()));
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://new_evidence"),
+    );
+
+    assert_eq!(
+        client.get_project(&project_id).unwrap().verification_status,
+        VerificationStatus::Pending
     );
 }
 
@@ -568,7 +701,7 @@ fn test_revoked_project_can_re_request_verification() {
         .address();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
     token_client.mint(&owner, &1000);
-    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &0u128, &0u64, &admin);
     client.pay_fee(&owner, &project_id, &Some(token_address));
 
     client.request_verification(
