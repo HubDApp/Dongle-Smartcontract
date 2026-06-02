@@ -532,8 +532,13 @@ impl ReviewRegistry {
         // Extend TTL
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
 
-        let now = env.ledger().timestamp();
-        crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
+        crate::events::publish_review_reported_event(
+            env,
+            project_id,
+            reviewer,
+            reporter,
+            review.report_count,
+        );
 
         Ok(())
     }
@@ -603,7 +608,6 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_hidden_event(env, project_id, reviewer, admin);
 
         Ok(())
@@ -671,7 +675,6 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_restored_event(env, project_id, reviewer, admin);
 
         Ok(())

@@ -30,9 +30,14 @@ impl ProjectRegistry {
         Utils::validate_project_slug(&params.slug)?;
 
         // Check registration fee payment
-        let config = FeeManager::get_fee_config(env)?;
-        if config.registration_fee > 0 {
-            FeeManager::consume_registration_fee_payment(env, &params.owner)?;
+        if let Ok(config) = FeeManager::get_fee_config(env) {
+            if config.registration_fee > 0 {
+                FeeManager::consume_registration_fee_payment(
+                    env,
+                    &params.owner,
+                    config.registration_fee,
+                )?;
+            }
         }
 
         // Validate description with comprehensive checks
@@ -106,6 +111,7 @@ impl ProjectRegistry {
             verification_status: VerificationStatus::Unverified,
             created_at: now,
             updated_at: now,
+            archived: false,
             tags: params.tags.clone(),
             social_links: params.social_links.clone(),
         };
@@ -753,7 +759,67 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &old_owner);
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
-        publish_ownership_transferred_event(env, project_id, old_owner, pending_new_owner);
+        publish_ownership_transferred_event(
+            env,
+            project_id,
+            caller,
+            old_owner,
+            pending_new_owner,
+        );
+        Ok(())
+    }
+
+    pub fn archive_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.archived {
+            return Err(ContractError::ProjectAlreadyArchived);
+        }
+
+        project.archived = true;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_archived_event(env, project_id, caller);
+        Ok(())
+    }
+
+    pub fn reactivate_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        if !project.archived {
+            return Err(ContractError::ProjectNotArchived);
+        }
+
+        project.archived = false;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_reactivated_event(env, project_id, caller);
         Ok(())
     }
 

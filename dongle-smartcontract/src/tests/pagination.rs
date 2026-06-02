@@ -18,14 +18,18 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 
 fn register_project(client: &DongleContractClient, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
+    let slug = name.to_lowercase().replace(' ', "-");
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &slug),
         description: String::from_str(env, "Description"),
         category: String::from_str(env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -421,22 +425,28 @@ fn test_list_projects_by_category_basic() {
     let params1 = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(&env, "ProjCat1"),
+        slug: String::from_str(&env, "projcat1"),
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "Web3"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     client.mock_all_auths().register_project(&params1);
 
     let params2 = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(&env, "ProjCat2"),
+        slug: String::from_str(&env, "projcat2"),
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     client.mock_all_auths().register_project(&params2);
 
@@ -458,11 +468,14 @@ fn test_list_projects_by_category_update_moves_project() {
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(&env, "ProjMove"),
+        slug: String::from_str(&env, "projmove"),
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "OldCat"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
 
@@ -476,11 +489,14 @@ fn test_list_projects_by_category_update_moves_project() {
         project_id,
         caller: owner.clone(),
         name: None,
+        slug: None,
         description: None,
         category: Some(String::from_str(&env, "NewCat")),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     client.mock_all_auths().update_project(&update_params);
 
@@ -510,11 +526,14 @@ fn test_list_projects_by_category_pagination() {
         let params = ProjectRegistrationParams {
             owner: owner.clone(),
             name: String::from_str(&env, name_str),
+            slug: String::from_str(&env, &name_str.to_lowercase()),
             description: String::from_str(&env, "Description"),
             category: String::from_str(&env, "MultiCat"),
             website: None,
             logo_cid: None,
             metadata_cid: None,
+            tags: None,
+            social_links: None,
         };
         client.mock_all_auths().register_project(&params);
     }
