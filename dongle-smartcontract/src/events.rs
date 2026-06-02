@@ -1,5 +1,5 @@
 use crate::types::{ReviewAction, ReviewEventData};
-use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
@@ -103,6 +103,45 @@ pub struct AdminAddedEvent {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminRemovedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project is reported.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReportedEvent {
+    pub project_id: u64,
+    pub reporter: Address,
+    pub reason_cid: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when project tags are updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectTagsUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub tags: Option<Vec<String>>,
+    pub timestamp: u64,
+}
+
+/// Emitted when project social links are updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialLinksUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub social_links: Option<Map<String, String>>,
+    pub timestamp: u64,
+}
+
+/// Emitted when minimum project age is configured.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinProjectAgeSetEvent {
+    pub min_age_seconds: u64,
     pub admin: Address,
     pub timestamp: u64,
 }
@@ -333,184 +372,55 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     );
 }
 
-/// Emitted when a review is reported.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewReportedEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub reporter: Address,
-    pub timestamp: u64,
-}
+// ── New feature events ────────────────────────────────────────────────────────
 
-/// Emitted when a review is hidden by moderation.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewHiddenEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-/// Emitted when a review is restored by moderation.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewRestoredEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
-    let event_data = ReviewReportedEvent {
+pub fn publish_project_reported_event(env: &Env, project_id: u64, reporter: Address, reason_cid: String) {
+    let event_data = ProjectReportedEvent {
         project_id,
-        reviewer,
         reporter,
+        reason_cid,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("REPORTED"), project_id),
+        (symbol_short!("PROJECT"), symbol_short!("REPORTED"), project_id),
         event_data,
     );
 }
 
-pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
-    let event_data = ReviewHiddenEvent {
-        project_id,
-        reviewer,
-        admin,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
-    let event_data = ReviewRestoredEvent {
-        project_id,
-        reviewer,
-        admin,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("RESTORED"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_project_archived_event(env: &Env, project_id: u64, owner: Address) {
-    let event_data = ProjectArchivedEvent {
+pub fn publish_project_tags_updated_event(env: &Env, project_id: u64, owner: Address, tags: Option<Vec<String>>) {
+    let event_data = ProjectTagsUpdatedEvent {
         project_id,
         owner,
+        tags,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("ARCHIVED"),
-            project_id,
-        ),
+        (symbol_short!("PROJECT"), symbol_short!("TAGS"), project_id),
         event_data,
     );
 }
 
-pub fn publish_project_reactivated_event(env: &Env, project_id: u64, owner: Address) {
-    let event_data = ProjectReactivatedEvent {
+pub fn publish_project_social_links_updated_event(env: &Env, project_id: u64, owner: Address, social_links: Option<Map<String, String>>) {
+    let event_data = ProjectSocialLinksUpdatedEvent {
         project_id,
         owner,
+        social_links,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("REACTIVED"),
-            project_id,
-        ),
+        (symbol_short!("PROJECT"), symbol_short!("SOCIAL"), project_id),
         event_data,
     );
 }
 
-/// Emitted when a verification renewal is requested.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRenewalRequestedEvent {
-    pub project_id: u64,
-    pub requester: Address,
-    pub evidence_cid: String,
-    pub timestamp: u64,
-}
-
-/// Emitted when a verification renewal is approved.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRenewalApprovedEvent {
-    pub project_id: u64,
-    pub admin: Address,
-    pub expires_at: u64,
-    pub timestamp: u64,
-}
-
-/// Emitted when a verification renewal is rejected.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRenewalRejectedEvent {
-    pub project_id: u64,
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-pub fn publish_verification_renewal_requested_event(
-    env: &Env,
-    project_id: u64,
-    requester: Address,
-    evidence_cid: String,
-) {
-    let event_data = VerificationRenewalRequestedEvent {
-        project_id,
-        requester,
-        evidence_cid,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("RENEW_REQ"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_verification_renewal_approved_event(
-    env: &Env,
-    project_id: u64,
-    admin: Address,
-    expires_at: u64,
-) {
-    let event_data = VerificationRenewalApprovedEvent {
-        project_id,
-        admin,
-        expires_at,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("RENEW_APP"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_verification_renewal_rejected_event(
-    env: &Env,
-    project_id: u64,
-    admin: Address,
-) {
-    let event_data = VerificationRenewalRejectedEvent {
-        project_id,
+pub fn publish_min_project_age_set_event(env: &Env, min_age_seconds: u64, admin: Address) {
+    let event_data = MinProjectAgeSetEvent {
+        min_age_seconds,
         admin,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("RENEW_REJ"), project_id),
+        (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
         event_data,
     );
 }

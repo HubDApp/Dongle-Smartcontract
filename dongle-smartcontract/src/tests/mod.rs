@@ -7,9 +7,10 @@ mod indexer;
 mod review;
 
 // New test modules
-mod archive;
-mod moderation;
-mod renewal;
+mod authorization;
+mod basic_new_features;
+mod events;
+mod pagination;
 
 // Test infrastructure
 pub mod fixtures;

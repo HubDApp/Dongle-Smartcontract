@@ -1,6 +1,6 @@
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 #[allow(dead_code)]
 pub struct Utils;
@@ -186,50 +186,82 @@ impl Utils {
         Ok(())
     }
 
-    /// Validates project slug with comprehensive checks:
-    /// - Not empty or whitespace-only
-    /// - Within maximum length constraint (MAX_SLUG_LEN)
-    /// - Lowercase alphanumeric, hyphen, and underscore only
-    /// - Must start with alphanumeric
-    /// - Must end with alphanumeric
-    pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+    /// Validates project tags
+    pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
         extern crate alloc;
         use alloc::string::ToString;
 
-        let slug_str = slug.to_string();
-
-        // 1. Validate non-empty and not only whitespace
-        if slug_str.trim().is_empty() {
-            return Err(ContractError::InvalidProjectSlug);
+        // Check max number of tags
+        if tags.len() > crate::constants::MAX_TAGS_PER_PROJECT {
+            return Err(ContractError::TooManyTags);
         }
 
-        // 2. Validate max length
-        let max_len = crate::constants::MAX_SLUG_LEN;
-        if slug_str.len() > max_len {
-            return Err(ContractError::ProjectSlugTooLong);
-        }
+        // Validate each tag
+        for tag in tags.iter() {
+            let tag_str = tag.to_string();
+            
+            // Check tag length
+            if tag_str.len() == 0 || tag_str.len() > crate::constants::MAX_TAG_LENGTH as usize {
+                return Err(ContractError::InvalidTag);
+            }
 
-        // 3. Validate format: lowercase alphanumeric, hyphen, underscore
-        for c in slug_str.chars() {
-            if !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '-' && c != '_' {
-                return Err(ContractError::InvalidProjectSlugFormat);
+            // Check tag format (alphanumeric, underscore, hyphen only)
+            for c in tag_str.chars() {
+                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+                    return Err(ContractError::InvalidTag);
+                }
             }
         }
 
-        // 4. Must start with alphanumeric
-        if let Some(first_char) = slug_str.chars().next() {
-            if !first_char.is_ascii_lowercase() && !first_char.is_ascii_digit() {
-                return Err(ContractError::InvalidProjectSlugFormat);
+        Ok(())
+    }
+
+    /// Validates social links
+    pub fn validate_social_links(social_links: &Map<String, String>) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        // Check max number of social links
+        if social_links.len() > crate::constants::MAX_SOCIAL_LINKS {
+            return Err(ContractError::TooManySocialLinks);
+        }
+
+        // Validate each social link
+        for (platform, url) in social_links.iter() {
+            let platform_str = platform.to_string();
+            let url_str = url.to_string();
+
+            // Check platform name length
+            if platform_str.len() == 0 || platform_str.len() > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as usize {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Check URL length
+            if url_str.len() == 0 || url_str.len() > crate::constants::MAX_SOCIAL_LINK_URL_LEN as usize {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Basic URL validation
+            if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Platform name validation (alphanumeric, underscore, hyphen only)
+            for c in platform_str.chars() {
+                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+                    return Err(ContractError::InvalidSocialLink);
+                }
             }
         }
 
-        // 5. Must end with alphanumeric
-        if let Some(last_char) = slug_str.chars().last() {
-            if !last_char.is_ascii_lowercase() && !last_char.is_ascii_digit() {
-                return Err(ContractError::InvalidProjectSlugFormat);
-            }
-        }
+        Ok(())
+    }
 
+    /// Validates report reason CID
+    pub fn validate_report_reason_cid(reason_cid: &String) -> Result<(), ContractError> {
+        if reason_cid.len() == 0 || !Self::is_valid_ipfs_cid(reason_cid) {
+            return Err(ContractError::InvalidReportReason);
+        }
         Ok(())
     }
 }

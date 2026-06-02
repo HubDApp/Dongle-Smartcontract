@@ -39,61 +39,49 @@ pub enum ContractError {
     InvalidProjectNameFormat = 16,
     /// Cannot remove last admin
     CannotRemoveLastAdmin = 17,
+    /// Project too young for verification
+    ProjectTooYoung = 18,
+    /// Invalid tag format or length
+    InvalidTag = 19,
+    /// Too many tags
+    TooManyTags = 20,
+    /// Invalid social link format
+    InvalidSocialLink = 21,
+    /// Too many social links
+    TooManySocialLinks = 22,
+    /// Project already reported by this user
+    ProjectAlreadyReported = 23,
+    /// Invalid report reason
+    InvalidReportReason = 24,
     /// Admin not found
-    AdminNotFound = 18,
+    AdminNotFound = 25,
     /// Invalid project name - empty or whitespace only
-    InvalidProjectName = 19,
+    InvalidProjectName = 26,
     /// Invalid project description - empty or whitespace only
-    InvalidProjectDescription = 20,
+    InvalidProjectDescription = 27,
     /// Invalid project category - empty or whitespace only
-    InvalidProjectCategory = 21,
+    InvalidProjectCategory = 28,
     /// Project description too long
-    ProjectDescriptionTooLong = 22,
+    ProjectDescriptionTooLong = 29,
     /// Project description contains invalid characters
-    InvalidProjectDescriptionFormat = 23,
-    MaxProjectsExceeded = 24,
+    InvalidProjectDescriptionFormat = 30,
+    MaxProjectsExceeded = 31,
     /// Invalid project website
-    InvalidProjectWebsite = 25,
+    InvalidProjectWebsite = 32,
     /// Invalid project logo CID
-    InvalidProjectLogoCid = 26,
+    InvalidProjectLogoCid = 33,
     /// Invalid project metadata CID
-    InvalidProjectMetadataCid = 27,
+    InvalidProjectMetadataCid = 34,
     /// Project category too long
-    ProjectCategoryTooLong = 28,
+    ProjectCategoryTooLong = 35,
     /// Project website too long
-    ProjectWebsiteTooLong = 29,
+    ProjectWebsiteTooLong = 36,
     /// Project is not in a revocable state (must be Verified)
-    VerificationNotRevocable = 30,
+    VerificationNotRevocable = 37,
     /// No pending ownership transfer found for this project
-    TransferNotFound = 31,
+    TransferNotFound = 38,
     /// Caller is not the designated recipient of the pending transfer
-    NotPendingTransferRecipient = 32,
-    /// Project is already archived
-    ProjectAlreadyArchived = 33,
-    /// Project is not archived
-    ProjectNotArchived = 34,
-    /// Invalid project slug - empty or whitespace only
-    InvalidProjectSlug = 35,
-    /// Project slug too long
-    ProjectSlugTooLong = 36,
-    /// Project slug format invalid
-    InvalidProjectSlugFormat = 37,
-    /// Project slug already exists
-    ProjectSlugAlreadyExists = 38,
-    /// Review already reported by this user
-    ReviewAlreadyReported = 39,
-    /// Review is already hidden
-    ReviewAlreadyHidden = 40,
-    /// Review is not hidden
-    ReviewNotHidden = 41,
-    /// Verification renewal not found
-    VerificationRenewalNotFound = 42,
-    /// Verification renewal already pending
-    VerificationRenewalAlreadyPending = 43,
-    /// Cannot renew unverified project
-    CannotRenewUnverified = 44,
-    /// Verification has not expired yet
-    VerificationNotExpired = 45,
+    NotPendingTransferRecipient = 39,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

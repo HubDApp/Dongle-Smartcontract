@@ -39,7 +39,7 @@ pub fn setup_with_fees(
     let treasury = Address::generate(env);
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &fee_amount, &fee_amount, &treasury);
+        .set_fee(&admin, &None, &fee_amount, &0u128, &treasury);
     (client, admin, treasury)
 }
 
@@ -63,6 +63,8 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     client.register_project(&params)
 }

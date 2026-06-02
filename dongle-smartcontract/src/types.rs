@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{contracttype, Address, Map, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -11,6 +11,8 @@ pub struct ProjectRegistrationParams {
     pub website: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub social_links: Option<Map<String, String>>,
 }
 
 #[contracttype]
@@ -25,6 +27,8 @@ pub struct ProjectUpdateParams {
     pub website: Option<Option<String>>,
     pub logo_cid: Option<Option<String>>,
     pub metadata_cid: Option<Option<String>>,
+    pub tags: Option<Option<Vec<String>>>,
+    pub social_links: Option<Option<Map<String, String>>>,
 }
 
 #[contracttype]
@@ -96,7 +100,17 @@ pub struct Project {
     pub verification_status: VerificationStatus,
     pub created_at: u64,
     pub updated_at: u64,
-    pub archived: bool,
+    pub tags: Option<Vec<String>>,
+    pub social_links: Option<Map<String, String>>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReport {
+    pub project_id: u64,
+    pub reporter: Address,
+    pub reason_cid: String,
+    pub timestamp: u64,
 }
 
 #[contracttype]
