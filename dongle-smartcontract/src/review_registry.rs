@@ -65,6 +65,8 @@ impl ReviewRegistry {
             owner_response: None,
             created_at: now,
             updated_at: now,
+            hidden: false,
+            report_count: 0,
         };
 
         // Get current state for mutations
@@ -488,7 +490,10 @@ impl ReviewRegistry {
         for i in start_id..end {
             if let Some(reviewer) = reviewers.get(i) {
                 if let Some(review) = Self::get_review(env, project_id, reviewer) {
-                    reviews.push_back(review);
+                    // Exclude hidden reviews from default listings
+                    if !review.hidden {
+                        reviews.push_back(review);
+                    }
                 }
             }
         }
@@ -526,5 +531,184 @@ impl ReviewRegistry {
             .persistent()
             .get(&StorageKey::ReviewsEnabled(project_id))
             .unwrap_or(true)
+    }
+
+    pub fn report_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        reporter: Address,
+    ) -> Result<(), ContractError> {
+        // Validation phase
+        reporter.require_auth();
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        // Check if reporter has already reported this review
+        let report_key = StorageKey::ReviewReport(project_id, reviewer.clone(), reporter.clone());
+        if env.storage().persistent().has(&report_key) {
+            return Err(ContractError::ReviewAlreadyReported);
+        }
+
+        // Mutation phase
+        review.report_count = review.report_count.saturating_add(1);
+        env.storage().persistent().set(&review_key, &review);
+
+        // Track this report
+        env.storage().persistent().set(&report_key, &true);
+
+        // Extend TTL
+        StorageManager::extend_review_ttl(env, project_id, &reviewer);
+
+        crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
+
+        Ok(())
+    }
+
+    pub fn hide_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        // Validation phase
+        admin.require_auth();
+
+        // Check if admin
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        if review.hidden {
+            return Err(ContractError::ReviewAlreadyHidden);
+        }
+
+        // Mutation phase
+        review.hidden = true;
+        env.storage().persistent().set(&review_key, &review);
+
+        // Update project stats to exclude this review
+        let stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectStats(project_id))
+            .unwrap_or(ProjectStats {
+                rating_sum: 0,
+                review_count: 0,
+                average_rating: 0,
+            });
+
+        // Recalculate stats without this review
+        let (new_sum, new_count, new_avg) = if stats.review_count > 0 {
+            RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, review.rating)
+        } else {
+            (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+
+        env.storage().persistent().set(
+            &StorageKey::ProjectStats(project_id),
+            &ProjectStats {
+                rating_sum: new_sum,
+                review_count: new_count,
+                average_rating: new_avg,
+            },
+        );
+
+        // Extend TTL
+        StorageManager::extend_review_ttl(env, project_id, &reviewer);
+        StorageManager::extend_project_stats_ttl(env, project_id);
+
+        crate::events::publish_review_hidden_event(env, project_id, reviewer, admin);
+
+        Ok(())
+    }
+
+    pub fn restore_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        // Validation phase
+        admin.require_auth();
+
+        // Check if admin
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        let mut review: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        if !review.hidden {
+            return Err(ContractError::ReviewNotHidden);
+        }
+
+        // Mutation phase
+        review.hidden = false;
+        env.storage().persistent().set(&review_key, &review);
+
+        // Update project stats to include this review again
+        let stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectStats(project_id))
+            .unwrap_or(ProjectStats {
+                rating_sum: 0,
+                review_count: 0,
+                average_rating: 0,
+            });
+
+        // Recalculate stats with this review
+        let (new_sum, new_count, new_avg) =
+            RatingCalculator::add_rating(stats.rating_sum, stats.review_count, review.rating);
+
+        env.storage().persistent().set(
+            &StorageKey::ProjectStats(project_id),
+            &ProjectStats {
+                rating_sum: new_sum,
+                review_count: new_count,
+                average_rating: new_avg,
+            },
+        );
+
+        // Extend TTL
+        StorageManager::extend_review_ttl(env, project_id, &reviewer);
+        StorageManager::extend_project_stats_ttl(env, project_id);
+
+        crate::events::publish_review_restored_event(env, project_id, reviewer, admin);
+
+        Ok(())
     }
 }

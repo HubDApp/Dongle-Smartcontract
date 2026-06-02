@@ -17,6 +17,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &name.to_lowercase()),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
@@ -38,7 +39,7 @@ fn setup_verified(
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(admin, &Some(token.clone()), &100, admin);
+    client.set_fee(admin, &Some(token.clone()), &100, &0u128, admin);
     soroban_sdk::token::StellarAssetClient::new(env, &token).mint(owner, &100);
     client.pay_fee(owner, &project_id, &Some(token));
     client.request_verification(
@@ -251,7 +252,7 @@ fn test_verifications_batch_full() {
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(&admin, &Some(token.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token.clone()), &100, &0u128, &admin);
     soroban_sdk::token::StellarAssetClient::new(&env, &token).mint(&owner, &100);
 
     let id2 = register(&client, &env, &owner, "VF2");
@@ -323,3 +324,4 @@ fn test_indexer_can_sync_all_projects_using_count_and_list() {
 
     assert_eq!(synced, 7);
 }
+
