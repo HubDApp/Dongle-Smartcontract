@@ -441,3 +441,69 @@ pub fn publish_min_project_age_set_event(env: &Env, min_age_seconds: u64, admin:
         event_data,
     );
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewReportedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub reporter: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewHiddenEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewRestoredEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
+    let event_data = ReviewReportedEvent {
+        project_id,
+        reviewer,
+        reporter,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"REPORTED\"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewHiddenEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"HIDDEN\"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewRestoredEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"RESTORED\"), project_id),
+        event_data,
+    );
+}
