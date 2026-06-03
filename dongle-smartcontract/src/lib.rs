@@ -29,8 +29,8 @@ use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams, Review,
-    VerificationRecord, VerificationStatus,
+    FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats,
+    ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -350,11 +350,12 @@ impl DongleContract {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
-    pub fn get_verifications_batch(
-        env: Env,
-        ids: Vec<u64>,
-    ) -> Vec<(u64, VerificationRecord)> {
+    pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_verification_history(&env, project_id)
     }
 
     pub fn request_renewal(
@@ -366,19 +367,11 @@ impl DongleContract {
         VerificationRegistry::request_renewal(&env, project_id, requester, evidence_cid)
     }
 
-    pub fn approve_renewal(
-        env: Env,
-        project_id: u64,
-        admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn approve_renewal(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         VerificationRegistry::approve_renewal(&env, project_id, admin)
     }
 
-    pub fn reject_renewal(
-        env: Env,
-        project_id: u64,
-        admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn reject_renewal(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         VerificationRegistry::reject_renewal(&env, project_id, admin)
     }
 
@@ -398,10 +391,7 @@ impl DongleContract {
         VerificationRegistry::get_renewal_history(&env, project_id, start_index, limit)
     }
 
-    pub fn is_verification_expired(
-        env: Env,
-        project_id: u64,
-    ) -> Result<bool, ContractError> {
+    pub fn is_verification_expired(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expired(&env, project_id)
     }
 
@@ -415,7 +405,14 @@ impl DongleContract {
         registration_fee: u128,
         treasury: Address,
     ) -> Result<(), ContractError> {
-        FeeManager::set_fee(&env, admin, token, verification_fee, registration_fee, treasury)
+        FeeManager::set_fee(
+            &env,
+            admin,
+            token,
+            verification_fee,
+            registration_fee,
+            treasury,
+        )
     }
 
     pub fn pay_fee(
@@ -509,12 +506,7 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(
-        env: Env,
-        tag: String,
-        start_id: u32,
-        limit: u32,
-    ) -> Vec<Project> {
+    pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
     }
 }

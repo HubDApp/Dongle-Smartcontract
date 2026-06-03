@@ -156,11 +156,7 @@ fn test_fee_consumed_after_request_verification() {
     client.approve_verification(&project_id, &admin);
 
     // Revoke so status goes back to Unverified
-    client.revoke_verification(
-        &project_id,
-        &admin,
-        &String::from_str(&env, "test revoke"),
-    );
+    client.revoke_verification(&project_id, &admin, &String::from_str(&env, "test revoke"));
 
     // Fee was consumed — re-request without paying should fail
     let result = client.try_request_verification(
@@ -170,4 +166,3 @@ fn test_fee_consumed_after_request_verification() {
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
-

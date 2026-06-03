@@ -194,9 +194,10 @@ impl FeeManager {
             client.transfer(&payer, &treasury, &(amount as i128));
         }
 
-        env.storage()
-            .persistent()
-            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
+        env.storage().persistent().set(
+            &StorageKey::RegistrationFeePaidForAddress(payer.clone()),
+            &true,
+        );
 
         publish_fee_paid_event(
             env,

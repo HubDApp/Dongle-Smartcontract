@@ -3,14 +3,14 @@
 #![cfg(test)]
 
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use crate::types::{ProjectRegistrationParams};
+use crate::types::ProjectRegistrationParams;
 use soroban_sdk::{testutils::Address as _, Address, Env, Map, String, Vec};
 
 #[test]
 fn test_basic_project_with_tags_and_social_links() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
@@ -42,7 +42,7 @@ fn test_basic_project_with_tags_and_social_links() {
 
     let project_id = client.register_project(&params);
     let project = client.get_project(&project_id).unwrap();
-    
+
     assert_eq!(project.tags, Some(tags));
     assert_eq!(project.social_links, Some(social_links));
 }
@@ -51,7 +51,7 @@ fn test_basic_project_with_tags_and_social_links() {
 fn test_basic_reporting() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
     let reporter = Address::generate(&env);
@@ -73,7 +73,7 @@ fn test_basic_reporting() {
 fn test_basic_min_project_age() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let (client, admin) = setup_contract(&env);
 
     // Test default minimum age is 0
@@ -84,7 +84,7 @@ fn test_basic_min_project_age() {
     let new_min_age = 86400u64; // 1 day
     let result = client.try_set_min_project_age(&admin, &new_min_age);
     assert!(result.is_ok());
-    
+
     let updated_min_age = client.get_min_project_age();
     assert_eq!(updated_min_age, new_min_age);
 }

@@ -531,7 +531,7 @@ fn test_respond_to_review_success() {
 
     let review = client.get_review(&project_id, &reviewer).unwrap();
     assert_eq!(review.owner_response, Some(response.clone()));
-    
+
     let fetched_response = client.get_review_response(&project_id, &reviewer);
     assert_eq!(fetched_response, Some(response));
 }
@@ -548,7 +548,7 @@ fn test_respond_to_review_unauthorized_fails() {
 
     let not_owner = Address::generate(&env);
     let response = String::from_str(&env, "Unauthorized response");
-    
+
     let result = client.try_respond_to_review(&project_id, &not_owner, &reviewer, &response);
     assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
 }
@@ -559,16 +559,14 @@ fn test_respond_to_review_not_found_fails() {
     env.mock_all_auths();
     let (client, admin) = setup(&env);
     let project_id = create_test_project(&client, &admin, "ProjectResp3");
-    
+
     let project = client.get_project(&project_id).unwrap();
     let owner = project.owner;
 
     let non_existent_reviewer = Address::generate(&env);
     let response = String::from_str(&env, "Review not found");
-    
-    let result = client.try_respond_to_review(&project_id, &owner, &non_existent_reviewer, &response);
+
+    let result =
+        client.try_respond_to_review(&project_id, &owner, &non_existent_reviewer, &response);
     assert_eq!(result, Err(Ok(ContractError::ReviewNotFound.into())));
 }
-
-
-

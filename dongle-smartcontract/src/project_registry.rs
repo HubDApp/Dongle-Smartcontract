@@ -292,13 +292,23 @@ impl ProjectRegistry {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::ProjectTags(params.project_id), tags);
-                crate::events::publish_project_tags_updated_event(env, params.project_id, project.owner.clone(), value.clone());
+                crate::events::publish_project_tags_updated_event(
+                    env,
+                    params.project_id,
+                    project.owner.clone(),
+                    value.clone(),
+                );
             } else {
                 // Remove tags if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectTags(params.project_id));
-                crate::events::publish_project_tags_updated_event(env, params.project_id, project.owner.clone(), None);
+                crate::events::publish_project_tags_updated_event(
+                    env,
+                    params.project_id,
+                    project.owner.clone(),
+                    None,
+                );
             }
             project.tags = value;
         }
@@ -307,16 +317,27 @@ impl ProjectRegistry {
         if let Some(value) = params.social_links {
             if let Some(social_links) = &value {
                 Utils::validate_social_links(social_links)?;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::ProjectSocialLinks(params.project_id), social_links);
-                crate::events::publish_project_social_links_updated_event(env, params.project_id, project.owner.clone(), value.clone());
+                env.storage().persistent().set(
+                    &StorageKey::ProjectSocialLinks(params.project_id),
+                    social_links,
+                );
+                crate::events::publish_project_social_links_updated_event(
+                    env,
+                    params.project_id,
+                    project.owner.clone(),
+                    value.clone(),
+                );
             } else {
                 // Remove social links if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectSocialLinks(params.project_id));
-                crate::events::publish_project_social_links_updated_event(env, params.project_id, project.owner.clone(), None);
+                crate::events::publish_project_social_links_updated_event(
+                    env,
+                    params.project_id,
+                    project.owner.clone(),
+                    None,
+                );
             }
             project.social_links = value;
         }
@@ -386,7 +407,7 @@ impl ProjectRegistry {
                 &StorageKey::CategoryProjects(project.category.clone()),
                 &new_category_projects,
             );
-            
+
             StorageManager::extend_category_projects_ttl(env, &old_category);
         }
 
@@ -656,8 +677,7 @@ impl ProjectRegistry {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {
@@ -677,8 +697,7 @@ impl ProjectRegistry {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {
@@ -860,12 +879,7 @@ impl ProjectRegistry {
         publish_project_archived_event(env, project_id, caller);
         Ok(())
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(
-        env: &Env,
-        tag: String,
-        start_id: u32,
-        limit: u32,
-    ) -> Vec<Project> {
+    pub fn list_projects_by_tag(env: &Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {

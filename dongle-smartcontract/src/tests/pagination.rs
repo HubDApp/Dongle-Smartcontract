@@ -452,11 +452,17 @@ fn test_list_projects_by_category_basic() {
 
     let result_web3 = client.list_projects_by_category(&String::from_str(&env, "Web3"), &0, &10);
     assert_eq!(result_web3.len(), 1);
-    assert_eq!(result_web3.get(0).unwrap().name, String::from_str(&env, "ProjCat1"));
+    assert_eq!(
+        result_web3.get(0).unwrap().name,
+        String::from_str(&env, "ProjCat1")
+    );
 
     let result_defi = client.list_projects_by_category(&String::from_str(&env, "DeFi"), &0, &10);
     assert_eq!(result_defi.len(), 1);
-    assert_eq!(result_defi.get(0).unwrap().name, String::from_str(&env, "ProjCat2"));
+    assert_eq!(
+        result_defi.get(0).unwrap().name,
+        String::from_str(&env, "ProjCat2")
+    );
 }
 
 #[test]
@@ -501,7 +507,8 @@ fn test_list_projects_by_category_update_moves_project() {
     client.mock_all_auths().update_project(&update_params);
 
     // Verify it's removed from OldCat and added to NewCat
-    let result_old_after = client.list_projects_by_category(&String::from_str(&env, "OldCat"), &0, &10);
+    let result_old_after =
+        client.list_projects_by_category(&String::from_str(&env, "OldCat"), &0, &10);
     assert_eq!(result_old_after.len(), 0);
 
     let result_new = client.list_projects_by_category(&String::from_str(&env, "NewCat"), &0, &10);
