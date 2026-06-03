@@ -64,6 +64,8 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
+    ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
     ReviewReport(u64, Address, Address),
     /// Verification renewal request by project_id
@@ -72,4 +74,6 @@ pub enum StorageKey {
     VerificationRenewalHistory(u64, u32),
     /// Renewal count for a project (tracks number of renewals)
     VerificationRenewalCount(u64),
+    /// List of featured project IDs.
+    FeaturedProjects,
 }

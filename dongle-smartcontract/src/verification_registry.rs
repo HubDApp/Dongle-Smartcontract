@@ -1,11 +1,13 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
 use crate::auth::{require_admin_auth, require_owner_auth};
-use crate::constants::MAX_CID_LEN;
+use crate::constants::{MAX_CID_LEN, MAX_PROJECTS_PER_USER, VERIFICATION_VALIDITY_PERIOD};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
-    publish_verification_requested_event, publish_verification_revoked_event,
+    publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
+    publish_verification_renewal_requested_event, publish_verification_requested_event,
+    publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -175,8 +177,20 @@ impl VerificationRegistry {
             VerificationStatus::Pending,
         )?;
 
-        // 5. Consume fee payment
-        FeeManager::consume_fee_payment(env, project_id)?;
+        // 5. Consume fee payment when configured
+        let fee_amount = match FeeManager::get_fee_config(env) {
+            Ok(config) if config.verification_fee > 0 => {
+                FeeManager::consume_fee_payment(
+                    env,
+                    project_id,
+                    requester.clone(),
+                    config.verification_fee,
+                )?;
+                config.verification_fee
+            }
+            Ok(config) => config.verification_fee,
+            Err(_) => 0,
+        };
 
         // 6. Validate evidence
         Self::validate_evidence_cid(&evidence_cid)?;
@@ -193,7 +207,6 @@ impl VerificationRegistry {
             .set(&StorageKey::NextVerificationRequestId, &request_id);
 
         // 7. Create record
-        let config = FeeManager::get_fee_config(env)?;
         let now = env.ledger().timestamp();
         let record = VerificationRecord {
             request_id,
@@ -202,7 +215,7 @@ impl VerificationRegistry {
             status: VerificationStatus::Pending,
             evidence_cid: evidence_cid.clone(),
             timestamp: now,
-            fee_amount: config.verification_fee,
+            fee_amount,
             revoke_reason: None,
             expires_at: 0,
             last_renewed_at: 0,
@@ -448,13 +461,194 @@ impl VerificationRegistry {
         min_age_seconds: u64,
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
-
+        let previous_min_age_seconds = Self::get_min_project_age(env);
         env.storage()
             .persistent()
             .set(&StorageKey::MinProjectAge, &min_age_seconds);
 
-        crate::events::publish_min_project_age_set_event(env, min_age_seconds, admin);
+        crate::events::publish_min_project_age_set_event(
+            env,
+            admin,
+            previous_min_age_seconds,
+            min_age_seconds,
+        );
         Ok(())
+    }
+
+    pub fn request_renewal(
+        env: &Env,
+        project_id: u64,
+        requester: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        require_owner_auth(&requester, &project.owner)?;
+        if project.verification_status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::VerificationRenewal(project_id))
+        {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        Self::validate_evidence_cid(&evidence_cid)?;
+
+        let fee_amount = match FeeManager::get_fee_config(env) {
+            Ok(config) if config.verification_fee > 0 => {
+                FeeManager::consume_fee_payment(
+                    env,
+                    project_id,
+                    requester.clone(),
+                    config.verification_fee,
+                )?;
+                config.verification_fee
+            }
+            Ok(config) => config.verification_fee,
+            Err(_) => 0,
+        };
+
+        let now = env.ledger().timestamp();
+        let renewal = VerificationRenewalRecord {
+            project_id,
+            requester: requester.clone(),
+            status: VerificationStatus::Pending,
+            evidence_cid: evidence_cid.clone(),
+            timestamp: now,
+            fee_amount,
+            expires_at: now.saturating_add(VERIFICATION_VALIDITY_PERIOD),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRenewal(project_id), &renewal);
+
+        publish_verification_renewal_requested_event(
+            env,
+            project_id,
+            requester,
+            evidence_cid,
+            fee_amount,
+        );
+        Ok(())
+    }
+
+    pub fn approve_renewal(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        let renewal = Self::get_renewal_request(env, project_id)?;
+        let mut verification = Self::get_verification(env, project_id)?;
+        let mut project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        let now = env.ledger().timestamp();
+        let expires_at = now.saturating_add(VERIFICATION_VALIDITY_PERIOD);
+
+        verification.status = VerificationStatus::Verified;
+        verification.expires_at = expires_at;
+        verification.last_renewed_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &verification);
+
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        let history_index: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::VerificationRenewalCount(project_id))
+            .unwrap_or(0);
+        let approved = VerificationRenewalRecord {
+            status: VerificationStatus::Verified,
+            expires_at,
+            ..renewal.clone()
+        };
+        env.storage().persistent().set(
+            &StorageKey::VerificationRenewalHistory(project_id, history_index),
+            &approved,
+        );
+        env.storage().persistent().set(
+            &StorageKey::VerificationRenewalCount(project_id),
+            &history_index.saturating_add(1),
+        );
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::VerificationRenewal(project_id));
+
+        publish_verification_renewal_approved_event(env, project_id, admin, expires_at);
+        Ok(())
+    }
+
+    pub fn reject_renewal(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        let _renewal = Self::get_renewal_request(env, project_id)?;
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::VerificationRenewal(project_id));
+        publish_verification_renewal_rejected_event(env, project_id, admin);
+        Ok(())
+    }
+
+    pub fn get_renewal_request(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<VerificationRenewalRecord, ContractError> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::VerificationRenewal(project_id))
+            .ok_or(ContractError::VerificationNotFound)
+    }
+
+    pub fn get_renewal_history(
+        env: &Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<VerificationRenewalRecord> {
+        let effective_limit = if limit == 0 || limit > MAX_PROJECTS_PER_USER {
+            MAX_PROJECTS_PER_USER
+        } else {
+            limit
+        };
+
+        let count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::VerificationRenewalCount(project_id))
+            .unwrap_or(0);
+
+        let mut history = Vec::new(env);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), count);
+        for index in start_index..end {
+            if let Some(record) = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::VerificationRenewalHistory(project_id, index))
+            {
+                history.push_back(record);
+            }
+        }
+        history
+    }
+
+    pub fn is_verification_expired(env: &Env, project_id: u64) -> Result<bool, ContractError> {
+        let verification = Self::get_verification(env, project_id)?;
+        Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
     }
 }
 

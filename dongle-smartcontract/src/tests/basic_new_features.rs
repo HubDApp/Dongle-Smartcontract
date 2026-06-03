@@ -30,6 +30,7 @@ fn test_basic_project_with_tags_and_social_links() {
     let params = ProjectRegistrationParams {
         owner: user.clone(),
         name: String::from_str(&env, "TestProject"),
+        slug: String::from_str(&env, "testproject"),
         description: String::from_str(&env, "A test project"),
         category: String::from_str(&env, "DeFi"),
         website: None,

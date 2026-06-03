@@ -2,6 +2,7 @@ use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
 use crate::events::{
     publish_ownership_transferred_event, publish_project_archived_event,
+    publish_project_registered_event, publish_project_updated_event,
     publish_project_reactivated_event, publish_project_registered_event,
     publish_project_updated_event,
 };
@@ -30,9 +31,14 @@ impl ProjectRegistry {
         Utils::validate_project_slug(&params.slug)?;
 
         // Check registration fee payment
-        let config = FeeManager::get_fee_config(env)?;
-        if config.registration_fee > 0 {
-            FeeManager::consume_registration_fee_payment(env, &params.owner)?;
+        if let Ok(config) = FeeManager::get_fee_config(env) {
+            if config.registration_fee > 0 {
+                FeeManager::consume_registration_fee_payment(
+                    env,
+                    &params.owner,
+                    config.registration_fee,
+                )?;
+            }
         }
 
         // Validate description with comprehensive checks
@@ -104,8 +110,10 @@ impl ProjectRegistry {
             logo_cid: params.logo_cid,
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
+            is_archived: false,
             created_at: now,
             updated_at: now,
+            archived: false,
             tags: params.tags.clone(),
             social_links: params.social_links.clone(),
         };
@@ -592,6 +600,8 @@ impl ProjectRegistry {
             return projects;
         }
 
+        let mut collected: u32 = 0;
+        for id in first..=count {
         let end = core::cmp::min(
             first.saturating_add(effective_limit as u64),
             count.saturating_add(1),
@@ -603,6 +613,7 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
+                if !project.is_archived {
                 if !project.archived {
                     projects.push_back(project);
                     collected += 1;
@@ -636,6 +647,8 @@ impl ProjectRegistry {
             return projects;
         }
 
+        let mut collected: u32 = 0;
+        for i in start_id..len {
         let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
 
         let mut collected: u32 = 0;
@@ -645,6 +658,7 @@ impl ProjectRegistry {
             }
             if let Some(id) = category_projects.get(i) {
                 if let Some(project) = Self::get_project(env, id) {
+                    if !project.is_archived {
                     if !project.archived {
                         projects.push_back(project);
                         collected += 1;
@@ -772,10 +786,98 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &old_owner);
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
-        publish_ownership_transferred_event(env, project_id, old_owner, pending_new_owner);
+        publish_ownership_transferred_event(
+            env,
+            project_id,
+            caller,
+            old_owner,
+            pending_new_owner,
+        );
         Ok(())
     }
 
+    pub fn archive_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.archived {
+            return Err(ContractError::ProjectAlreadyArchived);
+        }
+
+        project.archived = true;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_archived_event(env, project_id, caller);
+        Ok(())
+    }
+
+    pub fn reactivate_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        if !project.archived {
+            return Err(ContractError::ProjectNotArchived);
+        }
+
+        project.archived = false;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_reactivated_event(env, project_id, caller);
+        Ok(())
+    }
+
+    /// Archive a project. The owner can archive their own project; admins can force-archive any project.
+    pub fn archive_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+
+        let is_owner = project.owner == caller;
+        let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
+
+        if !is_owner && !is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        project.is_archived = true;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_archived_event(env, project_id, caller);
+        Ok(())
     /// List projects by tag - Issue #125
     pub fn list_projects_by_tag(env: &Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
