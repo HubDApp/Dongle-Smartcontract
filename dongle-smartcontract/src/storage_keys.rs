@@ -68,4 +68,6 @@ pub enum StorageKey {
     VerificationRenewalHistory(u64, u32),
     /// Renewal count for a project (tracks number of renewals)
     VerificationRenewalCount(u64),
+    /// List of featured project IDs.
+    FeaturedProjects,
 }

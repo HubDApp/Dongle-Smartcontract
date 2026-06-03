@@ -183,3 +183,13 @@ pub struct ProjectAggregate {
     pub total_rating: u64,
     pub review_count: u64,
 }
+
+/// Emitted when a project's featured status changes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedProjectEvent {
+    pub project_id: u64,
+    pub featured: bool,
+    pub admin: Address,
+    pub timestamp: u64,
+}

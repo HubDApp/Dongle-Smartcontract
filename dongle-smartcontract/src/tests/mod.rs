@@ -5,6 +5,7 @@ mod admin;
 mod archival;
 mod error_handling_tests;
 mod fee;
+mod featured;
 mod indexer;
 mod review;
 
