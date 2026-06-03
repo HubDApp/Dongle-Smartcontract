@@ -78,6 +78,7 @@ pub struct ProjectOwnershipTransferredEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectArchivedEvent {
     pub project_id: u64,
+    pub archived_by: Address,
     pub owner: Address,
     pub timestamp: u64,
 }
@@ -235,6 +236,22 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
         (
             symbol_short!("PROJECT"),
             symbol_short!("UPDATED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_archived_event(env: &Env, project_id: u64, archived_by: Address) {
+    let event_data = ProjectArchivedEvent {
+        project_id,
+        archived_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("ARCHIVED"),
             project_id,
         ),
         event_data,
@@ -423,25 +440,68 @@ pub fn publish_min_project_age_set_event(env: &Env, min_age_seconds: u64, admin:
     );
 }
 
-// ── Additional review events ──────────────────────────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewReportedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub reporter: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewHiddenEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewRestoredEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
 
 pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
+    let event_data = ReviewReportedEvent {
+        project_id,
+        reviewer,
+        reporter,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("REPORTED"), project_id),
-        (reviewer, reporter, env.ledger().timestamp()),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"REPORTED\"), project_id),
+        event_data,
     );
 }
 
 pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewHiddenEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id),
-        (reviewer, admin, env.ledger().timestamp()),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"HIDDEN\"), project_id),
+        event_data,
     );
 }
 
 pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    let event_data = ReviewRestoredEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("RESTORED"), project_id),
-        (reviewer, admin, env.ledger().timestamp()),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"RESTORED\"), project_id),
+        event_data,
     );
 }

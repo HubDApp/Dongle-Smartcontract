@@ -40,6 +40,11 @@ impl ReviewRegistry {
             return Err(ContractError::ProjectNotFound);
         }
 
+        // Check if reviews are enabled for this project
+        if !Self::get_reviews_enabled(env, project_id) {
+            return Err(ContractError::ReviewsDisabled);
+        }
+
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
@@ -483,6 +488,39 @@ impl ReviewRegistry {
         reviews
     }
 
+    /// Enable or disable reviews for a project. Only the project owner may call this.
+    pub fn set_reviews_enabled(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let project: Project = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Project(project_id))
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ReviewsEnabled(project_id), &enabled);
+        Ok(())
+    }
+
+    /// Returns whether reviews are enabled for a project. Defaults to `true` if never set.
+    pub fn get_reviews_enabled(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ReviewsEnabled(project_id))
+            .unwrap_or(true)
+    }
+
     pub fn report_review(
         env: &Env,
         project_id: u64,
@@ -520,7 +558,6 @@ impl ReviewRegistry {
         // Extend TTL
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
 
         Ok(())
@@ -591,7 +628,6 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_hidden_event(env, project_id, reviewer, admin);
 
         Ok(())
@@ -659,7 +695,6 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_restored_event(env, project_id, reviewer, admin);
 
         Ok(())

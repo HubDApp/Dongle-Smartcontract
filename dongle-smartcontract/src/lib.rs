@@ -6,6 +6,7 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 mod fee_manager;
+mod featured_registry;
 mod project_registry;
 pub mod rating_calculator;
 mod report_registry;
@@ -22,6 +23,7 @@ mod tests;
 use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
+use crate::featured_registry::FeaturedRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -168,6 +170,21 @@ impl DongleContract {
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
+    // --- Featured Registry ---
+
+    pub fn set_featured(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        featured: bool,
+    ) -> Result<(), ContractError> {
+        FeaturedRegistry::set_featured(&env, admin, project_id, featured)
+    }
+
+    pub fn list_featured_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
+        FeaturedRegistry::list_featured_projects(&env, start, limit)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(
@@ -248,6 +265,19 @@ impl DongleContract {
 
     pub fn get_stats_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
         ReviewRegistry::get_stats_batch(&env, ids)
+    }
+
+    pub fn set_reviews_enabled(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::set_reviews_enabled(&env, project_id, caller, enabled)
+    }
+
+    pub fn get_reviews_enabled(env: Env, project_id: u64) -> bool {
+        ReviewRegistry::get_reviews_enabled(&env, project_id)
     }
 
     pub fn report_review(

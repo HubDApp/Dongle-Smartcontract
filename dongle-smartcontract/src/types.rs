@@ -98,6 +98,7 @@ pub struct Project {
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
+    pub is_archived: bool,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
@@ -181,4 +182,14 @@ pub struct FeeConfig {
 pub struct ProjectAggregate {
     pub total_rating: u64,
     pub review_count: u64,
+}
+
+/// Emitted when a project's featured status changes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedProjectEvent {
+    pub project_id: u64,
+    pub featured: bool,
+    pub admin: Address,
+    pub timestamp: u64,
 }
