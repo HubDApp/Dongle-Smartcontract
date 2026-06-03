@@ -3,6 +3,8 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_ownership_transferred_event, publish_project_archived_event,
     publish_project_registered_event, publish_project_updated_event,
+    publish_project_reactivated_event, publish_project_registered_event,
+    publish_project_updated_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::StorageKey;
@@ -26,6 +28,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
+        Utils::validate_project_slug(&params.slug)?;
 
         // Check registration fee payment
         let config = FeeManager::get_fee_config(env)?;
@@ -48,6 +51,16 @@ impl ProjectRegistry {
             Utils::validate_metadata_cid(metadata_cid)?;
         }
 
+        // Validate tags if provided
+        if let Some(tags) = &params.tags {
+            Utils::validate_tags(tags)?;
+        }
+
+        // Validate social links if provided
+        if let Some(social_links) = &params.social_links {
+            Utils::validate_social_links(social_links)?;
+        }
+
         // Check if owner has exceeded maximum projects limit
         let owner_project_count = Self::owner_project_count(env, &params.owner);
         if owner_project_count >= MAX_PROJECTS_PER_USER {
@@ -63,6 +76,15 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
+        // Check if project slug already exists
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectBySlug(params.slug.clone()))
+        {
+            return Err(ContractError::ProjectSlugAlreadyExists);
+        }
+
         // Mutation phase
         let mut count: u64 = env
             .storage()
@@ -76,6 +98,7 @@ impl ProjectRegistry {
             id: count,
             owner: params.owner.clone(),
             name: params.name.clone(),
+            slug: params.slug.clone(),
             description: params.description,
             category: params.category,
             website: params.website,
@@ -85,6 +108,8 @@ impl ProjectRegistry {
             is_archived: false,
             created_at: now,
             updated_at: now,
+            tags: params.tags.clone(),
+            social_links: params.social_links.clone(),
         };
 
         // Get current owner projects
@@ -104,6 +129,9 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectBySlug(params.slug), &count);
 
         owner_projects.push_back(count);
         env.storage().persistent().set(
@@ -128,6 +156,18 @@ impl ProjectRegistry {
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
+
+        // Store tags and social links separately if provided
+        if let Some(tags) = &params.tags {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectTags(count), tags);
+        }
+        if let Some(social_links) = &params.social_links {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectSocialLinks(count), social_links);
+        }
 
         publish_project_registered_event(
             env,
@@ -156,6 +196,10 @@ impl ProjectRegistry {
         let old_name = project.name.clone();
         let mut name_updated = false;
 
+        // Store old slug for cleanup if slug is being updated
+        let old_slug = project.slug.clone();
+        let mut slug_updated = false;
+
         let old_category = project.category.clone();
         let mut category_updated = false;
 
@@ -181,6 +225,27 @@ impl ProjectRegistry {
 
                 project.name = value;
                 name_updated = true;
+            }
+        }
+        if let Some(value) = params.slug {
+            Utils::validate_project_slug(&value)?;
+
+            // Check if new slug is different from current slug
+            if value != old_slug {
+                // Check if new slug already exists (assigned to a different project)
+                if let Some(existing_id) = env
+                    .storage()
+                    .persistent()
+                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(value.clone()))
+                {
+                    // If the slug exists and points to a different project, it's a duplicate
+                    if existing_id != params.project_id {
+                        return Err(ContractError::ProjectSlugAlreadyExists);
+                    }
+                }
+
+                project.slug = value;
+                slug_updated = true;
             }
         }
         if let Some(value) = params.description {
@@ -214,6 +279,42 @@ impl ProjectRegistry {
             project.metadata_cid = value;
         }
 
+        // Handle tags update
+        if let Some(value) = params.tags {
+            if let Some(tags) = &value {
+                Utils::validate_tags(tags)?;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::ProjectTags(params.project_id), tags);
+                crate::events::publish_project_tags_updated_event(env, params.project_id, project.owner.clone(), value.clone());
+            } else {
+                // Remove tags if None
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::ProjectTags(params.project_id));
+                crate::events::publish_project_tags_updated_event(env, params.project_id, project.owner.clone(), None);
+            }
+            project.tags = value;
+        }
+
+        // Handle social links update
+        if let Some(value) = params.social_links {
+            if let Some(social_links) = &value {
+                Utils::validate_social_links(social_links)?;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::ProjectSocialLinks(params.project_id), social_links);
+                crate::events::publish_project_social_links_updated_event(env, params.project_id, project.owner.clone(), value.clone());
+            } else {
+                // Remove social links if None
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::ProjectSocialLinks(params.project_id));
+                crate::events::publish_project_social_links_updated_event(env, params.project_id, project.owner.clone(), None);
+            }
+            project.social_links = value;
+        }
+
         project.updated_at = env.ledger().timestamp();
         env.storage()
             .persistent()
@@ -229,6 +330,20 @@ impl ProjectRegistry {
             // Create new name mapping
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
+                &params.project_id,
+            );
+        }
+
+        // If slug was updated, update the ProjectBySlug mappings
+        if slug_updated {
+            // Remove old slug mapping
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectBySlug(old_slug));
+
+            // Create new slug mapping
+            env.storage().persistent().set(
+                &StorageKey::ProjectBySlug(project.slug.clone()),
                 &params.project_id,
             );
         }
@@ -289,10 +404,22 @@ impl ProjectRegistry {
     }
 
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
-        let project = env
+        let mut project: Option<Project> = env
             .storage()
             .persistent()
             .get(&StorageKey::Project(project_id));
+
+        // Load tags and social links if project exists
+        if let Some(ref mut proj) = project {
+            proj.tags = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::ProjectTags(project_id));
+            proj.social_links = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::ProjectSocialLinks(project_id));
+        }
 
         // Bump TTL on read
         if project.is_some() {
@@ -311,6 +438,17 @@ impl ProjectRegistry {
         project
     }
 
+    pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
+        // Get project ID from slug mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectBySlug(slug))?;
+
+        // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
     pub fn get_projects_by_owner(env: &Env, owner: Address) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
@@ -323,7 +461,9 @@ impl ProjectRegistry {
         for i in 0..len {
             if let Some(project_id) = ids.get(i) {
                 if let Some(project) = Self::get_project(env, project_id) {
-                    projects.push_back(project);
+                    if !project.archived {
+                        projects.push_back(project);
+                    }
                 }
             }
         }
@@ -398,7 +538,7 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
-                if project.verification_status == status {
+                if project.verification_status == status && !project.archived {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -435,11 +575,19 @@ impl ProjectRegistry {
 
         let mut collected: u32 = 0;
         for id in first..=count {
+        let end = core::cmp::min(
+            first.saturating_add(effective_limit as u64),
+            count.saturating_add(1),
+        );
+
+        let mut collected: u32 = 0;
+        for id in first..end {
             if collected >= effective_limit {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
                 if !project.is_archived {
+                if !project.archived {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -474,12 +622,17 @@ impl ProjectRegistry {
 
         let mut collected: u32 = 0;
         for i in start_id..len {
+        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+
+        let mut collected: u32 = 0;
+        for i in start_id..end {
             if collected >= effective_limit {
                 break;
             }
             if let Some(id) = category_projects.get(i) {
                 if let Some(project) = Self::get_project(env, id) {
                     if !project.is_archived {
+                    if !project.archived {
                         projects.push_back(project);
                         collected += 1;
                     }
@@ -640,6 +793,54 @@ impl ProjectRegistry {
 
         publish_project_archived_event(env, project_id, caller);
         Ok(())
+    /// List projects by tag - Issue #125
+    pub fn list_projects_by_tag(
+        env: &Env,
+        tag: String,
+        start_id: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if count == 0 {
+            return projects;
+        }
+
+        let mut collected: u32 = 0;
+        let mut current_id: u32 = start_id;
+
+        // Iterate through projects starting from start_id
+        for id in (start_id as u64 + 1)..=count {
+            if collected >= effective_limit {
+                break;
+            }
+
+            if let Some(project) = Self::get_project(env, id) {
+                // Check if project has the specified tag
+                if let Some(tags) = &project.tags {
+                    for project_tag in tags.iter() {
+                        if project_tag == tag {
+                            projects.push_back(project);
+                            collected += 1;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        projects
     }
 }
 

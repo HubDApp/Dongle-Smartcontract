@@ -1,5 +1,5 @@
 use crate::types::{ReviewAction, ReviewEventData};
-use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
@@ -79,6 +79,16 @@ pub struct ProjectOwnershipTransferredEvent {
 pub struct ProjectArchivedEvent {
     pub project_id: u64,
     pub archived_by: Address,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project is reactivated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReactivatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
     pub timestamp: u64,
 }
 
@@ -94,6 +104,45 @@ pub struct AdminAddedEvent {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminRemovedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project is reported.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReportedEvent {
+    pub project_id: u64,
+    pub reporter: Address,
+    pub reason_cid: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when project tags are updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectTagsUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub tags: Option<Vec<String>>,
+    pub timestamp: u64,
+}
+
+/// Emitted when project social links are updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialLinksUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub social_links: Option<Map<String, String>>,
+    pub timestamp: u64,
+}
+
+/// Emitted when minimum project age is configured.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinProjectAgeSetEvent {
+    pub min_age_seconds: u64,
     pub admin: Address,
     pub timestamp: u64,
 }
@@ -336,6 +385,59 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     };
     env.events().publish(
         (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
+        event_data,
+    );
+}
+
+// ── New feature events ────────────────────────────────────────────────────────
+
+pub fn publish_project_reported_event(env: &Env, project_id: u64, reporter: Address, reason_cid: String) {
+    let event_data = ProjectReportedEvent {
+        project_id,
+        reporter,
+        reason_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("REPORTED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_project_tags_updated_event(env: &Env, project_id: u64, owner: Address, tags: Option<Vec<String>>) {
+    let event_data = ProjectTagsUpdatedEvent {
+        project_id,
+        owner,
+        tags,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("TAGS"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_project_social_links_updated_event(env: &Env, project_id: u64, owner: Address, social_links: Option<Map<String, String>>) {
+    let event_data = ProjectSocialLinksUpdatedEvent {
+        project_id,
+        owner,
+        social_links,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("SOCIAL"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_min_project_age_set_event(env: &Env, min_age_seconds: u64, admin: Address) {
+    let event_data = MinProjectAgeSetEvent {
+        min_age_seconds,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
         event_data,
     );
 }
