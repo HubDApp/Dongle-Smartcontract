@@ -103,8 +103,8 @@ pub struct ProjectOwnershipTransferredEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectArchivedEvent {
     pub project_id: u64,
-    pub caller: Address,
-    pub archived: bool,
+    pub archived_by: Address,
+    pub owner: Address,
     pub timestamp: u64,
 }
 
@@ -235,8 +235,7 @@ pub fn publish_review_event(
     project_id: u64,
     reviewer: Address,
     action: ReviewAction,
-    ipfs_cid: Option<String>,
-    comment_cid: Option<String>,
+    content_cid: Option<String>,
     owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
@@ -246,10 +245,9 @@ pub fn publish_review_event(
         reviewer: reviewer.clone(),
         action: action.clone(),
         timestamp: env.ledger().timestamp(),
-        ipfs_cid,
+        content_cid,
         created_at,
         updated_at,
-        comment_cid,
         owner_response,
     };
 
@@ -303,11 +301,10 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
     );
 }
 
-pub fn publish_project_archived_event(env: &Env, project_id: u64, caller: Address) {
+pub fn publish_project_archived_event(env: &Env, project_id: u64, archived_by: Address) {
     let event_data = ProjectArchivedEvent {
         project_id,
-        caller,
-        archived: true,
+        archived_by,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
@@ -319,6 +316,8 @@ pub fn publish_project_archived_event(env: &Env, project_id: u64, caller: Addres
         event_data,
     );
 }
+
+// ── Fee events ────────────────────────────────────────────────────────────────
 
 pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Address) {
     let event_data = ProjectReactivatedEvent {
@@ -625,65 +624,68 @@ pub fn publish_min_project_age_set_event(
     );
 }
 
-pub fn publish_review_reported_event(
-    env: &Env,
-    project_id: u64,
-    reviewer: Address,
-    caller: Address,
-    report_count: u32,
-) {
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewReportedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub reporter: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewHiddenEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewRestoredEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
     let event_data = ReviewReportedEvent {
         project_id,
-        caller,
-        reviewer: reviewer.clone(),
-        report_count,
+        reviewer,
+        reporter,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("REPORTED"), project_id, reviewer),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"REPORTED\"), project_id),
         event_data,
     );
 }
 
-pub fn publish_review_hidden_event(
-    env: &Env,
-    project_id: u64,
-    reviewer: Address,
-    admin: Address,
-) {
+pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
     let event_data = ReviewHiddenEvent {
         project_id,
+        reviewer,
         admin,
-        reviewer: reviewer.clone(),
-        hidden: true,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id, reviewer),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"HIDDEN\"), project_id),
         event_data,
     );
 }
 
-pub fn publish_review_restored_event(
-    env: &Env,
-    project_id: u64,
-    reviewer: Address,
-    admin: Address,
-) {
+pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
     let event_data = ReviewRestoredEvent {
         project_id,
+        reviewer,
         admin,
-        reviewer: reviewer.clone(),
-        hidden: false,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("REVIEW"),
-            symbol_short!("RESTORED"),
-            project_id,
-            reviewer,
-        ),
+        (symbol_short!(\"REVIEW\"), symbol_short!(\"RESTORED\"), project_id),
         event_data,
     );
 }

@@ -45,8 +45,8 @@ pub struct Review {
     pub project_id: u64,
     pub reviewer: Address,
     pub rating: u32,
-    pub ipfs_cid: Option<String>,
-    pub comment_cid: Option<String>,
+    /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair
+    pub content_cid: Option<String>,
     pub owner_response: Option<String>,
 
     /// Unix timestamp (seconds) when the review was first submitted.
@@ -78,8 +78,8 @@ pub struct ReviewEventData {
     pub reviewer: Address,
     pub action: ReviewAction,
     pub timestamp: u64,
-    pub ipfs_cid: Option<String>,
-    pub comment_cid: Option<String>,
+    /// Canonical content CID - consolidates the review content
+    pub content_cid: Option<String>,
     pub owner_response: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
@@ -98,6 +98,7 @@ pub struct Project {
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
+    pub is_archived: bool,
     pub created_at: u64,
     pub updated_at: u64,
     pub archived: bool,
@@ -182,4 +183,14 @@ pub struct FeeConfig {
 pub struct ProjectAggregate {
     pub total_rating: u64,
     pub review_count: u64,
+}
+
+/// Emitted when a project's featured status changes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedProjectEvent {
+    pub project_id: u64,
+    pub featured: bool,
+    pub admin: Address,
+    pub timestamp: u64,
 }
