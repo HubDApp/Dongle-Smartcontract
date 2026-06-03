@@ -16,7 +16,7 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address, Address) {
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(&admin, &Some(token.clone()), &100, &admin);
+    client.set_fee(&admin, &Some(token.clone()), &100, &0u128, &admin);
 
     (client, admin, Address::generate(env), token)
 }
@@ -25,6 +25,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &name.to_lowercase()),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
@@ -162,3 +163,4 @@ fn test_fee_consumed_after_request_verification() {
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
+

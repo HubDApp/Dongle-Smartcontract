@@ -1,6 +1,6 @@
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 #[allow(dead_code)]
 pub struct Utils;
@@ -183,6 +183,85 @@ impl Utils {
             }
         }
 
+        Ok(())
+    }
+
+    /// Validates project tags
+    pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        // Check max number of tags
+        if tags.len() > crate::constants::MAX_TAGS_PER_PROJECT {
+            return Err(ContractError::TooManyTags);
+        }
+
+        // Validate each tag
+        for tag in tags.iter() {
+            let tag_str = tag.to_string();
+            
+            // Check tag length
+            if tag_str.len() == 0 || tag_str.len() > crate::constants::MAX_TAG_LENGTH as usize {
+                return Err(ContractError::InvalidTag);
+            }
+
+            // Check tag format (alphanumeric, underscore, hyphen only)
+            for c in tag_str.chars() {
+                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+                    return Err(ContractError::InvalidTag);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validates social links
+    pub fn validate_social_links(social_links: &Map<String, String>) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        // Check max number of social links
+        if social_links.len() > crate::constants::MAX_SOCIAL_LINKS {
+            return Err(ContractError::TooManySocialLinks);
+        }
+
+        // Validate each social link
+        for (platform, url) in social_links.iter() {
+            let platform_str = platform.to_string();
+            let url_str = url.to_string();
+
+            // Check platform name length
+            if platform_str.len() == 0 || platform_str.len() > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as usize {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Check URL length
+            if url_str.len() == 0 || url_str.len() > crate::constants::MAX_SOCIAL_LINK_URL_LEN as usize {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Basic URL validation
+            if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            // Platform name validation (alphanumeric, underscore, hyphen only)
+            for c in platform_str.chars() {
+                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+                    return Err(ContractError::InvalidSocialLink);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validates report reason CID
+    pub fn validate_report_reason_cid(reason_cid: &String) -> Result<(), ContractError> {
+        if reason_cid.len() == 0 || !Self::is_valid_ipfs_cid(reason_cid) {
+            return Err(ContractError::InvalidReportReason);
+        }
         Ok(())
     }
 }
