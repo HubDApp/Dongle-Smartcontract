@@ -382,7 +382,12 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
 
 // ── New feature events ────────────────────────────────────────────────────────
 
-pub fn publish_project_reported_event(env: &Env, project_id: u64, reporter: Address, reason_cid: String) {
+pub fn publish_project_reported_event(
+    env: &Env,
+    project_id: u64,
+    reporter: Address,
+    reason_cid: String,
+) {
     let event_data = ProjectReportedEvent {
         project_id,
         reporter,
@@ -390,12 +395,21 @@ pub fn publish_project_reported_event(env: &Env, project_id: u64, reporter: Addr
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("REPORTED"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REPORTED"),
+            project_id,
+        ),
         event_data,
     );
 }
 
-pub fn publish_project_tags_updated_event(env: &Env, project_id: u64, owner: Address, tags: Option<Vec<String>>) {
+pub fn publish_project_tags_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    tags: Option<Vec<String>>,
+) {
     let event_data = ProjectTagsUpdatedEvent {
         project_id,
         owner,
@@ -408,7 +422,12 @@ pub fn publish_project_tags_updated_event(env: &Env, project_id: u64, owner: Add
     );
 }
 
-pub fn publish_project_social_links_updated_event(env: &Env, project_id: u64, owner: Address, social_links: Option<Map<String, String>>) {
+pub fn publish_project_social_links_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    social_links: Option<Map<String, String>>,
+) {
     let event_data = ProjectSocialLinksUpdatedEvent {
         project_id,
         owner,
@@ -416,7 +435,11 @@ pub fn publish_project_social_links_updated_event(env: &Env, project_id: u64, ow
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("SOCIAL"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("SOCIAL"),
+            project_id,
+        ),
         event_data,
     );
 }

@@ -62,7 +62,6 @@ pub struct Review {
     pub report_count: u32,
 }
 
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReviewAction {

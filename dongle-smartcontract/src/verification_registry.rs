@@ -442,13 +442,17 @@ impl VerificationRegistry {
     }
 
     /// Set minimum project age (admin only)
-    pub fn set_min_project_age(env: &Env, admin: Address, min_age_seconds: u64) -> Result<(), ContractError> {
+    pub fn set_min_project_age(
+        env: &Env,
+        admin: Address,
+        min_age_seconds: u64,
+    ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
-        
+
         env.storage()
             .persistent()
             .set(&StorageKey::MinProjectAge, &min_age_seconds);
-            
+
         crate::events::publish_min_project_age_set_event(env, min_age_seconds, admin);
         Ok(())
     }

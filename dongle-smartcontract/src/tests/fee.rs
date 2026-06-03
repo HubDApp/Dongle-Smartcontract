@@ -163,4 +163,3 @@ fn test_fee_consumed_after_request_verification() {
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
-

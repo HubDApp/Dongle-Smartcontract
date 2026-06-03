@@ -347,4 +347,3 @@ fn test_indexer_can_sync_all_projects_using_count_and_list() {
 
     assert_eq!(synced, 7);
 }
-

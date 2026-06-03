@@ -199,7 +199,7 @@ impl Utils {
         // Validate each tag
         for tag in tags.iter() {
             let tag_str = tag.to_string();
-            
+
             // Check tag length
             if tag_str.len() == 0 || tag_str.len() > crate::constants::MAX_TAG_LENGTH as usize {
                 return Err(ContractError::InvalidTag);
@@ -232,12 +232,16 @@ impl Utils {
             let url_str = url.to_string();
 
             // Check platform name length
-            if platform_str.len() == 0 || platform_str.len() > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as usize {
+            if platform_str.len() == 0
+                || platform_str.len() > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as usize
+            {
                 return Err(ContractError::InvalidSocialLink);
             }
 
             // Check URL length
-            if url_str.len() == 0 || url_str.len() > crate::constants::MAX_SOCIAL_LINK_URL_LEN as usize {
+            if url_str.len() == 0
+                || url_str.len() > crate::constants::MAX_SOCIAL_LINK_URL_LEN as usize
+            {
                 return Err(ContractError::InvalidSocialLink);
             }
 
