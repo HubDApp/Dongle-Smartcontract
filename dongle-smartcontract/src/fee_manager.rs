@@ -2,7 +2,9 @@
 
 use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
-use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+use crate::events::{
+    publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
+};
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
 use crate::types::FeeConfig;
@@ -34,7 +36,14 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
 
-        publish_fee_set_event(env, verification_fee, registration_fee);
+        publish_fee_set_event(
+            env,
+            admin,
+            config.token.clone(),
+            verification_fee,
+            registration_fee,
+            treasury,
+        );
         Ok(())
     }
 
@@ -77,7 +86,14 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
 
-        publish_fee_paid_event(env, project_id, payer, amount);
+        publish_fee_paid_event(
+            env,
+            project_id,
+            payer,
+            token,
+            FeeOperation::Verification,
+            amount,
+        );
         Ok(())
     }
 
@@ -90,13 +106,25 @@ impl FeeManager {
     }
 
     /// Consume the fee payment (used during verification request)
-    pub fn consume_fee_payment(env: &Env, project_id: u64) -> Result<(), ContractError> {
+    pub fn consume_fee_payment(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        amount: u128,
+    ) -> Result<(), ContractError> {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
         env.storage()
             .persistent()
             .remove(&StorageKey::FeePaidForProject(project_id));
+        publish_fee_consumed_event(
+            env,
+            project_id,
+            caller,
+            FeeOperation::Verification,
+            amount,
+        );
         Ok(())
     }
 
@@ -170,7 +198,14 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
 
-        publish_fee_paid_event(env, 0, payer, amount);
+        publish_fee_paid_event(
+            env,
+            0,
+            payer,
+            token,
+            FeeOperation::Registration,
+            amount,
+        );
         Ok(())
     }
 
@@ -183,13 +218,24 @@ impl FeeManager {
     }
 
     /// Consume the registration fee payment (used during project registration)
-    pub fn consume_registration_fee_payment(env: &Env, address: &Address) -> Result<(), ContractError> {
+    pub fn consume_registration_fee_payment(
+        env: &Env,
+        address: &Address,
+        amount: u128,
+    ) -> Result<(), ContractError> {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }
         env.storage()
             .persistent()
             .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
+        publish_fee_consumed_event(
+            env,
+            0,
+            address.clone(),
+            FeeOperation::Registration,
+            amount,
+        );
         Ok(())
     }
 }
