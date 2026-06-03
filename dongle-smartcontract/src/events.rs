@@ -174,8 +174,7 @@ pub fn publish_review_event(
     project_id: u64,
     reviewer: Address,
     action: ReviewAction,
-    ipfs_cid: Option<String>,
-    comment_cid: Option<String>,
+    content_cid: Option<String>,
     owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
@@ -185,10 +184,9 @@ pub fn publish_review_event(
         reviewer: reviewer.clone(),
         action: action.clone(),
         timestamp: env.ledger().timestamp(),
-        ipfs_cid,
+        content_cid,
         created_at,
         updated_at,
-        comment_cid,
         owner_response,
     };
 
