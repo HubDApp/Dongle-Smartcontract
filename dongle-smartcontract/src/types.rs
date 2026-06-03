@@ -98,6 +98,7 @@ pub struct Project {
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
+    pub is_archived: bool,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,

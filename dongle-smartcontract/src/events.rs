@@ -78,6 +78,7 @@ pub struct ProjectOwnershipTransferredEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectArchivedEvent {
     pub project_id: u64,
+    pub archived_by: Address,
     pub owner: Address,
     pub timestamp: u64,
 }
@@ -237,6 +238,22 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
         (
             symbol_short!("PROJECT"),
             symbol_short!("UPDATED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_archived_event(env: &Env, project_id: u64, archived_by: Address) {
+    let event_data = ProjectArchivedEvent {
+        project_id,
+        archived_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("ARCHIVED"),
             project_id,
         ),
         event_data,
