@@ -1,6 +1,9 @@
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    Address, Env, String, Vec,
+};
 
 #[test]
 fn test_create_collection_admin_only() {
@@ -61,6 +64,7 @@ fn test_delete_collection_admin_only() {
 #[test]
 fn test_add_project_to_collection_admin_only() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let non_admin = Address::generate(&env);
     let owner = Address::generate(&env);
@@ -84,6 +88,7 @@ fn test_add_project_to_collection_admin_only() {
 #[test]
 fn test_remove_project_from_collection_admin_only() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let non_admin = Address::generate(&env);
     let owner = Address::generate(&env);
@@ -111,6 +116,7 @@ fn test_remove_project_from_collection_admin_only() {
 #[test]
 fn test_create_and_get_collection() {
     let env = Env::default();
+    env.ledger().with_mut(|li| li.timestamp = 1000000);
     let (client, admin) = setup_contract(&env);
 
     let id = client.mock_all_auths().create_collection(
@@ -237,6 +243,7 @@ fn test_delete_collection_not_found() {
 #[test]
 fn test_add_and_remove_project() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -296,6 +303,7 @@ fn test_add_project_not_found() {
 #[test]
 fn test_add_project_to_nonexistent_collection() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -312,6 +320,7 @@ fn test_add_project_to_nonexistent_collection() {
 #[test]
 fn test_add_duplicate_project_to_collection() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -338,6 +347,7 @@ fn test_add_duplicate_project_to_collection() {
 #[test]
 fn test_remove_project_not_in_collection() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -361,6 +371,7 @@ fn test_remove_project_not_in_collection() {
 #[test]
 fn test_remove_project_from_nonexistent_collection() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -413,6 +424,7 @@ fn test_list_collections_empty() {
 #[test]
 fn test_list_collection_projects_pagination() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -549,6 +561,7 @@ fn test_empty_collection_description() {
 #[test]
 fn test_collection_project_count() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -631,6 +644,7 @@ fn test_get_collection_count() {
 #[test]
 fn test_delete_collection_removes_project_associations() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
