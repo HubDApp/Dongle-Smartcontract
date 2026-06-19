@@ -1,4 +1,4 @@
-use crate::types::{ReviewAction, ReviewEventData, VerificationStatus};
+use crate::types::{ReviewAction, ReviewEventData};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -9,6 +9,8 @@ pub enum FeeOperation {
     Verification,
     Registration,
 }
+
+// ── Event structs ─────────────────────────────────────────────────────────────
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -25,6 +27,117 @@ pub struct ProjectRegisteredEvent {
 pub struct ProjectUpdatedEvent {
     pub project_id: u64,
     pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectArchivedEvent {
+    pub project_id: u64,
+    pub archived_by: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReactivatedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectOwnershipTransferredEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub old_owner: Address,
+    pub new_owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReportedEvent {
+    pub project_id: u64,
+    pub reporter: Address,
+    pub reason_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReportsClearedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectTagsUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub tags: Option<Vec<String>>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialLinksUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub social_links: Option<Map<String, String>>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminAddedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRemovedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewReportedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub reporter: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewHiddenEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewRestoredEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewDeletedByAdminEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
     pub timestamp: u64,
 }
 
@@ -64,6 +177,25 @@ pub struct VerificationRevokedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationHistoryClearedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub removed_count: u32,
+    pub retained_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RenewalHistoryClearedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub removed_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRenewalRequestedEvent {
     pub project_id: u64,
     pub requester: Address,
@@ -86,75 +218,6 @@ pub struct VerificationRenewalApprovedEvent {
 pub struct VerificationRenewalRejectedEvent {
     pub project_id: u64,
     pub admin: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectOwnershipTransferredEvent {
-    pub project_id: u64,
-    pub caller: Address,
-    pub old_owner: Address,
-    pub new_owner: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectArchivedEvent {
-    pub project_id: u64,
-    pub archived_by: Address,
-    pub owner: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectReactivatedEvent {
-    pub project_id: u64,
-    pub caller: Address,
-    pub archived: bool,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AdminAddedEvent {
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AdminRemovedEvent {
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectReportedEvent {
-    pub project_id: u64,
-    pub reporter: Address,
-    pub reason_cid: String,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectTagsUpdatedEvent {
-    pub project_id: u64,
-    pub owner: Address,
-    pub tags: Option<Vec<String>>,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectSocialLinksUpdatedEvent {
-    pub project_id: u64,
-    pub owner: Address,
-    pub social_links: Option<Map<String, String>>,
     pub timestamp: u64,
 }
 
@@ -199,35 +262,7 @@ pub struct FeeConsumedEvent {
     pub timestamp: u64,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewReportedEvent {
-    pub project_id: u64,
-    pub caller: Address,
-    pub reviewer: Address,
-    pub report_count: u32,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewHiddenEvent {
-    pub project_id: u64,
-    pub admin: Address,
-    pub reviewer: Address,
-    pub hidden: bool,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewRestoredEvent {
-    pub project_id: u64,
-    pub admin: Address,
-    pub reviewer: Address,
-    pub hidden: bool,
-    pub timestamp: u64,
-}
+// ── Publish helpers ───────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
 pub fn publish_review_event(
@@ -317,13 +352,10 @@ pub fn publish_project_archived_event(env: &Env, project_id: u64, archived_by: A
     );
 }
 
-// ── Fee events ────────────────────────────────────────────────────────────────
-
 pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Address) {
     let event_data = ProjectReactivatedEvent {
         project_id,
         caller,
-        archived: false,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
@@ -336,66 +368,214 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Add
     );
 }
 
-pub fn publish_fee_paid_event(
+pub fn publish_project_reported_event(
     env: &Env,
     project_id: u64,
-    payer: Address,
-    token: Option<Address>,
-    operation: FeeOperation,
-    amount: u128,
+    reporter: Address,
+    reason_cid: String,
 ) {
-    let event_data = FeePaidEvent {
+    let event_data = ProjectReportedEvent {
         project_id,
-        payer,
-        token,
-        operation,
-        amount,
+        reporter,
+        reason_cid,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("FEE"), symbol_short!("PAID"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REPORTED"),
+            project_id,
+        ),
         event_data,
     );
 }
 
-pub fn publish_fee_consumed_event(
+pub fn publish_project_reports_cleared_event(env: &Env, project_id: u64, admin: Address) {
+    let event_data = ProjectReportsClearedEvent {
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("RPCLEARED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_tags_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    tags: Option<Vec<String>>,
+) {
+    let event_data = ProjectTagsUpdatedEvent {
+        project_id,
+        owner,
+        tags,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("TAGS"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_project_social_links_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    social_links: Option<Map<String, String>>,
+) {
+    let event_data = ProjectSocialLinksUpdatedEvent {
+        project_id,
+        owner,
+        social_links,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("SOCIAL"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_ownership_transferred_event(
     env: &Env,
     project_id: u64,
     caller: Address,
-    operation: FeeOperation,
-    amount: u128,
+    old_owner: Address,
+    new_owner: Address,
 ) {
-    let event_data = FeeConsumedEvent {
+    let event_data = ProjectOwnershipTransferredEvent {
         project_id,
         caller,
-        operation,
-        amount,
+        old_owner,
+        new_owner,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("FEE"), symbol_short!("CONSUMED"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("TRANSFER"),
+            project_id,
+        ),
         event_data,
     );
 }
 
-pub fn publish_fee_set_event(
-    env: &Env,
-    admin: Address,
-    token: Option<Address>,
-    verification_fee: u128,
-    registration_fee: u128,
-    treasury: Address,
-) {
-    let event_data = FeeSetEvent {
+pub fn publish_admin_added_event(env: &Env, admin: Address) {
+    let event_data = AdminAddedEvent {
         admin,
-        token,
-        verification_fee,
-        registration_fee,
-        treasury,
         timestamp: env.ledger().timestamp(),
     };
     env.events()
-        .publish((symbol_short!("CONFIG"), symbol_short!("FEE")), event_data);
+        .publish((symbol_short!("ADMIN"), symbol_short!("ADDED")), event_data);
+}
+
+pub fn publish_admin_removed_event(env: &Env, admin: Address) {
+    let event_data = AdminRemovedEvent {
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
+        event_data,
+    );
+}
+
+pub fn publish_review_reported_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    reporter: Address,
+) {
+    let event_data = ReviewReportedEvent {
+        project_id,
+        reviewer,
+        reporter,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("REPORTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_review_hidden_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    admin: Address,
+) {
+    let event_data = ReviewHiddenEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("HIDDEN"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_review_restored_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    admin: Address,
+) {
+    let event_data = ReviewRestoredEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("RESTORED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_review_deleted_by_admin_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    admin: Address,
+) {
+    let event_data = ReviewDeletedByAdminEvent {
+        project_id,
+        reviewer,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("ADMINDEL"),
+            project_id,
+        ),
+        event_data,
+    );
 }
 
 pub fn publish_verification_requested_event(
@@ -462,6 +642,52 @@ pub fn publish_verification_revoked_event(
     );
 }
 
+pub fn publish_verification_history_cleared_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    removed_count: u32,
+    retained_count: u32,
+) {
+    let event_data = VerificationHistoryClearedEvent {
+        project_id,
+        admin,
+        removed_count,
+        retained_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("HISTCLR"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_renewal_history_cleared_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    removed_count: u32,
+) {
+    let event_data = RenewalHistoryClearedEvent {
+        project_id,
+        admin,
+        removed_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RENEW"),
+            symbol_short!("HISTCLR"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_verification_renewal_requested_event(
     env: &Env,
     project_id: u64,
@@ -500,11 +726,7 @@ pub fn publish_verification_renewal_approved_event(
     );
 }
 
-pub fn publish_verification_renewal_rejected_event(
-    env: &Env,
-    project_id: u64,
-    admin: Address,
-) {
+pub fn publish_verification_renewal_rejected_event(env: &Env, project_id: u64, admin: Address) {
     let event_data = VerificationRenewalRejectedEvent {
         project_id,
         admin,
@@ -516,110 +738,66 @@ pub fn publish_verification_renewal_rejected_event(
     );
 }
 
-pub fn publish_ownership_transferred_event(
+pub fn publish_fee_paid_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    token: Option<Address>,
+    operation: FeeOperation,
+    amount: u128,
+) {
+    let event_data = FeePaidEvent {
+        project_id,
+        payer,
+        token,
+        operation,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("PAID"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_consumed_event(
     env: &Env,
     project_id: u64,
     caller: Address,
-    old_owner: Address,
-    new_owner: Address,
+    operation: FeeOperation,
+    amount: u128,
 ) {
-    let event_data = ProjectOwnershipTransferredEvent {
+    let event_data = FeeConsumedEvent {
         project_id,
         caller,
-        old_owner,
-        new_owner,
+        operation,
+        amount,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("TRANSFER"),
-            project_id,
-        ),
+        (symbol_short!("FEE"), symbol_short!("CONSUMED"), project_id),
         event_data,
     );
 }
 
-pub fn publish_admin_added_event(env: &Env, admin: Address) {
-    let event_data = AdminAddedEvent {
+pub fn publish_fee_set_event(
+    env: &Env,
+    admin: Address,
+    token: Option<Address>,
+    verification_fee: u128,
+    registration_fee: u128,
+    treasury: Address,
+) {
+    let event_data = FeeSetEvent {
         admin,
+        token,
+        verification_fee,
+        registration_fee,
+        treasury,
         timestamp: env.ledger().timestamp(),
     };
     env.events()
-        .publish((symbol_short!("ADMIN"), symbol_short!("ADDED")), event_data);
-}
-
-pub fn publish_admin_removed_event(env: &Env, admin: Address) {
-    let event_data = AdminRemovedEvent {
-        admin,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
-        event_data,
-    );
-}
-
-pub fn publish_project_reported_event(
-    env: &Env,
-    project_id: u64,
-    reporter: Address,
-    reason_cid: String,
-) {
-    let event_data = ProjectReportedEvent {
-        project_id,
-        reporter,
-        reason_cid,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("REPORTED"),
-            project_id,
-        ),
-        event_data,
-    );
-}
-
-pub fn publish_project_tags_updated_event(
-    env: &Env,
-    project_id: u64,
-    owner: Address,
-    tags: Option<Vec<String>>,
-) {
-    let event_data = ProjectTagsUpdatedEvent {
-        project_id,
-        owner,
-        tags,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("TAGS"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_project_social_links_updated_event(
-    env: &Env,
-    project_id: u64,
-    owner: Address,
-    social_links: Option<Map<String, String>>,
-) {
-    let event_data = ProjectSocialLinksUpdatedEvent {
-        project_id,
-        owner,
-        social_links,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("SOCIAL"),
-            project_id,
-        ),
-        event_data,
-    );
+        .publish((symbol_short!("CONFIG"), symbol_short!("FEE")), event_data);
 }
 
 pub fn publish_min_project_age_set_event(
@@ -636,72 +814,6 @@ pub fn publish_min_project_age_set_event(
     };
     env.events().publish(
         (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
-        event_data,
-    );
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewReportedEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub reporter: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewHiddenEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewRestoredEvent {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub admin: Address,
-    pub timestamp: u64,
-}
-
-pub fn publish_review_reported_event(env: &Env, project_id: u64, reviewer: Address, reporter: Address) {
-    let event_data = ReviewReportedEvent {
-        project_id,
-        reviewer,
-        reporter,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!(\"REVIEW\"), symbol_short!(\"REPORTED\"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
-    let event_data = ReviewHiddenEvent {
-        project_id,
-        reviewer,
-        admin,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!(\"REVIEW\"), symbol_short!(\"HIDDEN\"), project_id),
-        event_data,
-    );
-}
-
-pub fn publish_review_restored_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
-    let event_data = ReviewRestoredEvent {
-        project_id,
-        reviewer,
-        admin,
-        timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish(
-        (symbol_short!(\"REVIEW\"), symbol_short!(\"RESTORED\"), project_id),
         event_data,
     );
 }

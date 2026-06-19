@@ -90,6 +90,12 @@ pub enum ContractError {
     ReviewAlreadyHidden = 42,
     /// Review is not hidden
     ReviewNotHidden = 43,
+    /// Project is already archived
+    ProjectAlreadyArchived = 44,
+    /// Project is not archived
+    ProjectNotArchived = 45,
+    /// Reports have already been cleared or there are none to clear
+    ReportsAlreadyCleared = 46,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

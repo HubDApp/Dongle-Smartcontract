@@ -650,6 +650,131 @@ impl VerificationRegistry {
         let verification = Self::get_verification(env, project_id)?;
         Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
     }
+
+    /// Admin-only: prune verification history for a project, retaining only the
+    /// most recent `keep_count` records. Pass `keep_count = 0` to remove all
+    /// historical records (the live `Verification(project_id)` record is never removed).
+    ///
+    /// This frees storage for projects that have accumulated many verification
+    /// requests (e.g. repeated rejection/re-submission cycles).
+    pub fn clear_verification_history(
+        env: &Env,
+        project_id: u64,
+        admin: &Address,
+        keep_count: u32,
+    ) -> Result<u32, ContractError> {
+        // Auth: admin only
+        if !crate::admin_manager::AdminManager::is_admin(env, admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Project must exist
+        crate::project_registry::ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        let history_key = StorageKey::ProjectVerificationHistory(project_id);
+        let history: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&history_key)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let total = history.len();
+        if total == 0 {
+            // Nothing to prune
+            return Ok(0);
+        }
+
+        // Determine how many to remove from the front (oldest entries)
+        let keep = core::cmp::min(keep_count, total);
+        let remove_count = total - keep;
+
+        if remove_count == 0 {
+            return Ok(0);
+        }
+
+        // Remove individual VerificationRecord entries for pruned request IDs
+        for i in 0..remove_count {
+            if let Some(req_id) = history.get(i) {
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::VerificationRecord(req_id));
+            }
+        }
+
+        // Build the retained history (most recent `keep` entries)
+        let mut retained = Vec::new(env);
+        for i in remove_count..total {
+            if let Some(req_id) = history.get(i) {
+                retained.push_back(req_id);
+            }
+        }
+
+        if retained.is_empty() {
+            env.storage().persistent().remove(&history_key);
+        } else {
+            env.storage().persistent().set(&history_key, &retained);
+        }
+
+        crate::events::publish_verification_history_cleared_event(
+            env,
+            project_id,
+            admin.clone(),
+            remove_count,
+            keep,
+        );
+
+        Ok(remove_count)
+    }
+
+    /// Admin-only: clear the renewal history for a project, freeing storage
+    /// accumulated from repeated renewal cycles.
+    /// Returns the number of renewal records removed.
+    pub fn clear_renewal_history(
+        env: &Env,
+        project_id: u64,
+        admin: &Address,
+    ) -> Result<u32, ContractError> {
+        // Auth: admin only
+        if !crate::admin_manager::AdminManager::is_admin(env, admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Project must exist
+        crate::project_registry::ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        let count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::VerificationRenewalCount(project_id))
+            .unwrap_or(0);
+
+        if count == 0 {
+            return Ok(0);
+        }
+
+        // Remove every individual renewal record
+        for index in 0..count {
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::VerificationRenewalHistory(project_id, index));
+        }
+
+        // Reset the counter
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::VerificationRenewalCount(project_id));
+
+        crate::events::publish_renewal_history_cleared_event(
+            env,
+            project_id,
+            admin.clone(),
+            count,
+        );
+
+        Ok(count)
+    }
 }
 
 #[cfg(test)]
