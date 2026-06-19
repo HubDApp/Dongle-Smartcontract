@@ -96,4 +96,56 @@ impl ReportRegistry {
             .persistent()
             .has(&StorageKey::UserReport(project_id, reporter.clone()))
     }
+
+    /// Clear all reports for a project (admin-only).
+    ///
+    /// Removes the reports list, the report count, and all per-user dedup keys
+    /// so reporters can file new reports after the slate is cleaned.
+    /// Returns `ReportsAlreadyCleared` if there are no reports to clear.
+    pub fn clear_project_reports(
+        env: &Env,
+        project_id: u64,
+        admin: &Address,
+    ) -> Result<(), ContractError> {
+        // Auth: admin only
+        if !crate::admin_manager::AdminManager::is_admin(env, admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Project must exist
+        crate::project_registry::ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        let count = Self::get_project_report_count(env, project_id);
+        if count == 0 {
+            return Err(ContractError::ReportsAlreadyCleared);
+        }
+
+        // Gather existing reports to remove individual UserReport dedup keys
+        let reports: Vec<crate::types::ProjectReport> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReports(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Remove per-reporter dedup keys so they can report again
+        for i in 0..reports.len() {
+            if let Some(report) = reports.get(i) {
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::UserReport(project_id, report.reporter.clone()));
+            }
+        }
+
+        // Remove the reports list and count
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::ProjectReports(project_id));
+        env.storage()
+            .persistent()
+            .remove(&StorageKey::ProjectReportCount(project_id));
+
+        crate::events::publish_project_reports_cleared_event(env, project_id, admin.clone());
+        Ok(())
+    }
 }

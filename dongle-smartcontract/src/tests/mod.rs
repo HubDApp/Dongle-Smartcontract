@@ -12,6 +12,7 @@ mod review;
 // New test modules
 mod authorization;
 mod basic_new_features;
+mod cleanup;
 mod events;
 mod moderation;
 mod pagination;

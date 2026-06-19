@@ -307,6 +307,16 @@ impl DongleContract {
         ReviewRegistry::restore_review(&env, project_id, reviewer, admin)
     }
 
+    /// Admin hard-delete a review permanently (admin-only).
+    pub fn admin_delete_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::admin_delete_review(&env, project_id, reviewer, admin)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
@@ -393,6 +403,27 @@ impl DongleContract {
 
     pub fn is_verification_expired(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expired(&env, project_id)
+    }
+
+    /// Admin: prune verification history, keeping the most recent `keep_count` records.
+    /// Returns the number of records removed.
+    pub fn clear_verification_history(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        keep_count: u32,
+    ) -> Result<u32, ContractError> {
+        VerificationRegistry::clear_verification_history(&env, project_id, &admin, keep_count)
+    }
+
+    /// Admin: clear all renewal history records for a project.
+    /// Returns the number of records removed.
+    pub fn clear_renewal_history(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<u32, ContractError> {
+        VerificationRegistry::clear_renewal_history(&env, project_id, &admin)
     }
 
     // --- Fee Manager ---
@@ -503,6 +534,15 @@ impl DongleContract {
     /// Check if a user has already reported a project - Issue #127
     pub fn has_user_reported(env: Env, project_id: u64, reporter: Address) -> bool {
         ReportRegistry::has_user_reported(&env, project_id, &reporter)
+    }
+
+    /// Admin: clear all reports for a project (admin-only).
+    pub fn clear_project_reports(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::clear_project_reports(&env, project_id, &admin)
     }
 
     /// List projects by tag - Issue #125
