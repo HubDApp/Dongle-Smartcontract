@@ -101,6 +101,9 @@ pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
 
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
+/// Maximum entries returned per admin action log paginated query.
+pub const MAX_ADMIN_ACTION_LOG_PAGE: u32 = 100;
+
 pub const LEDGER_BUMP_CRITICAL: u32 = LEDGER_THRESHOLD_CRITICAL;
 pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
 pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;

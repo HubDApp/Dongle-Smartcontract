@@ -1,3 +1,4 @@
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::constants::{
     MAX_COLLECTIONS, MAX_COLLECTION_DESCRIPTION_LEN, MAX_COLLECTION_NAME_LEN,
@@ -10,7 +11,7 @@ use crate::events::{
     publish_project_removed_from_collection_event,
 };
 use crate::storage_keys::StorageKey;
-use crate::types::Collection;
+use crate::types::{AdminActionType, Collection};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct CollectionRegistry;
@@ -67,7 +68,17 @@ impl CollectionRegistry {
             .persistent()
             .set(&StorageKey::NextCollectionId, &(id + 1));
 
-        publish_collection_created_event(env, id, name, admin);
+        publish_collection_created_event(env, id, name, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::CollectionCreated,
+            Some(id),
+            None,
+            None,
+        );
+
         Ok(id)
     }
 
@@ -101,7 +112,17 @@ impl CollectionRegistry {
             &collection.name,
         );
 
-        publish_collection_updated_event(env, collection_id, admin);
+        publish_collection_updated_event(env, collection_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::CollectionUpdated,
+            Some(collection_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -139,7 +160,17 @@ impl CollectionRegistry {
             .persistent()
             .remove(&StorageKey::CollectionProjectIds(collection_id));
 
-        publish_collection_deleted_event(env, collection_id, admin);
+        publish_collection_deleted_event(env, collection_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::CollectionDeleted,
+            Some(collection_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -181,7 +212,17 @@ impl CollectionRegistry {
             &project_ids,
         );
 
-        publish_project_added_to_collection_event(env, collection_id, project_id, admin);
+        publish_project_added_to_collection_event(env, collection_id, project_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ProjectAddedToCollection,
+            Some(collection_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -215,7 +256,22 @@ impl CollectionRegistry {
             .persistent()
             .set(&StorageKey::CollectionProjectIds(collection_id), &updated);
 
-        publish_project_removed_from_collection_event(env, collection_id, project_id, admin);
+        publish_project_removed_from_collection_event(
+            env,
+            collection_id,
+            project_id,
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ProjectRemovedFromCollection,
+            Some(collection_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
