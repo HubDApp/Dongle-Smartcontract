@@ -2,6 +2,7 @@
 
 mod admin_manager;
 pub mod auth;
+mod collection_registry;
 pub mod constants;
 pub mod errors;
 pub mod events;
@@ -21,6 +22,7 @@ mod verification_registry;
 mod tests;
 
 use crate::admin_manager::AdminManager;
+use crate::collection_registry::CollectionRegistry;
 use crate::errors::ContractError;
 use crate::fee_manager::FeeManager;
 use crate::featured_registry::FeaturedRegistry;
@@ -29,7 +31,7 @@ use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats,
+    Collection, FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats,
     ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -548,5 +550,87 @@ impl DongleContract {
     /// List projects by tag - Issue #125
     pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
+    }
+
+    // --- Collection Registry ---
+
+    /// Admin: create a new curated collection of projects.
+    pub fn create_collection(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_collection(&env, admin, name, description)
+    }
+
+    /// Admin: update a collection's name and description.
+    pub fn update_collection(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+        name: String,
+        description: String,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::update_collection(&env, admin, collection_id, name, description)
+    }
+
+    /// Admin: delete a collection and its project associations.
+    pub fn delete_collection(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::delete_collection(&env, admin, collection_id)
+    }
+
+    /// Admin: add a project to a collection.
+    pub fn add_project_to_collection(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::add_project_to_collection(&env, admin, collection_id, project_id)
+    }
+
+    /// Admin: remove a project from a collection.
+    pub fn remove_project_from_collection(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::remove_project_from_collection(&env, admin, collection_id, project_id)
+    }
+
+    /// Get a collection by ID.
+    pub fn get_collection(env: Env, collection_id: u64) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection(&env, collection_id)
+    }
+
+    /// List all collections with pagination.
+    pub fn list_collections(env: Env, start: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_collections(&env, start, limit)
+    }
+
+    /// List project IDs in a collection with pagination.
+    pub fn list_collection_projects(
+        env: Env,
+        collection_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        CollectionRegistry::list_collection_projects(&env, collection_id, start, limit)
+    }
+
+    /// Get the number of projects in a collection.
+    pub fn get_collection_project_count(env: Env, collection_id: u64) -> u32 {
+        CollectionRegistry::get_collection_project_count(&env, collection_id)
+    }
+
+    /// Get the total number of collections.
+    pub fn get_collection_count(env: Env) -> u64 {
+        CollectionRegistry::get_collection_count(&env)
     }
 }
