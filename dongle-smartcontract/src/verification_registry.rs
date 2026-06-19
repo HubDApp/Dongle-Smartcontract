@@ -590,11 +590,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    pub fn reject_renewal(
-        env: &Env,
-        project_id: u64,
-        admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn reject_renewal(env: &Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
         let _renewal = Self::get_renewal_request(env, project_id)?;
         env.storage()
@@ -766,12 +762,7 @@ impl VerificationRegistry {
             .persistent()
             .remove(&StorageKey::VerificationRenewalCount(project_id));
 
-        crate::events::publish_renewal_history_cleared_event(
-            env,
-            project_id,
-            admin.clone(),
-            count,
-        );
+        crate::events::publish_renewal_history_cleared_event(env, project_id, admin.clone(), count);
 
         Ok(count)
     }

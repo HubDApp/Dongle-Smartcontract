@@ -118,13 +118,7 @@ impl FeeManager {
         env.storage()
             .persistent()
             .remove(&StorageKey::FeePaidForProject(project_id));
-        publish_fee_consumed_event(
-            env,
-            project_id,
-            caller,
-            FeeOperation::Verification,
-            amount,
-        );
+        publish_fee_consumed_event(env, project_id, caller, FeeOperation::Verification, amount);
         Ok(())
     }
 
@@ -199,14 +193,7 @@ impl FeeManager {
             &true,
         );
 
-        publish_fee_paid_event(
-            env,
-            0,
-            payer,
-            token,
-            FeeOperation::Registration,
-            amount,
-        );
+        publish_fee_paid_event(env, 0, payer, token, FeeOperation::Registration, amount);
         Ok(())
     }
 
@@ -230,13 +217,7 @@ impl FeeManager {
         env.storage()
             .persistent()
             .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
-        publish_fee_consumed_event(
-            env,
-            0,
-            address.clone(),
-            FeeOperation::Registration,
-            amount,
-        );
+        publish_fee_consumed_event(env, 0, address.clone(), FeeOperation::Registration, amount);
         Ok(())
     }
 }
