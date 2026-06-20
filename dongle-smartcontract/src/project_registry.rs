@@ -27,7 +27,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
+        Utils::validate_project_name(&params.slug)?;
 
         // Check registration fee payment
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -114,6 +114,8 @@ impl ProjectRegistry {
             updated_at: now,
             tags: params.tags.clone(),
             social_links: params.social_links.clone(),
+            launch_timestamp: params.launch_timestamp,
+
         };
 
         // Get current owner projects
@@ -232,7 +234,7 @@ impl ProjectRegistry {
             }
         }
         if let Some(value) = params.slug {
-            Utils::validate_project_slug(&value)?;
+            Utils::validate_project_name(&value)?;
 
             // Check if new slug is different from current slug
             if value != old_slug {
@@ -897,6 +899,49 @@ impl ProjectRegistry {
         }
 
         projects
+    }
+
+    pub fn update_launch_timestamp(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        launch_timestamp: Option<u64>,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        project.launch_timestamp = launch_timestamp;
+        project.updated_at = env.ledger().timestamp();
+
+        if let Some(ts) = launch_timestamp {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectLaunchTimestamp(project_id), &ts);
+        } else {
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectLaunchTimestamp(project_id));
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        StorageManager::extend_project_ttl(env, project_id);
+
+        crate::events::publish_launch_timestamp_updated_event(
+            env,
+            project_id,
+            project.owner.clone(),
+            launch_timestamp,
+        );
+
+        Ok(project)
     }
 }
 

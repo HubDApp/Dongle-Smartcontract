@@ -817,3 +817,41 @@ pub fn publish_min_project_age_set_event(
         event_data,
     );
 }
+
+pub fn publish_featured_project_event(
+    env: &Env,
+    project_id: u64,
+    featured: bool,
+    admin: Address,
+) {
+    let event_data = crate::types::FeaturedProjectEvent {
+        project_id,
+        featured,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("FEATURED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_launch_timestamp_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    launch_timestamp: Option<u64>,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("LAUNCH"),
+            project_id,
+        ),
+        (owner, launch_timestamp, env.ledger().timestamp()),
+    );
+}

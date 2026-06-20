@@ -96,7 +96,10 @@ pub enum ContractError {
     ProjectNotArchived = 45,
     /// Reports have already been cleared or there are none to clear
     ReportsAlreadyCleared = 46,
+    ProjectSlugAlreadyExists = 47,
+    InvalidLaunchTimestamp = 48,
 }
+
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;

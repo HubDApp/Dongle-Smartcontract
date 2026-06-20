@@ -83,6 +83,15 @@ impl DongleContract {
         ProjectRegistry::update_project(&env, params)
     }
 
+    pub fn update_launch_timestamp(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        launch_timestamp: Option<u64>,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::update_launch_timestamp(&env, project_id, caller, launch_timestamp)
+    }
+
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
         ProjectRegistry::get_project(&env, project_id)
     }
