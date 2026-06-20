@@ -817,3 +817,51 @@ pub fn publish_min_project_age_set_event(
         event_data,
     );
 }
+
+pub fn publish_project_linked_event(
+    env: &Env,
+    project_id: u64,
+    linked_project_id: u64,
+    owner: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("LINKED"),
+            project_id,
+        ),
+        (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_project_unlinked_event(
+    env: &Env,
+    project_id: u64,
+    linked_project_id: u64,
+    owner: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNLINKED"),
+            project_id,
+        ),
+        (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_featured_project_event(
+    env: &Env,
+    project_id: u64,
+    featured: bool,
+    admin: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("FEATURED"),
+            project_id,
+        ),
+        (featured, admin, env.ledger().timestamp()),
+    );
+}

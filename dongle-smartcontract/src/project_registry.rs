@@ -27,7 +27,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
+        Utils::validate_project_name(&params.slug)?;
 
         // Check registration fee payment
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -86,7 +86,7 @@ impl ProjectRegistry {
             .persistent()
             .has(&StorageKey::ProjectBySlug(params.slug.clone()))
         {
-            return Err(ContractError::ProjectSlugAlreadyExists);
+            return Err(ContractError::ProjectAlreadyExists);
         }
 
         // Mutation phase
@@ -232,7 +232,7 @@ impl ProjectRegistry {
             }
         }
         if let Some(value) = params.slug {
-            Utils::validate_project_slug(&value)?;
+            Utils::validate_project_name(&value)?;
 
             // Check if new slug is different from current slug
             if value != old_slug {
@@ -244,7 +244,7 @@ impl ProjectRegistry {
                 {
                     // If the slug exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
-                        return Err(ContractError::ProjectSlugAlreadyExists);
+                        return Err(ContractError::ProjectAlreadyExists);
                     }
                 }
 
@@ -897,6 +897,116 @@ impl ProjectRegistry {
         }
 
         projects
+    }
+
+    pub fn link_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        linked_project_id: u64,
+    ) -> Result<(), ContractError> {
+        let project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if project_id == linked_project_id {
+            return Err(ContractError::CannotLinkToSelf);
+        }
+
+        if Self::get_project(env, linked_project_id).is_none() {
+            return Err(ContractError::LinkedProjectNotFound);
+        }
+
+        let mut links: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectLinkedProjects(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        for i in 0..links.len() {
+            if let Some(id) = links.get(i) {
+                if id == linked_project_id {
+                    return Err(ContractError::ProjectAlreadyLinked);
+                }
+            }
+        }
+
+        links.push_back(linked_project_id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectLinkedProjects(project_id), &links);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        crate::events::publish_project_linked_event(
+            env,
+            project_id,
+            linked_project_id,
+            project.owner,
+        );
+
+        Ok(())
+    }
+
+    pub fn unlink_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        linked_project_id: u64,
+    ) -> Result<(), ContractError> {
+        let project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let links: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectLinkedProjects(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut found = false;
+        let mut new_links: Vec<u64> = Vec::new(env);
+        for i in 0..links.len() {
+            if let Some(id) = links.get(i) {
+                if id == linked_project_id {
+                    found = true;
+                } else {
+                    new_links.push_back(id);
+                }
+            }
+        }
+
+        if !found {
+            return Err(ContractError::LinkedProjectNotLinked);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectLinkedProjects(project_id), &new_links);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        crate::events::publish_project_unlinked_event(
+            env,
+            project_id,
+            linked_project_id,
+            project.owner,
+        );
+
+        Ok(())
+    }
+
+    pub fn get_linked_projects(env: &Env, project_id: u64) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ProjectLinkedProjects(project_id))
+            .unwrap_or_else(|| Vec::new(env))
     }
 }
 

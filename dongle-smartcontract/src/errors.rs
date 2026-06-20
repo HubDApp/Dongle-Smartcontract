@@ -96,6 +96,14 @@ pub enum ContractError {
     ProjectNotArchived = 45,
     /// Reports have already been cleared or there are none to clear
     ReportsAlreadyCleared = 46,
+    /// Linked project does not exist
+    LinkedProjectNotFound = 47,
+    /// Project is already linked
+    ProjectAlreadyLinked = 48,
+    /// Link not found
+    LinkedProjectNotLinked = 49,
+    /// Cannot link a project to itself
+    CannotLinkToSelf = 50,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly

@@ -20,3 +20,4 @@ mod review_settings;
 
 // Test infrastructure
 pub mod fixtures;
+mod linked_projects;
