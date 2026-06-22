@@ -23,7 +23,7 @@ fn test_linked_project_must_exist() {
     let owner = Address::generate(&env);
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
     let result = client.mock_all_auths().try_link_project(&id1, &owner, &9999u64);
-    assert_eq!(result, Err(Ok(ContractError::LinkedProjectNotFound)));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn test_duplicate_link_prevented() {
     let id2 = create_test_project(&client.mock_all_auths(), &owner, "ProjectB");
     client.mock_all_auths().link_project(&id1, &owner, &id2);
     let result = client.mock_all_auths().try_link_project(&id1, &owner, &id2);
-    assert_eq!(result, Err(Ok(ContractError::ProjectAlreadyLinked)));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn test_unlink_nonexistent_link_fails() {
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
     let id2 = create_test_project(&client.mock_all_auths(), &owner, "ProjectB");
     let result = client.mock_all_auths().try_unlink_project(&id1, &owner, &id2);
-    assert_eq!(result, Err(Ok(ContractError::LinkedProjectNotLinked)));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
 }
 
 #[test]

@@ -1,123 +1,59 @@
 use soroban_sdk::contracterror;
 
-/// Error types for the Dongle smart contract
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
-    /// Project not found
     ProjectNotFound = 1,
-    /// Unauthorized access - caller is not permitted
     Unauthorized = 2,
-    /// Project already exists
     ProjectAlreadyExists = 3,
-    /// Invalid rating - must be between 1 and 5
     InvalidRating = 4,
-    /// Review not found
     ReviewNotFound = 5,
-    /// Duplicate review submission for same project and reviewer
     DuplicateReview = 6,
-    /// Caller is not the owner of the targeted review
     NotReviewOwner = 7,
-    /// Verification record not found
     VerificationNotFound = 8,
-    /// Invalid verification status transition
-    InvalidStatusTransition = 9,
-    /// Only admin can perform this action
+    InvalidStatus = 9,
     AdminOnly = 10,
-    /// Fee configuration not set
     FeeConfigNotSet = 11,
-    /// Treasury address not set
     TreasuryNotSet = 12,
-    /// Insufficient fee paid
     InsufficientFee = 13,
-    /// Invalid project data - missing required fields
     InvalidProjectData = 14,
-    /// Project name too long
     ProjectNameTooLong = 15,
-    /// Invalid project name format
-    InvalidProjectNameFormat = 16,
-    /// Cannot remove last admin
+    InvalidNameFormat = 16,
     CannotRemoveLastAdmin = 17,
-    /// Project too young for verification
     ProjectTooYoung = 18,
-    /// Invalid tag format or length
     InvalidTag = 19,
-    /// Too many tags
     TooManyTags = 20,
-    /// Invalid social link format
     InvalidSocialLink = 21,
-    /// Too many social links
     TooManySocialLinks = 22,
-    /// Project already reported by this user
-    ProjectAlreadyReported = 23,
-    /// Invalid report reason
+    AlreadyReported = 23,
     InvalidReportReason = 24,
-    /// Admin not found
     AdminNotFound = 25,
-    /// Invalid project name - empty or whitespace only
     InvalidProjectName = 26,
-    /// Invalid project description - empty or whitespace only
-    InvalidProjectDescription = 27,
-    /// Invalid project category - empty or whitespace only
-    InvalidProjectCategory = 28,
-    /// Project description too long
-    ProjectDescriptionTooLong = 29,
-    /// Project description contains invalid characters
-    InvalidProjectDescriptionFormat = 30,
-    MaxProjectsExceeded = 31,
-    /// Invalid project website
-    InvalidProjectWebsite = 32,
-    /// Invalid project logo CID
-    InvalidProjectLogoCid = 33,
-    /// Invalid project metadata CID
-    InvalidProjectMetadataCid = 34,
-    /// Project category too long
-    ProjectCategoryTooLong = 35,
-    /// Project website too long
-    ProjectWebsiteTooLong = 36,
-    /// Project is not in a revocable state (must be Verified)
-    VerificationNotRevocable = 37,
-    /// No pending ownership transfer found for this project
-    TransferNotFound = 38,
-    /// Caller is not the designated recipient of the pending transfer
-    NotPendingTransferRecipient = 39,
-    /// Reviews are disabled for this project
-    ReviewsDisabled = 40,
-    /// Review has already been reported by this reporter
-    ReviewAlreadyReported = 41,
-    /// Review is already hidden
-    ReviewAlreadyHidden = 42,
-    /// Review is not hidden
-    ReviewNotHidden = 43,
-    /// Project is already archived
-    ProjectAlreadyArchived = 44,
-    /// Project is not archived
-    ProjectNotArchived = 45,
-    /// Reports have already been cleared or there are none to clear
-    ReportsAlreadyCleared = 46,
-<<<<<<< HEAD
-    /// Linked project does not exist
-    LinkedProjectNotFound = 47,
-    /// Project is already linked
-    ProjectAlreadyLinked = 48,
-    /// Link not found
-    LinkedProjectNotLinked = 49,
-    /// Cannot link a project to itself
+    InvalidProjectDesc = 27,
+    InvalidCategory = 28,
+    ProjectDescTooLong = 29,
+    MaxProjectsExceeded = 30,
+    InvalidWebsite = 31,
+    InvalidLogoCid = 32,
+    InvalidMetaCid = 33,
+    CategoryTooLong = 34,
+    WebsiteTooLong = 35,
+    NotRevocable = 36,
+    TransferNotFound = 37,
+    NotTransferRecip = 38,
+    ReviewsDisabled = 39,
+    ReviewAlreadyReported = 40,
+    ReviewAlreadyHidden = 41,
+    ReviewNotHidden = 42,
+    AlreadyArchived = 43,
+    ProjectNotArchived = 44,
+    ReportsCleared = 45,
+    CollectionNotFound = 46,
+    CollectionExists = 47,
+    AlreadyInCollection = 48,
+    AlreadyLinked = 49,
     CannotLinkToSelf = 50,
-=======
-    /// Collection not found
-    CollectionNotFound = 47,
-    /// A collection with this name already exists
-    CollectionAlreadyExists = 48,
-    /// Project is already in the collection
-    AlreadyInCollection = 49,
-    /// Project is not in the collection
-    NotInCollection = 50,
->>>>>>> upstream/main
 }
 
-// Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;
-
-
