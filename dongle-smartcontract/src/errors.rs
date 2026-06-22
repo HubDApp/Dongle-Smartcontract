@@ -108,3 +108,5 @@ pub enum ContractError {
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;
+
+
