@@ -1,5 +1,6 @@
 #![no_std]
 
+mod admin_action_log;
 mod admin_manager;
 pub mod auth;
 mod collection_registry;
@@ -21,6 +22,7 @@ mod verification_registry;
 #[cfg(test)]
 mod tests;
 
+use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
 use crate::errors::ContractError;
@@ -31,8 +33,8 @@ use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    Collection, FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats,
-    ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
+    AdminActionEntry, Collection, FeeConfig, Project, ProjectRegistrationParams, ProjectReport,
+    ProjectStats, ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -632,5 +634,22 @@ impl DongleContract {
     /// Get the total number of collections.
     pub fn get_collection_count(env: Env) -> u64 {
         CollectionRegistry::get_collection_count(&env)
+    }
+
+    // --- Admin Action Log ---
+
+    /// Get a single admin action log entry by ID.
+    pub fn get_admin_action_log_entry(env: Env, log_id: u64) -> Option<AdminActionEntry> {
+        AdminActionLog::get_log_entry(&env, log_id)
+    }
+
+    /// List admin action log entries with pagination (most recent first).
+    pub fn list_admin_actions(env: Env, start: u32, limit: u32) -> Vec<AdminActionEntry> {
+        AdminActionLog::list_admin_actions(&env, start, limit)
+    }
+
+    /// Get the total number of admin action log entries.
+    pub fn get_admin_action_log_count(env: Env) -> u64 {
+        AdminActionLog::get_action_log_count(&env)
     }
 }

@@ -86,4 +86,8 @@ pub enum StorageKey {
     CollectionList,
     /// Project IDs belonging to a collection.
     CollectionProjectIds(u64),
+    /// Admin action log entry by sequential ID.
+    AdminActionLog(u64),
+    /// Next admin action log ID (auto-increment counter).
+    AdminActionLogCount,
 }

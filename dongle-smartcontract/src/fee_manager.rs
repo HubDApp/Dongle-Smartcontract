@@ -1,5 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
 use crate::events::{
@@ -7,7 +8,7 @@ use crate::events::{
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::FeeConfig;
+use crate::types::{AdminActionType, FeeConfig};
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -38,12 +39,15 @@ impl FeeManager {
 
         publish_fee_set_event(
             env,
-            admin,
+            admin.clone(),
             config.token.clone(),
             verification_fee,
             registration_fee,
             treasury,
         );
+
+        AdminActionLog::record_action(env, admin, AdminActionType::FeeChanged, None, None, None);
+
         Ok(())
     }
 

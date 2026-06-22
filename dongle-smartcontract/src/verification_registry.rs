@@ -1,5 +1,6 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::{MAX_CID_LEN, MAX_PROJECTS_PER_USER, VERIFICATION_VALIDITY_PERIOD};
 use crate::errors::ContractError;
@@ -12,7 +13,9 @@ use crate::events::{
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::{VerificationRecord, VerificationRenewalRecord, VerificationStatus};
+use crate::types::{
+    AdminActionType, VerificationRecord, VerificationRenewalRecord, VerificationStatus,
+};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -292,7 +295,17 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_approved_event(env, project_id, admin);
+        publish_verification_approved_event(env, project_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationApproved,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -334,7 +347,17 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_rejected_event(env, project_id, admin);
+        publish_verification_rejected_event(env, project_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRejected,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -442,7 +465,17 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_revoked_event(env, project_id, admin, reason);
+        publish_verification_revoked_event(env, project_id, admin.clone(), reason.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRevoked,
+            Some(project_id),
+            None,
+            Some(reason),
+        );
+
         Ok(())
     }
 
@@ -468,10 +501,20 @@ impl VerificationRegistry {
 
         crate::events::publish_min_project_age_set_event(
             env,
-            admin,
+            admin.clone(),
             previous_min_age_seconds,
             min_age_seconds,
         );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::MinProjectAgeSet,
+            None,
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -586,7 +629,17 @@ impl VerificationRegistry {
             .persistent()
             .remove(&StorageKey::VerificationRenewal(project_id));
 
-        publish_verification_renewal_approved_event(env, project_id, admin, expires_at);
+        publish_verification_renewal_approved_event(env, project_id, admin.clone(), expires_at);
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRenewalApproved,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -596,7 +649,17 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .remove(&StorageKey::VerificationRenewal(project_id));
-        publish_verification_renewal_rejected_event(env, project_id, admin);
+        publish_verification_renewal_rejected_event(env, project_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRenewalRejected,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -720,6 +783,15 @@ impl VerificationRegistry {
             keep,
         );
 
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::VerificationHistoryCleared,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(remove_count)
     }
 
@@ -763,6 +835,15 @@ impl VerificationRegistry {
             .remove(&StorageKey::VerificationRenewalCount(project_id));
 
         crate::events::publish_renewal_history_cleared_event(env, project_id, admin.clone(), count);
+
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::RenewalHistoryCleared,
+            Some(project_id),
+            None,
+            None,
+        );
 
         Ok(count)
     }
