@@ -3,11 +3,13 @@
 //! This module provides functionality for managing admin roles and enforcing
 //! access control across privileged contract operations.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::errors::ContractError;
 use crate::events::{publish_admin_added_event, publish_admin_removed_event};
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
+use crate::types::AdminActionType;
 use soroban_sdk::{Address, Env, Vec};
 
 pub struct AdminManager;
@@ -63,7 +65,16 @@ impl AdminManager {
         // Extend TTL for admin data
         StorageManager::extend_all_admin_ttl(env, &new_admin);
 
-        publish_admin_added_event(env, new_admin);
+        publish_admin_added_event(env, new_admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            caller.clone(),
+            AdminActionType::AdminAdded,
+            None,
+            Some(new_admin.clone()),
+            None,
+        );
 
         Ok(())
     }
@@ -103,7 +114,16 @@ impl AdminManager {
             .persistent()
             .set(&StorageKey::AdminList, &new_admins);
 
-        publish_admin_removed_event(env, admin_to_remove);
+        publish_admin_removed_event(env, admin_to_remove.clone());
+
+        AdminActionLog::record_action(
+            env,
+            caller.clone(),
+            AdminActionType::AdminRemoved,
+            None,
+            Some(admin_to_remove.clone()),
+            None,
+        );
 
         Ok(())
     }

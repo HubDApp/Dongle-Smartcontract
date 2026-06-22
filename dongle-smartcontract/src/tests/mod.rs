@@ -2,10 +2,12 @@
 
 // Existing test modules
 mod admin;
+mod admin_action_log;
 mod archival;
+mod collections;
 mod error_handling_tests;
-mod fee;
 mod featured;
+mod fee;
 mod indexer;
 mod review;
 

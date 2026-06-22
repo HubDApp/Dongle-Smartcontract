@@ -777,13 +777,7 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &old_owner);
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
-        publish_ownership_transferred_event(
-            env,
-            project_id,
-            caller,
-            old_owner,
-            pending_new_owner,
-        );
+        publish_ownership_transferred_event(env, project_id, caller, old_owner, pending_new_owner);
         Ok(())
     }
 

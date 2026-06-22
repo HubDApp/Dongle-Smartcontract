@@ -1,10 +1,11 @@
 //! Project reporting functionality for spam, scams, broken links, or abusive metadata.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::errors::ContractError;
 use crate::events::publish_project_reported_event;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::ProjectReport;
+use crate::types::{AdminActionType, ProjectReport};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -146,6 +147,16 @@ impl ReportRegistry {
             .remove(&StorageKey::ProjectReportCount(project_id));
 
         crate::events::publish_project_reports_cleared_event(env, project_id, admin.clone());
+
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::ProjectReportsCleared,
+            Some(project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 }

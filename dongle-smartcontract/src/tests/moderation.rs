@@ -461,6 +461,3 @@ fn test_multiple_projects_independent_moderation() {
     assert_eq!(stats2.review_count, 1);
     assert_eq!(stats2.rating_sum, 400);
 }
-
-
-
