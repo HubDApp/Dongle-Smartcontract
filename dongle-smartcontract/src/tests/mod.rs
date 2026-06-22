@@ -3,9 +3,10 @@
 // Existing test modules
 mod admin;
 mod archival;
+mod collections;
 mod error_handling_tests;
-mod fee;
 mod featured;
+mod fee;
 mod indexer;
 mod review;
 

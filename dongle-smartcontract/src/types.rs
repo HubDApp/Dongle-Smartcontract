@@ -193,3 +193,22 @@ pub struct FeaturedProjectEvent {
     pub admin: Address,
     pub timestamp: u64,
 }
+
+/// A curated collection of projects, managed by admins.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Collection {
+    pub id: u64,
+    pub name: String,
+    pub description: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+/// Parameters for creating a new collection (admin-only).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreateCollectionParams {
+    pub name: String,
+    pub description: String,
+}
