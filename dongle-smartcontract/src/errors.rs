@@ -5,6 +5,8 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
+
+
     /// Project not found
     ProjectNotFound = 1,
     /// Unauthorized access - caller is not permitted
@@ -96,7 +98,22 @@ pub enum ContractError {
     ProjectNotArchived = 45,
     /// Reports have already been cleared or there are none to clear
     ReportsAlreadyCleared = 46,
+
+    /// Invalid project dependency reference (must contain exactly one of project_id/external_cid/external_url)
+    InvalidDependencyReference = 47,
+    /// Invalid dependency external CID
+    InvalidDependencyCid = 48,
+    /// Invalid dependency external URL
+    InvalidDependencyUrl = 49,
+    /// Dependency refers to an internal project that does not exist
+    DependencyProjectNotFound = 50,
+    /// Dependency already exists for this project
+    DuplicateDependency = 51,
+    /// Dependency not found
+    DependencyNotFound = 52,
 }
 
+
 // Legacy alias to avoid breaking any code that uses `Error` directly
-pub type Error = ContractError;
+pub type Error = contracterror;
+

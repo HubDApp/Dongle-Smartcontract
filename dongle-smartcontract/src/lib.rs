@@ -16,12 +16,14 @@ pub mod storage_manager;
 pub mod types;
 pub mod utils;
 mod verification_registry;
+mod dependency_registry;
 
 #[cfg(test)]
 mod tests;
 
+
 use crate::admin_manager::AdminManager;
-use crate::errors::ContractError;
+use crate::errors::contracterror;
 use crate::fee_manager::FeeManager;
 use crate::featured_registry::FeaturedRegistry;
 use crate::project_registry::ProjectRegistry;
@@ -549,4 +551,55 @@ impl DongleContract {
     pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
     }
+
+    // --- Project dependency metadata ---
+
+    pub fn add_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency: crate::types::ProjectDependency,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::add_dependency(
+            &env,
+            project_id,
+            caller,
+            dependency,
+        )
+    }
+
+    pub fn update_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency_key: crate::types::DependencyRef,
+        new_dependency: crate::types::ProjectDependency,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::update_dependency(
+            &env,
+            project_id,
+            caller,
+            dependency_key,
+            new_dependency,
+        )
+    }
+
+    pub fn remove_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency_key: crate::types::DependencyRef,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::remove_dependency(
+            &env,
+            project_id,
+            caller,
+            dependency_key,
+        )
+    }
+
+    pub fn get_project_dependencies(env: Env, project_id: u64) -> Vec<crate::types::ProjectDependency> {
+        crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
+    }
 }
+
