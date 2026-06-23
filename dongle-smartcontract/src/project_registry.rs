@@ -118,6 +118,8 @@ impl ProjectRegistry {
             updated_at: now,
             tags: params.tags.clone(),
             social_links: params.social_links.clone(),
+            launch_timestamp: params.launch_timestamp,
+
         };
 
         // Get current owner projects

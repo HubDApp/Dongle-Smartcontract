@@ -65,6 +65,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         metadata_cid: None,
         tags: None,
         social_links: None,
+        launch_timestamp: None,
     };
     client.register_project(&params)
 }
