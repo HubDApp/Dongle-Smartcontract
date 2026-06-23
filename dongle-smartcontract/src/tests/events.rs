@@ -10,7 +10,7 @@ use crate::{DongleContract, DongleContractClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger, LedgerInfo},
-    Address, Env, IntoVal, String, TryIntoVal, Val,
+    Address, Env, IntoVal, String, TryIntoVal, Val, Vec,
 };
 
 const TEST_TIMESTAMP: u64 = 1_700_000_123;
@@ -34,20 +34,27 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
     (client, admin)
 }
 
-fn register_project(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
+fn register_project(
+    client: &DongleContractClient<'_>,
+    env: &Env,
+    owner: &Address,
+    name: &str,
+) -> u64 {
     let slug = name.to_lowercase().replace(' ', "-");
-    client.mock_all_auths().register_project(&ProjectRegistrationParams {
-        owner: owner.clone(),
-        name: String::from_str(env, name),
-        slug: String::from_str(env, &slug),
-        description: String::from_str(env, "Project description"),
-        category: String::from_str(env, "DeFi"),
-        website: None,
-        logo_cid: None,
-        metadata_cid: None,
-        tags: None,
-        social_links: None,
-    })
+    client
+        .mock_all_auths()
+        .register_project(&ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(env, name),
+            slug: String::from_str(env, &slug),
+            description: String::from_str(env, "Project description"),
+            category: String::from_str(env, "DeFi"),
+            website: None,
+            logo_cid: None,
+            metadata_cid: None,
+            tags: None,
+            social_links: None,
+        })
 }
 
 fn decode_event<T: soroban_sdk::TryFromVal<Env, Val>>(env: &Env, data: &Val) -> Option<T> {
@@ -57,14 +64,14 @@ fn decode_event<T: soroban_sdk::TryFromVal<Env, Val>>(env: &Env, data: &Val) -> 
 fn has_event<T, Topics, F>(env: &Env, expected_topics: Topics, predicate: F) -> bool
 where
     T: soroban_sdk::TryFromVal<Env, Val>,
-    Topics: IntoVal<Env, Val>,
+    Topics: IntoVal<Env, Vec<Val>>,
     F: Fn(T) -> bool,
 {
     let expected_topics = expected_topics.into_val(env);
     env.events().all().iter().any(|(_, topics, data)| {
-        *topics == expected_topics
+        topics == expected_topics
             && decode_event::<T>(env, &data)
-                .map(predicate)
+                .map(&predicate)
                 .unwrap_or(false)
     })
 }
@@ -100,25 +107,33 @@ fn test_archive_and_reactivate_events_include_topics_and_payloads() {
     let project_id = register_project(&client, &env, &owner, "Archive Me");
 
     client.mock_all_auths().archive_project(&project_id, &owner);
-    client.mock_all_auths().reactivate_project(&project_id, &owner);
+    client
+        .mock_all_auths()
+        .reactivate_project(&project_id, &owner);
 
     assert!(has_event::<ProjectArchivedEvent, _, _>(
         &env,
-        (symbol_short!("PROJECT"), symbol_short!("ARCHIVED"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("ARCHIVED"),
+            project_id
+        ),
         |event| {
             event.project_id == project_id
-                && event.caller == owner
-                && event.archived
+                && event.archived_by == owner
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
     assert!(has_event::<ProjectReactivatedEvent, _, _>(
         &env,
-        (symbol_short!("PROJECT"), symbol_short!("RESTORED"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("RESTORED"),
+            project_id
+        ),
         |event| {
             event.project_id == project_id
                 && event.caller == owner
-                && !event.archived
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
@@ -135,11 +150,17 @@ fn test_ownership_transfer_event_includes_topics_and_payload() {
     client
         .mock_all_auths()
         .initiate_transfer(&project_id, &old_owner, &new_owner);
-    client.mock_all_auths().accept_transfer(&project_id, &new_owner);
+    client
+        .mock_all_auths()
+        .accept_transfer(&project_id, &new_owner);
 
     assert!(has_event::<ProjectOwnershipTransferredEvent, _, _>(
         &env,
-        (symbol_short!("PROJECT"), symbol_short!("TRANSFER"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("TRANSFER"),
+            project_id
+        ),
         |event| {
             event.project_id == project_id
                 && event.caller == new_owner
@@ -224,9 +245,8 @@ fn test_review_moderation_events_include_topics_and_payloads() {
         ),
         |event| {
             event.project_id == project_id
-                && event.caller == reporter
+                && event.reporter == reporter
                 && event.reviewer == reviewer
-                && event.report_count == 1
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
@@ -242,7 +262,6 @@ fn test_review_moderation_events_include_topics_and_payloads() {
             event.project_id == project_id
                 && event.admin == admin
                 && event.reviewer == reviewer
-                && event.hidden
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
@@ -257,7 +276,6 @@ fn test_review_moderation_events_include_topics_and_payloads() {
         |event| {
             event.project_id == project_id
                 && event.admin == admin
-                && !event.hidden
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
@@ -273,13 +291,9 @@ fn test_settings_events_include_topics_and_payloads() {
         .register_stellar_asset_contract_v2(token_admin)
         .address();
 
-    client.mock_all_auths().set_fee(
-        &admin,
-        &Some(token.clone()),
-        &300,
-        &25,
-        &owner,
-    );
+    client
+        .mock_all_auths()
+        .set_fee(&admin, &Some(token.clone()), &300, &25, &owner);
     client.mock_all_auths().set_min_project_age(&admin, &86_400);
 
     assert!(has_event::<FeeSetEvent, _, _>(

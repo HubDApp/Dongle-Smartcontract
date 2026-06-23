@@ -98,19 +98,14 @@ pub enum ContractError {
     ProjectNotArchived = 45,
     /// Reports have already been cleared or there are none to clear
     ReportsAlreadyCleared = 46,
-
-    /// Invalid project dependency reference (must contain exactly one of project_id/external_cid/external_url)
-    InvalidDependencyReference = 47,
-    /// Invalid dependency external CID
-    InvalidDependencyCid = 48,
-    /// Invalid dependency external URL
-    InvalidDependencyUrl = 49,
-    /// Dependency refers to an internal project that does not exist
-    DependencyProjectNotFound = 50,
-    /// Dependency already exists for this project
-    DuplicateDependency = 51,
-    /// Dependency not found
-    DependencyNotFound = 52,
+    /// Collection not found
+    CollectionNotFound = 47,
+    /// A collection with this name already exists
+    CollectionAlreadyExists = 48,
+    /// Project is already in the collection
+    AlreadyInCollection = 49,
+    /// Project is not in the collection
+    NotInCollection = 50,
 }
 
 

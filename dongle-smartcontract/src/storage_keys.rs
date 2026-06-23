@@ -76,11 +76,19 @@ pub enum StorageKey {
     VerificationRenewalCount(u64),
     /// List of featured project IDs.
     FeaturedProjects,
-
-    /// Project dependency records: (project_id, dependency_key)
-    ProjectDependency(u64, String),
-
-    /// Dependency key index list for a project
-    ProjectDependencyKeys(u64),
+    /// Collection by id.
+    Collection(u64),
+    /// Collection name string by id (for uniqueness checks).
+    CollectionNameById(u64),
+    /// Next collection id (auto-increment counter).
+    NextCollectionId,
+    /// List of all collection IDs.
+    CollectionList,
+    /// Project IDs belonging to a collection.
+    CollectionProjectIds(u64),
+    /// Admin action log entry by sequential ID.
+    AdminActionLog(u64),
+    /// Next admin action log ID (auto-increment counter).
+    AdminActionLogCount,
 }
 

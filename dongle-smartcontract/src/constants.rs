@@ -87,8 +87,23 @@ pub const LEDGER_THRESHOLD_VERIFICATION: u32 = 777_600;
 /// User data should persist reasonably long.
 pub const LEDGER_THRESHOLD_USER: u32 = 1_036_800;
 
+/// Maximum number of collections that can exist.
+pub const MAX_COLLECTIONS: u32 = 100;
+
+/// Maximum length for a collection name.
+pub const MAX_COLLECTION_NAME_LEN: usize = 100;
+
+/// Maximum length for a collection description.
+pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
+
+/// Maximum number of projects per collection.
+pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
+
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
+/// Maximum entries returned per admin action log paginated query.
+pub const MAX_ADMIN_ACTION_LOG_PAGE: u32 = 100;
+
 pub const LEDGER_BUMP_CRITICAL: u32 = LEDGER_THRESHOLD_CRITICAL;
 pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
 pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;

@@ -8,12 +8,15 @@
 
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env, String};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 fn valid_cid(env: &Env) -> String {
-    String::from_str(env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi")
+    String::from_str(
+        env,
+        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+    )
 }
 
 fn setup(env: &Env) -> (crate::DongleContractClient<'_>, Address) {
