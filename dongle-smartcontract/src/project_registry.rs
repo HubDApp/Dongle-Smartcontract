@@ -89,7 +89,7 @@ impl ProjectRegistry {
             .persistent()
             .has(&StorageKey::ProjectBySlug(params.slug.clone()))
         {
-            return Err(ContractError::ProjectSlugAlreadyExists);
+            return Err(ContractError::ProjectAlreadyExists);
         }
 
         // Mutation phase
@@ -248,7 +248,7 @@ impl ProjectRegistry {
                 {
                     // If the slug exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
-                        return Err(ContractError::ProjectSlugAlreadyExists);
+                        return Err(ContractError::ProjectAlreadyExists);
                     }
                 }
 
@@ -781,13 +781,7 @@ impl ProjectRegistry {
         StorageManager::extend_owner_projects_ttl(env, &old_owner);
         StorageManager::extend_owner_projects_ttl(env, &pending_new_owner);
 
-        publish_ownership_transferred_event(
-            env,
-            project_id,
-            caller,
-            old_owner,
-            pending_new_owner,
-        );
+        publish_ownership_transferred_event(env, project_id, caller, old_owner, pending_new_owner);
         Ok(())
     }
 

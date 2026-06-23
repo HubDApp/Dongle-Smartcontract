@@ -1,5 +1,6 @@
 //! Fee configuration and payment with validation and events.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
 use crate::events::{
@@ -7,7 +8,7 @@ use crate::events::{
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::StorageKey;
-use crate::types::FeeConfig;
+use crate::types::{AdminActionType, FeeConfig};
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -38,12 +39,15 @@ impl FeeManager {
 
         publish_fee_set_event(
             env,
-            admin,
+            admin.clone(),
             config.token.clone(),
             verification_fee,
             registration_fee,
             treasury,
         );
+
+        AdminActionLog::record_action(env, admin, AdminActionType::FeeChanged, None, None, None);
+
         Ok(())
     }
 
@@ -118,13 +122,7 @@ impl FeeManager {
         env.storage()
             .persistent()
             .remove(&StorageKey::FeePaidForProject(project_id));
-        publish_fee_consumed_event(
-            env,
-            project_id,
-            caller,
-            FeeOperation::Verification,
-            amount,
-        );
+        publish_fee_consumed_event(env, project_id, caller, FeeOperation::Verification, amount);
         Ok(())
     }
 
@@ -199,14 +197,7 @@ impl FeeManager {
             &true,
         );
 
-        publish_fee_paid_event(
-            env,
-            0,
-            payer,
-            token,
-            FeeOperation::Registration,
-            amount,
-        );
+        publish_fee_paid_event(env, 0, payer, token, FeeOperation::Registration, amount);
         Ok(())
     }
 
@@ -230,13 +221,7 @@ impl FeeManager {
         env.storage()
             .persistent()
             .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
-        publish_fee_consumed_event(
-            env,
-            0,
-            address.clone(),
-            FeeOperation::Registration,
-            amount,
-        );
+        publish_fee_consumed_event(env, 0, address.clone(), FeeOperation::Registration, amount);
         Ok(())
     }
 }

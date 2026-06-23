@@ -213,3 +213,63 @@ pub struct FeaturedProjectEvent {
     pub admin: Address,
     pub timestamp: u64,
 }
+
+/// A curated collection of projects, managed by admins.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Collection {
+    pub id: u64,
+    pub name: String,
+    pub description: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+/// Parameters for creating a new collection (admin-only).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreateCollectionParams {
+    pub name: String,
+    pub description: String,
+}
+
+/// Types of admin actions recorded in the admin action log.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdminActionType {
+    AdminAdded,
+    AdminRemoved,
+    VerificationApproved,
+    VerificationRejected,
+    VerificationRevoked,
+    VerificationRenewalApproved,
+    VerificationRenewalRejected,
+    FeeChanged,
+    MinProjectAgeSet,
+    ReviewHidden,
+    ReviewRestored,
+    ReviewDeletedByAdmin,
+    ProjectReportsCleared,
+    VerificationHistoryCleared,
+    RenewalHistoryCleared,
+    CollectionCreated,
+    CollectionUpdated,
+    CollectionDeleted,
+    ProjectAddedToCollection,
+    ProjectRemovedFromCollection,
+    ProjectFeatured,
+    ProjectUnfeatured,
+}
+
+/// A single entry in the admin action log.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminActionEntry {
+    pub id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub target_id: Option<u64>,
+    pub target_address: Option<Address>,
+    pub timestamp: u64,
+    pub reason_cid: Option<String>,
+}

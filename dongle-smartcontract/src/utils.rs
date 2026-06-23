@@ -155,6 +155,31 @@ impl Utils {
         Ok(())
     }
 
+    /// Validates project slug format (lowercase alphanumeric + hyphens).
+    pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        let slug_str = slug.to_string();
+
+        if slug_str.trim().is_empty() {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let max_len = crate::constants::MAX_SLUG_LEN;
+        if slug_str.len() > max_len {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        for c in slug_str.chars() {
+            if !c.is_ascii_alphanumeric() && c != '-' {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Validates project name with comprehensive checks:
     /// - Not empty or whitespace-only
     /// - Within maximum length constraint (MAX_NAME_LEN)

@@ -455,7 +455,7 @@ fn test_submit_review_stores_and_fetches_cid() {
 
     let stored = client.get_review(&project_id, &reviewer).unwrap();
     assert_eq!(
-        stored.ipfs_cid,
+        stored.content_cid,
         Some(String::from_str(
             &env,
             "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaz"

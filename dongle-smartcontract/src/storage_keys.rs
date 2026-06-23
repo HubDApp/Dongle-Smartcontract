@@ -76,12 +76,18 @@ pub enum StorageKey {
     VerificationRenewalCount(u64),
     /// List of featured project IDs.
     FeaturedProjects,
-    /// Next claim request id (counter).
-    NextClaimRequestId,
-    /// Claim request by id.
-    ClaimRequest(u64),
-    /// Claim request by project_id and claimant.
-    ClaimRequestByProjectAndClaimant(u64, Address),
-    /// List of claim request IDs for a project.
-    ProjectClaimRequests(u64),
+    /// Collection by id.
+    Collection(u64),
+    /// Collection name string by id (for uniqueness checks).
+    CollectionNameById(u64),
+    /// Next collection id (auto-increment counter).
+    NextCollectionId,
+    /// List of all collection IDs.
+    CollectionList,
+    /// Project IDs belonging to a collection.
+    CollectionProjectIds(u64),
+    /// Admin action log entry by sequential ID.
+    AdminActionLog(u64),
+    /// Next admin action log ID (auto-increment counter).
+    AdminActionLogCount,
 }
