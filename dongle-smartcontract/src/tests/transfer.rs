@@ -131,7 +131,7 @@ fn test_initiate_overwrites_previous_pending_transfer() {
 
     // First recipient can no longer accept
     let result = client.try_accept_transfer(&project_id, &first_recipient);
-    assert_eq!(result, Err(Ok(ContractError::NotPendingTransferRecipient)));
+    assert_eq!(result, Err(Ok(ContractError::NotTransferRecip)));
 
     // Second recipient can accept
     client.accept_transfer(&project_id, &second_recipient);
@@ -171,7 +171,7 @@ fn test_accept_by_wrong_address_fails() {
     client.initiate_transfer(&project_id, &owner, &intended);
 
     let result = client.try_accept_transfer(&project_id, &attacker);
-    assert_eq!(result, Err(Ok(ContractError::NotPendingTransferRecipient)));
+    assert_eq!(result, Err(Ok(ContractError::NotTransferRecip)));
 }
 
 #[test]

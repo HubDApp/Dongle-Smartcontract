@@ -1,5 +1,6 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
@@ -7,7 +8,7 @@ use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
-use crate::types::{Project, ProjectStats, Review, ReviewAction};
+use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -443,8 +444,23 @@ impl ReviewRegistry {
         );
 
         let now = env.ledger().timestamp();
-        crate::events::publish_review_deleted_by_admin_event(env, project_id, reviewer, admin);
-        let _ = now; // timestamp captured for potential future use
+        crate::events::publish_review_deleted_by_admin_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewDeletedByAdmin,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
+
+        let _ = now;
         Ok(())
     }
 
@@ -741,7 +757,21 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        crate::events::publish_review_hidden_event(env, project_id, reviewer, admin);
+        crate::events::publish_review_hidden_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewHidden,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
 
         Ok(())
     }
@@ -808,7 +838,21 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        crate::events::publish_review_restored_event(env, project_id, reviewer, admin);
+        crate::events::publish_review_restored_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewRestored,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
 
         Ok(())
     }

@@ -15,7 +15,7 @@ fn test_owner_can_archive_project() {
     client.archive_project(&project_id, &owner);
 
     let project = client.get_project(&project_id).unwrap();
-    assert!(project.is_archived);
+    assert!(project.archived);
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn test_admin_can_force_archive_project() {
     client.archive_project(&project_id, &admin);
 
     let project = client.get_project(&project_id).unwrap();
-    assert!(project.is_archived);
+    assert!(project.archived);
 }
 
 #[test]

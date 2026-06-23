@@ -67,10 +67,10 @@ impl Utils {
     pub fn validate_website(website: &String) -> Result<(), ContractError> {
         let len = website.len();
         if len == 0 {
-            return Err(ContractError::InvalidProjectWebsite);
+            return Err(ContractError::InvalidWebsite);
         }
         if len > crate::constants::MAX_WEBSITE_LEN as u32 {
-            return Err(ContractError::ProjectWebsiteTooLong);
+            return Err(ContractError::WebsiteTooLong);
         }
 
         extern crate alloc;
@@ -78,7 +78,7 @@ impl Utils {
         let web_str = website.to_string();
 
         if !web_str.starts_with("http://") && !web_str.starts_with("https://") {
-            return Err(ContractError::InvalidProjectWebsite);
+            return Err(ContractError::InvalidWebsite);
         }
         Ok(())
     }
@@ -90,17 +90,17 @@ impl Utils {
     pub fn validate_category_field(category: &String) -> Result<(), ContractError> {
         let len = category.len();
         if len == 0 {
-            return Err(ContractError::InvalidProjectCategory);
+            return Err(ContractError::InvalidCategory);
         }
         if len > crate::constants::MAX_CATEGORY_LEN as u32 {
-            return Err(ContractError::ProjectCategoryTooLong);
+            return Err(ContractError::CategoryTooLong);
         }
 
         extern crate alloc;
         use alloc::string::ToString;
         let cat_str = category.to_string();
         if cat_str.trim().is_empty() {
-            return Err(ContractError::InvalidProjectCategory);
+            return Err(ContractError::InvalidCategory);
         }
 
         Ok(())
@@ -108,14 +108,14 @@ impl Utils {
 
     pub fn validate_logo_cid(cid: &String) -> Result<(), ContractError> {
         if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidProjectLogoCid);
+            return Err(ContractError::InvalidLogoCid);
         }
         Ok(())
     }
 
     pub fn validate_metadata_cid(cid: &String) -> Result<(), ContractError> {
         if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidProjectMetadataCid);
+            return Err(ContractError::InvalidMetaCid);
         }
         Ok(())
     }
@@ -139,18 +139,43 @@ impl Utils {
 
         // 1. Check for empty strings
         if len == 0 {
-            return Err(ContractError::InvalidProjectDescription);
+            return Err(ContractError::InvalidProjectDesc);
         }
 
         // 2. Check maximum length constraint
         if len > crate::constants::MAX_DESCRIPTION_LEN as u32 {
-            return Err(ContractError::ProjectDescriptionTooLong);
+            return Err(ContractError::ProjectDescTooLong);
         }
 
         // 3. For non-empty strings, we accept them as valid
         // Note: Soroban String is UTF-8 and we trust the input at this level
         // More sophisticated validation would require converting to bytes
         // which is not efficient in the contract environment
+
+        Ok(())
+    }
+
+    /// Validates project slug format (lowercase alphanumeric + hyphens).
+    pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        let slug_str = slug.to_string();
+
+        if slug_str.trim().is_empty() {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let max_len = crate::constants::MAX_SLUG_LEN;
+        if slug_str.len() > max_len {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        for c in slug_str.chars() {
+            if !c.is_ascii_alphanumeric() && c != '-' {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
 
         Ok(())
     }
@@ -179,7 +204,7 @@ impl Utils {
         // 3. Validate alphanumeric, underscore, hyphen
         for c in name_str.chars() {
             if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidProjectNameFormat);
+                return Err(ContractError::InvalidNameFormat);
             }
         }
 

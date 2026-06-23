@@ -53,15 +53,13 @@ fn setup_with_token(
     let token_client = soroban_sdk::token::StellarAssetClient::new(env, &token_address);
     token_client.mint(owner, &(fee * 10));
 
-    client
-        .mock_all_auths()
-        .set_fee(
-            admin,
-            &Some(token_address.clone()),
-            &(fee as u128),
-            &0u128,
-            admin,
-        );
+    client.mock_all_auths().set_fee(
+        admin,
+        &Some(token_address.clone()),
+        &(fee as u128),
+        &0u128,
+        admin,
+    );
 
     let project_id = register_project(client, owner, "TokenProject");
     client

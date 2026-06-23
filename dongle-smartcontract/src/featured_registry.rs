@@ -1,10 +1,11 @@
 //! Featured projects registry – admin-only curation of highlighted projects.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::errors::ContractError;
 use crate::events::publish_featured_project_event;
 use crate::storage_keys::StorageKey;
-use crate::types::Project;
+use crate::types::{AdminActionType, Project};
 use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeaturedRegistry;
@@ -53,7 +54,15 @@ impl FeaturedRegistry {
                 .set(&StorageKey::FeaturedProjects, &updated);
         }
 
-        publish_featured_project_event(env, project_id, featured, admin);
+        publish_featured_project_event(env, project_id, featured, admin.clone());
+
+        let action_type = if featured {
+            AdminActionType::ProjectFeatured
+        } else {
+            AdminActionType::ProjectUnfeatured
+        };
+        AdminActionLog::record_action(env, admin, action_type, Some(project_id), None, None);
+
         Ok(())
     }
 

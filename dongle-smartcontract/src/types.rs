@@ -87,6 +87,25 @@ pub struct ReviewEventData {
 }
 
 #[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequest {
+    pub id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub status: ClaimStatus,
+    pub created_at: u64,
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
@@ -100,6 +119,7 @@ pub struct Project {
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
     pub archived: bool,
+    pub claimable: bool,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
@@ -188,6 +208,36 @@ pub struct ProjectAggregate {
     pub review_count: u64,
 }
 
+// ── Project dependencies ─────────────────────────────────────────────────────
+
+/// External dependency reference can point to an internal project id,
+/// an external IPFS CID, or an external URL.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyRef {
+    /// Another project inside this contract.
+    pub project_id: Option<u64>,
+    /// External content-addressed reference (e.g. ipfs cid).
+    pub external_cid: Option<String>,
+    /// External URL reference (http/https).
+    pub external_url: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectDependency {
+    /// The unique reference identifying the dependency.
+    pub reference: DependencyRef,
+    /// Optional free-form label (e.g. "oracle", "token", "protocol").
+    pub label: Option<String>,
+    /// Optional metadata CID describing the dependency.
+    pub metadata_cid: Option<String>,
+    /// Unix timestamp (seconds) when the dependency was added.
+    pub added_at: u64,
+    /// Unix timestamp (seconds) when the dependency was last updated.
+    pub updated_at: u64,
+}
+
 /// Emitted when a project's featured status changes.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -196,4 +246,64 @@ pub struct FeaturedProjectEvent {
     pub featured: bool,
     pub admin: Address,
     pub timestamp: u64,
+}
+
+/// A curated collection of projects, managed by admins.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Collection {
+    pub id: u64,
+    pub name: String,
+    pub description: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+/// Parameters for creating a new collection (admin-only).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreateCollectionParams {
+    pub name: String,
+    pub description: String,
+}
+
+/// Types of admin actions recorded in the admin action log.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdminActionType {
+    AdminAdded,
+    AdminRemoved,
+    VerificationApproved,
+    VerificationRejected,
+    VerificationRevoked,
+    VerificationRenewalApproved,
+    VerificationRenewalRejected,
+    FeeChanged,
+    MinProjectAgeSet,
+    ReviewHidden,
+    ReviewRestored,
+    ReviewDeletedByAdmin,
+    ProjectReportsCleared,
+    VerificationHistoryCleared,
+    RenewalHistoryCleared,
+    CollectionCreated,
+    CollectionUpdated,
+    CollectionDeleted,
+    ProjectAddedToCollection,
+    ProjectRemovedFromCollection,
+    ProjectFeatured,
+    ProjectUnfeatured,
+}
+
+/// A single entry in the admin action log.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminActionEntry {
+    pub id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub target_id: Option<u64>,
+    pub target_address: Option<Address>,
+    pub timestamp: u64,
+    pub reason_cid: Option<String>,
 }

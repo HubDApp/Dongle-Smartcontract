@@ -512,12 +512,7 @@ pub fn publish_review_reported_event(
     );
 }
 
-pub fn publish_review_hidden_event(
-    env: &Env,
-    project_id: u64,
-    reviewer: Address,
-    admin: Address,
-) {
+pub fn publish_review_hidden_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
     let event_data = ReviewHiddenEvent {
         project_id,
         reviewer,
@@ -525,11 +520,7 @@ pub fn publish_review_hidden_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("REVIEW"),
-            symbol_short!("HIDDEN"),
-            project_id,
-        ),
+        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id),
         event_data,
     );
 }
@@ -679,11 +670,7 @@ pub fn publish_renewal_history_cleared_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("RENEW"),
-            symbol_short!("HISTCLR"),
-            project_id,
-        ),
+        (symbol_short!("RENEW"), symbol_short!("HISTCLR"), project_id),
         event_data,
     );
 }
@@ -721,7 +708,11 @@ pub fn publish_verification_renewal_approved_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("RENEW"), symbol_short!("APPROVED"), project_id),
+        (
+            symbol_short!("RENEW"),
+            symbol_short!("APPROVED"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -733,7 +724,11 @@ pub fn publish_verification_renewal_rejected_event(env: &Env, project_id: u64, a
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("RENEW"), symbol_short!("REJECTED"), project_id),
+        (
+            symbol_short!("RENEW"),
+            symbol_short!("REJECTED"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -800,6 +795,123 @@ pub fn publish_fee_set_event(
         .publish((symbol_short!("CONFIG"), symbol_short!("FEE")), event_data);
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectClaimableSetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub claimable: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestSubmittedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestApprovedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestRejectedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_claimable_set_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    claimable: bool,
+) {
+    let event_data = ProjectClaimableSetEvent {
+        project_id,
+        caller,
+        claimable,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("CLAIMABLE"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_submitted_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    proof_cid: String,
+) {
+    let event_data = ClaimRequestSubmittedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("SUBMITTED"), project_id, claimant),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_approved_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    admin: Address,
+) {
+    let event_data = ClaimRequestApprovedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("APPROVED"), project_id, claimant),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_rejected_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    admin: Address,
+) {
+    let event_data = ClaimRequestRejectedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("REJECTED"), project_id, claimant),
+        event_data,
+    );
+}
+
 pub fn publish_min_project_age_set_event(
     env: &Env,
     admin: Address,
@@ -818,12 +930,7 @@ pub fn publish_min_project_age_set_event(
     );
 }
 
-pub fn publish_featured_project_event(
-    env: &Env,
-    project_id: u64,
-    featured: bool,
-    admin: Address,
-) {
+pub fn publish_featured_project_event(env: &Env, project_id: u64, featured: bool, admin: Address) {
     let event_data = crate::types::FeaturedProjectEvent {
         project_id,
         featured,
@@ -840,18 +947,179 @@ pub fn publish_featured_project_event(
     );
 }
 
-pub fn publish_launch_timestamp_updated_event(
+// ── Collection Events ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionCreatedEvent {
+    pub collection_id: u64,
+    pub name: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionUpdatedEvent {
+    pub collection_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionDeletedEvent {
+    pub collection_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectAddedToCollectionEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRemovedFromCollectionEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_collection_created_event(
+    env: &Env,
+    collection_id: u64,
+    name: String,
+    admin: Address,
+) {
+    let event_data = CollectionCreatedEvent {
+        collection_id,
+        name,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("CREATED"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_collection_updated_event(env: &Env, collection_id: u64, admin: Address) {
+    let event_data = CollectionUpdatedEvent {
+        collection_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("UPDATED"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_collection_deleted_event(env: &Env, collection_id: u64, admin: Address) {
+    let event_data = CollectionDeletedEvent {
+        collection_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("DELETED"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_added_to_collection_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    admin: Address,
+) {
+    let event_data = ProjectAddedToCollectionEvent {
+        collection_id,
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("ADDED"),
+            collection_id,
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_removed_from_collection_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    admin: Address,
+) {
+    let event_data = ProjectRemovedFromCollectionEvent {
+        collection_id,
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("REMOVED"),
+            collection_id,
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_linked_event(
     env: &Env,
     project_id: u64,
+    linked_project_id: u64,
     owner: Address,
-    launch_timestamp: Option<u64>,
 ) {
     env.events().publish(
         (
             symbol_short!("PROJECT"),
-            symbol_short!("LAUNCH"),
+            symbol_short!("LINKED"),
             project_id,
         ),
-        (owner, launch_timestamp, env.ledger().timestamp()),
+        (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_project_unlinked_event(
+    env: &Env,
+    project_id: u64,
+    linked_project_id: u64,
+    owner: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNLINKED"),
+            project_id,
+        ),
+        (linked_project_id, owner, env.ledger().timestamp()),
     );
 }

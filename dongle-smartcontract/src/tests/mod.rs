@@ -2,10 +2,12 @@
 
 // Existing test modules
 mod admin;
+mod admin_action_log;
 mod archival;
+mod collections;
 mod error_handling_tests;
-mod fee;
 mod featured;
+mod fee;
 mod indexer;
 mod review;
 
@@ -17,7 +19,9 @@ mod events;
 mod moderation;
 mod pagination;
 mod review_settings;
+mod dependencies;
+mod claim;
 
 // Test infrastructure
 pub mod fixtures;
-mod launch_timestamp;
+mod linked_projects;
