@@ -85,6 +85,25 @@ pub struct ReviewEventData {
 }
 
 #[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequest {
+    pub id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub status: ClaimStatus,
+    pub created_at: u64,
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
@@ -98,6 +117,7 @@ pub struct Project {
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
     pub archived: bool,
+    pub claimable: bool,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
