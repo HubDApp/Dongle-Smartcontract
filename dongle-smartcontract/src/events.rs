@@ -795,6 +795,123 @@ pub fn publish_fee_set_event(
         .publish((symbol_short!("CONFIG"), symbol_short!("FEE")), event_data);
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectClaimableSetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub claimable: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestSubmittedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestApprovedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRequestRejectedEvent {
+    pub claim_request_id: u64,
+    pub project_id: u64,
+    pub claimant: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_claimable_set_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    claimable: bool,
+) {
+    let event_data = ProjectClaimableSetEvent {
+        project_id,
+        caller,
+        claimable,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("CLAIMABLE"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_submitted_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    proof_cid: String,
+) {
+    let event_data = ClaimRequestSubmittedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("SUBMITTED"), project_id, claimant),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_approved_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    admin: Address,
+) {
+    let event_data = ClaimRequestApprovedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("APPROVED"), project_id, claimant),
+        event_data,
+    );
+}
+
+pub fn publish_claim_request_rejected_event(
+    env: &Env,
+    claim_request_id: u64,
+    project_id: u64,
+    claimant: Address,
+    admin: Address,
+) {
+    let event_data = ClaimRequestRejectedEvent {
+        claim_request_id,
+        project_id,
+        claimant,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CLAIM"), symbol_short!("REJECTED"), project_id, claimant),
+        event_data,
+    );
+}
+
 pub fn publish_min_project_age_set_event(
     env: &Env,
     admin: Address,

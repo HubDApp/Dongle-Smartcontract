@@ -338,6 +338,45 @@ impl StorageManager {
         Self::extend_fee_config_ttl(env);
         Self::extend_treasury_ttl(env);
     }
+
+    /// Extend TTL for a claim request
+    pub fn extend_claim_request_ttl(env: &Env, claim_request_id: u64) {
+        if env.storage()
+            .persistent()
+            .has(&StorageKey::ClaimRequest(claim_request_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ClaimRequest(claim_request_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+    }
+
+    /// Extend TTL for all claim-related data for a project
+    pub fn extend_project_claims_ttl(env: &Env, project_id: u64) {
+        if env.storage()
+            .persistent()
+            .has(&StorageKey::ProjectClaimRequests(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectClaimRequests(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+            // Extend all individual claim request TTLs
+            if let Some(request_ids) = env.storage()
+                .persistent()
+                .get::<_, Vec<u64>>(&StorageKey::ProjectClaimRequests(project_id))
+            {
+                for i in 0..request_ids.len() {
+                    if let Some(request_id) = request_ids.get(i) {
+                        Self::extend_claim_request_ttl(env, request_id);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
