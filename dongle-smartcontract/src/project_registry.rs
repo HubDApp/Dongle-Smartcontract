@@ -3,12 +3,15 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_ownership_transferred_event, publish_project_archived_event,
     publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event,
+    publish_project_updated_event, publish_project_claimable_set_event,
+    publish_claim_request_submitted_event, publish_claim_request_approved_event,
+    publish_claim_request_rejected_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
-use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus};
+use crate::types::{Project, ProjectRegistrationParams, ProjectUpdateParams, VerificationStatus, ClaimStatus, ClaimRequest};
+use crate::admin_manager::AdminManager;
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -110,6 +113,7 @@ impl ProjectRegistry {
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
             archived: false,
+            claimable: false,
             created_at: now,
             updated_at: now,
             tags: params.tags.clone(),
@@ -893,114 +897,241 @@ impl ProjectRegistry {
         projects
     }
 
-    pub fn link_project(
+    /// Mark a project as claimable or not claimable
+    pub fn set_project_claimable(
         env: &Env,
         project_id: u64,
         caller: Address,
-        linked_project_id: u64,
+        claimable: bool,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let mut project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
-        if project.owner != caller {
+        let is_owner = project.owner == caller;
+        let is_admin = AdminManager::is_admin(env, &caller);
+        if !is_owner && !is_admin {
             return Err(ContractError::Unauthorized);
         }
 
-        if project_id == linked_project_id {
-            return Err(ContractError::CannotLinkToSelf);
-        }
-
-        if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::AlreadyLinked);
-        }
-
-        let mut links: Vec<u64> = env
-            .storage()
+        project.claimable = claimable;
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
             .persistent()
-            .get(&StorageKey::ProjectLinkedProjects(project_id))
-            .unwrap_or_else(|| Vec::new(env));
+            .set(&StorageKey::Project(project_id), &project);
 
-        for i in 0..links.len() {
-            if let Some(id) = links.get(i) {
-                if id == linked_project_id {
-                    return Err(ContractError::AlreadyLinked);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_claimable_set_event(env, project_id, caller, claimable);
+        Ok(())
+    }
+
+    /// Submit a claim request for a project
+    pub fn submit_claim_request(
+        env: &Env,
+        project_id: u64,
+        claimant: Address,
+        proof_cid: String,
+    ) -> Result<u64, ContractError> {
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        claimant.require_auth();
+        if !project.claimable {
+            return Err(ContractError::ProjectNotClaimable);
+        }
+
+        // Check if claimant already has a pending request
+        if env.storage()
+            .persistent()
+            .has(&StorageKey::ClaimRequestByProjectAndClaimant(project_id, claimant.clone()))
+        {
+            return Err(ContractError::ClaimRequestAlreadyExists);
+        }
+
+        // Generate next claim request id
+        let mut claim_request_id: u64 = env.storage()
+            .persistent()
+            .get(&StorageKey::NextClaimRequestId)
+            .unwrap_or(1);
+
+        let now = env.ledger().timestamp();
+        let claim_request = ClaimRequest {
+            id: claim_request_id,
+            project_id,
+            claimant: claimant.clone(),
+            proof_cid: proof_cid.clone(),
+            status: ClaimStatus::Pending,
+            created_at: now,
+        };
+
+        // Store claim request
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ClaimRequest(claim_request_id), &claim_request);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ClaimRequestByProjectAndClaimant(project_id, claimant.clone()), &claim_request_id);
+
+        // Add to project's claim requests list
+        let mut project_claim_requests: Vec<u64> = env.storage()
+            .persistent()
+            .get(&StorageKey::ProjectClaimRequests(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        project_claim_requests.push_back(claim_request_id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectClaimRequests(project_id), &project_claim_requests);
+
+        // Increment next claim request id
+        claim_request_id = claim_request_id.saturating_add(1);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::NextClaimRequestId, &claim_request_id);
+
+        // Extend TTLs
+        StorageManager::extend_project_ttl(env, project_id);
+        StorageManager::extend_claim_request_ttl(env, claim_request_id - 1);
+        StorageManager::extend_project_claims_ttl(env, project_id);
+
+        publish_claim_request_submitted_event(env, claim_request_id - 1, project_id, claimant, proof_cid);
+        Ok(claim_request_id - 1)
+    }
+
+    /// Approve a claim request
+    pub fn approve_claim_request(
+        env: &Env,
+        claim_request_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        let mut claim_request: ClaimRequest = env.storage()
+            .persistent()
+            .get(&StorageKey::ClaimRequest(claim_request_id))
+            .ok_or(ContractError::ClaimRequestNotFound)?;
+
+        admin.require_auth();
+        if !AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        if claim_request.status != ClaimStatus::Pending {
+            return Err(ContractError::ClaimRequestNotPending);
+        }
+
+        // Get the project
+        let mut project = Self::get_project(env, claim_request.project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Transfer ownership
+        let old_owner = project.owner.clone();
+        project.owner = claim_request.claimant.clone();
+        project.claimable = false; // Make project not claimable after transfer
+        project.updated_at = env.ledger().timestamp();
+
+        // Update owner projects lists
+        let old_owner_projects: Vec<u64> = env.storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(old_owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut updated_old_owner_projects: Vec<u64> = Vec::new(env);
+        for i in 0..old_owner_projects.len() {
+            if let Some(id) = old_owner_projects.get(i) {
+                if id != claim_request.project_id {
+                    updated_old_owner_projects.push_back(id);
                 }
             }
         }
-
-        links.push_back(linked_project_id);
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectLinkedProjects(project_id), &links);
-        StorageManager::extend_project_ttl(env, project_id);
+            .set(&StorageKey::OwnerProjects(old_owner.clone()), &updated_old_owner_projects);
 
-        crate::events::publish_project_linked_event(
-            env,
-            project_id,
-            linked_project_id,
-            project.owner,
-        );
+        let mut new_owner_projects: Vec<u64> = env.storage()
+            .persistent()
+            .get(&StorageKey::OwnerProjects(claim_request.claimant.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        new_owner_projects.push_back(claim_request.project_id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::OwnerProjects(claim_request.claimant.clone()), &new_owner_projects);
+
+        // Save project
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(claim_request.project_id), &project);
+
+        // Update claim request status
+        claim_request.status = ClaimStatus::Approved;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ClaimRequest(claim_request_id), &claim_request);
+
+        // Extend TTLs
+        StorageManager::extend_project_ttl(env, claim_request.project_id);
+        StorageManager::extend_owner_projects_ttl(env, &old_owner);
+        StorageManager::extend_owner_projects_ttl(env, &claim_request.claimant);
+        StorageManager::extend_claim_request_ttl(env, claim_request_id);
+        StorageManager::extend_project_claims_ttl(env, claim_request.project_id);
+
+        // Publish events
+        publish_claim_request_approved_event(env, claim_request_id, claim_request.project_id, claim_request.claimant.clone(), admin.clone());
+        publish_ownership_transferred_event(env, claim_request.project_id, admin.clone(), old_owner, claim_request.claimant);
 
         Ok(())
     }
 
-    pub fn unlink_project(
+    /// Reject a claim request
+    pub fn reject_claim_request(
         env: &Env,
-        project_id: u64,
-        caller: Address,
-        linked_project_id: u64,
+        claim_request_id: u64,
+        admin: Address,
     ) -> Result<(), ContractError> {
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-
-        caller.require_auth();
-        if project.owner != caller {
-            return Err(ContractError::Unauthorized);
-        }
-
-        let links: Vec<u64> = env
-            .storage()
+        let mut claim_request: ClaimRequest = env.storage()
             .persistent()
-            .get(&StorageKey::ProjectLinkedProjects(project_id))
-            .unwrap_or_else(|| Vec::new(env));
+            .get(&StorageKey::ClaimRequest(claim_request_id))
+            .ok_or(ContractError::ClaimRequestNotFound)?;
 
-        let mut found = false;
-        let mut new_links: Vec<u64> = Vec::new(env);
-        for i in 0..links.len() {
-            if let Some(id) = links.get(i) {
-                if id == linked_project_id {
-                    found = true;
-                } else {
-                    new_links.push_back(id);
-                }
-            }
+        admin.require_auth();
+        if !AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
         }
 
-        if !found {
-            return Err(ContractError::AlreadyLinked);
+        if claim_request.status != ClaimStatus::Pending {
+            return Err(ContractError::ClaimRequestNotPending);
         }
 
+        claim_request.status = ClaimStatus::Rejected;
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectLinkedProjects(project_id), &new_links);
-        StorageManager::extend_project_ttl(env, project_id);
+            .set(&StorageKey::ClaimRequest(claim_request_id), &claim_request);
 
-        crate::events::publish_project_unlinked_event(
-            env,
-            project_id,
-            linked_project_id,
-            project.owner,
-        );
+        // Extend TTL
+        StorageManager::extend_project_ttl(env, claim_request.project_id);
+        StorageManager::extend_claim_request_ttl(env, claim_request_id);
+        StorageManager::extend_project_claims_ttl(env, claim_request.project_id);
 
+        publish_claim_request_rejected_event(env, claim_request_id, claim_request.project_id, claim_request.claimant, admin);
         Ok(())
     }
 
-    pub fn get_linked_projects(env: &Env, project_id: u64) -> Vec<u64> {
+    /// Get a claim request by id
+    pub fn get_claim_request(env: &Env, claim_request_id: u64) -> Option<ClaimRequest> {
         env.storage()
             .persistent()
-            .get(&StorageKey::ProjectLinkedProjects(project_id))
-            .unwrap_or_else(|| Vec::new(env))
+            .get(&StorageKey::ClaimRequest(claim_request_id))
+    }
+
+    /// Get claim requests for a project
+    pub fn get_claim_requests_for_project(env: &Env, project_id: u64) -> Vec<ClaimRequest> {
+        let mut claim_requests = Vec::new(env);
+        if let Some(request_ids) = env.storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&StorageKey::ProjectClaimRequests(project_id))
+        {
+            for i in 0..request_ids.len() {
+                if let Some(request_id) = request_ids.get(i) {
+                    if let Some(request) = Self::get_claim_request(env, request_id) {
+                        claim_requests.push_back(request);
+                    }
+                }
+            }
+        }
+        claim_requests
     }
 }
 

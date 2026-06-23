@@ -19,6 +19,8 @@ mod events;
 mod moderation;
 mod pagination;
 mod review_settings;
+mod dependencies;
+mod claim;
 
 // Test infrastructure
 pub mod fixtures;
