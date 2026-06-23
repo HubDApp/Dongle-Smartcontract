@@ -5,6 +5,8 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
+
+
     /// Project not found
     ProjectNotFound = 1,
     /// Unauthorized access - caller is not permitted
@@ -106,5 +108,7 @@ pub enum ContractError {
     NotInCollection = 50,
 }
 
+
 // Legacy alias to avoid breaking any code that uses `Error` directly
-pub type Error = ContractError;
+pub type Error = contracterror;
+

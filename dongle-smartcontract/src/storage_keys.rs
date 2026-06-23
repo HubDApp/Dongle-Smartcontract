@@ -91,3 +91,4 @@ pub enum StorageKey {
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
 }
+

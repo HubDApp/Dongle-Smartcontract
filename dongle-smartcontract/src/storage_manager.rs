@@ -134,6 +134,44 @@ impl StorageManager {
         }
     }
 
+    /// Extend TTL for a project's dependency index + dependency records.
+    pub fn extend_project_dependency_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectDependencyKeys(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectDependencyKeys(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+
+        if let Some(keys) = env
+            .storage()
+            .persistent()
+            .get::<_, soroban_sdk::Vec<String>>(&StorageKey::ProjectDependencyKeys(project_id))
+        {
+            for i in 0..keys.len() {
+                if let Some(k) = keys.get(i) {
+                    if env
+                        .storage()
+                        .persistent()
+                        .has(&StorageKey::ProjectDependency(project_id, k.clone()))
+                    {
+                        env.storage().persistent().extend_ttl(
+                            &StorageKey::ProjectDependency(project_id, k.clone()),
+                            LEDGER_THRESHOLD_PROJECT,
+                            LEDGER_BUMP_PROJECT,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+
     // ── Review Data TTL Management ────────────────────────────────────────
 
     /// Extend TTL for a specific review

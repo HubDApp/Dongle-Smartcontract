@@ -18,6 +18,7 @@ pub mod storage_manager;
 pub mod types;
 pub mod utils;
 mod verification_registry;
+mod dependency_registry;
 
 #[cfg(test)]
 mod tests;
@@ -653,3 +654,4 @@ impl DongleContract {
         AdminActionLog::get_action_log_count(&env)
     }
 }
+
