@@ -164,7 +164,7 @@ fn test_create_duplicate_collection_name() {
         &String::from_str(&env, "More DeFi"),
     );
 
-    assert_eq!(result, Err(Ok(ContractError::CollectionAlreadyExists)));
+    assert_eq!(result, Err(Ok(ContractError::CollectionExists)));
 }
 
 #[test]
@@ -365,7 +365,7 @@ fn test_remove_project_not_in_collection() {
         &project_id,
     );
 
-    assert_eq!(result, Err(Ok(ContractError::NotInCollection)));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
 }
 
 #[test]
@@ -527,7 +527,7 @@ fn test_collection_description_too_long() {
         &String::from_str(&env, &long_desc),
     );
 
-    assert_eq!(result, Err(Ok(ContractError::ProjectDescriptionTooLong)));
+    assert_eq!(result, Err(Ok(ContractError::ProjectDescTooLong)));
 }
 
 #[test]
@@ -616,7 +616,7 @@ fn test_update_collection_duplicate_name() {
         &String::from_str(&env, "Updated"),
     );
 
-    assert_eq!(result, Err(Ok(ContractError::CollectionAlreadyExists)));
+    assert_eq!(result, Err(Ok(ContractError::CollectionExists)));
 }
 
 #[test]

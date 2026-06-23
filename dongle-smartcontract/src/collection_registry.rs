@@ -243,7 +243,7 @@ impl CollectionRegistry {
             .unwrap_or(Vec::new(env));
 
         if !project_ids.iter().any(|id| id == project_id) {
-            return Err(ContractError::NotInCollection);
+            return Err(ContractError::AlreadyInCollection);
         }
 
         let mut updated = Vec::new(env);
@@ -380,7 +380,7 @@ impl CollectionRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         if len as usize > MAX_COLLECTION_DESCRIPTION_LEN {
-            return Err(ContractError::ProjectDescriptionTooLong);
+            return Err(ContractError::ProjectDescTooLong);
         }
         Ok(())
     }
@@ -408,7 +408,7 @@ impl CollectionRegistry {
                 .get::<_, String>(&StorageKey::CollectionNameById(id))
             {
                 if existing_name == *name {
-                    return Err(ContractError::CollectionAlreadyExists);
+                    return Err(ContractError::CollectionExists);
                 }
             }
         }

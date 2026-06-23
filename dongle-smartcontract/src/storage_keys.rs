@@ -48,6 +48,8 @@ pub enum StorageKey {
     ProjectTags(u64),
     /// Project social links by project ID.
     ProjectSocialLinks(u64),
+    /// Linked project IDs for a project.
+    ProjectLinkedProjects(u64),
     /// Project reports by project ID.
     ProjectReports(u64),
     /// Report count for a project.

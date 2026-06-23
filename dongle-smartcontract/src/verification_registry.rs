@@ -53,10 +53,10 @@ impl VerificationStateMachine {
             (VerificationStatus::Verified, VerificationStatus::Unverified) => Ok(()),
 
             // Same state (no change) - this should fail as it's not a valid transition
-            (current, target) if current == target => Err(ContractError::InvalidStatusTransition),
+            (current, target) if current == target => Err(ContractError::InvalidStatus),
 
             // All other transitions are invalid
-            (_from, _to) => Err(ContractError::InvalidStatusTransition),
+            (_from, _to) => Err(ContractError::InvalidStatus),
         }
     }
 
@@ -171,7 +171,7 @@ impl VerificationRegistry {
 
         // 3. Check if project can request verification using state machine
         if !VerificationStateMachine::can_request_verification(project.verification_status) {
-            return Err(ContractError::InvalidStatusTransition);
+            return Err(ContractError::InvalidStatus);
         }
 
         // 4. Validate state transition using centralized state machine
@@ -443,7 +443,7 @@ impl VerificationRegistry {
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         if project.verification_status != VerificationStatus::Verified {
-            return Err(ContractError::VerificationNotRevocable);
+            return Err(ContractError::NotRevocable);
         }
 
         let mut record = Self::get_verification(env, project_id)?;
@@ -529,14 +529,14 @@ impl VerificationRegistry {
 
         require_owner_auth(&requester, &project.owner)?;
         if project.verification_status != VerificationStatus::Verified {
-            return Err(ContractError::InvalidStatusTransition);
+            return Err(ContractError::InvalidStatus);
         }
         if env
             .storage()
             .persistent()
             .has(&StorageKey::VerificationRenewal(project_id))
         {
-            return Err(ContractError::InvalidStatusTransition);
+            return Err(ContractError::InvalidStatus);
         }
 
         Self::validate_evidence_cid(&evidence_cid)?;

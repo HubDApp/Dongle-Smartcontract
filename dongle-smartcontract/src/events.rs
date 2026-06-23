@@ -1091,3 +1091,35 @@ pub fn publish_project_removed_from_collection_event(
         event_data,
     );
 }
+
+pub fn publish_project_linked_event(
+    env: &Env,
+    project_id: u64,
+    linked_project_id: u64,
+    owner: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("LINKED"),
+            project_id,
+        ),
+        (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}
+
+pub fn publish_project_unlinked_event(
+    env: &Env,
+    project_id: u64,
+    linked_project_id: u64,
+    owner: Address,
+) {
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNLINKED"),
+            project_id,
+        ),
+        (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}

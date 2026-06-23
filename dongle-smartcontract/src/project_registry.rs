@@ -30,7 +30,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
+        Utils::validate_project_name(&params.slug)?;
 
         // Check registration fee payment
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -236,7 +236,7 @@ impl ProjectRegistry {
             }
         }
         if let Some(value) = params.slug {
-            Utils::validate_project_slug(&value)?;
+            Utils::validate_project_name(&value)?;
 
             // Check if new slug is different from current slug
             if value != old_slug {
@@ -730,7 +730,7 @@ impl ProjectRegistry {
 
         caller.require_auth();
         if caller != pending_new_owner {
-            return Err(ContractError::NotPendingTransferRecipient);
+            return Err(ContractError::NotTransferRecip);
         }
 
         let old_owner = project.owner.clone();
@@ -804,7 +804,7 @@ impl ProjectRegistry {
         }
 
         if project.archived {
-            return Err(ContractError::ProjectAlreadyArchived);
+            return Err(ContractError::AlreadyArchived);
         }
 
         project.archived = true;
@@ -1167,7 +1167,7 @@ mod tests {
         // 3. Validate alphanumeric, underscore, hyphen
         for c in name_str.chars() {
             if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidProjectNameFormat);
+                return Err(ContractError::InvalidNameFormat);
             }
         }
 
@@ -1210,7 +1210,7 @@ mod tests {
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "Cat"),
         );
-        assert_eq!(result, Err(ContractError::InvalidProjectNameFormat));
+        assert_eq!(result, Err(ContractError::InvalidNameFormat));
     }
 
     #[test]
@@ -1245,7 +1245,7 @@ mod tests {
         let description = String::from_str(&env, "");
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::InvalidProjectDescription));
+        assert_eq!(result, Err(ContractError::InvalidProjectDesc));
     }
 
     #[test]
@@ -1267,7 +1267,7 @@ mod tests {
         let description = String::from_str(&env, &long_desc);
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::ProjectDescriptionTooLong));
+        assert_eq!(result, Err(ContractError::ProjectDescTooLong));
     }
 
     #[test]

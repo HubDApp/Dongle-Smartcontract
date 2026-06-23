@@ -246,7 +246,7 @@ fn test_invalid_transitions_from_pending() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -270,15 +270,15 @@ fn test_invalid_transitions_from_verified() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot approve already verified project
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot reject already verified project
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -298,11 +298,11 @@ fn test_invalid_transitions_from_rejected() {
 
     // Cannot approve directly from rejected state
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot reject again from rejected state
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn test_multiple_verification_cycles() {
         &owner,
         &String::from_str(&env, "ipfs://evidence3"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -400,7 +400,7 @@ fn test_idempotent_transitions() {
 
     // Try to approve again - should fail (already Verified)
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -479,7 +479,7 @@ fn test_revoke_non_verified_project_fails() {
     // Cannot revoke an unverified project
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
 
     // Cannot revoke a pending project
     client.request_verification(
@@ -489,7 +489,7 @@ fn test_revoke_non_verified_project_fails() {
     );
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
 }
 
 #[test]

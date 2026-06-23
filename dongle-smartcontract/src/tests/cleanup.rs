@@ -200,7 +200,7 @@ fn test_clear_project_reports_allows_re_reporting() {
 
     // Cannot report twice before clearing
     let dup = client.try_report_project(&project_id, &reporter, &valid_cid(&env));
-    assert_eq!(dup, Err(Ok(ContractError::ProjectAlreadyReported)));
+    assert_eq!(dup, Err(Ok(ContractError::AlreadyReported)));
 
     // Clear reports
     client.clear_project_reports(&project_id, &admin);
@@ -236,7 +236,7 @@ fn test_clear_project_reports_no_reports_fails() {
 
     // No reports — should return the appropriate error
     let result = client.try_clear_project_reports(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::ReportsAlreadyCleared)));
+    assert_eq!(result, Err(Ok(ContractError::ReportsCleared)));
 }
 
 #[test]
@@ -262,7 +262,7 @@ fn test_clear_project_reports_idempotent_second_clear_fails() {
 
     // Second clear on now-empty project returns error
     let result = client.try_clear_project_reports(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::ReportsAlreadyCleared)));
+    assert_eq!(result, Err(Ok(ContractError::ReportsCleared)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -533,7 +533,7 @@ fn test_archive_already_archived_returns_error() {
     client.archive_project(&project_id, &owner);
 
     let result = client.try_archive_project(&project_id, &owner);
-    assert_eq!(result, Err(Ok(ContractError::ProjectAlreadyArchived)));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyArchived)));
 }
 
 #[test]

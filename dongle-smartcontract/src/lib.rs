@@ -88,6 +88,28 @@ impl DongleContract {
         ProjectRegistry::update_project(&env, params)
     }
 
+    pub fn link_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        linked_project_id: u64,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
+    }
+
+    pub fn unlink_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        linked_project_id: u64,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::unlink_project(&env, project_id, caller, linked_project_id)
+    }
+
+    pub fn get_linked_projects(env: Env, project_id: u64) -> Vec<u64> {
+        ProjectRegistry::get_linked_projects(&env, project_id)
+    }
+
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
         ProjectRegistry::get_project(&env, project_id)
     }

@@ -34,7 +34,7 @@ impl ReportRegistry {
             .persistent()
             .has(&StorageKey::UserReport(project_id, reporter.clone()))
         {
-            return Err(ContractError::ProjectAlreadyReported);
+            return Err(ContractError::AlreadyReported);
         }
 
         let now = env.ledger().timestamp();
@@ -119,7 +119,7 @@ impl ReportRegistry {
 
         let count = Self::get_project_report_count(env, project_id);
         if count == 0 {
-            return Err(ContractError::ReportsAlreadyCleared);
+            return Err(ContractError::ReportsCleared);
         }
 
         // Gather existing reports to remove individual UserReport dedup keys
