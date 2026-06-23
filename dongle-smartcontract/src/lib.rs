@@ -31,6 +31,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     FeeConfig, Project, ProjectRegistrationParams, ProjectReport, ProjectStats,
     ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
+    ClaimRequest, ClaimStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -548,5 +549,53 @@ impl DongleContract {
     /// List projects by tag - Issue #125
     pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
+    }
+
+    /// Mark a project as claimable or not claimable
+    pub fn set_project_claimable(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        claimable: bool,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::set_project_claimable(&env, project_id, caller, claimable)
+    }
+
+    /// Submit a claim request for a project
+    pub fn submit_claim_request(
+        env: Env,
+        project_id: u64,
+        claimant: Address,
+        proof_cid: String,
+    ) -> Result<u64, ContractError> {
+        ProjectRegistry::submit_claim_request(&env, project_id, claimant, proof_cid)
+    }
+
+    /// Approve a claim request
+    pub fn approve_claim_request(
+        env: Env,
+        claim_request_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::approve_claim_request(&env, claim_request_id, admin)
+    }
+
+    /// Reject a claim request
+    pub fn reject_claim_request(
+        env: Env,
+        claim_request_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::reject_claim_request(&env, claim_request_id, admin)
+    }
+
+    /// Get a claim request by id
+    pub fn get_claim_request(env: Env, claim_request_id: u64) -> Option<ClaimRequest> {
+        ProjectRegistry::get_claim_request(&env, claim_request_id)
+    }
+
+    /// Get claim requests for a project
+    pub fn get_claim_requests_for_project(env: Env, project_id: u64) -> Vec<ClaimRequest> {
+        ProjectRegistry::get_claim_requests_for_project(&env, project_id)
     }
 }

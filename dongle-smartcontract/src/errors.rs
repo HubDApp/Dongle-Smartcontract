@@ -96,6 +96,14 @@ pub enum ContractError {
     ProjectNotArchived = 45,
     /// Reports have already been cleared or there are none to clear
     ReportsAlreadyCleared = 46,
+    /// Project is not claimable
+    ProjectNotClaimable = 47,
+    /// Claim request not found
+    ClaimRequestNotFound = 48,
+    /// Claim request already exists for this project and claimant
+    ClaimRequestAlreadyExists = 49,
+    /// Claim request is not pending
+    ClaimRequestNotPending = 50,
 }
 
 // Legacy alias to avoid breaking any code that uses `Error` directly
