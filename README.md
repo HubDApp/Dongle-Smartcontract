@@ -113,34 +113,32 @@ Discoverability and trust remain challenges in decentralized ecosystems. Many pr
 
 Dongle addresses this by:
 
-* Providing an on-chain source of truth for project registration
-* Enabling transparent project metadata storage
-* Allowing permissionless access to registered project data
-* Supporting open-source collaboration and extension
-
+- Providing an on-chain source of truth for project registration
+- Enabling transparent project metadata storage
+- Allowing permissionless access to registered project data
+- Supporting open-source collaboration and extension
 
 ## Scope of This Contract
 
 The Dongle smart contract is responsible for:
 
-* Registering projects on-chain
-* Storing essential metadata (name, description, links, owner)
-* Allowing controlled updates by project owners
-* Exposing read methods for frontend and indexers
-* Ensuring basic validation and access control
-* Managing project reviews and ratings
-* Handling project verification and renewal
-* Supporting project linking and collections
-* Providing admin tools for moderation
-
+- Registering projects on-chain
+- Storing essential metadata (name, description, links, owner)
+- Allowing controlled updates by project owners
+- Exposing read methods for frontend and indexers
+- Ensuring basic validation and access control
+- Managing project reviews and ratings
+- Handling project verification and renewal
+- Supporting project linking and collections
+- Providing admin tools for moderation
 
 ## High-Level Architecture
 
-* **Blockchain:** Stellar
-* **Smart Contract Framework:** Soroban
-* **Language:** Rust
-* **Storage:** Soroban persistent storage
-* **Access Control:** Address-based ownership
+- **Blockchain:** Stellar
+- **Smart Contract Framework:** Soroban
+- **Language:** Rust
+- **Storage:** Soroban persistent storage
+- **Access Control:** Address-based ownership
 
 ```
 Frontend (UI)
@@ -148,33 +146,32 @@ Frontend (UI)
 Dongle Smart Contract (Soroban)
 ```
 
-
 ## Contract Responsibilities
 
 ### Core Functions
 
-* `register_project` – Register a new project on-chain
-* `update_project` – Update project metadata (owner-only)
-* `get_project` – Fetch a single project’s data
-* `list_projects` – Retrieve registered projects (indexer-friendly)
+- `register_project` – Register a new project on-chain
+- `update_project` – Update project metadata (owner-only)
+- `get_project` – Fetch a single project’s data
+- `list_projects` – Retrieve registered projects (indexer-friendly)
 
 ### Extended Functions
 
-* `submit_review` / `add_review` – Submit project reviews
-* `request_verification` – Request project verification
-* `approve_verification` / `reject_verification` – Admin verification actions
-* `link_project` – Link related projects
-* `report_project` – Report projects for moderation
-* `create_collection` – Create curated project collections
-* And many more - see [full API documentation](dongle-smartcontract/README.md)
+- `submit_review` / `add_review` – Submit project reviews
+- `request_verification` – Request project verification
+- `approve_verification` / `reject_verification` – Admin verification actions
+- `link_project` – Link related projects
+- `report_project` – Report projects for moderation
+- `create_collection` – Create curated project collections
+- And many more - see [full API documentation](dongle-smartcontract/README.md)
 
 ### Validation
 
-* Prevent duplicate registrations
-* Enforce ownership checks
-* Validate required fields
-* Rating validation (1-5 scale)
-* Verification status transitions
+- Prevent duplicate registrations
+- Enforce ownership checks
+- Validate required fields
+- Rating validation (1-5 scale)
+- Verification status transitions
 
 ## 📚 Comprehensive Contract Interface Documentation
 
@@ -185,12 +182,14 @@ For complete documentation of all contract functions, including parameters, retu
 The contract is organized into logical sections:
 
 #### Core Functions
+
 - **[Initialization & Admin Management](./CONTRACT_INTERFACE.md#initialization--admin-management)** – Contract setup, admin management, and access control
 - **[Project Registry](./CONTRACT_INTERFACE.md#project-registry)** – Project registration, updates, and retrieval
 - **[Project Ownership & Claiming](./CONTRACT_INTERFACE.md#project-ownership--claiming)** – Project transfers, claiming, and ownership
 - **[Project Dependencies](./CONTRACT_INTERFACE.md#project-dependencies)** – Managing project dependencies and relationships
 
 #### Features
+
 - **[Featured Registry](./CONTRACT_INTERFACE.md#featured-registry)** – Curated project features
 - **[Review Registry](./CONTRACT_INTERFACE.md#review-registry)** – Reviews, ratings, and owner responses
 - **[Verification Registry](./CONTRACT_INTERFACE.md#verification-registry)** – Project verification and validation
@@ -198,6 +197,7 @@ The contract is organized into logical sections:
 - **[Collections](./CONTRACT_INTERFACE.md#collections)** – Curated collections of projects (admin-only)
 
 #### Operations
+
 - **[Fee Manager](./CONTRACT_INTERFACE.md#fee-manager)** – Fee configuration and collection
 - **[Reporting & Moderation](./CONTRACT_INTERFACE.md#reporting--moderation)** – Project and review reporting
 - **[Dispute Resolution](./CONTRACT_INTERFACE.md#dispute-resolution)** – Duplicate project dispute handling
@@ -208,17 +208,17 @@ The contract is organized into logical sections:
 
 The contract exposes the following public function categories:
 
-| Category | Functions |
-|----------|-----------|
-| Admin | `initialize`, `add_admin`, `remove_admin`, `is_admin`, `get_admin_list`, `get_admin_count` |
-| Projects | `register_project`, `update_project`, `get_project`, `get_project_by_slug`, `list_projects`, `get_projects_by_owner`, `archive_project`, `reactivate_project`, `get_linked_projects`, `link_project`, `unlink_project` |
-| Ownership | `initiate_transfer`, `cancel_transfer`, `accept_transfer`, `set_project_claimable`, `submit_claim_request`, `approve_claim_request`, `reject_claim_request` |
-| Reviews | `add_review`, `update_review`, `delete_review`, `submit_review`, `respond_to_review`, `get_review`, `list_reviews`, `report_review`, `hide_review`, `restore_review`, `admin_delete_review` |
-| Verification | `request_verification`, `approve_verification`, `reject_verification`, `revoke_verification`, `request_renewal`, `approve_renewal`, `reject_renewal` |
-| Featured | `set_featured`, `list_featured_projects` |
-| Collections | `create_collection`, `update_collection`, `delete_collection`, `add_project_to_collection`, `remove_project_from_collection`, `list_collections` |
-| Disputes | `open_duplicate_dispute`, `resolve_duplicate_dispute`, `get_duplicate_dispute`, `get_disputes_for_project` |
-| Statistics | `get_project_stats`, `get_stats_batch`, `get_project_reports`, `get_project_report_count` |
+| Category     | Functions                                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admin        | `initialize`, `add_admin`, `remove_admin`, `is_admin`, `get_admin_list`, `get_admin_count`                                                                                                                             |
+| Projects     | `register_project`, `update_project`, `get_project`, `get_project_by_slug`, `list_projects`, `get_projects_by_owner`, `archive_project`, `reactivate_project`, `get_linked_projects`, `link_project`, `unlink_project` |
+| Ownership    | `initiate_transfer`, `cancel_transfer`, `accept_transfer`, `set_project_claimable`, `submit_claim_request`, `approve_claim_request`, `reject_claim_request`                                                            |
+| Reviews      | `add_review`, `update_review`, `delete_review`, `submit_review`, `respond_to_review`, `get_review`, `list_reviews`, `report_review`, `hide_review`, `restore_review`, `admin_delete_review`                            |
+| Verification | `request_verification`, `approve_verification`, `reject_verification`, `revoke_verification`, `request_renewal`, `approve_renewal`, `reject_renewal`                                                                   |
+| Featured     | `set_featured`, `list_featured_projects`                                                                                                                                                                               |
+| Collections  | `create_collection`, `update_collection`, `delete_collection`, `add_project_to_collection`, `remove_project_from_collection`, `list_collections`                                                                       |
+| Disputes     | `open_duplicate_dispute`, `resolve_duplicate_dispute`, `get_duplicate_dispute`, `get_disputes_for_project`                                                                                                             |
+| Statistics   | `get_project_stats`, `get_stats_batch`, `get_project_reports`, `get_project_report_count`                                                                                                                              |
 
 ### Key Error Types
 
@@ -241,27 +241,31 @@ The contract uses error codes for different failure scenarios. See [Common Error
 6. **Manage TTLs** – Keep important data alive with TTL extension calls
 
 ---
+
 ## Example Use Cases
 
-* A frontend dApp listing Stellar ecosystem projects
-* An indexer tracking newly registered applications
-* Open-source contributors building discovery tools
-* DAO or community-driven project registries
-* Project verification and trust systems
-* Review aggregation and rating systems
-
+- A frontend dApp listing Stellar ecosystem projects
+- An indexer tracking newly registered applications
+- Open-source contributors building discovery tools
+- DAO or community-driven project registries
+- Project verification and trust systems
+- Review aggregation and rating systems
 
 ## Development Status
 
-* Contract structure defined
-* Core storage models implemented
-* Extended features implemented (reviews, verification, collections, etc.)
-* Comprehensive test coverage
-* TTL management for persistent storage
-* Admin action logging
-* Ongoing improvements and testing
+- Contract structure defined
+- Core storage models implemented
+- Extended features implemented (reviews, verification, collections, etc.)
+- Comprehensive test coverage
+- TTL management for persistent storage
+- Admin action logging
+- Ongoing improvements and testing
 
 This is an **actively evolving open-source project**.
+
+## Deployments
+
+Contract deployments on Stellar networks are tracked in [deployments.json](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/deployments.json). For details on the manifest format, how to update it, and how validation works, see the [Deployment Documentation](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/DEPLOYMENT.md).
 
 ## Features
 
@@ -285,11 +289,11 @@ Dongle is open-source and welcomes contributions.
 
 You can contribute by:
 
-* Improving contract structure
-* Adding tests
-* Enhancing validation logic
-* Reviewing security assumptions
-* Improving documentation
+- Improving contract structure
+- Adding tests
+- Enhancing validation logic
+- Reviewing security assumptions
+- Improving documentation
 
 Please open an issue or pull request for any proposed changes.
 
@@ -297,10 +301,10 @@ Please open an issue or pull request for any proposed changes.
 
 Dongle promotes:
 
-* Transparency in project discovery
-* Decentralized ownership of ecosystem data
-* Composable infrastructure for Stellar builders
-* Open collaboration through smart contracts
+- Transparency in project discovery
+- Decentralized ownership of ecosystem data
+- Composable infrastructure for Stellar builders
+- Open collaboration through smart contracts
 
 ## Documentation
 
@@ -308,4 +312,3 @@ Dongle promotes:
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
 - [Soroban Examples](https://github.com/stellar/soroban-examples)
-

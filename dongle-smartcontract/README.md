@@ -72,6 +72,9 @@ soroban keys fund alice --network testnet
 make deploy-testnet
 ```
 
+> [!IMPORTANT]
+> After deploying, you must document the deployment in the project-wide deployment manifest. Please refer to the root [Deployment Documentation](../DEPLOYMENT.md) for details on how to update [`deployments.json`](../deployments.json).
+
 ---
 
 ## Usage Examples
