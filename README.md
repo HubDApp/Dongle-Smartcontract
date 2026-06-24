@@ -80,6 +80,10 @@ Dongle Smart Contract (Soroban)
 
 This is an **actively evolving open-source project**.
 
+## Deployments
+
+Contract deployments on Stellar networks are tracked in [deployments.json](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/deployments.json). For details on the manifest format, how to update it, and how validation works, see the [Deployment Documentation](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/DEPLOYMENT.md).
+
 ## Open Source & Contributions
 
 Dongle is open-source and welcomes contributions.
