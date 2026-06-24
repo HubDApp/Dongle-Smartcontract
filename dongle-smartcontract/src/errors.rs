@@ -54,6 +54,9 @@ pub enum ContractError {
     AlreadyInCollection = 48,
     AlreadyLinked = 49,
     CannotLinkToSelf = 50,
+    /// token must be a contract address when verification_fee or registration_fee is non-zero;
+    /// native/no-token fee paths are not implemented.
+    NativeFeeNotSupported = 51,
 }
 
 pub type Error = ContractError;
