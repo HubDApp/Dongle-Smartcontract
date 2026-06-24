@@ -2,8 +2,9 @@
 
 #![cfg(test)]
 
+use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use crate::types::ProjectRegistrationParams;
+use crate::types::{ProjectRegistrationParams, ProjectUpdateParams};
 use soroban_sdk::{testutils::Address as _, Address, Env, Map, String, Vec};
 
 #[test]
@@ -38,6 +39,7 @@ fn test_basic_project_with_tags_and_social_links() {
         metadata_cid: None,
         tags: Some(tags.clone()),
         social_links: Some(social_links.clone()),
+        launch_timestamp: None,
     };
 
     let project_id = client.register_project(&params);
@@ -45,6 +47,150 @@ fn test_basic_project_with_tags_and_social_links() {
 
     assert_eq!(project.tags, Some(tags));
     assert_eq!(project.social_links, Some(social_links));
+}
+
+#[test]
+fn test_project_social_links_can_be_updated_and_removed() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let mut initial_links = Map::new(&env);
+    initial_links.set(
+        String::from_str(&env, "github"),
+        String::from_str(&env, "https://github.com/example/project"),
+    );
+
+    let params = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "SocialProject"),
+        slug: String::from_str(&env, "social-project"),
+        description: String::from_str(&env, "A project with social links"),
+        category: String::from_str(&env, "Social"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(initial_links),
+        launch_timestamp: None,
+    };
+
+    let project_id = client.register_project(&params);
+
+    let mut updated_links = Map::new(&env);
+    updated_links.set(
+        String::from_str(&env, "docs"),
+        String::from_str(&env, "https://docs.example.com"),
+    );
+    updated_links.set(
+        String::from_str(&env, "discord"),
+        String::from_str(&env, "https://discord.gg/example"),
+    );
+
+    let update_params = ProjectUpdateParams {
+        project_id,
+        caller: owner.clone(),
+        name: None,
+        slug: None,
+        description: None,
+        category: None,
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(Some(updated_links.clone())),
+        launch_timestamp: None,
+    };
+
+    let updated_project = client.update_project(&update_params);
+    assert_eq!(updated_project.social_links, Some(updated_links));
+
+    let remove_params = ProjectUpdateParams {
+        project_id,
+        caller: owner,
+        name: None,
+        slug: None,
+        description: None,
+        category: None,
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(None),
+        launch_timestamp: None,
+    };
+
+    let final_project = client.update_project(&remove_params);
+    assert_eq!(final_project.social_links, None);
+}
+
+#[test]
+fn test_invalid_social_link_url_format_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let mut invalid_links = Map::new(&env);
+    invalid_links.set(
+        String::from_str(&env, "github"),
+        String::from_str(&env, "github.com/example/project"),
+    );
+
+    let params = ProjectRegistrationParams {
+        owner,
+        name: String::from_str(&env, "InvalidSocialUrlProject"),
+        slug: String::from_str(&env, "invalid-social-url-project"),
+        description: String::from_str(&env, "A project with an invalid social URL"),
+        category: String::from_str(&env, "Social"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(invalid_links),
+        launch_timestamp: None,
+    };
+
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
+}
+
+#[test]
+fn test_social_link_url_length_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let mut invalid_links = Map::new(&env);
+    invalid_links.set(
+        String::from_str(&env, "docs"),
+        String::from_str(
+            &env,
+            "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
+    );
+
+    let params = ProjectRegistrationParams {
+        owner,
+        name: String::from_str(&env, "LongSocialUrlProject"),
+        slug: String::from_str(&env, "long-social-url-project"),
+        description: String::from_str(&env, "A project with an oversized social URL"),
+        category: String::from_str(&env, "Social"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(invalid_links),
+        launch_timestamp: None,
+    };
+
+    let result = client.try_register_project(&params);
+    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
 }
 
 #[test]
