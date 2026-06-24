@@ -22,7 +22,9 @@ fn test_linked_project_must_exist() {
     let (client, _) = setup_contract(&env);
     let owner = Address::generate(&env);
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
-    let result = client.mock_all_auths().try_link_project(&id1, &owner, &9999u64);
+    let result = client
+        .mock_all_auths()
+        .try_link_project(&id1, &owner, &9999u64);
     assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
 }
 
@@ -68,7 +70,9 @@ fn test_unlink_nonexistent_link_fails() {
     let owner = Address::generate(&env);
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
     let id2 = create_test_project(&client.mock_all_auths(), &owner, "ProjectB");
-    let result = client.mock_all_auths().try_unlink_project(&id1, &owner, &id2);
+    let result = client
+        .mock_all_auths()
+        .try_unlink_project(&id1, &owner, &id2);
     assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
 }
 
@@ -80,7 +84,9 @@ fn test_non_owner_cannot_link() {
     let non_owner = Address::generate(&env);
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
     let id2 = create_test_project(&client.mock_all_auths(), &owner, "ProjectB");
-    let result = client.mock_all_auths().try_link_project(&id1, &non_owner, &id2);
+    let result = client
+        .mock_all_auths()
+        .try_link_project(&id1, &non_owner, &id2);
     assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
 }
 
@@ -93,6 +99,8 @@ fn test_non_owner_cannot_unlink() {
     let id1 = create_test_project(&client.mock_all_auths(), &owner, "ProjectA");
     let id2 = create_test_project(&client.mock_all_auths(), &owner, "ProjectB");
     client.mock_all_auths().link_project(&id1, &owner, &id2);
-    let result = client.mock_all_auths().try_unlink_project(&id1, &non_owner, &id2);
+    let result = client
+        .mock_all_auths()
+        .try_unlink_project(&id1, &non_owner, &id2);
     assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
 }

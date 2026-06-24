@@ -1,5 +1,5 @@
-use crate::types::{DuplicateDispute, DisputeStatus, DisputeResolutionAction};
-use crate::tests::fixtures::{setup_contract, create_test_project};
+use crate::tests::fixtures::{create_test_project, setup_contract};
+use crate::types::{DisputeResolutionAction, DisputeStatus, DuplicateDispute};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 #[test]
@@ -17,9 +17,10 @@ fn test_duplicate_dispute_lifecycle() {
     let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
 
     // Open dispute
-    let dispute_id = client
-        .mock_all_auths()
-        .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
+    let dispute_id =
+        client
+            .mock_all_auths()
+            .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
 
     assert_eq!(dispute_id, 1);
 
@@ -39,9 +40,11 @@ fn test_duplicate_dispute_lifecycle() {
 
     // Non-admin tries to resolve (should fail)
     let non_admin = Address::generate(&env);
-    let result = client
-        .mock_all_auths()
-        .try_resolve_duplicate_dispute(&1, &non_admin, &DisputeResolutionAction::Reject);
+    let result = client.mock_all_auths().try_resolve_duplicate_dispute(
+        &1,
+        &non_admin,
+        &DisputeResolutionAction::Reject,
+    );
     assert!(result.is_err());
 
     // Admin rejects dispute
@@ -67,14 +70,17 @@ fn test_resolve_dispute_archive() {
 
     let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
 
-    let dispute_id = client
-        .mock_all_auths()
-        .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
+    let dispute_id =
+        client
+            .mock_all_auths()
+            .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
 
     // Resolve by archiving duplicate project (id2)
-    client
-        .mock_all_auths()
-        .resolve_duplicate_dispute(&dispute_id, &admin, &DisputeResolutionAction::ArchiveProject(id2));
+    client.mock_all_auths().resolve_duplicate_dispute(
+        &dispute_id,
+        &admin,
+        &DisputeResolutionAction::ArchiveProject(id2),
+    );
 
     let dispute = client.get_duplicate_dispute(&dispute_id).unwrap();
     assert_eq!(dispute.status, DisputeStatus::Resolved);
@@ -98,14 +104,17 @@ fn test_resolve_dispute_link() {
 
     let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
 
-    let dispute_id = client
-        .mock_all_auths()
-        .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
+    let dispute_id =
+        client
+            .mock_all_auths()
+            .open_duplicate_dispute(&id2, &id1, &creator, &evidence_cid);
 
     // Resolve by linking duplicates
-    client
-        .mock_all_auths()
-        .resolve_duplicate_dispute(&dispute_id, &admin, &DisputeResolutionAction::LinkDuplicates);
+    client.mock_all_auths().resolve_duplicate_dispute(
+        &dispute_id,
+        &admin,
+        &DisputeResolutionAction::LinkDuplicates,
+    );
 
     let dispute = client.get_duplicate_dispute(&dispute_id).unwrap();
     assert_eq!(dispute.status, DisputeStatus::Resolved);

@@ -826,11 +826,14 @@ pub fn publish_project_reviews_enabled_set_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("REVIEWS"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REVIEWS"),
+            project_id,
+        ),
         event_data,
     );
 }
-
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -884,7 +887,11 @@ pub fn publish_project_claimable_set_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("PROJECT"), symbol_short!("CLAIMABLE"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("CLAIMABLE"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -904,7 +911,12 @@ pub fn publish_claim_request_submitted_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("CLAIM"), symbol_short!("SUBMITTED"), project_id, claimant),
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("SUBMITTED"),
+            project_id,
+            claimant,
+        ),
         event_data,
     );
 }
@@ -924,7 +936,12 @@ pub fn publish_claim_request_approved_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("CLAIM"), symbol_short!("APPROVED"), project_id, claimant),
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("APPROVED"),
+            project_id,
+            claimant,
+        ),
         event_data,
     );
 }
@@ -944,7 +961,12 @@ pub fn publish_claim_request_rejected_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("CLAIM"), symbol_short!("REJECTED"), project_id, claimant),
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("REJECTED"),
+            project_id,
+            claimant,
+        ),
         event_data,
     );
 }
@@ -1216,7 +1238,12 @@ pub fn publish_duplicate_dispute_opened_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("DISPUTE"), symbol_short!("OPENED"), project_id, creator),
+        (
+            symbol_short!("DISPUTE"),
+            symbol_short!("OPENED"),
+            project_id,
+            creator,
+        ),
         event_data,
     );
 }
@@ -1234,7 +1261,76 @@ pub fn publish_duplicate_dispute_resolved_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("DISPUTE"), symbol_short!("RESOLVED"), dispute_id, admin),
+        (
+            symbol_short!("DISPUTE"),
+            symbol_short!("RESOLVED"),
+            dispute_id,
+            admin,
+        ),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectMaintainerAddedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub maintainer: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectMaintainerRemovedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub maintainer: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_maintainer_added_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    maintainer: Address,
+) {
+    let event_data = ProjectMaintainerAddedEvent {
+        project_id,
+        owner,
+        maintainer: maintainer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("M_ADDED"),
+            project_id,
+            maintainer,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_maintainer_removed_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    maintainer: Address,
+) {
+    let event_data = ProjectMaintainerRemovedEvent {
+        project_id,
+        owner,
+        maintainer: maintainer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("M_REMOVED"),
+            project_id,
+            maintainer,
+        ),
         event_data,
     );
 }

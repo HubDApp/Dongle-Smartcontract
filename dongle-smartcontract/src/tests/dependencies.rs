@@ -42,7 +42,10 @@ fn test_add_get_remove_project_dependencies_external_cid() {
 
     let deps = client.get_project_dependencies(&project_id);
     assert_eq!(deps.len(), 1);
-    assert_eq!(deps.get(0).unwrap().label.as_ref().unwrap(), &String::from_str(&env, "oracle"));
+    assert_eq!(
+        deps.get(0).unwrap().label.as_ref().unwrap(),
+        &String::from_str(&env, "oracle")
+    );
 
     client.remove_project_dependency(&project_id, &owner, &dep_ref);
     let deps_after = client.get_project_dependencies(&project_id);
@@ -70,7 +73,10 @@ fn test_add_dependency_internal_project_id() {
 
     let deps = client.get_project_dependencies(&project_id);
     assert_eq!(deps.len(), 1);
-    assert_eq!(deps.get(0).unwrap().reference.project_id, Some(dep_project_id));
+    assert_eq!(
+        deps.get(0).unwrap().reference.project_id,
+        Some(dep_project_id)
+    );
 }
 
 #[test]
@@ -110,23 +116,31 @@ fn test_update_dependency_changes_metadata() {
     };
 
     let mut dep = mk_dep(&env, dep_ref.clone(), "old");
-    dep.metadata_cid = Some(String::from_str(&env, "QmMetaOld123456789012345678901234567890123456"));
+    dep.metadata_cid = Some(String::from_str(
+        &env,
+        "QmMetaOld123456789012345678901234567890123456",
+    ));
 
     client.add_project_dependency(&project_id, &owner, &dep);
 
     let mut updated = dep.clone();
     updated.label = Some(String::from_str(&env, "new"));
-    updated.metadata_cid = Some(String::from_str(&env, "QmMetaNew123456789012345678901234567890123456"));
+    updated.metadata_cid = Some(String::from_str(
+        &env,
+        "QmMetaNew123456789012345678901234567890123456",
+    ));
     updated.updated_at = env.ledger().timestamp();
 
-    client
-        .update_project_dependency(&project_id, &owner, &dep_ref, &updated);
+    client.update_project_dependency(&project_id, &owner, &dep_ref, &updated);
 
     let deps = client.get_project_dependencies(&project_id);
     assert_eq!(deps.len(), 1);
     let stored = deps.get(0).unwrap();
     assert_eq!(stored.label.unwrap(), String::from_str(&env, "new"));
-    assert_eq!(stored.metadata_cid.unwrap(), String::from_str(&env, "QmMetaNew123456789012345678901234567890123456"));
+    assert_eq!(
+        stored.metadata_cid.unwrap(),
+        String::from_str(&env, "QmMetaNew123456789012345678901234567890123456")
+    );
 }
 
 #[test]
@@ -155,4 +169,3 @@ fn test_invalid_dependency_reference_rejected() {
     let result = client.try_add_project_dependency(&project_id, &owner, &bad_dep);
     assert!(result.is_err());
 }
-

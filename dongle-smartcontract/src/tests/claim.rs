@@ -1,5 +1,5 @@
+use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ClaimRequest, ClaimStatus};
-use crate::tests::fixtures::{setup_contract, create_test_project};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 #[test]
@@ -50,9 +50,10 @@ fn test_submit_claim_request() {
 
     // Try to submit claim when project is not claimable (should fail)
     let proof_cid = String::from_str(&env, "QmTestProofCid");
-    let result = client
-        .mock_all_auths()
-        .try_submit_claim_request(&project_id, &claimant, &proof_cid);
+    let result =
+        client
+            .mock_all_auths()
+            .try_submit_claim_request(&project_id, &claimant, &proof_cid);
     assert!(result.is_err());
 
     // Set project as claimable
@@ -61,9 +62,10 @@ fn test_submit_claim_request() {
         .set_project_claimable(&project_id, &owner, &true);
 
     // Submit claim request
-    let claim_request_id = client
-        .mock_all_auths()
-        .submit_claim_request(&project_id, &claimant, &proof_cid);
+    let claim_request_id =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant, &proof_cid);
     assert_eq!(claim_request_id, 1);
 
     // Check claim request
@@ -93,9 +95,10 @@ fn test_approve_claim_request() {
         .mock_all_auths()
         .set_project_claimable(&project_id, &owner, &true);
     let proof_cid = String::from_str(&env, "QmTestProofCid");
-    let claim_request_id = client
-        .mock_all_auths()
-        .submit_claim_request(&project_id, &claimant, &proof_cid);
+    let claim_request_id =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant, &proof_cid);
 
     // Approve claim
     client
@@ -126,9 +129,10 @@ fn test_reject_claim_request() {
         .mock_all_auths()
         .set_project_claimable(&project_id, &owner, &true);
     let proof_cid = String::from_str(&env, "QmTestProofCid");
-    let claim_request_id = client
-        .mock_all_auths()
-        .submit_claim_request(&project_id, &claimant, &proof_cid);
+    let claim_request_id =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant, &proof_cid);
 
     // Reject claim
     client
@@ -159,9 +163,10 @@ fn test_unauthorized_approve() {
         .mock_all_auths()
         .set_project_claimable(&project_id, &owner, &true);
     let proof_cid = String::from_str(&env, "QmTestProofCid");
-    let claim_request_id = client
-        .mock_all_auths()
-        .submit_claim_request(&project_id, &claimant, &proof_cid);
+    let claim_request_id =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant, &proof_cid);
 
     // Try to approve as non-admin (should fail)
     let result = client
