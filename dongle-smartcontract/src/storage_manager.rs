@@ -344,6 +344,21 @@ impl StorageManager {
         }
     }
 
+    /// Extend TTL for user bookmarks list
+    pub fn extend_user_bookmarks_ttl(env: &Env, user: &Address) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::UserBookmarks(user.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::UserBookmarks(user.clone()),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
     /// Extend TTL for user subscriptions list
     pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
         if env

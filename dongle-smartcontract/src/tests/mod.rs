@@ -25,6 +25,7 @@ mod review_settings;
 mod verification_features;
 
 // Test infrastructure
+mod bookmarks;
 mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;

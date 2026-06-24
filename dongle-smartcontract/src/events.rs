@@ -1456,6 +1456,58 @@ pub fn publish_timelock_action_executed_event(
     );
 }
 
+// ── Bookmark Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectBookmarkedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnbookmarkedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_bookmarked_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectBookmarkedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("BOOKMARK"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_unbookmarked_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectUnbookmarkedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNBOOKMK"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_project_unfollowed_event(env: &Env, project_id: u64, follower: Address) {
     let event_data = ProjectUnfollowedEvent {
         project_id,
