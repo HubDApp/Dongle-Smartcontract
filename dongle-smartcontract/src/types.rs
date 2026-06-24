@@ -339,3 +339,42 @@ pub struct AdminActionEntry {
     pub timestamp: u64,
     pub reason_cid: Option<String>,
 }
+
+// ── Admin Timelock ──────────────────────────────────────────────────────────
+
+/// A scheduled action in the admin timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAction {
+    pub id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub execution_timestamp: u64,
+    pub executed: bool,
+    pub cancelled: bool,
+    pub created_at: u64,
+}
+
+/// Parameters for a scheduled fee change via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockFeeParams {
+    pub token: Option<Address>,
+    pub verification_fee: u128,
+    pub registration_fee: u128,
+    pub treasury: Address,
+}
+
+/// Parameters for a scheduled admin addition via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAdminAddParams {
+    pub new_admin: Address,
+}
+
+/// Parameters for a scheduled admin removal via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAdminRemoveParams {
+    pub admin_to_remove: Address,
+}

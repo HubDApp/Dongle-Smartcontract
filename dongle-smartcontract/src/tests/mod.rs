@@ -29,3 +29,4 @@ mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;
 mod subscriptions;
+mod timelock;

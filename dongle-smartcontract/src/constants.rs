@@ -109,3 +109,7 @@ pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
 pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;
 pub const LEDGER_BUMP_VERIFICATION: u32 = LEDGER_THRESHOLD_VERIFICATION;
 pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
+
+/// Minimum timelock delay in seconds (1 day).
+/// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
+pub const TIMELOCK_MIN_DELAY: u64 = 86400;
