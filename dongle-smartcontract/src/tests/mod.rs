@@ -18,12 +18,13 @@ mod cleanup;
 // mod events;
 mod moderation;
 // mod pagination;
-mod review_settings;
-mod dependencies;
 mod claim;
+mod dependencies;
+mod maintainers;
+mod review_settings;
 mod verification_features;
 
 // Test infrastructure
+mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;
-mod duplicate_dispute;

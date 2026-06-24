@@ -1,11 +1,13 @@
+use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
-use crate::storage_keys::{StorageKey, ExtensionKey};
-use crate::storage_manager::StorageManager;
-use crate::types::{DuplicateDispute, DisputeStatus, DisputeResolutionAction, AdminActionType};
+use crate::events::{
+    publish_duplicate_dispute_opened_event, publish_duplicate_dispute_resolved_event,
+};
 use crate::project_registry::ProjectRegistry;
-use crate::events::{publish_duplicate_dispute_opened_event, publish_duplicate_dispute_resolved_event};
-use crate::admin_action_log::AdminActionLog;
+use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_manager::StorageManager;
+use crate::types::{AdminActionType, DisputeResolutionAction, DisputeStatus, DuplicateDispute};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -26,8 +28,8 @@ impl DisputeRegistry {
         }
 
         // Verify both projects exist
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
         let _original_project = ProjectRegistry::get_project(env, original_project_id)
             .ok_or(ContractError::ProjectNotFound)?;
 
@@ -74,9 +76,10 @@ impl DisputeRegistry {
             .get(&ExtensionKey::ProjectDuplicateDisputes(project_id))
             .unwrap_or_else(|| Vec::new(env));
         project_disputes.push_back(dispute_id);
-        env.storage()
-            .persistent()
-            .set(&ExtensionKey::ProjectDuplicateDisputes(project_id), &project_disputes);
+        env.storage().persistent().set(
+            &ExtensionKey::ProjectDuplicateDisputes(project_id),
+            &project_disputes,
+        );
 
         // Increment ID
         let next_id = dispute_id.saturating_add(1);
@@ -86,8 +89,12 @@ impl DisputeRegistry {
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);
-        
-        if env.storage().persistent().has(&ExtensionKey::DuplicateDispute(dispute_id)) {
+
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::DuplicateDispute(dispute_id))
+        {
             env.storage().persistent().extend_ttl(
                 &ExtensionKey::DuplicateDispute(dispute_id),
                 crate::constants::LEDGER_THRESHOLD_PROJECT,
@@ -95,7 +102,14 @@ impl DisputeRegistry {
             );
         }
 
-        publish_duplicate_dispute_opened_event(env, dispute_id, project_id, original_project_id, creator, evidence_cid);
+        publish_duplicate_dispute_opened_event(
+            env,
+            dispute_id,
+            project_id,
+            original_project_id,
+            creator,
+            evidence_cid,
+        );
 
         Ok(dispute_id)
     }
@@ -141,12 +155,18 @@ impl DisputeRegistry {
                 );
             }
             DisputeResolutionAction::ArchiveProject(project_to_archive) => {
-                if project_to_archive != dispute.project_id && project_to_archive != dispute.original_project_id {
+                if project_to_archive != dispute.project_id
+                    && project_to_archive != dispute.original_project_id
+                {
                     return Err(ContractError::ProjectNotFound);
                 }
-                
+
                 // Archive the project
-                ProjectRegistry::archive_project_unauthorized(env, project_to_archive, admin.clone())?;
+                ProjectRegistry::archive_project_unauthorized(
+                    env,
+                    project_to_archive,
+                    admin.clone(),
+                )?;
 
                 dispute.status = DisputeStatus::Resolved;
                 dispute.resolved_at = now;
@@ -165,7 +185,12 @@ impl DisputeRegistry {
             }
             DisputeResolutionAction::LinkDuplicates => {
                 // Link the projects
-                ProjectRegistry::link_project_unauthorized(env, dispute.project_id, admin.clone(), dispute.original_project_id)?;
+                ProjectRegistry::link_project_unauthorized(
+                    env,
+                    dispute.project_id,
+                    admin.clone(),
+                    dispute.original_project_id,
+                )?;
 
                 dispute.status = DisputeStatus::Resolved;
                 dispute.resolved_at = now;

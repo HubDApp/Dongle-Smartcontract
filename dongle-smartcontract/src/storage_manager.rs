@@ -4,7 +4,7 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{StorageKey, ExtensionKey};
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use soroban_sdk::{Address, Env, String, Vec};
 
 /// Storage manager for TTL operations
@@ -171,7 +171,6 @@ impl StorageManager {
         }
     }
 
-
     // ── Review Data TTL Management ────────────────────────────────────────
 
     /// Extend TTL for a specific review
@@ -319,11 +318,27 @@ impl StorageManager {
 
     // ── Composite Operations ──────────────────────────────────────────────
 
-    /// Extend TTL for all project-related data (project + stats + name mapping)
+    /// Extend TTL for a project's maintainer list
+    pub fn extend_project_maintainers_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectMaintainers(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectMaintainers(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+    }
+
+    /// Extend TTL for all project-related data (project + stats + name mapping + maintainers)
     pub fn extend_project_full_ttl(env: &Env, project_id: u64, name: &String) {
         Self::extend_project_ttl(env, project_id);
         Self::extend_project_stats_ttl(env, project_id);
         Self::extend_project_by_name_ttl(env, name);
+        Self::extend_project_maintainers_ttl(env, project_id);
     }
 
     /// Extend TTL for all admin-related data
@@ -341,7 +356,8 @@ impl StorageManager {
 
     /// Extend TTL for a claim request
     pub fn extend_claim_request_ttl(env: &Env, claim_request_id: u64) {
-        if env.storage()
+        if env
+            .storage()
             .persistent()
             .has(&ExtensionKey::ClaimRequest(claim_request_id))
         {
@@ -355,7 +371,8 @@ impl StorageManager {
 
     /// Extend TTL for all claim-related data for a project
     pub fn extend_project_claims_ttl(env: &Env, project_id: u64) {
-        if env.storage()
+        if env
+            .storage()
             .persistent()
             .has(&ExtensionKey::ProjectClaimRequests(project_id))
         {
@@ -365,7 +382,8 @@ impl StorageManager {
                 LEDGER_BUMP_PROJECT,
             );
             // Extend all individual claim request TTLs
-            if let Some(request_ids) = env.storage()
+            if let Some(request_ids) = env
+                .storage()
                 .persistent()
                 .get::<_, Vec<u64>>(&ExtensionKey::ProjectClaimRequests(project_id))
             {

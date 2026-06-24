@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::storage_keys::{StorageKey, ExtensionKey};
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{DependencyRef, ProjectDependency};
 use crate::utils::Utils;
@@ -13,10 +13,10 @@ impl DependencyRegistry {
         if len == 0 || len > crate::constants::MAX_SOCIAL_LINK_URL_LEN as u32 {
             return Err(ContractError::InvalidWebsite);
         }
-        extern crate alloc;
-        use alloc::string::ToString;
-        let url_str = url.to_string();
-        if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
+        let mut buf = [0u8; crate::constants::MAX_SOCIAL_LINK_URL_LEN];
+        let slice = &mut buf[..len as usize];
+        url.copy_into_slice(slice);
+        if !slice.starts_with(b"http://") && !slice.starts_with(b"https://") {
             return Err(ContractError::InvalidWebsite);
         }
         Ok(())
@@ -58,21 +58,51 @@ impl DependencyRegistry {
     }
 
     fn dependency_key(env: &Env, dep: &DependencyRef) -> Result<String, ContractError> {
-        extern crate alloc;
-        use alloc::format;
-        use alloc::string::ToString;
         if let Some(pid) = dep.project_id {
-            return Ok(String::from_str(env, &format!("PID:{}", pid)));
+            let mut num_buf = [0u8; 20];
+            let mut val = pid;
+            let mut idx = 20;
+            if val == 0 {
+                idx -= 1;
+                num_buf[idx] = b'0';
+            } else {
+                while val > 0 {
+                    idx -= 1;
+                    num_buf[idx] = b'0' + (val % 10) as u8;
+                    val /= 10;
+                }
+            }
+            let num_len = 20 - idx;
+            let mut buf = [0u8; 24];
+            buf[0..4].copy_from_slice(b"PID:");
+            buf[4..4 + num_len].copy_from_slice(&num_buf[idx..20]);
+            let key_str = core::str::from_utf8(&buf[..4 + num_len]).unwrap();
+            return Ok(String::from_str(env, key_str));
         }
         if let Some(cid) = &dep.external_cid {
-            return Ok(String::from_str(env, &format!("CID:{}", cid.to_string())));
+            let cid_len = cid.len();
+            if cid_len > crate::constants::MAX_CID_LEN as u32 {
+                return Err(ContractError::InvalidProjectData);
+            }
+            let mut buf = [0u8; 4 + 128]; // "CID:" (4) + max cid (128)
+            buf[0..4].copy_from_slice(b"CID:");
+            cid.copy_into_slice(&mut buf[4..4 + cid_len as usize]);
+            let key_str = core::str::from_utf8(&buf[..4 + cid_len as usize]).unwrap();
+            return Ok(String::from_str(env, key_str));
         }
         if let Some(url) = &dep.external_url {
-            return Ok(String::from_str(env, &format!("URL:{}", url.to_string())));
+            let url_len = url.len();
+            if url_len > crate::constants::MAX_SOCIAL_LINK_URL_LEN as u32 {
+                return Err(ContractError::InvalidProjectData);
+            }
+            let mut buf = [0u8; 4 + 256]; // "URL:" (4) + max url (256)
+            buf[0..4].copy_from_slice(b"URL:");
+            url.copy_into_slice(&mut buf[4..4 + url_len as usize]);
+            let key_str = core::str::from_utf8(&buf[..4 + url_len as usize]).unwrap();
+            return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)
     }
-
 
     pub fn add_dependency(
         env: &Env,
@@ -151,10 +181,9 @@ impl DependencyRegistry {
         // Ensure dependency reference doesn't change the identity slot (still uses key)
         stored.reference = dependency_key;
 
-        env.storage().persistent().set(
-            &ExtensionKey::ProjectDependency(project_id, key),
-            &stored,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectDependency(project_id, key), &stored);
 
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
@@ -233,4 +262,3 @@ impl DependencyRegistry {
         out
     }
 }
-

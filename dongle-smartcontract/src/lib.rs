@@ -1,10 +1,13 @@
 #![no_std]
+#![allow(warnings)]
 
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
 mod collection_registry;
 pub mod constants;
+mod dependency_registry;
+mod dispute_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -18,8 +21,6 @@ pub mod storage_manager;
 pub mod types;
 pub mod utils;
 mod verification_registry;
-mod dependency_registry;
-mod dispute_registry;
 
 #[cfg(test)]
 mod tests;
@@ -35,9 +36,10 @@ use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionEntry, Collection, FeeConfig, Project, ProjectRegistrationParams, ProjectReport,
-    ProjectStats, ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
-    ClaimRequest, ClaimStatus, DependencyRef, ProjectDependency, DuplicateDispute, DisputeStatus, DisputeResolutionAction,
+    AdminActionEntry, ClaimRequest, ClaimStatus, Collection, DependencyRef,
+    DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, Project,
+    ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
+    Review, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -197,6 +199,28 @@ impl DongleContract {
         caller: Address,
     ) -> Result<(), ContractError> {
         ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
+    pub fn add_maintainer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        maintainer: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
+    }
+
+    pub fn remove_maintainer(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        maintainer: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::remove_maintainer(&env, project_id, caller, maintainer)
+    }
+
+    pub fn get_maintainers(env: Env, project_id: u64) -> Vec<Address> {
+        ProjectRegistry::get_maintainers(&env, project_id)
     }
 
     // --- Featured Registry ---
@@ -744,7 +768,9 @@ impl DongleContract {
         caller: Address,
         dependency: ProjectDependency,
     ) -> Result<(), ContractError> {
-        crate::dependency_registry::DependencyRegistry::add_dependency(&env, project_id, caller, dependency)
+        crate::dependency_registry::DependencyRegistry::add_dependency(
+            &env, project_id, caller, dependency,
+        )
     }
 
     pub fn update_project_dependency(
@@ -754,7 +780,13 @@ impl DongleContract {
         dependency_key: DependencyRef,
         new_dependency: ProjectDependency,
     ) -> Result<(), ContractError> {
-        crate::dependency_registry::DependencyRegistry::update_dependency(&env, project_id, caller, dependency_key, new_dependency)
+        crate::dependency_registry::DependencyRegistry::update_dependency(
+            &env,
+            project_id,
+            caller,
+            dependency_key,
+            new_dependency,
+        )
     }
 
     pub fn remove_project_dependency(
@@ -763,7 +795,12 @@ impl DongleContract {
         caller: Address,
         dependency_key: DependencyRef,
     ) -> Result<(), ContractError> {
-        crate::dependency_registry::DependencyRegistry::remove_dependency(&env, project_id, caller, dependency_key)
+        crate::dependency_registry::DependencyRegistry::remove_dependency(
+            &env,
+            project_id,
+            caller,
+            dependency_key,
+        )
     }
 
     pub fn get_project_dependencies(env: Env, project_id: u64) -> Vec<ProjectDependency> {
@@ -779,7 +816,13 @@ impl DongleContract {
         creator: Address,
         evidence_cid: String,
     ) -> Result<u64, ContractError> {
-        crate::dispute_registry::DisputeRegistry::open_duplicate_dispute(&env, project_id, original_project_id, creator, evidence_cid)
+        crate::dispute_registry::DisputeRegistry::open_duplicate_dispute(
+            &env,
+            project_id,
+            original_project_id,
+            creator,
+            evidence_cid,
+        )
     }
 
     pub fn resolve_duplicate_dispute(
@@ -788,7 +831,9 @@ impl DongleContract {
         admin: Address,
         action: DisputeResolutionAction,
     ) -> Result<(), ContractError> {
-        crate::dispute_registry::DisputeRegistry::resolve_duplicate_dispute(&env, dispute_id, admin, action)
+        crate::dispute_registry::DisputeRegistry::resolve_duplicate_dispute(
+            &env, dispute_id, admin, action,
+        )
     }
 
     pub fn get_duplicate_dispute(env: Env, dispute_id: u64) -> Option<DuplicateDispute> {
@@ -799,4 +844,3 @@ impl DongleContract {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 }
-
