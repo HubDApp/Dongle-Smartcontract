@@ -293,6 +293,38 @@ pub enum AdminActionType {
     ProjectRemovedFromCollection,
     ProjectFeatured,
     ProjectUnfeatured,
+    DuplicateDisputeResolved,
+    DuplicateDisputeRejected,
+    VerificationDurationSet,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DisputeStatus {
+    Pending,
+    Rejected,
+    Resolved,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DuplicateDispute {
+    pub id: u64,
+    pub project_id: u64,
+    pub original_project_id: u64,
+    pub creator: Address,
+    pub evidence_cid: String,
+    pub status: DisputeStatus,
+    pub created_at: u64,
+    pub resolved_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DisputeResolutionAction {
+    Reject,
+    ArchiveProject(u64),
+    LinkDuplicates,
 }
 
 /// A single entry in the admin action log.

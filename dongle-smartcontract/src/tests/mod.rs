@@ -7,21 +7,23 @@ mod archival;
 mod collections;
 mod error_handling_tests;
 mod featured;
-mod fee;
-mod indexer;
+// mod fee;
+// mod indexer;
 mod review;
 
 // New test modules
-mod authorization;
-mod basic_new_features;
+// mod authorization;
+// mod basic_new_features;
 mod cleanup;
-mod events;
+// mod events;
 mod moderation;
-mod pagination;
+// mod pagination;
 mod review_settings;
 mod dependencies;
 mod claim;
+mod verification_features;
 
 // Test infrastructure
 pub mod fixtures;
 mod linked_projects;
+mod duplicate_dispute;

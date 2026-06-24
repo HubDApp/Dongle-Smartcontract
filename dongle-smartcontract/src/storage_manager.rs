@@ -4,8 +4,8 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String};
+use crate::storage_keys::{StorageKey, ExtensionKey};
+use soroban_sdk::{Address, Env, String, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -139,10 +139,10 @@ impl StorageManager {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectDependencyKeys(project_id))
+            .has(&ExtensionKey::ProjectDependencyKeys(project_id))
         {
             env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectDependencyKeys(project_id),
+                &ExtensionKey::ProjectDependencyKeys(project_id),
                 LEDGER_THRESHOLD_PROJECT,
                 LEDGER_BUMP_PROJECT,
             );
@@ -151,17 +151,17 @@ impl StorageManager {
         if let Some(keys) = env
             .storage()
             .persistent()
-            .get::<_, soroban_sdk::Vec<String>>(&StorageKey::ProjectDependencyKeys(project_id))
+            .get::<_, soroban_sdk::Vec<String>>(&ExtensionKey::ProjectDependencyKeys(project_id))
         {
             for i in 0..keys.len() {
                 if let Some(k) = keys.get(i) {
                     if env
                         .storage()
                         .persistent()
-                        .has(&StorageKey::ProjectDependency(project_id, k.clone()))
+                        .has(&ExtensionKey::ProjectDependency(project_id, k.clone()))
                     {
                         env.storage().persistent().extend_ttl(
-                            &StorageKey::ProjectDependency(project_id, k.clone()),
+                            &ExtensionKey::ProjectDependency(project_id, k.clone()),
                             LEDGER_THRESHOLD_PROJECT,
                             LEDGER_BUMP_PROJECT,
                         );
@@ -343,10 +343,10 @@ impl StorageManager {
     pub fn extend_claim_request_ttl(env: &Env, claim_request_id: u64) {
         if env.storage()
             .persistent()
-            .has(&StorageKey::ClaimRequest(claim_request_id))
+            .has(&ExtensionKey::ClaimRequest(claim_request_id))
         {
             env.storage().persistent().extend_ttl(
-                &StorageKey::ClaimRequest(claim_request_id),
+                &ExtensionKey::ClaimRequest(claim_request_id),
                 LEDGER_THRESHOLD_PROJECT,
                 LEDGER_BUMP_PROJECT,
             );
@@ -357,17 +357,17 @@ impl StorageManager {
     pub fn extend_project_claims_ttl(env: &Env, project_id: u64) {
         if env.storage()
             .persistent()
-            .has(&StorageKey::ProjectClaimRequests(project_id))
+            .has(&ExtensionKey::ProjectClaimRequests(project_id))
         {
             env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectClaimRequests(project_id),
+                &ExtensionKey::ProjectClaimRequests(project_id),
                 LEDGER_THRESHOLD_PROJECT,
                 LEDGER_BUMP_PROJECT,
             );
             // Extend all individual claim request TTLs
             if let Some(request_ids) = env.storage()
                 .persistent()
-                .get::<_, Vec<u64>>(&StorageKey::ProjectClaimRequests(project_id))
+                .get::<_, Vec<u64>>(&ExtensionKey::ProjectClaimRequests(project_id))
             {
                 for i in 0..request_ids.len() {
                     if let Some(request_id) = request_ids.get(i) {

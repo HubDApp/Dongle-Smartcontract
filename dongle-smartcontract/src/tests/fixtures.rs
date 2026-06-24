@@ -67,7 +67,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         social_links: None,
         launch_timestamp: None,
     };
-    client.register_project(&params)
+    client.mock_all_auths().register_project(&params)
 }
 
 pub fn create_project_with_reviews(

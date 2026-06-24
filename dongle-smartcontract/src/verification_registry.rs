@@ -2,7 +2,7 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_owner_auth};
-use crate::constants::{MAX_CID_LEN, MAX_PROJECTS_PER_USER, VERIFICATION_VALIDITY_PERIOD};
+use crate::constants::{MAX_CID_LEN, MAX_PROJECTS_PER_USER};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
@@ -12,7 +12,7 @@ use crate::events::{
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{StorageKey, ExtensionKey};
 use crate::types::{
     AdminActionType, VerificationRecord, VerificationRenewalRecord, VerificationStatus,
 };
@@ -281,6 +281,7 @@ impl VerificationRegistry {
 
         // Update record
         record.status = VerificationStatus::Verified;
+        record.expires_at = now.saturating_add(Self::get_verification_duration(env));
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
@@ -518,6 +519,45 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Get verification validity duration configuration
+    pub fn get_verification_duration(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::VerificationDuration)
+            .unwrap_or(crate::constants::VERIFICATION_VALIDITY_PERIOD)
+    }
+
+    /// Set verification validity duration (admin only)
+    pub fn set_verification_duration(
+        env: &Env,
+        admin: Address,
+        duration_seconds: u64,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        let previous_duration_seconds = Self::get_verification_duration(env);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::VerificationDuration, &duration_seconds);
+
+        crate::events::publish_verification_duration_set_event(
+            env,
+            admin.clone(),
+            previous_duration_seconds,
+            duration_seconds,
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationDurationSet,
+            None,
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
     pub fn request_renewal(
         env: &Env,
         project_id: u64,
@@ -563,7 +603,7 @@ impl VerificationRegistry {
             evidence_cid: evidence_cid.clone(),
             timestamp: now,
             fee_amount,
-            expires_at: now.saturating_add(VERIFICATION_VALIDITY_PERIOD),
+            expires_at: now.saturating_add(Self::get_verification_duration(env)),
         };
 
         env.storage()
@@ -593,7 +633,7 @@ impl VerificationRegistry {
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         let now = env.ledger().timestamp();
-        let expires_at = now.saturating_add(VERIFICATION_VALIDITY_PERIOD);
+        let expires_at = now.saturating_add(Self::get_verification_duration(env));
 
         verification.status = VerificationStatus::Verified;
         verification.expires_at = expires_at;

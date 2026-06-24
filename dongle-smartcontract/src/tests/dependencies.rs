@@ -120,8 +120,7 @@ fn test_update_dependency_changes_metadata() {
     updated.updated_at = env.ledger().timestamp();
 
     client
-        .update_project_dependency(&project_id, &owner, &dep_ref, &updated)
-        .unwrap();
+        .update_project_dependency(&project_id, &owner, &dep_ref, &updated);
 
     let deps = client.get_project_dependencies(&project_id);
     assert_eq!(deps.len(), 1);
