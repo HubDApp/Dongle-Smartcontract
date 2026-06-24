@@ -227,7 +227,10 @@ fn test_reject_renewal_success() {
 
     // Verification should still be verified
     let verification = client.get_verification(&project_id);
-    assert_eq!(verification.status, crate::types::VerificationStatus::Verified);
+    assert_eq!(
+        verification.status,
+        crate::types::VerificationStatus::Verified
+    );
 }
 
 #[test]
@@ -471,14 +474,20 @@ fn test_renewal_preserves_verification_status() {
     client.approve_verification(&project_id, &admin);
 
     let before_renewal = client.get_verification(&project_id);
-    assert_eq!(before_renewal.status, crate::types::VerificationStatus::Verified);
+    assert_eq!(
+        before_renewal.status,
+        crate::types::VerificationStatus::Verified
+    );
 
     // Request and approve renewal
     let _result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     let _result = client.try_approve_renewal(&project_id, &admin);
 
     let after_renewal = client.get_verification(&project_id);
-    assert_eq!(after_renewal.status, crate::types::VerificationStatus::Verified);
+    assert_eq!(
+        after_renewal.status,
+        crate::types::VerificationStatus::Verified
+    );
 }
 
 #[test]
@@ -553,12 +562,12 @@ fn test_request_renewal_after_expiry_success() {
     // Expiry should now be 2300 (1300 + 1000)
     let verification = client.get_verification(&project_id);
     assert_eq!(verification.expires_at, 2300);
-    assert_eq!(verification.status, crate::types::VerificationStatus::Verified);
+    assert_eq!(
+        verification.status,
+        crate::types::VerificationStatus::Verified
+    );
 
     // Should no longer be expired at timestamp 1400
     env.ledger().set_timestamp(1400);
     assert_eq!(client.is_verification_expired(&project_id), false);
 }
-
-
-

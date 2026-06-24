@@ -21,9 +21,9 @@ mod moderation;
 mod claim;
 mod dependencies;
 mod maintainers;
+mod renewal;
 mod review_settings;
 mod verification_features;
-mod renewal;
 
 // Test infrastructure
 mod duplicate_dispute;

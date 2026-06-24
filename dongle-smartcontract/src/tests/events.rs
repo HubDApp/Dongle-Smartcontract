@@ -1,11 +1,11 @@
 //! Event coverage for important state changes used by indexers.
 
 use crate::events::{
+    ClaimRequestApprovedEvent, ClaimRequestRejectedEvent, ClaimRequestSubmittedEvent,
     FeeConsumedEvent, FeeOperation, FeePaidEvent, FeeSetEvent, MinProjectAgeSetEvent,
-    ProjectArchivedEvent, ProjectOwnershipTransferredEvent, ProjectReactivatedEvent,
-    ReviewHiddenEvent, ReviewReportedEvent, ReviewRestoredEvent, ProjectReviewsEnabledSetEvent,
-    ProjectClaimableSetEvent, ClaimRequestSubmittedEvent, ClaimRequestApprovedEvent,
-    ClaimRequestRejectedEvent,
+    ProjectArchivedEvent, ProjectClaimableSetEvent, ProjectOwnershipTransferredEvent,
+    ProjectReactivatedEvent, ProjectReviewsEnabledSetEvent, ReviewHiddenEvent, ReviewReportedEvent,
+    ReviewRestoredEvent,
 };
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
@@ -124,7 +124,9 @@ fn test_archive_and_reactivate_events_include_topics_and_payloads() {
         }
     ));
 
-    client.mock_all_auths().reactivate_project(&project_id, &owner);
+    client
+        .mock_all_auths()
+        .reactivate_project(&project_id, &owner);
     assert!(has_event::<ProjectReactivatedEvent, _, _>(
         &env,
         (
@@ -254,11 +256,7 @@ fn test_review_moderation_events_include_topics_and_payloads() {
 
     assert!(has_event::<ReviewHiddenEvent, _, _>(
         &env,
-        (
-            symbol_short!("REVIEW"),
-            symbol_short!("HIDDEN"),
-            project_id,
-        ),
+        (symbol_short!("REVIEW"), symbol_short!("HIDDEN"), project_id,),
         |event| {
             event.project_id == project_id
                 && event.admin == admin
@@ -334,11 +332,17 @@ fn test_project_reviews_enabled_set_event() {
     let project_id = register_project(&client, &env, &owner, "Review-Config-Project");
 
     // Disable reviews
-    client.mock_all_auths().set_reviews_enabled(&project_id, &owner, &false);
+    client
+        .mock_all_auths()
+        .set_reviews_enabled(&project_id, &owner, &false);
 
     assert!(has_event::<ProjectReviewsEnabledSetEvent, _, _>(
         &env,
-        (symbol_short!("PROJECT"), symbol_short!("REVIEWS"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REVIEWS"),
+            project_id
+        ),
         |event| {
             event.project_id == project_id
                 && event.caller == owner
@@ -357,11 +361,17 @@ fn test_project_claim_events() {
     let project_id = register_project(&client, &env, &owner, "Claimable-Project");
 
     // 1. Set claimable to true
-    client.mock_all_auths().set_project_claimable(&project_id, &owner, &true);
+    client
+        .mock_all_auths()
+        .set_project_claimable(&project_id, &owner, &true);
 
     assert!(has_event::<ProjectClaimableSetEvent, _, _>(
         &env,
-        (symbol_short!("PROJECT"), symbol_short!("CLAIMABLE"), project_id),
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("CLAIMABLE"),
+            project_id
+        ),
         |event| {
             event.project_id == project_id
                 && event.caller == owner
@@ -372,7 +382,10 @@ fn test_project_claim_events() {
 
     // 2. Submit claim request
     let proof_cid = String::from_str(&env, "QmTestProofCid");
-    let claim_request_id = client.mock_all_auths().submit_claim_request(&project_id, &claimant, &proof_cid);
+    let claim_request_id =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant, &proof_cid);
 
     assert!(has_event::<ClaimRequestSubmittedEvent, _, _>(
         &env,
@@ -392,7 +405,9 @@ fn test_project_claim_events() {
     ));
 
     // 3. Reject claim request
-    client.mock_all_auths().reject_claim_request(&claim_request_id, &admin);
+    client
+        .mock_all_auths()
+        .reject_claim_request(&claim_request_id, &admin);
 
     assert!(has_event::<ClaimRequestRejectedEvent, _, _>(
         &env,
@@ -413,10 +428,15 @@ fn test_project_claim_events() {
 
     // 4. Submit claim request again (using claimant_2 since claimant already has a request record)
     let claimant_2 = Address::generate(&env);
-    let claim_request_id_2 = client.mock_all_auths().submit_claim_request(&project_id, &claimant_2, &proof_cid);
+    let claim_request_id_2 =
+        client
+            .mock_all_auths()
+            .submit_claim_request(&project_id, &claimant_2, &proof_cid);
 
     // 5. Approve claim request
-    client.mock_all_auths().approve_claim_request(&claim_request_id_2, &admin);
+    client
+        .mock_all_auths()
+        .approve_claim_request(&claim_request_id_2, &admin);
 
     assert!(has_event::<ClaimRequestApprovedEvent, _, _>(
         &env,
@@ -435,4 +455,3 @@ fn test_project_claim_events() {
         }
     ));
 }
-
