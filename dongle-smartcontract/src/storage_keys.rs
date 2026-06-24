@@ -95,3 +95,19 @@ pub enum StorageKey {
     AdminActionLogCount,
 }
 
+/// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExtensionKey {
+    ClaimRequest(u64),
+    ClaimReqProjClaimant(u64, Address),
+    ProjectClaimRequests(u64),
+    NextClaimRequestId,
+    ProjectDependency(u64, String),
+    ProjectDependencyKeys(u64),
+    DuplicateDispute(u64),
+    ProjectDuplicateDisputes(u64),
+    NextDuplicateDisputeId,
+    VerificationDuration,
+}
+

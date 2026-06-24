@@ -639,6 +639,14 @@ impl ReviewRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ReviewsEnabled(project_id), &enabled);
+
+        crate::events::publish_project_reviews_enabled_set_event(
+            env,
+            project_id,
+            caller,
+            enabled,
+        );
+
         Ok(())
     }
 

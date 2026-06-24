@@ -19,6 +19,7 @@ pub mod types;
 pub mod utils;
 mod verification_registry;
 mod dependency_registry;
+mod dispute_registry;
 
 #[cfg(test)]
 mod tests;
@@ -36,6 +37,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionEntry, Collection, FeeConfig, Project, ProjectRegistrationParams, ProjectReport,
     ProjectStats, ProjectUpdateParams, Review, VerificationRecord, VerificationStatus,
+    ClaimRequest, ClaimStatus, DependencyRef, ProjectDependency, DuplicateDispute, DisputeStatus, DisputeResolutionAction,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -538,6 +540,20 @@ impl DongleContract {
         VerificationRegistry::get_min_project_age(&env)
     }
 
+    /// Set verification duration (admin only)
+    pub fn set_verification_duration(
+        env: Env,
+        admin: Address,
+        duration_seconds: u64,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_verification_duration(&env, admin, duration_seconds)
+    }
+
+    /// Get verification duration configuration
+    pub fn get_verification_duration(env: Env) -> u64 {
+        VerificationRegistry::get_verification_duration(&env)
+    }
+
     /// Report a project for spam, scams, broken links, or abusive metadata - Issue #127
     pub fn report_project(
         env: Env,
@@ -674,6 +690,113 @@ impl DongleContract {
     /// Get the total number of admin action log entries.
     pub fn get_admin_action_log_count(env: Env) -> u64 {
         AdminActionLog::get_action_log_count(&env)
+    }
+
+    // --- Project Claiming ---
+
+    pub fn set_project_claimable(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        claimable: bool,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::set_project_claimable(&env, project_id, caller, claimable)
+    }
+
+    pub fn submit_claim_request(
+        env: Env,
+        project_id: u64,
+        claimant: Address,
+        proof_cid: String,
+    ) -> Result<u64, ContractError> {
+        ProjectRegistry::submit_claim_request(&env, project_id, claimant, proof_cid)
+    }
+
+    pub fn approve_claim_request(
+        env: Env,
+        claim_request_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::approve_claim_request(&env, claim_request_id, admin)
+    }
+
+    pub fn reject_claim_request(
+        env: Env,
+        claim_request_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::reject_claim_request(&env, claim_request_id, admin)
+    }
+
+    pub fn get_claim_request(env: Env, claim_request_id: u64) -> Option<ClaimRequest> {
+        ProjectRegistry::get_claim_request(&env, claim_request_id)
+    }
+
+    pub fn get_claim_requests_for_project(env: Env, project_id: u64) -> Vec<ClaimRequest> {
+        ProjectRegistry::get_claim_requests_for_project(&env, project_id)
+    }
+
+    // --- Project Dependencies ---
+
+    pub fn add_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency: ProjectDependency,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::add_dependency(&env, project_id, caller, dependency)
+    }
+
+    pub fn update_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency_key: DependencyRef,
+        new_dependency: ProjectDependency,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::update_dependency(&env, project_id, caller, dependency_key, new_dependency)
+    }
+
+    pub fn remove_project_dependency(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        dependency_key: DependencyRef,
+    ) -> Result<(), ContractError> {
+        crate::dependency_registry::DependencyRegistry::remove_dependency(&env, project_id, caller, dependency_key)
+    }
+
+    pub fn get_project_dependencies(env: Env, project_id: u64) -> Vec<ProjectDependency> {
+        crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
+    }
+
+    // --- Duplicate Disputes ---
+
+    pub fn open_duplicate_dispute(
+        env: Env,
+        project_id: u64,
+        original_project_id: u64,
+        creator: Address,
+        evidence_cid: String,
+    ) -> Result<u64, ContractError> {
+        crate::dispute_registry::DisputeRegistry::open_duplicate_dispute(&env, project_id, original_project_id, creator, evidence_cid)
+    }
+
+    pub fn resolve_duplicate_dispute(
+        env: Env,
+        dispute_id: u64,
+        admin: Address,
+        action: DisputeResolutionAction,
+    ) -> Result<(), ContractError> {
+        crate::dispute_registry::DisputeRegistry::resolve_duplicate_dispute(&env, dispute_id, admin, action)
+    }
+
+    pub fn get_duplicate_dispute(env: Env, dispute_id: u64) -> Option<DuplicateDispute> {
+        crate::dispute_registry::DisputeRegistry::get_duplicate_dispute(&env, dispute_id)
+    }
+
+    pub fn get_disputes_for_project(env: Env, project_id: u64) -> Vec<DuplicateDispute> {
+        crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 }
 

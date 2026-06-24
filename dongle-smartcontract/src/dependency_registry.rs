@@ -1,5 +1,5 @@
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{StorageKey, ExtensionKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{DependencyRef, ProjectDependency};
 use crate::utils::Utils;
@@ -11,10 +11,13 @@ impl DependencyRegistry {
     fn normalize_url(url: &String) -> Result<(), ContractError> {
         let len = url.len();
         if len == 0 || len > crate::constants::MAX_SOCIAL_LINK_URL_LEN as u32 {
-            return Err(ContractError::InvalidDependencyUrl);
+            return Err(ContractError::InvalidWebsite);
         }
-        if !url.starts_with("http://") && !url.starts_with("https://") {
-            return Err(ContractError::InvalidDependencyUrl);
+        extern crate alloc;
+        use alloc::string::ToString;
+        let url_str = url.to_string();
+        if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
+            return Err(ContractError::InvalidWebsite);
         }
         Ok(())
     }
@@ -29,12 +32,12 @@ impl DependencyRegistry {
         // Must have at least one and only one (to keep uniqueness simple and deterministic)
         let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8);
         if cnt != 1 {
-            return Err(ContractError::InvalidDependencyReference);
+            return Err(ContractError::InvalidProjectData);
         }
 
         if let Some(cid) = &dep.external_cid {
             // use existing CID validation
-            Utils::validate_metadata_cid(cid).map_err(|_| ContractError::InvalidDependencyCid)?;
+            Utils::validate_metadata_cid(cid).map_err(|_| ContractError::InvalidLogoCid)?;
         }
 
         if let Some(url) = &dep.external_url {
@@ -47,7 +50,7 @@ impl DependencyRegistry {
                 .persistent()
                 .has(&StorageKey::Project(project_id))
             {
-                return Err(ContractError::DependencyProjectNotFound);
+                return Err(ContractError::ProjectNotFound);
             }
         }
 
@@ -55,16 +58,19 @@ impl DependencyRegistry {
     }
 
     fn dependency_key(env: &Env, dep: &DependencyRef) -> Result<String, ContractError> {
+        extern crate alloc;
+        use alloc::format;
+        use alloc::string::ToString;
         if let Some(pid) = dep.project_id {
             return Ok(String::from_str(env, &format!("PID:{}", pid)));
         }
         if let Some(cid) = &dep.external_cid {
-            return Ok(String::from_str(env, &format!("CID:{}", cid)));
+            return Ok(String::from_str(env, &format!("CID:{}", cid.to_string())));
         }
         if let Some(url) = &dep.external_url {
-            return Ok(String::from_str(env, &format!("URL:{}", url)));
+            return Ok(String::from_str(env, &format!("URL:{}", url.to_string())));
         }
-        Err(ContractError::InvalidDependencyReference)
+        Err(ContractError::InvalidProjectData)
     }
 
 
@@ -82,19 +88,19 @@ impl DependencyRegistry {
         }
         Self::validate_dependency_ref(env, &dependency.reference)?;
 
-        let key = Self::dependency_key(&dependency.reference);
+        let key = Self::dependency_key(env, &dependency.reference)?;
 
         // Reject duplicates
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectDependency(project_id, key.clone()))
+            .has(&ExtensionKey::ProjectDependency(project_id, key.clone()))
         {
-            return Err(ContractError::DuplicateDependency);
+            return Err(ContractError::AlreadyLinked);
         }
 
         env.storage().persistent().set(
-            &StorageKey::ProjectDependency(project_id, key.clone()),
+            &ExtensionKey::ProjectDependency(project_id, key.clone()),
             &dependency,
         );
 
@@ -102,12 +108,12 @@ impl DependencyRegistry {
         let mut keys: Vec<String> = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectDependencyKeys(project_id))
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
         keys.push_back(key);
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectDependencyKeys(project_id), &keys);
+            .set(&ExtensionKey::ProjectDependencyKeys(project_id), &keys);
 
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
@@ -130,14 +136,14 @@ impl DependencyRegistry {
         Self::validate_dependency_ref(env, &dependency_key)?;
         Self::validate_dependency_ref(env, &new_dependency.reference)?;
 
-        let key = Self::dependency_key(&dependency_key);
+        let key = Self::dependency_key(env, &dependency_key)?;
 
         if !env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectDependency(project_id, key.clone()))
+            .has(&ExtensionKey::ProjectDependency(project_id, key.clone()))
         {
-            return Err(ContractError::DependencyNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         // Keep same key slot; allow updating metadata.
@@ -146,7 +152,7 @@ impl DependencyRegistry {
         stored.reference = dependency_key;
 
         env.storage().persistent().set(
-            &StorageKey::ProjectDependency(project_id, key),
+            &ExtensionKey::ProjectDependency(project_id, key),
             &stored,
         );
 
@@ -168,29 +174,29 @@ impl DependencyRegistry {
         }
 
         Self::validate_dependency_ref(env, &dependency_key)?;
-        let key = Self::dependency_key(&dependency_key);
+        let key = Self::dependency_key(env, &dependency_key)?;
 
         if !env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectDependency(project_id, key.clone()))
+            .has(&ExtensionKey::ProjectDependency(project_id, key.clone()))
         {
-            return Err(ContractError::DependencyNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         env.storage()
             .persistent()
-            .remove(&StorageKey::ProjectDependency(project_id, key.clone()));
+            .remove(&ExtensionKey::ProjectDependency(project_id, key.clone()));
 
         let mut keys: Vec<String> = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectDependencyKeys(project_id))
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
         let mut new_keys: Vec<String> = Vec::new(env);
         for i in 0..keys.len() {
             if let Some(k) = keys.get(i) {
-                if k != &key {
+                if k != key {
                     new_keys.push_back(k);
                 }
             }
@@ -198,7 +204,7 @@ impl DependencyRegistry {
 
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectDependencyKeys(project_id), &new_keys);
+            .set(&ExtensionKey::ProjectDependencyKeys(project_id), &new_keys);
 
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
@@ -209,7 +215,7 @@ impl DependencyRegistry {
         let keys: Vec<String> = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectDependencyKeys(project_id))
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
         for i in 0..keys.len() {
@@ -217,7 +223,7 @@ impl DependencyRegistry {
                 let dep = env
                     .storage()
                     .persistent()
-                    .get(&StorageKey::ProjectDependency(project_id, k));
+                    .get(&ExtensionKey::ProjectDependency(project_id, k));
                 if let Some(d) = dep {
                     out.push_back(d);
                 }

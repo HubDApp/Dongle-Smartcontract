@@ -232,6 +232,15 @@ pub struct MinProjectAgeSetEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationDurationSetEvent {
+    pub admin: Address,
+    pub previous_duration_seconds: u64,
+    pub duration_seconds: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeSetEvent {
     pub admin: Address,
     pub token: Option<Address>,
@@ -797,6 +806,34 @@ pub fn publish_fee_set_event(
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReviewsEnabledSetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub enabled: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_reviews_enabled_set_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    enabled: bool,
+) {
+    let event_data = ProjectReviewsEnabledSetEvent {
+        project_id,
+        caller,
+        enabled,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("REVIEWS"), project_id),
+        event_data,
+    );
+}
+
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectClaimableSetEvent {
     pub project_id: u64,
     pub caller: Address,
@@ -862,7 +899,7 @@ pub fn publish_claim_request_submitted_event(
     let event_data = ClaimRequestSubmittedEvent {
         claim_request_id,
         project_id,
-        claimant,
+        claimant: claimant.clone(),
         proof_cid,
         timestamp: env.ledger().timestamp(),
     };
@@ -882,7 +919,7 @@ pub fn publish_claim_request_approved_event(
     let event_data = ClaimRequestApprovedEvent {
         claim_request_id,
         project_id,
-        claimant,
+        claimant: claimant.clone(),
         admin,
         timestamp: env.ledger().timestamp(),
     };
@@ -902,7 +939,7 @@ pub fn publish_claim_request_rejected_event(
     let event_data = ClaimRequestRejectedEvent {
         claim_request_id,
         project_id,
-        claimant,
+        claimant: claimant.clone(),
         admin,
         timestamp: env.ledger().timestamp(),
     };
@@ -926,6 +963,24 @@ pub fn publish_min_project_age_set_event(
     };
     env.events().publish(
         (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
+        event_data,
+    );
+}
+
+pub fn publish_verification_duration_set_event(
+    env: &Env,
+    admin: Address,
+    previous_duration_seconds: u64,
+    duration_seconds: u64,
+) {
+    let event_data = VerificationDurationSetEvent {
+        admin,
+        previous_duration_seconds,
+        duration_seconds,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("DURATION")),
         event_data,
     );
 }
@@ -1121,5 +1176,65 @@ pub fn publish_project_unlinked_event(
             project_id,
         ),
         (linked_project_id, owner, env.ledger().timestamp()),
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DuplicateDisputeOpenedEvent {
+    pub dispute_id: u64,
+    pub project_id: u64,
+    pub original_project_id: u64,
+    pub creator: Address,
+    pub evidence_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DuplicateDisputeResolvedEvent {
+    pub dispute_id: u64,
+    pub admin: Address,
+    pub action: crate::types::DisputeResolutionAction,
+    pub timestamp: u64,
+}
+
+pub fn publish_duplicate_dispute_opened_event(
+    env: &Env,
+    dispute_id: u64,
+    project_id: u64,
+    original_project_id: u64,
+    creator: Address,
+    evidence_cid: String,
+) {
+    let event_data = DuplicateDisputeOpenedEvent {
+        dispute_id,
+        project_id,
+        original_project_id,
+        creator: creator.clone(),
+        evidence_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("DISPUTE"), symbol_short!("OPENED"), project_id, creator),
+        event_data,
+    );
+}
+
+pub fn publish_duplicate_dispute_resolved_event(
+    env: &Env,
+    dispute_id: u64,
+    admin: Address,
+    action: crate::types::DisputeResolutionAction,
+) {
+    let event_data = DuplicateDisputeResolvedEvent {
+        dispute_id,
+        admin: admin.clone(),
+        action,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("DISPUTE"), symbol_short!("RESOLVED"), dispute_id, admin),
+        event_data,
     );
 }

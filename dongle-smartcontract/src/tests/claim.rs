@@ -8,7 +8,7 @@ fn test_set_project_claimable() {
     let (client, admin) = setup_contract(&env);
 
     let owner = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Test Project");
+    let project_id = create_test_project(&client, &owner, "TestProject");
 
     // Check initial claimable state is false
     let project = client.get_project(&project_id).unwrap();
@@ -46,7 +46,7 @@ fn test_submit_claim_request() {
 
     let owner = Address::generate(&env);
     let claimant = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Test Project");
+    let project_id = create_test_project(&client, &owner, "TestProject");
 
     // Try to submit claim when project is not claimable (should fail)
     let proof_cid = String::from_str(&env, "QmTestProofCid");
@@ -86,7 +86,7 @@ fn test_approve_claim_request() {
 
     let owner = Address::generate(&env);
     let claimant = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Test Project");
+    let project_id = create_test_project(&client, &owner, "TestProject");
 
     // Set project as claimable and submit claim
     client
@@ -119,7 +119,7 @@ fn test_reject_claim_request() {
 
     let owner = Address::generate(&env);
     let claimant = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Test Project");
+    let project_id = create_test_project(&client, &owner, "TestProject");
 
     // Set project as claimable and submit claim
     client
@@ -152,7 +152,7 @@ fn test_unauthorized_approve() {
     let owner = Address::generate(&env);
     let claimant = Address::generate(&env);
     let non_admin = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Test Project");
+    let project_id = create_test_project(&client, &owner, "TestProject");
 
     // Set project as claimable and submit claim
     client
