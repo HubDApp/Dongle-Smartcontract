@@ -18,6 +18,7 @@ mod report_registry;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
+mod subscription_registry;
 pub mod types;
 pub mod utils;
 mod verification_registry;
@@ -842,5 +843,52 @@ impl DongleContract {
 
     pub fn get_disputes_for_project(env: Env, project_id: u64) -> Vec<DuplicateDispute> {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
+    }
+
+    // --- Subscription / Follow ---
+
+    pub fn follow_project(
+        env: Env,
+        project_id: u64,
+        follower: Address,
+    ) -> Result<(), ContractError> {
+        crate::subscription_registry::SubscriptionRegistry::follow_project(
+            &env, project_id, follower,
+        )
+    }
+
+    pub fn unfollow_project(
+        env: Env,
+        project_id: u64,
+        follower: Address,
+    ) -> Result<(), ContractError> {
+        crate::subscription_registry::SubscriptionRegistry::unfollow_project(
+            &env, project_id, follower,
+        )
+    }
+
+    pub fn get_follower_count(env: Env, project_id: u64) -> u32 {
+        crate::subscription_registry::SubscriptionRegistry::get_follower_count(&env, project_id)
+    }
+
+    pub fn is_following(env: Env, project_id: u64, user: Address) -> bool {
+        crate::subscription_registry::SubscriptionRegistry::is_following(&env, project_id, &user)
+    }
+
+    pub fn get_project_followers(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        crate::subscription_registry::SubscriptionRegistry::get_project_followers(
+            &env, project_id, start, limit,
+        )
+    }
+
+    pub fn get_user_subscriptions(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
+            &env, user, start, limit,
+        )
     }
 }

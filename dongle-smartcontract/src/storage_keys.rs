@@ -111,4 +111,7 @@ pub enum ExtensionKey {
     ProjectDuplicateDisputes(u64),
     NextDuplicateDisputeId,
     VerificationDuration,
+    ProjectFollowers(u64),
+    UserSubscriptions(Address),
+    FollowerCount(u64),
 }

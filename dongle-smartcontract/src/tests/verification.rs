@@ -479,7 +479,7 @@ fn test_revoke_non_verified_project_fails() {
     // Cannot revoke an unverified project
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot revoke a pending project
     client.request_verification(
@@ -489,7 +489,7 @@ fn test_revoke_non_verified_project_fails() {
     );
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
