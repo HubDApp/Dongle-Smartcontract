@@ -4,6 +4,7 @@
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
+mod bookmark_registry;
 mod collection_registry;
 pub mod constants;
 mod dependency_registry;
@@ -892,6 +893,32 @@ impl DongleContract {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
             &env, user, start, limit,
         )
+    }
+
+    // --- Bookmark Registry ---
+
+    pub fn bookmark_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+        crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
+    }
+
+    pub fn unbookmark_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+        crate::bookmark_registry::BookmarkRegistry::unbookmark_project(&env, project_id, user)
+    }
+
+    pub fn is_bookmarked(env: Env, project_id: u64, user: Address) -> bool {
+        crate::bookmark_registry::BookmarkRegistry::is_bookmarked(&env, project_id, &user)
+    }
+
+    pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
     }
 
     // --- Admin Timelock ---

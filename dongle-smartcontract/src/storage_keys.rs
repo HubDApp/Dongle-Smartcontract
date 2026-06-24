@@ -126,4 +126,6 @@ pub enum ExtensionKey {
     TimelockAdminAddParams(u64),
     /// Admin Timelock: admin remove params keyed by action ID.
     TimelockAdminRemoveParams(u64),
+    /// User bookmarks: list of project IDs bookmarked by a user.
+    UserBookmarks(Address),
 }
