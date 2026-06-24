@@ -46,22 +46,21 @@ impl Utils {
             return false;
         }
 
-        extern crate alloc;
-        use alloc::vec;
-        let mut bytes = vec![0u8; len as usize];
-        cid.copy_into_slice(bytes.as_mut_slice());
+        let mut bytes = [0u8; 128];
+        cid.copy_into_slice(&mut bytes[..len as usize]);
+        let slice = &bytes[..len as usize];
 
         // CIDv0: starts with "Qm"
-        if bytes.len() >= 2 {
-            let first = bytes[0];
-            let second = bytes[1];
+        if slice.len() >= 2 {
+            let first = slice[0];
+            let second = slice[1];
             if first == b'Q' && second == b'm' {
                 return true;
             }
         }
 
         // CIDv1 base32 typically starts with 'b' (e.g. bafy...)
-        bytes[0] == b'b'
+        slice[0] == b'b'
     }
 
     pub fn validate_website(website: &String) -> Result<(), ContractError> {
@@ -73,11 +72,11 @@ impl Utils {
             return Err(ContractError::WebsiteTooLong);
         }
 
-        extern crate alloc;
-        use alloc::string::ToString;
-        let web_str = website.to_string();
+        let mut buf = [0u8; crate::constants::MAX_WEBSITE_LEN];
+        let slice = &mut buf[..len as usize];
+        website.copy_into_slice(slice);
 
-        if !web_str.starts_with("http://") && !web_str.starts_with("https://") {
+        if !slice.starts_with(b"http://") && !slice.starts_with(b"https://") {
             return Err(ContractError::InvalidWebsite);
         }
         Ok(())
@@ -96,10 +95,14 @@ impl Utils {
             return Err(ContractError::CategoryTooLong);
         }
 
-        extern crate alloc;
-        use alloc::string::ToString;
-        let cat_str = category.to_string();
-        if cat_str.trim().is_empty() {
+        let mut buf = [0u8; crate::constants::MAX_CATEGORY_LEN];
+        let slice = &mut buf[..len as usize];
+        category.copy_into_slice(slice);
+
+        let is_whitespace_only = slice
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r');
+        if is_whitespace_only {
             return Err(ContractError::InvalidCategory);
         }
 
@@ -157,22 +160,29 @@ impl Utils {
 
     /// Validates project slug format (lowercase alphanumeric + hyphens).
     pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
-        let slug_str = slug.to_string();
-
-        if slug_str.trim().is_empty() {
+        let len = slug.len();
+        if len == 0 {
             return Err(ContractError::InvalidProjectData);
         }
 
         let max_len = crate::constants::MAX_SLUG_LEN;
-        if slug_str.len() > max_len {
+        if len as usize > max_len {
             return Err(ContractError::InvalidProjectData);
         }
 
-        for c in slug_str.chars() {
-            if !c.is_ascii_alphanumeric() && c != '-' {
+        let mut buf = [0u8; crate::constants::MAX_SLUG_LEN];
+        slug.copy_into_slice(&mut buf[..len as usize]);
+        let slice = &buf[..len as usize];
+
+        let is_whitespace_only = slice
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r');
+        if is_whitespace_only {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        for &b in slice {
+            if !b.is_ascii_alphanumeric() && b != b'-' {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -185,25 +195,29 @@ impl Utils {
     /// - Within maximum length constraint (MAX_NAME_LEN)
     /// - Alphanumeric, underscore, and hyphen only
     pub fn validate_project_name(name: &String) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
-        let name_str = name.to_string();
-
-        // 1. Validate non-empty and not only whitespace
-        if name_str.trim().is_empty() {
+        let len = name.len();
+        if len == 0 {
             return Err(ContractError::InvalidProjectName);
         }
 
-        // 2. Validate max length
         let max_len = crate::constants::MAX_NAME_LEN;
-        if name_str.len() > max_len {
+        if len as usize > max_len {
             return Err(ContractError::ProjectNameTooLong);
         }
 
-        // 3. Validate alphanumeric, underscore, hyphen
-        for c in name_str.chars() {
-            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+        let mut buf = [0u8; crate::constants::MAX_NAME_LEN];
+        name.copy_into_slice(&mut buf[..len as usize]);
+        let slice = &buf[..len as usize];
+
+        let is_whitespace_only = slice
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r');
+        if is_whitespace_only {
+            return Err(ContractError::InvalidProjectName);
+        }
+
+        for &b in slice {
+            if !b.is_ascii_alphanumeric() && b != b'_' && b != b'-' {
                 return Err(ContractError::InvalidNameFormat);
             }
         }
@@ -213,9 +227,6 @@ impl Utils {
 
     /// Validates project tags
     pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
         // Check max number of tags
         if tags.len() > crate::constants::MAX_TAGS_PER_PROJECT {
             return Err(ContractError::TooManyTags);
@@ -223,16 +234,17 @@ impl Utils {
 
         // Validate each tag
         for tag in tags.iter() {
-            let tag_str = tag.to_string();
-
-            // Check tag length
-            if tag_str.len() == 0 || tag_str.len() > crate::constants::MAX_TAG_LENGTH as usize {
+            let len = tag.len();
+            if len == 0 || len > crate::constants::MAX_TAG_LENGTH as u32 {
                 return Err(ContractError::InvalidTag);
             }
 
-            // Check tag format (alphanumeric, underscore, hyphen only)
-            for c in tag_str.chars() {
-                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+            let mut buf = [0u8; crate::constants::MAX_TAG_LENGTH];
+            tag.copy_into_slice(&mut buf[..len as usize]);
+            let slice = &buf[..len as usize];
+
+            for &b in slice {
+                if !b.is_ascii_alphanumeric() && b != b'_' && b != b'-' {
                     return Err(ContractError::InvalidTag);
                 }
             }
@@ -243,9 +255,6 @@ impl Utils {
 
     /// Validates social links
     pub fn validate_social_links(social_links: &Map<String, String>) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
         // Check max number of social links
         if social_links.len() > crate::constants::MAX_SOCIAL_LINKS {
             return Err(ContractError::TooManySocialLinks);
@@ -253,33 +262,32 @@ impl Utils {
 
         // Validate each social link
         for (platform, url) in social_links.iter() {
-            let platform_str = platform.to_string();
-            let url_str = url.to_string();
-
-            // Check platform name length
-            if platform_str.len() == 0
-                || platform_str.len() > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as usize
-            {
+            let p_len = platform.len();
+            if p_len == 0 || p_len > crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN as u32 {
                 return Err(ContractError::InvalidSocialLink);
             }
 
-            // Check URL length
-            if url_str.len() == 0
-                || url_str.len() > crate::constants::MAX_SOCIAL_LINK_URL_LEN as usize
-            {
-                return Err(ContractError::InvalidSocialLink);
-            }
+            let mut p_buf = [0u8; crate::constants::MAX_SOCIAL_LINK_PLATFORM_LEN];
+            platform.copy_into_slice(&mut p_buf[..p_len as usize]);
+            let p_slice = &p_buf[..p_len as usize];
 
-            // Basic URL validation
-            if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
-                return Err(ContractError::InvalidSocialLink);
-            }
-
-            // Platform name validation (alphanumeric, underscore, hyphen only)
-            for c in platform_str.chars() {
-                if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+            for &b in p_slice {
+                if !b.is_ascii_alphanumeric() && b != b'_' && b != b'-' {
                     return Err(ContractError::InvalidSocialLink);
                 }
+            }
+
+            let u_len = url.len();
+            if u_len == 0 || u_len > crate::constants::MAX_SOCIAL_LINK_URL_LEN as u32 {
+                return Err(ContractError::InvalidSocialLink);
+            }
+
+            let mut u_buf = [0u8; crate::constants::MAX_SOCIAL_LINK_URL_LEN];
+            url.copy_into_slice(&mut u_buf[..u_len as usize]);
+            let u_slice = &u_buf[..u_len as usize];
+
+            if !u_slice.starts_with(b"http://") && !u_slice.starts_with(b"https://") {
+                return Err(ContractError::InvalidSocialLink);
             }
         }
 

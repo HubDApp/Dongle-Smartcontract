@@ -12,7 +12,7 @@ use crate::events::{
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{StorageKey, ExtensionKey};
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{
     AdminActionType, VerificationRecord, VerificationRenewalRecord, VerificationStatus,
 };
