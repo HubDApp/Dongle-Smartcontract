@@ -9,6 +9,7 @@ mod collection_registry;
 pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
+mod endorsement_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -919,6 +920,32 @@ impl DongleContract {
 
     pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
         crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
+    }
+
+    // --- Endorsement Registry ---
+
+    pub fn endorse_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+        crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
+    }
+
+    pub fn unendorse_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+        crate::endorsement_registry::EndorsementRegistry::unendorse_project(&env, project_id, user)
+    }
+
+    pub fn get_endorsement_count(env: Env, project_id: u64) -> u32 {
+        crate::endorsement_registry::EndorsementRegistry::get_endorsement_count(&env, project_id)
+    }
+
+    pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {
+        crate::endorsement_registry::EndorsementRegistry::has_endorsed(&env, project_id, &user)
     }
 
     // --- Admin Timelock ---

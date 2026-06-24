@@ -1524,3 +1524,55 @@ pub fn publish_project_unfollowed_event(env: &Env, project_id: u64, follower: Ad
         event_data,
     );
 }
+
+// ── Endorsement Events ─────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectEndorsedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnendorsedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_endorsed_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectEndorsedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("ENDORSE"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_unendorsed_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectUnendorsedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNENDOR"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}

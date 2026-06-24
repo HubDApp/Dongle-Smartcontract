@@ -27,6 +27,7 @@ mod verification_features;
 // Test infrastructure
 mod bookmarks;
 mod duplicate_dispute;
+mod endorsements;
 pub mod fixtures;
 mod linked_projects;
 mod subscriptions;
