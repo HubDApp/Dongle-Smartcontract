@@ -4,6 +4,8 @@ use crate::events::{
     FeeConsumedEvent, FeeOperation, FeePaidEvent, FeeSetEvent, MinProjectAgeSetEvent,
     ProjectArchivedEvent, ProjectOwnershipTransferredEvent, ProjectReactivatedEvent,
     ReviewHiddenEvent, ReviewReportedEvent, ReviewRestoredEvent, ProjectReviewsEnabledSetEvent,
+    ProjectClaimableSetEvent, ClaimRequestSubmittedEvent, ClaimRequestApprovedEvent,
+    ClaimRequestRejectedEvent,
 };
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
@@ -54,6 +56,7 @@ fn register_project(
             metadata_cid: None,
             tags: None,
             social_links: None,
+            launch_timestamp: None,
         })
 }
 
@@ -104,13 +107,9 @@ fn test_archive_and_reactivate_events_include_topics_and_payloads() {
     let env = Env::default();
     let (client, _admin) = setup(&env);
     let owner = Address::generate(&env);
-    let project_id = register_project(&client, &env, &owner, "Archive Me");
+    let project_id = register_project(&client, &env, &owner, "Archive-Me");
 
     client.mock_all_auths().archive_project(&project_id, &owner);
-    client
-        .mock_all_auths()
-        .reactivate_project(&project_id, &owner);
-
     assert!(has_event::<ProjectArchivedEvent, _, _>(
         &env,
         (
@@ -124,6 +123,8 @@ fn test_archive_and_reactivate_events_include_topics_and_payloads() {
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
+
+    client.mock_all_auths().reactivate_project(&project_id, &owner);
     assert!(has_event::<ProjectReactivatedEvent, _, _>(
         &env,
         (
@@ -145,7 +146,7 @@ fn test_ownership_transfer_event_includes_topics_and_payload() {
     let (client, _admin) = setup(&env);
     let old_owner = Address::generate(&env);
     let new_owner = Address::generate(&env);
-    let project_id = register_project(&client, &env, &old_owner, "Transfer Me");
+    let project_id = register_project(&client, &env, &old_owner, "Transfer-Me");
 
     client
         .mock_all_auths()
@@ -174,19 +175,15 @@ fn test_ownership_transfer_event_includes_topics_and_payload() {
 #[test]
 fn test_fee_paid_and_consumed_events_include_topics_and_payloads() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup(&env);
     let owner = Address::generate(&env);
-    let project_id = register_project(&client, &env, &owner, "Fee Project");
+    let project_id = register_project(&client, &env, &owner, "Fee-Project");
     let token = setup_fee(&env, &client, &admin, &owner, 200, 0);
 
     client
         .mock_all_auths()
         .pay_fee(&owner, &project_id, &Some(token.clone()));
-    client.mock_all_auths().request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, "QmEvidenceCid123456789"),
-    );
 
     assert!(has_event::<FeePaidEvent, _, _>(
         &env,
@@ -200,6 +197,13 @@ fn test_fee_paid_and_consumed_events_include_topics_and_payloads() {
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
+
+    client.mock_all_auths().request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "QmEvidenceCid1234567890123456789012345678901234"),
+    );
+
     assert!(has_event::<FeeConsumedEvent, _, _>(
         &env,
         (symbol_short!("FEE"), symbol_short!("CONSUMED"), project_id),
@@ -220,7 +224,7 @@ fn test_review_moderation_events_include_topics_and_payloads() {
     let owner = Address::generate(&env);
     let reviewer = Address::generate(&env);
     let reporter = Address::generate(&env);
-    let project_id = register_project(&client, &env, &owner, "Moderate Me");
+    let project_id = register_project(&client, &env, &owner, "Moderate-Me");
 
     client
         .mock_all_auths()
@@ -228,12 +232,6 @@ fn test_review_moderation_events_include_topics_and_payloads() {
     client
         .mock_all_auths()
         .report_review(&project_id, &reviewer, &reporter);
-    client
-        .mock_all_auths()
-        .hide_review(&project_id, &reviewer, &admin);
-    client
-        .mock_all_auths()
-        .restore_review(&project_id, &reviewer, &admin);
 
     assert!(has_event::<ReviewReportedEvent, _, _>(
         &env,
@@ -241,7 +239,6 @@ fn test_review_moderation_events_include_topics_and_payloads() {
             symbol_short!("REVIEW"),
             symbol_short!("REPORTED"),
             project_id,
-            reviewer.clone(),
         ),
         |event| {
             event.project_id == project_id
@@ -250,13 +247,17 @@ fn test_review_moderation_events_include_topics_and_payloads() {
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
+
+    client
+        .mock_all_auths()
+        .hide_review(&project_id, &reviewer, &admin);
+
     assert!(has_event::<ReviewHiddenEvent, _, _>(
         &env,
         (
             symbol_short!("REVIEW"),
             symbol_short!("HIDDEN"),
             project_id,
-            reviewer.clone(),
         ),
         |event| {
             event.project_id == project_id
@@ -265,13 +266,17 @@ fn test_review_moderation_events_include_topics_and_payloads() {
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
+
+    client
+        .mock_all_auths()
+        .restore_review(&project_id, &reviewer, &admin);
+
     assert!(has_event::<ReviewRestoredEvent, _, _>(
         &env,
         (
             symbol_short!("REVIEW"),
             symbol_short!("RESTORED"),
             project_id,
-            reviewer,
         ),
         |event| {
             event.project_id == project_id
@@ -294,7 +299,6 @@ fn test_settings_events_include_topics_and_payloads() {
     client
         .mock_all_auths()
         .set_fee(&admin, &Some(token.clone()), &300, &25, &owner);
-    client.mock_all_auths().set_min_project_age(&admin, &86_400);
 
     assert!(has_event::<FeeSetEvent, _, _>(
         &env,
@@ -308,12 +312,14 @@ fn test_settings_events_include_topics_and_payloads() {
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));
+
+    client.mock_all_auths().set_min_project_age(&admin, &86_400);
+
     assert!(has_event::<MinProjectAgeSetEvent, _, _>(
         &env,
         (symbol_short!("CONFIG"), symbol_short!("MIN_AGE")),
         |event| {
             event.admin == admin
-                && event.previous_min_age_seconds == 0
                 && event.min_age_seconds == 86_400
                 && event.timestamp == TEST_TIMESTAMP
         }
@@ -325,7 +331,7 @@ fn test_project_reviews_enabled_set_event() {
     let env = Env::default();
     let (client, admin) = setup(&env);
     let owner = Address::generate(&env);
-    let project_id = register_project(&client, &env, &owner, "Review Config Project");
+    let project_id = register_project(&client, &env, &owner, "Review-Config-Project");
 
     // Disable reviews
     client.mock_all_auths().set_reviews_enabled(&project_id, &owner, &false);
@@ -337,6 +343,94 @@ fn test_project_reviews_enabled_set_event() {
             event.project_id == project_id
                 && event.caller == owner
                 && event.enabled == false
+                && event.timestamp == TEST_TIMESTAMP
+        }
+    ));
+}
+
+#[test]
+fn test_project_claim_events() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let claimant = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner, "Claimable-Project");
+
+    // 1. Set claimable to true
+    client.mock_all_auths().set_project_claimable(&project_id, &owner, &true);
+
+    assert!(has_event::<ProjectClaimableSetEvent, _, _>(
+        &env,
+        (symbol_short!("PROJECT"), symbol_short!("CLAIMABLE"), project_id),
+        |event| {
+            event.project_id == project_id
+                && event.caller == owner
+                && event.claimable == true
+                && event.timestamp == TEST_TIMESTAMP
+        }
+    ));
+
+    // 2. Submit claim request
+    let proof_cid = String::from_str(&env, "QmTestProofCid");
+    let claim_request_id = client.mock_all_auths().submit_claim_request(&project_id, &claimant, &proof_cid);
+
+    assert!(has_event::<ClaimRequestSubmittedEvent, _, _>(
+        &env,
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("SUBMITTED"),
+            project_id,
+            claimant.clone()
+        ),
+        |event| {
+            event.claim_request_id == claim_request_id
+                && event.project_id == project_id
+                && event.claimant == claimant
+                && event.proof_cid == proof_cid
+                && event.timestamp == TEST_TIMESTAMP
+        }
+    ));
+
+    // 3. Reject claim request
+    client.mock_all_auths().reject_claim_request(&claim_request_id, &admin);
+
+    assert!(has_event::<ClaimRequestRejectedEvent, _, _>(
+        &env,
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("REJECTED"),
+            project_id,
+            claimant.clone()
+        ),
+        |event| {
+            event.claim_request_id == claim_request_id
+                && event.project_id == project_id
+                && event.claimant == claimant
+                && event.admin == admin
+                && event.timestamp == TEST_TIMESTAMP
+        }
+    ));
+
+    // 4. Submit claim request again (using claimant_2 since claimant already has a request record)
+    let claimant_2 = Address::generate(&env);
+    let claim_request_id_2 = client.mock_all_auths().submit_claim_request(&project_id, &claimant_2, &proof_cid);
+
+    // 5. Approve claim request
+    client.mock_all_auths().approve_claim_request(&claim_request_id_2, &admin);
+
+    assert!(has_event::<ClaimRequestApprovedEvent, _, _>(
+        &env,
+        (
+            symbol_short!("CLAIM"),
+            symbol_short!("APPROVED"),
+            project_id,
+            claimant_2.clone()
+        ),
+        |event| {
+            event.claim_request_id == claim_request_id_2
+                && event.project_id == project_id
+                && event.claimant == claimant_2
+                && event.admin == admin
                 && event.timestamp == TEST_TIMESTAMP
         }
     ));

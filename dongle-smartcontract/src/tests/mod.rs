@@ -15,7 +15,7 @@ mod review;
 // mod authorization;
 // mod basic_new_features;
 mod cleanup;
-// mod events;
+mod events;
 mod moderation;
 // mod pagination;
 mod claim;
@@ -23,6 +23,7 @@ mod dependencies;
 mod maintainers;
 mod review_settings;
 mod verification_features;
+mod renewal;
 
 // Test infrastructure
 mod duplicate_dispute;
