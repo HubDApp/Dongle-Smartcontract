@@ -114,4 +114,16 @@ pub enum ExtensionKey {
     ProjectFollowers(u64),
     UserSubscriptions(Address),
     FollowerCount(u64),
+    /// Admin Timelock: scheduled action by ID.
+    TimelockAction(u64),
+    /// Admin Timelock: list of all scheduled action IDs.
+    TimelockActionIds,
+    /// Admin Timelock: next action ID counter.
+    NextTimelockActionId,
+    /// Admin Timelock: fee change params keyed by action ID.
+    TimelockFeeParams(u64),
+    /// Admin Timelock: admin add params keyed by action ID.
+    TimelockAdminAddParams(u64),
+    /// Admin Timelock: admin remove params keyed by action ID.
+    TimelockAdminRemoveParams(u64),
 }
