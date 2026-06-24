@@ -27,8 +27,7 @@ pub enum ContractError {
     InvalidSocialLink = 21,
     TooManySocialLinks = 22,
     AlreadyReported = 23,
-    InvalidReportReason = 24,
-    AdminNotFound = 25,
+    AdminNotFound = 24,
     InvalidProjectName = 26,
     InvalidProjectDesc = 27,
     InvalidCategory = 28,
@@ -39,8 +38,7 @@ pub enum ContractError {
     InvalidMetaCid = 33,
     CategoryTooLong = 34,
     WebsiteTooLong = 35,
-    NotRevocable = 36,
-    TransferNotFound = 37,
+    TransferNotFound = 36,
     NotTransferRecip = 38,
     ReviewsDisabled = 39,
     ReviewAlreadyReported = 40,
@@ -54,6 +52,8 @@ pub enum ContractError {
     AlreadyInCollection = 48,
     AlreadyLinked = 49,
     CannotLinkToSelf = 50,
+    AlreadyFollowing = 51,
+    NotFollowing = 52,
 }
 
 pub type Error = ContractError;

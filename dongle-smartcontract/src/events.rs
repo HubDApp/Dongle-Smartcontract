@@ -1334,3 +1334,55 @@ pub fn publish_project_maintainer_removed_event(
         event_data,
     );
 }
+
+// ── Subscription / Follow Events ─────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectFollowedEvent {
+    pub project_id: u64,
+    pub follower: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnfollowedEvent {
+    pub project_id: u64,
+    pub follower: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_followed_event(env: &Env, project_id: u64, follower: Address) {
+    let event_data = ProjectFollowedEvent {
+        project_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("FOLLOWED"),
+            project_id,
+            follower,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_unfollowed_event(env: &Env, project_id: u64, follower: Address) {
+    let event_data = ProjectUnfollowedEvent {
+        project_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNFOLLOW"),
+            project_id,
+            follower,
+        ),
+        event_data,
+    );
+}

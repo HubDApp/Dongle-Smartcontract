@@ -28,3 +28,4 @@ mod verification_features;
 mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;
+mod subscriptions;

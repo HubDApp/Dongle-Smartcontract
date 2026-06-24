@@ -444,7 +444,7 @@ impl VerificationRegistry {
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         if project.verification_status != VerificationStatus::Verified {
-            return Err(ContractError::NotRevocable);
+            return Err(ContractError::InvalidStatus);
         }
 
         let mut record = Self::get_verification(env, project_id)?;
