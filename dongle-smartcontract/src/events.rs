@@ -806,6 +806,34 @@ pub fn publish_fee_set_event(
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectReviewsEnabledSetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub enabled: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_reviews_enabled_set_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    enabled: bool,
+) {
+    let event_data = ProjectReviewsEnabledSetEvent {
+        project_id,
+        caller,
+        enabled,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("REVIEWS"), project_id),
+        event_data,
+    );
+}
+
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectClaimableSetEvent {
     pub project_id: u64,
     pub caller: Address,

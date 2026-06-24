@@ -3,7 +3,7 @@
 use crate::events::{
     FeeConsumedEvent, FeeOperation, FeePaidEvent, FeeSetEvent, MinProjectAgeSetEvent,
     ProjectArchivedEvent, ProjectOwnershipTransferredEvent, ProjectReactivatedEvent,
-    ReviewHiddenEvent, ReviewReportedEvent, ReviewRestoredEvent,
+    ReviewHiddenEvent, ReviewReportedEvent, ReviewRestoredEvent, ProjectReviewsEnabledSetEvent,
 };
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
@@ -319,3 +319,26 @@ fn test_settings_events_include_topics_and_payloads() {
         }
     ));
 }
+
+#[test]
+fn test_project_reviews_enabled_set_event() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner, "Review Config Project");
+
+    // Disable reviews
+    client.mock_all_auths().set_reviews_enabled(&project_id, &owner, &false);
+
+    assert!(has_event::<ProjectReviewsEnabledSetEvent, _, _>(
+        &env,
+        (symbol_short!("PROJECT"), symbol_short!("REVIEWS"), project_id),
+        |event| {
+            event.project_id == project_id
+                && event.caller == owner
+                && event.enabled == false
+                && event.timestamp == TEST_TIMESTAMP
+        }
+    ));
+}
+
