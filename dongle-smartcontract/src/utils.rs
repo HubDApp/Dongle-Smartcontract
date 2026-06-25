@@ -69,7 +69,7 @@ impl Utils {
             return Err(ContractError::InvalidWebsite);
         }
         if len > crate::constants::MAX_WEBSITE_LEN as u32 {
-            return Err(ContractError::WebsiteTooLong);
+            return Err(ContractError::InvalidWebsite);
         }
 
         let mut buf = [0u8; crate::constants::MAX_WEBSITE_LEN];
@@ -92,7 +92,7 @@ impl Utils {
             return Err(ContractError::InvalidCategory);
         }
         if len > crate::constants::MAX_CATEGORY_LEN as u32 {
-            return Err(ContractError::CategoryTooLong);
+            return Err(ContractError::InvalidCategory);
         }
 
         let mut buf = [0u8; crate::constants::MAX_CATEGORY_LEN];

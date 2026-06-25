@@ -25,13 +25,13 @@ fn s(env: &Env, v: &str) -> SorobanString {
 
 /// Build a Soroban string of `n` repetitions of ASCII byte `ch`.
 fn repeat_byte(env: &Env, ch: u8, n: usize) -> SorobanString {
-    let raw: StdString = alloc::iter::repeat(ch as char).take(n).collect();
+    let raw: StdString = core::iter::repeat(ch as char).take(n).collect();
     SorobanString::from_str(env, &raw)
 }
 
 /// Build a std String of `n` repetitions of `ch`.
 fn repeat_char(ch: char, n: usize) -> StdString {
-    alloc::iter::repeat(ch).take(n).collect()
+    core::iter::repeat(ch).take(n).collect()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -276,7 +276,7 @@ fn category_over_max_len_invalid() {
     let cat = repeat_byte(&e, b'c', MAX_CATEGORY_LEN + 1);
     assert_eq!(
         Utils::validate_category_field(&cat),
-        Err(ContractError::CategoryTooLong)
+        Err(ContractError::InvalidCategory)
     );
 }
 
@@ -479,7 +479,7 @@ fn url_over_max_len_invalid() {
     let url = alloc::format!("{prefix}{fill}");
     assert_eq!(
         Utils::validate_website(&s(&e, &url)),
-        Err(ContractError::WebsiteTooLong)
+        Err(ContractError::InvalidWebsite)
     );
 }
 

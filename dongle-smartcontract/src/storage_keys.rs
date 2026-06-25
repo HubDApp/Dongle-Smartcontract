@@ -136,4 +136,8 @@ pub enum ExtensionKey {
     AdminProposal(u64),
     /// Admin governance: list of all proposal IDs.
     AdminProposalIds,
+    /// Project endorsements: list of addresses that endorsed a project.
+    ProjectEndorsements(u64),
+    /// Endorsement count for a project.
+    EndorsementCount(u64),
 }

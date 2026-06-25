@@ -36,8 +36,6 @@ pub enum ContractError {
     InvalidWebsite = 31,
     InvalidLogoCid = 32,
     InvalidMetaCid = 33,
-    CategoryTooLong = 34,
-    WebsiteTooLong = 35,
     TransferNotFound = 36,
     NotTransferRecip = 38,
     ReviewsDisabled = 39,
@@ -54,9 +52,8 @@ pub enum ContractError {
     CannotLinkToSelf = 50,
     AlreadyFollowing = 51,
     NotFollowing = 52,
-    /// Attempted to change a field that is frozen after verification.
-    /// The project must be re-verified or the change must be reverted.
     VerifiedFieldFrozen = 53,
+    NativeFeeNotSupported = 54,
 }
 
 pub type Error = ContractError;

@@ -110,7 +110,7 @@ fn test_get_user_bookmarks_pagination() {
     let owner = Address::generate(&env);
     let user = Address::generate(&env);
 
-    let names = ["Proj_0", "Proj_1", "Proj_2", "Proj_3"];
+    let names = ["Proj-0", "Proj-1", "Proj-2", "Proj-3"];
     for name in names {
         let project_id = create_test_project(&client, &owner, name);
         client.bookmark_project(&project_id, &user);

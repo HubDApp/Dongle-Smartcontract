@@ -79,7 +79,7 @@ fn test_fee_config_reflects_new_token_after_rotation() {
     let token_b = Address::generate(&env);
     client.set_fee(&admin, &Some(token_b.clone()), &200u128, &0u128, &treasury);
 
-    let config = client.get_fee_config().unwrap();
+    let config = client.get_fee_config();
     assert_eq!(config.token, Some(token_b));
     assert_eq!(config.verification_fee, 200u128);
 }
@@ -90,15 +90,13 @@ fn test_treasury_unchanged_after_token_rotation() {
     env.mock_all_auths();
     let (client, admin, treasury, _token_a) = setup_with_token(&env);
 
-    let token_b = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let token_b = new_token(&env, &owner, 100);
     client.set_fee(&admin, &Some(token_b.clone()), &100u128, &0u128, &treasury);
 
     // Treasury is stored inside set_fee but not directly exposed via get_fee_config.
     // Verify indirectly: a payment with the new token must reach the treasury.
-    let owner = Address::generate(&env);
     let project_id = register_project(&client, &env, &owner, "TreasuryCheck");
-
-    mint(&env, &token_b, &owner, 100);
     // Pay should succeed — proves treasury is still reachable with new token
     client.pay_fee(&owner, &project_id, &Some(token_b.clone()));
 }
@@ -197,7 +195,7 @@ fn test_zero_fee_with_none_token_allows_verification_no_payment() {
     // Rotate to zero-fee, no token
     client.set_fee(&admin, &None, &0u128, &0u128, &treasury);
 
-    let config = client.get_fee_config().unwrap();
+    let config = client.get_fee_config();
     assert_eq!(config.token, None);
     assert_eq!(config.verification_fee, 0u128);
 
@@ -366,7 +364,7 @@ fn test_multiple_rotations_last_config_applies() {
     client.set_fee(&admin, &Some(t3.clone()), &300u128, &0u128, &treasury);
     client.set_fee(&admin, &Some(t4.clone()), &50u128, &0u128, &treasury);
 
-    let config = client.get_fee_config().unwrap();
+    let config = client.get_fee_config();
     assert_eq!(config.token, Some(t4.clone()));
     assert_eq!(config.verification_fee, 50u128);
 

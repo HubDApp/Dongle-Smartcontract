@@ -64,26 +64,25 @@ make test-verbose
 cargo test -- --nocapture
 ```
 
-### Deploy to Testnet
+### Deploy and Invoke via Scripts
+
+Convenient deployment and invocation scripts are available under the `scripts/` directory:
 
 ```bash
-cd dongle-smartcontract
+# Configure deployment variables (or define in a .env file)
+export DEPLOYER_IDENTITY=alice
 
-# Configure network (first time only)
-soroban network add \
-  --global testnet \
-  --rpc-url https://soroban-testnet.stellar.org:443 \
-  --network-passphrase "Test SDF Network ; September 2015"
+# Deploy to Testnet (saves Contract ID to .contract_id)
+./scripts/deploy_testnet.sh
 
-# Create identity (first time only)
-soroban keys generate --global alice --network testnet
+# Initialize contract with default admin
+./scripts/initialize.sh
 
-# Fund account (first time only)
-soroban keys fund alice --network testnet
-
-# Deploy
-make deploy-testnet
+# Invoke common contract methods (e.g. register a project)
+./scripts/invoke.sh register <owner_address> "My Project" "my-project" "Description" "DeFi"
 ```
+
+For a comprehensive guide on configuration and scripts, refer to the [dongle-smartcontract README](dongle-smartcontract/README.md).
 
 ## Usage Examples
 
@@ -309,6 +308,10 @@ Dongle promotes:
 ## Documentation
 
 - [Smart Contract README](dongle-smartcontract/README.md) - Comprehensive API documentation and usage examples
+- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
+- [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
+- [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
+- [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
 - [Soroban Examples](https://github.com/stellar/soroban-examples)
