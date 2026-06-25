@@ -22,21 +22,38 @@ impl DependencyRegistry {
         Ok(())
     }
 
+    /// Validate a Stellar contract address: 56 uppercase base32 chars starting with 'C'.
+    fn validate_contract_address(addr: &String) -> Result<(), ContractError> {
+        let len = addr.len();
+        if len != 56 {
+            return Err(ContractError::InvalidProjectData);
+        }
+        let mut buf = [0u8; 56];
+        addr.copy_into_slice(&mut buf);
+        if buf[0] != b'C' {
+            return Err(ContractError::InvalidProjectData);
+        }
+        for &c in buf.iter() {
+            if !(c.is_ascii_uppercase() || (c >= b'2' && c <= b'7')) {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+        Ok(())
+    }
+
     fn validate_dependency_ref(env: &Env, dep: &DependencyRef) -> Result<(), ContractError> {
-        // Acceptance criteria: dependency references support project IDs and external CIDs/URLs.
-        // Reject invalid or duplicate dependencies.
         let has_pid = dep.project_id.is_some();
         let has_cid = dep.external_cid.is_some();
         let has_url = dep.external_url.is_some();
+        let has_contract = dep.external_contract.is_some();
 
-        // Must have at least one and only one (to keep uniqueness simple and deterministic)
-        let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8);
+        // Exactly one reference kind must be set.
+        let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8) + (has_contract as u8);
         if cnt != 1 {
             return Err(ContractError::InvalidProjectData);
         }
 
         if let Some(cid) = &dep.external_cid {
-            // use existing CID validation
             Utils::validate_metadata_cid(cid).map_err(|_| ContractError::InvalidLogoCid)?;
         }
 
@@ -52,6 +69,10 @@ impl DependencyRegistry {
             {
                 return Err(ContractError::ProjectNotFound);
             }
+        }
+
+        if let Some(contract) = &dep.external_contract {
+            Self::validate_contract_address(contract)?;
         }
 
         Ok(())
@@ -99,6 +120,14 @@ impl DependencyRegistry {
             buf[0..4].copy_from_slice(b"URL:");
             url.copy_into_slice(&mut buf[4..4 + url_len as usize]);
             let key_str = core::str::from_utf8(&buf[..4 + url_len as usize]).unwrap();
+            return Ok(String::from_str(env, key_str));
+        }
+        if let Some(contract) = &dep.external_contract {
+            // Contract addresses are always 56 chars; "CTR:" prefix ensures no collision.
+            let mut buf = [0u8; 4 + 56];
+            buf[0..4].copy_from_slice(b"CTR:");
+            contract.copy_into_slice(&mut buf[4..60]);
+            let key_str = core::str::from_utf8(&buf[..60]).unwrap();
             return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)
