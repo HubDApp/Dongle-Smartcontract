@@ -297,6 +297,7 @@ pub enum AdminActionType {
     DuplicateDisputeResolved,
     DuplicateDisputeRejected,
     VerificationDurationSet,
+    ThresholdChanged,
 }
 
 #[contracttype]
@@ -378,4 +379,38 @@ pub struct TimelockAdminAddParams {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelockAdminRemoveParams {
     pub admin_to_remove: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProposalStatus {
+    Pending,
+    Approved,
+    Executed,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProposalPayload {
+    AddAdmin(Address),
+    RemoveAdmin(Address),
+    SetFee(Option<Address>, u128, u128, Address),
+    SetThreshold(u32),
+    ApproveVerification(u64),
+    RejectVerification(u64),
+    RevokeVerification(u64, String),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminProposal {
+    pub id: u64,
+    pub proposer: Address,
+    pub action_type: AdminActionType,
+    pub payload_hash: soroban_sdk::BytesN<32>,
+    pub payload: ProposalPayload,
+    pub approvals: Vec<Address>,
+    pub status: ProposalStatus,
+    pub created_at: u64,
 }

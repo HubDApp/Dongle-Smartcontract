@@ -32,3 +32,4 @@ pub mod fixtures;
 mod linked_projects;
 mod subscriptions;
 mod timelock;
+mod multisig_and_history;

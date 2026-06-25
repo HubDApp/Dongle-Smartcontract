@@ -265,6 +265,10 @@ impl VerificationRegistry {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+
         // Get project
         let mut project =
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
@@ -318,6 +322,10 @@ impl VerificationRegistry {
         admin: Address,
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
+
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
 
         // Get project
         let mut project =
@@ -374,6 +382,16 @@ impl VerificationRegistry {
             .persistent()
             .get::<_, u64>(&StorageKey::Verification(project_id))
             .ok_or(ContractError::VerificationNotFound)?;
+        env.storage()
+            .persistent()
+            .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
+            .ok_or(ContractError::VerificationNotFound)
+    }
+
+    pub fn get_verification_record(
+        env: &Env,
+        request_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
@@ -447,6 +465,10 @@ impl VerificationRegistry {
         reason: String,
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
+
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
 
         let mut project =
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
