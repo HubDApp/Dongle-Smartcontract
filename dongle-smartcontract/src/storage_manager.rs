@@ -359,6 +359,32 @@ impl StorageManager {
         }
     }
 
+    /// Extend TTL for project endorsements list and count
+    pub fn extend_endorsements_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectEndorsements(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectEndorsements(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::EndorsementCount(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::EndorsementCount(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
     /// Extend TTL for user subscriptions list
     pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
         if env
