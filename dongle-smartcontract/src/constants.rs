@@ -5,6 +5,20 @@
 #[allow(dead_code)]
 pub const MAX_PROJECTS_PER_USER: u32 = 50;
 
+// ── Storage index size limits ───────────────────────────────────────────────
+// Vec-based indexes are capped on write to avoid unbounded per-user/project growth.
+// See STORAGE_INDEXES.md for the full index catalog and pagination strategy.
+
+/// Maximum unique reviewers indexed per project (`ProjectReviews`).
+pub const MAX_REVIEWS_PER_PROJECT: u32 = 500;
+
+/// Maximum projects indexed per reviewer (`UserReviews`).
+/// Also used as the shared index-capacity error (`MaxProjectsExceeded`) for review indexes.
+pub const MAX_REVIEWS_PER_USER: u32 = 200;
+
+/// Maximum items returned per paginated read query across list endpoints.
+pub const MAX_PAGE_LIMIT: u32 = 100;
+
 /// Minimum length for name, description, category (must be non-empty after trim in validation).
 #[allow(dead_code)]
 pub const MIN_STRING_LEN: usize = 1;

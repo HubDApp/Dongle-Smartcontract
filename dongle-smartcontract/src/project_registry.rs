@@ -1,5 +1,5 @@
 use crate::admin_manager::AdminManager;
-use crate::constants::MAX_PROJECTS_PER_USER;
+use crate::constants::{MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER};
 use crate::errors::ContractError;
 use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
@@ -17,9 +17,6 @@ use crate::types::{
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
-
-/// Maximum number of items returned per paginated list call.
-pub const MAX_PAGE_LIMIT: u32 = 100;
 
 pub struct ProjectRegistry;
 
@@ -71,11 +68,7 @@ impl ProjectRegistry {
             Utils::validate_social_links(social_links)?;
         }
 
-        // Check if owner has exceeded maximum projects limit
-        let owner_project_count = Self::owner_project_count(env, &params.owner);
-        if owner_project_count >= MAX_PROJECTS_PER_USER {
-            return Err(ContractError::MaxProjectsExceeded);
-        }
+        Self::ensure_owner_capacity(env, &params.owner)?;
 
         // Check if project name already exists
         if env
@@ -559,6 +552,14 @@ impl ProjectRegistry {
             .len()
     }
 
+    /// Reject writes that would grow `OwnerProjects` beyond `MAX_PROJECTS_PER_USER`.
+    fn ensure_owner_capacity(env: &Env, owner: &Address) -> Result<(), ContractError> {
+        if Self::owner_project_count(env, owner) >= MAX_PROJECTS_PER_USER {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+        Ok(())
+    }
+
     pub fn get_owner_project_count(env: &Env, owner: &Address) -> u32 {
         Self::owner_project_count(env, owner)
     }
@@ -803,6 +804,8 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::OwnerProjects(old_owner.clone()), &updated_old);
+
+        Self::ensure_owner_capacity(env, &pending_new_owner)?;
 
         // Add project_id to new owner's list
         let mut new_owner_projects: Vec<u64> = env
@@ -1118,6 +1121,8 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(old_owner.clone()),
             &updated_old_owner_projects,
         );
+
+        Self::ensure_owner_capacity(env, &claim_request.claimant)?;
 
         let mut new_owner_projects: Vec<u64> = env
             .storage()
