@@ -30,6 +30,6 @@ mod bookmarks;
 mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;
+mod multisig_and_history;
 mod subscriptions;
 mod timelock;
-mod multisig_and_history;

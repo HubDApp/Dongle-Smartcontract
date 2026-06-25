@@ -9,8 +9,10 @@ use crate::errors::ContractError;
 use crate::events::{publish_admin_added_event, publish_admin_removed_event};
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
-use crate::types::{AdminActionType, AdminProposal, ProposalPayload, ProposalStatus, VerificationStatus, FeeConfig};
-use soroban_sdk::{Address, Env, Vec, xdr::ToXdr};
+use crate::types::{
+    AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
+};
+use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -258,9 +260,10 @@ impl AdminManager {
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage()
-            .persistent()
-            .set(&crate::storage_keys::ExtensionKey::AdminProposal(id), &proposal);
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(id),
+            &proposal,
+        );
 
         let mut ids = env
             .storage()
@@ -272,9 +275,10 @@ impl AdminManager {
             .persistent()
             .set(&crate::storage_keys::ExtensionKey::AdminProposalIds, &ids);
 
-        env.storage()
-            .persistent()
-            .set(&crate::storage_keys::ExtensionKey::NextAdminProposalId, &(id + 1));
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::NextAdminProposalId,
+            &(id + 1),
+        );
 
         Ok(id)
     }
@@ -290,7 +294,9 @@ impl AdminManager {
         let mut proposal = env
             .storage()
             .persistent()
-            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(proposal_id))
+            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
             .ok_or(ContractError::InvalidStatus)?;
 
         if proposal.status != ProposalStatus::Pending {
@@ -310,9 +316,10 @@ impl AdminManager {
             proposal.status = ProposalStatus::Approved;
         }
 
-        env.storage()
-            .persistent()
-            .set(&crate::storage_keys::ExtensionKey::AdminProposal(proposal_id), &proposal);
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            &proposal,
+        );
 
         Ok(())
     }
@@ -328,7 +335,9 @@ impl AdminManager {
         let mut proposal = env
             .storage()
             .persistent()
-            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(proposal_id))
+            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
             .ok_or(ContractError::InvalidStatus)?;
 
         if proposal.status == ProposalStatus::Executed {
@@ -408,16 +417,24 @@ impl AdminManager {
                 );
             }
             ProposalPayload::ApproveVerification(project_id) => {
-                let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
-                    .ok_or(ContractError::ProjectNotFound)?;
-                let mut record = crate::verification_registry::VerificationRegistry::get_verification(env, project_id)?;
+                let mut project =
+                    crate::project_registry::ProjectRegistry::get_project(env, project_id)
+                        .ok_or(ContractError::ProjectNotFound)?;
+                let mut record =
+                    crate::verification_registry::VerificationRegistry::get_verification(
+                        env, project_id,
+                    )?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Verified,
                 )?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Verified;
-                record.expires_at = now.saturating_add(crate::verification_registry::VerificationRegistry::get_verification_duration(env));
+                record.expires_at = now.saturating_add(
+                    crate::verification_registry::VerificationRegistry::get_verification_duration(
+                        env,
+                    ),
+                );
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Verification(project_id), &record.request_id);
@@ -433,9 +450,13 @@ impl AdminManager {
                 crate::events::publish_verification_approved_event(env, project_id, caller.clone());
             }
             ProposalPayload::RejectVerification(project_id) => {
-                let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
-                    .ok_or(ContractError::ProjectNotFound)?;
-                let mut record = crate::verification_registry::VerificationRegistry::get_verification(env, project_id)?;
+                let mut project =
+                    crate::project_registry::ProjectRegistry::get_project(env, project_id)
+                        .ok_or(ContractError::ProjectNotFound)?;
+                let mut record =
+                    crate::verification_registry::VerificationRegistry::get_verification(
+                        env, project_id,
+                    )?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Rejected,
@@ -457,12 +478,16 @@ impl AdminManager {
                 crate::events::publish_verification_rejected_event(env, project_id, caller.clone());
             }
             ProposalPayload::RevokeVerification(project_id, reason) => {
-                let mut project = crate::project_registry::ProjectRegistry::get_project(env, project_id)
-                    .ok_or(ContractError::ProjectNotFound)?;
+                let mut project =
+                    crate::project_registry::ProjectRegistry::get_project(env, project_id)
+                        .ok_or(ContractError::ProjectNotFound)?;
                 if project.verification_status != VerificationStatus::Verified {
                     return Err(ContractError::InvalidStatus);
                 }
-                let mut record = crate::verification_registry::VerificationRegistry::get_verification(env, project_id)?;
+                let mut record =
+                    crate::verification_registry::VerificationRegistry::get_verification(
+                        env, project_id,
+                    )?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Unverified;
                 record.revoke_reason = Some(reason.clone());
@@ -478,14 +503,20 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_revoked_event(env, project_id, caller.clone(), reason);
+                crate::events::publish_verification_revoked_event(
+                    env,
+                    project_id,
+                    caller.clone(),
+                    reason,
+                );
             }
         }
 
         proposal.status = ProposalStatus::Executed;
-        env.storage()
-            .persistent()
-            .set(&crate::storage_keys::ExtensionKey::AdminProposal(proposal_id), &proposal);
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            &proposal,
+        );
 
         Ok(())
     }
@@ -493,7 +524,9 @@ impl AdminManager {
     pub fn get_proposal(env: &Env, proposal_id: u64) -> Option<AdminProposal> {
         env.storage()
             .persistent()
-            .get(&crate::storage_keys::ExtensionKey::AdminProposal(proposal_id))
+            .get(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
     }
 }
 

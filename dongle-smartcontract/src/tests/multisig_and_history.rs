@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::errors::ContractError;
-use crate::tests::fixtures::{setup_contract, create_test_project};
+use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProposalPayload, ProposalStatus, VerificationStatus};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 

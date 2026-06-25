@@ -669,12 +669,14 @@ impl VerificationRegistry {
         verification.status = VerificationStatus::Verified;
         verification.expires_at = expires_at;
         verification.last_renewed_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Verification(project_id), &verification.request_id);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::VerificationRecord(verification.request_id), &verification);
+        env.storage().persistent().set(
+            &StorageKey::Verification(project_id),
+            &verification.request_id,
+        );
+        env.storage().persistent().set(
+            &StorageKey::VerificationRecord(verification.request_id),
+            &verification,
+        );
 
         project.updated_at = now;
         project.current_verification_id = Some(verification.request_id);
