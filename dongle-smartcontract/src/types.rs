@@ -212,7 +212,7 @@ pub struct ProjectAggregate {
 // ── Project dependencies ─────────────────────────────────────────────────────
 
 /// External dependency reference can point to an internal project id,
-/// an external IPFS CID, or an external URL.
+/// an external IPFS CID, an external URL, or a Stellar contract address.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DependencyRef {
@@ -222,6 +222,8 @@ pub struct DependencyRef {
     pub external_cid: Option<String>,
     /// External URL reference (http/https).
     pub external_url: Option<String>,
+    /// External Stellar contract address (56-char Strkey, starts with 'C').
+    pub external_contract: Option<String>,
 }
 
 #[contracttype]
