@@ -118,6 +118,7 @@ pub struct Project {
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
+    pub current_verification_id: Option<u64>,
     pub archived: bool,
     pub claimable: bool,
     pub created_at: u64,

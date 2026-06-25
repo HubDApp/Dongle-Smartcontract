@@ -232,7 +232,7 @@ impl VerificationRegistry {
         // 9. Save to current/latest backward-compatible record
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+            .set(&StorageKey::Verification(project_id), &request_id);
 
         // 10. Append request_id to ProjectVerificationHistory
         let mut history = env
@@ -248,6 +248,7 @@ impl VerificationRegistry {
 
         // 11. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
+        project.current_verification_id = Some(request_id);
         project.updated_at = now;
         env.storage()
             .persistent()
@@ -284,13 +285,14 @@ impl VerificationRegistry {
         record.expires_at = now.saturating_add(Self::get_verification_duration(env));
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+            .set(&StorageKey::Verification(project_id), &record.request_id);
         env.storage()
             .persistent()
             .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         // Update project
         project.verification_status = VerificationStatus::Verified;
+        project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
         env.storage()
             .persistent()
@@ -336,13 +338,14 @@ impl VerificationRegistry {
         record.status = VerificationStatus::Rejected;
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+            .set(&StorageKey::Verification(project_id), &record.request_id);
         env.storage()
             .persistent()
             .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         // Update project
         project.verification_status = VerificationStatus::Rejected;
+        project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
         env.storage()
             .persistent()
@@ -366,9 +369,14 @@ impl VerificationRegistry {
         env: &Env,
         project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
+        let request_id = env
+            .storage()
+            .persistent()
+            .get::<_, u64>(&StorageKey::Verification(project_id))
+            .ok_or(ContractError::VerificationNotFound)?;
         env.storage()
             .persistent()
-            .get(&StorageKey::Verification(project_id))
+            .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
             .ok_or(ContractError::VerificationNotFound)
     }
 
@@ -455,12 +463,13 @@ impl VerificationRegistry {
         record.revoke_reason = Some(reason.clone());
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &record);
+            .set(&StorageKey::Verification(project_id), &record.request_id);
         env.storage()
             .persistent()
             .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
         project.verification_status = VerificationStatus::Unverified;
+        project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
         env.storage()
             .persistent()
@@ -640,9 +649,13 @@ impl VerificationRegistry {
         verification.last_renewed_at = now;
         env.storage()
             .persistent()
-            .set(&StorageKey::Verification(project_id), &verification);
+            .set(&StorageKey::Verification(project_id), &verification.request_id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(verification.request_id), &verification);
 
         project.updated_at = now;
+        project.current_verification_id = Some(verification.request_id);
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
