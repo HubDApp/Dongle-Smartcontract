@@ -41,10 +41,10 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, ClaimRequest, ClaimStatus, Collection, DependencyRef,
+    AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, DependencyRef,
     DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, Project,
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
-    Review, TimelockAction, VerificationRecord, VerificationStatus,
+    ProposalPayload, Review, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -82,6 +82,46 @@ impl DongleContract {
 
     pub fn get_admin_count(env: Env) -> u32 {
         AdminManager::get_admin_count(&env)
+    }
+
+    pub fn get_admin_approval_threshold(env: Env) -> u32 {
+        AdminManager::get_admin_approval_threshold(&env)
+    }
+
+    pub fn set_admin_approval_threshold(
+        env: Env,
+        caller: Address,
+        threshold: u32,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_admin_approval_threshold(&env, caller, threshold)
+    }
+
+    pub fn create_proposal(
+        env: Env,
+        proposer: Address,
+        payload: ProposalPayload,
+    ) -> Result<u64, ContractError> {
+        AdminManager::create_proposal(&env, proposer, payload)
+    }
+
+    pub fn approve_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::approve_proposal(&env, admin, proposal_id)
+    }
+
+    pub fn execute_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::execute_proposal(&env, caller, proposal_id)
+    }
+
+    pub fn get_proposal(env: Env, proposal_id: u64) -> Option<AdminProposal> {
+        AdminManager::get_proposal(&env, proposal_id)
     }
 
     // --- Project Registry ---
@@ -416,6 +456,13 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         VerificationRegistry::get_verification(&env, project_id)
+    }
+
+    pub fn get_verification_record(
+        env: Env,
+        request_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        VerificationRegistry::get_verification_record(&env, request_id)
     }
 
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {

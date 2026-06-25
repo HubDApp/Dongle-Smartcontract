@@ -25,6 +25,10 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -81,7 +85,9 @@ impl FeeManager {
 
         let amount = config.verification_fee;
         if amount > 0 {
-            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
+            // set_fee enforces that token is Some when fees are non-zero, so this
+            // ok_or branch is a defensive guard against corrupted storage state.
+            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             client.transfer(&payer, &treasury, &(amount as i128));
         }
@@ -187,7 +193,8 @@ impl FeeManager {
 
         let amount = config.registration_fee;
         if amount > 0 {
-            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
+            // Defensive guard — set_fee already rejects None token with non-zero fees.
+            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             client.transfer(&payer, &treasury, &(amount as i128));
         }

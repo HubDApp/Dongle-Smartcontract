@@ -115,6 +115,7 @@ impl ProjectRegistry {
             logo_cid: params.logo_cid,
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
+            current_verification_id: None,
             archived: false,
             claimable: false,
             created_at: now,

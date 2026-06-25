@@ -128,8 +128,12 @@ pub enum ExtensionKey {
     TimelockAdminRemoveParams(u64),
     /// User bookmarks: list of project IDs bookmarked by a user.
     UserBookmarks(Address),
-    /// Project endorsements: list of addresses that endorsed a project.
-    ProjectEndorsements(u64),
-    /// Endorsement count for a project.
-    EndorsementCount(u64),
+    /// Admin governance: approval threshold.
+    AdminApprovalThreshold,
+    /// Admin governance: next proposal ID counter.
+    NextAdminProposalId,
+    /// Admin governance: proposal by ID.
+    AdminProposal(u64),
+    /// Admin governance: list of all proposal IDs.
+    AdminProposalIds,
 }
