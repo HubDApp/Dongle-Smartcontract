@@ -37,6 +37,9 @@ mod fee_token_rotation;
 // Storage field size boundary tests
 mod field_limits;
 
+// Storage index size limits (owner projects, reviews)
+mod index_limits;
+
 // Test infrastructure
 mod bookmarks;
 mod duplicate_dispute;

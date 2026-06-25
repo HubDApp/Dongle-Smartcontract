@@ -2,7 +2,7 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_owner_auth};
-use crate::constants::{MAX_CID_LEN, MAX_PROJECTS_PER_USER};
+use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_rejected_event,
@@ -756,8 +756,8 @@ impl VerificationRegistry {
         start_index: u32,
         limit: u32,
     ) -> Vec<VerificationRenewalRecord> {
-        let effective_limit = if limit == 0 || limit > MAX_PROJECTS_PER_USER {
-            MAX_PROJECTS_PER_USER
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
         } else {
             limit
         };

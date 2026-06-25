@@ -1,7 +1,7 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
 use crate::admin_action_log::AdminActionLog;
-use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
+use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::project_registry::ProjectRegistry;
@@ -55,6 +55,24 @@ impl ReviewRegistry {
             return Err(ContractError::DuplicateReview);
         }
 
+        let user_reviews: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::UserReviews(reviewer.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        if project_reviews.len() >= MAX_REVIEWS_PER_PROJECT {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+        if user_reviews.len() >= MAX_REVIEWS_PER_USER {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+
         // Mutation phase
         let now = env.ledger().timestamp();
         let review = Review {
@@ -70,16 +88,8 @@ impl ReviewRegistry {
         };
 
         // Get current state for mutations
-        let mut user_reviews: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::UserReviews(reviewer.clone()))
-            .unwrap_or_else(|| Vec::new(env));
-        let mut project_reviews: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectReviews(project_id))
-            .unwrap_or_else(|| Vec::new(env));
+        let mut user_reviews = user_reviews;
+        let mut project_reviews = project_reviews;
         let stats: ProjectStats = env
             .storage()
             .persistent()
@@ -571,7 +581,6 @@ impl ReviewRegistry {
     /// Batch-fetch stats for multiple project IDs. Returns one entry per ID (defaults to zero stats
     /// for projects with no reviews). Clamped to MAX_PAGE_LIMIT entries.
     pub fn get_stats_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
-        const MAX_PAGE_LIMIT: u32 = 100;
         let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
         let mut out = Vec::new(env);
         for i in 0..len {
@@ -584,7 +593,6 @@ impl ReviewRegistry {
 
     pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
-        const MAX_PAGE_LIMIT: u32 = 100;
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
