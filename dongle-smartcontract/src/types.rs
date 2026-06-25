@@ -14,7 +14,8 @@ pub struct ProjectRegistrationParams {
     pub tags: Option<Vec<String>>,
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
-}
+    pub bounty_url: Option<String>,
+|}
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -31,7 +32,8 @@ pub struct ProjectUpdateParams {
     pub tags: Option<Option<Vec<String>>>,
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
-}
+    pub bounty_url: Option<Option<String>>,
+|}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,7 +129,8 @@ pub struct Project {
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
-}
+    pub bounty_url: Option<String>,
+|}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -152,6 +155,7 @@ pub enum DataKey {
     Treasury,
     ProjectStats(u64),
     FeePaidForProject(u64),
+    ProjectBountyUrl(u64),
 }
 
 #[contracttype]

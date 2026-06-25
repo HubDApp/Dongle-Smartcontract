@@ -51,6 +51,19 @@ impl ProjectRegistry {
         if let Some(website) = &params.website {
             Utils::validate_website(website)?;
         }
+        if let Some(value) = params.bounty_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::ProjectBountyUrl(params.project_id), url);
+            } else {
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::ProjectBountyUrl(params.project_id));
+            }
+            project.bounty_url = value;
+        }
         if let Some(logo_cid) = &params.logo_cid {
             Utils::validate_logo_cid(logo_cid)?;
         }
@@ -66,6 +79,11 @@ impl ProjectRegistry {
         // Validate social links if provided
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
+        }
+        if let Some(bounty_url) = &params.bounty_url {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
 
         Self::ensure_owner_capacity(env, &params.owner)?;
@@ -471,6 +489,7 @@ impl ProjectRegistry {
         }
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
+        StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
 
         Ok(project)
     }
@@ -491,8 +510,12 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
-            proj.maintainers = Some(Self::get_maintainers(env, project_id));
-        }
+                proj.bounty_url = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::ProjectBountyUrl(project_id));
+                }
+                }
 
         // Bump TTL on read
         if project.is_some() {
