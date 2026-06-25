@@ -479,7 +479,7 @@ fn test_revoke_non_verified_project_fails() {
     // Cannot revoke an unverified project
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot revoke a pending project
     client.request_verification(
@@ -489,7 +489,7 @@ fn test_revoke_non_verified_project_fails() {
     );
     let result =
         client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
-    assert_eq!(result, Err(Ok(ContractError::NotRevocable)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -578,13 +578,18 @@ fn test_verification_history_ordering() {
 
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Order Test");
 
+    // Initially, verification ID is None
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, None);
+
     // Request #1 -> Reject
     client.request_verification(
         &project_id,
         &owner,
         &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa1"),
     );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(1));
     client.reject_verification(&project_id, &admin);
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(1));
 
     // Pay fee again for second request
     let token_admin = Address::generate(&env);
@@ -602,7 +607,9 @@ fn test_verification_history_ordering() {
         &owner,
         &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa2"),
     );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
     client.approve_verification(&project_id, &admin);
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
 
     // Revoke
     client.revoke_verification(
@@ -610,6 +617,7 @@ fn test_verification_history_ordering() {
         &admin,
         &String::from_str(&env, "Revoke for re-request"),
     );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
 
     // Pay fee again for third request
     let token_admin2 = Address::generate(&env);
@@ -627,6 +635,7 @@ fn test_verification_history_ordering() {
         &owner,
         &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa3"),
     );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(3));
 
     // Retrieve history
     let history = client.get_verification_history(&project_id);

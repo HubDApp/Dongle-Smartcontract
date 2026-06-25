@@ -1,4 +1,4 @@
-use crate::types::{ReviewAction, ReviewEventData};
+use crate::types::{AdminActionType, ReviewAction, ReviewEventData};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -1330,6 +1330,196 @@ pub fn publish_project_maintainer_removed_event(
             symbol_short!("M_REMOVED"),
             project_id,
             maintainer,
+        ),
+        event_data,
+    );
+}
+
+// ── Subscription / Follow Events ─────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectFollowedEvent {
+    pub project_id: u64,
+    pub follower: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnfollowedEvent {
+    pub project_id: u64,
+    pub follower: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_followed_event(env: &Env, project_id: u64, follower: Address) {
+    let event_data = ProjectFollowedEvent {
+        project_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("FOLLOWED"),
+            project_id,
+            follower,
+        ),
+        event_data,
+    );
+}
+
+// ── Timelock Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockActionScheduledEvent {
+    pub action_id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub execution_timestamp: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockActionCancelledEvent {
+    pub action_id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockActionExecutedEvent {
+    pub action_id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub timestamp: u64,
+}
+
+pub fn publish_timelock_action_scheduled_event(
+    env: &Env,
+    action_id: u64,
+    admin: Address,
+    action_type: AdminActionType,
+    execution_timestamp: u64,
+) {
+    let event_data = TimelockActionScheduledEvent {
+        action_id,
+        admin,
+        action_type,
+        execution_timestamp,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("SCHEDULE")),
+        event_data,
+    );
+}
+
+pub fn publish_timelock_action_cancelled_event(
+    env: &Env,
+    action_id: u64,
+    admin: Address,
+    action_type: AdminActionType,
+) {
+    let event_data = TimelockActionCancelledEvent {
+        action_id,
+        admin,
+        action_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("CANCEL")),
+        event_data,
+    );
+}
+
+pub fn publish_timelock_action_executed_event(
+    env: &Env,
+    action_id: u64,
+    admin: Address,
+    action_type: AdminActionType,
+) {
+    let event_data = TimelockActionExecutedEvent {
+        action_id,
+        admin,
+        action_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("EXECUTE")),
+        event_data,
+    );
+}
+
+// ── Bookmark Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectBookmarkedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnbookmarkedEvent {
+    pub project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_bookmarked_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectBookmarkedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("BOOKMARK"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_unbookmarked_event(env: &Env, project_id: u64, user: Address) {
+    let event_data = ProjectUnbookmarkedEvent {
+        project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNBOOKMK"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_unfollowed_event(env: &Env, project_id: u64, follower: Address) {
+    let event_data = ProjectUnfollowedEvent {
+        project_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("UNFOLLOW"),
+            project_id,
+            follower,
         ),
         event_data,
     );

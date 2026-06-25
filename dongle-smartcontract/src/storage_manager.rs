@@ -318,6 +318,62 @@ impl StorageManager {
 
     // ── Composite Operations ──────────────────────────────────────────────
 
+    /// Extend TTL for project followers list and count
+    pub fn extend_followers_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectFollowers(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectFollowers(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::FollowerCount(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::FollowerCount(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for user bookmarks list
+    pub fn extend_user_bookmarks_ttl(env: &Env, user: &Address) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::UserBookmarks(user.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::UserBookmarks(user.clone()),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for user subscriptions list
+    pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::UserSubscriptions(user.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::UserSubscriptions(user.clone()),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
     /// Extend TTL for a project's maintainer list
     pub fn extend_project_maintainers_ttl(env: &Env, project_id: u64) {
         if env

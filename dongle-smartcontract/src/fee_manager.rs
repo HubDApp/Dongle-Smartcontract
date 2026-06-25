@@ -25,10 +25,8 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
-        // Native asset fees are not supported. A token address is required whenever
-        // either fee is non-zero, so that pay_fee always has a concrete transfer target.
-        if token.is_none() && (verification_fee > 0 || registration_fee > 0) {
-            return Err(ContractError::NativeFeeNotSupported);
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
         }
 
         let config = FeeConfig {

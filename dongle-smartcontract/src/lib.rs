@@ -4,6 +4,7 @@
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
+mod bookmark_registry;
 mod collection_registry;
 pub mod constants;
 mod dependency_registry;
@@ -18,6 +19,8 @@ mod report_registry;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
+mod subscription_registry;
+mod timelock_manager;
 pub mod types;
 pub mod utils;
 mod verification_registry;
@@ -35,11 +38,12 @@ use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
+use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, ClaimRequest, ClaimStatus, Collection, DependencyRef,
+    AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, DependencyRef,
     DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, Project,
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
-    Review, VerificationRecord, VerificationStatus,
+    ProposalPayload, Review, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -77,6 +81,46 @@ impl DongleContract {
 
     pub fn get_admin_count(env: Env) -> u32 {
         AdminManager::get_admin_count(&env)
+    }
+
+    pub fn get_admin_approval_threshold(env: Env) -> u32 {
+        AdminManager::get_admin_approval_threshold(&env)
+    }
+
+    pub fn set_admin_approval_threshold(
+        env: Env,
+        caller: Address,
+        threshold: u32,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_admin_approval_threshold(&env, caller, threshold)
+    }
+
+    pub fn create_proposal(
+        env: Env,
+        proposer: Address,
+        payload: ProposalPayload,
+    ) -> Result<u64, ContractError> {
+        AdminManager::create_proposal(&env, proposer, payload)
+    }
+
+    pub fn approve_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::approve_proposal(&env, admin, proposal_id)
+    }
+
+    pub fn execute_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::execute_proposal(&env, caller, proposal_id)
+    }
+
+    pub fn get_proposal(env: Env, proposal_id: u64) -> Option<AdminProposal> {
+        AdminManager::get_proposal(&env, proposal_id)
     }
 
     // --- Project Registry ---
@@ -411,6 +455,13 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<VerificationRecord, ContractError> {
         VerificationRegistry::get_verification(&env, project_id)
+    }
+
+    pub fn get_verification_record(
+        env: Env,
+        request_id: u64,
+    ) -> Result<VerificationRecord, ContractError> {
+        VerificationRegistry::get_verification_record(&env, request_id)
     }
 
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
@@ -842,5 +893,162 @@ impl DongleContract {
 
     pub fn get_disputes_for_project(env: Env, project_id: u64) -> Vec<DuplicateDispute> {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
+    }
+
+    // --- Subscription / Follow ---
+
+    pub fn follow_project(
+        env: Env,
+        project_id: u64,
+        follower: Address,
+    ) -> Result<(), ContractError> {
+        crate::subscription_registry::SubscriptionRegistry::follow_project(
+            &env, project_id, follower,
+        )
+    }
+
+    pub fn unfollow_project(
+        env: Env,
+        project_id: u64,
+        follower: Address,
+    ) -> Result<(), ContractError> {
+        crate::subscription_registry::SubscriptionRegistry::unfollow_project(
+            &env, project_id, follower,
+        )
+    }
+
+    pub fn get_follower_count(env: Env, project_id: u64) -> u32 {
+        crate::subscription_registry::SubscriptionRegistry::get_follower_count(&env, project_id)
+    }
+
+    pub fn is_following(env: Env, project_id: u64, user: Address) -> bool {
+        crate::subscription_registry::SubscriptionRegistry::is_following(&env, project_id, &user)
+    }
+
+    pub fn get_project_followers(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        crate::subscription_registry::SubscriptionRegistry::get_project_followers(
+            &env, project_id, start, limit,
+        )
+    }
+
+    pub fn get_user_subscriptions(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
+            &env, user, start, limit,
+        )
+    }
+
+    // --- Bookmark Registry ---
+
+    pub fn bookmark_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+        crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
+    }
+
+    pub fn unbookmark_project(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+        crate::bookmark_registry::BookmarkRegistry::unbookmark_project(&env, project_id, user)
+    }
+
+    pub fn is_bookmarked(env: Env, project_id: u64, user: Address) -> bool {
+        crate::bookmark_registry::BookmarkRegistry::is_bookmarked(&env, project_id, &user)
+    }
+
+    pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
+    }
+
+    // --- Admin Timelock ---
+
+    pub fn schedule_set_fee(
+        env: Env,
+        admin: Address,
+        token: Option<Address>,
+        verification_fee: u128,
+        registration_fee: u128,
+        treasury: Address,
+        execution_timestamp: u64,
+    ) -> Result<u64, ContractError> {
+        TimelockManager::schedule_set_fee(
+            &env,
+            admin,
+            token,
+            verification_fee,
+            registration_fee,
+            treasury,
+            execution_timestamp,
+        )
+    }
+
+    pub fn schedule_add_admin(
+        env: Env,
+        admin: Address,
+        new_admin: Address,
+        execution_timestamp: u64,
+    ) -> Result<u64, ContractError> {
+        TimelockManager::schedule_add_admin(&env, admin, new_admin, execution_timestamp)
+    }
+
+    pub fn schedule_remove_admin(
+        env: Env,
+        admin: Address,
+        admin_to_remove: Address,
+        execution_timestamp: u64,
+    ) -> Result<u64, ContractError> {
+        TimelockManager::schedule_remove_admin(&env, admin, admin_to_remove, execution_timestamp)
+    }
+
+    pub fn cancel_scheduled_action(
+        env: Env,
+        caller: Address,
+        action_id: u64,
+    ) -> Result<(), ContractError> {
+        TimelockManager::cancel_action(&env, caller, action_id)
+    }
+
+    pub fn execute_scheduled_set_fee(
+        env: Env,
+        caller: Address,
+        action_id: u64,
+    ) -> Result<(), ContractError> {
+        TimelockManager::execute_set_fee(&env, caller, action_id)
+    }
+
+    pub fn execute_scheduled_add_admin(
+        env: Env,
+        caller: Address,
+        action_id: u64,
+    ) -> Result<(), ContractError> {
+        TimelockManager::execute_add_admin(&env, caller, action_id)
+    }
+
+    pub fn execute_scheduled_remove_admin(
+        env: Env,
+        caller: Address,
+        action_id: u64,
+    ) -> Result<(), ContractError> {
+        TimelockManager::execute_remove_admin(&env, caller, action_id)
+    }
+
+    pub fn get_scheduled_action(env: Env, action_id: u64) -> Option<TimelockAction> {
+        TimelockManager::get_action(&env, action_id)
+    }
+
+    pub fn list_scheduled_actions(env: Env, start: u32, limit: u32) -> Vec<TimelockAction> {
+        TimelockManager::list_scheduled_actions(&env, start, limit)
+    }
+
+    pub fn get_scheduled_action_count(env: Env) -> u64 {
+        TimelockManager::get_scheduled_action_count(&env)
     }
 }

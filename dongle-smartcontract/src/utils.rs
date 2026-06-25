@@ -297,7 +297,7 @@ impl Utils {
     /// Validates report reason CID
     pub fn validate_report_reason_cid(reason_cid: &String) -> Result<(), ContractError> {
         if reason_cid.len() == 0 || !Self::is_valid_ipfs_cid(reason_cid) {
-            return Err(ContractError::InvalidReportReason);
+            return Err(ContractError::InvalidProjectData);
         }
         Ok(())
     }

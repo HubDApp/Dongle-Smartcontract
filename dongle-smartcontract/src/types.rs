@@ -118,6 +118,7 @@ pub struct Project {
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
+    pub current_verification_id: Option<u64>,
     pub archived: bool,
     pub claimable: bool,
     pub created_at: u64,
@@ -296,6 +297,7 @@ pub enum AdminActionType {
     DuplicateDisputeResolved,
     DuplicateDisputeRejected,
     VerificationDurationSet,
+    ThresholdChanged,
 }
 
 #[contracttype]
@@ -338,4 +340,77 @@ pub struct AdminActionEntry {
     pub target_address: Option<Address>,
     pub timestamp: u64,
     pub reason_cid: Option<String>,
+}
+
+// ── Admin Timelock ──────────────────────────────────────────────────────────
+
+/// A scheduled action in the admin timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAction {
+    pub id: u64,
+    pub admin: Address,
+    pub action_type: AdminActionType,
+    pub execution_timestamp: u64,
+    pub executed: bool,
+    pub cancelled: bool,
+    pub created_at: u64,
+}
+
+/// Parameters for a scheduled fee change via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockFeeParams {
+    pub token: Option<Address>,
+    pub verification_fee: u128,
+    pub registration_fee: u128,
+    pub treasury: Address,
+}
+
+/// Parameters for a scheduled admin addition via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAdminAddParams {
+    pub new_admin: Address,
+}
+
+/// Parameters for a scheduled admin removal via timelock.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimelockAdminRemoveParams {
+    pub admin_to_remove: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProposalStatus {
+    Pending,
+    Approved,
+    Executed,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProposalPayload {
+    AddAdmin(Address),
+    RemoveAdmin(Address),
+    SetFee(Option<Address>, u128, u128, Address),
+    SetThreshold(u32),
+    ApproveVerification(u64),
+    RejectVerification(u64),
+    RevokeVerification(u64, String),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminProposal {
+    pub id: u64,
+    pub proposer: Address,
+    pub action_type: AdminActionType,
+    pub payload_hash: soroban_sdk::BytesN<32>,
+    pub payload: ProposalPayload,
+    pub approvals: Vec<Address>,
+    pub status: ProposalStatus,
+    pub created_at: u64,
 }

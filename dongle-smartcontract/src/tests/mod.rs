@@ -15,16 +15,21 @@ mod review;
 // mod authorization;
 // mod basic_new_features;
 mod cleanup;
-// mod events;
+mod events;
 mod moderation;
 // mod pagination;
 mod claim;
 mod dependencies;
 mod maintainers;
+mod renewal;
 mod review_settings;
 mod verification_features;
 
 // Test infrastructure
+mod bookmarks;
 mod duplicate_dispute;
 pub mod fixtures;
 mod linked_projects;
+mod multisig_and_history;
+mod subscriptions;
+mod timelock;

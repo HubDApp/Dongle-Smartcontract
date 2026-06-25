@@ -111,4 +111,29 @@ pub enum ExtensionKey {
     ProjectDuplicateDisputes(u64),
     NextDuplicateDisputeId,
     VerificationDuration,
+    ProjectFollowers(u64),
+    UserSubscriptions(Address),
+    FollowerCount(u64),
+    /// Admin Timelock: scheduled action by ID.
+    TimelockAction(u64),
+    /// Admin Timelock: list of all scheduled action IDs.
+    TimelockActionIds,
+    /// Admin Timelock: next action ID counter.
+    NextTimelockActionId,
+    /// Admin Timelock: fee change params keyed by action ID.
+    TimelockFeeParams(u64),
+    /// Admin Timelock: admin add params keyed by action ID.
+    TimelockAdminAddParams(u64),
+    /// Admin Timelock: admin remove params keyed by action ID.
+    TimelockAdminRemoveParams(u64),
+    /// User bookmarks: list of project IDs bookmarked by a user.
+    UserBookmarks(Address),
+    /// Admin governance: approval threshold.
+    AdminApprovalThreshold,
+    /// Admin governance: next proposal ID counter.
+    NextAdminProposalId,
+    /// Admin governance: proposal by ID.
+    AdminProposal(u64),
+    /// Admin governance: list of all proposal IDs.
+    AdminProposalIds,
 }
