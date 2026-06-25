@@ -25,6 +25,10 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+
         let config = FeeConfig {
             token,
             verification_fee,
