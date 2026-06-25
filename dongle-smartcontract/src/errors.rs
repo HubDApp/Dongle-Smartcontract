@@ -54,6 +54,9 @@ pub enum ContractError {
     CannotLinkToSelf = 50,
     AlreadyFollowing = 51,
     NotFollowing = 52,
+    /// Attempted to change a field that is frozen after verification.
+    /// The project must be re-verified or the change must be reverted.
+    VerifiedFieldFrozen = 53,
 }
 
 pub type Error = ContractError;
