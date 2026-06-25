@@ -301,4 +301,51 @@ impl Utils {
         }
         Ok(())
     }
+
+    /// Enforces the **metadata freeze policy** for verified projects.
+    ///
+    /// After a project reaches `VerificationStatus::Verified`, the following
+    /// identity-critical fields are **frozen** and may not be changed without
+    /// first losing verification (i.e. the admin revokes or rejects the
+    /// current verification record):
+    ///
+    /// | Frozen field    | Reason                                                |
+    /// |-----------------|-------------------------------------------------------|
+    /// | `name`          | Public identity anchor; changing it would confuse     |
+    /// |                 | users who trusted the verified name.                  |
+    /// | `slug`          | URL-stable identifier; links would break or spoof.    |
+    /// | `category`      | Verification may be category-specific.                |
+    /// | `logo_cid`      | Logo is part of the verified visual identity.         |
+    /// | `metadata_cid`  | Metadata CID contains the evidence audited during     |
+    /// |                 | the verification review.                              |
+    ///
+    /// Fields that remain **mutable** after verification:
+    /// `description`, `website`, `tags`, `social_links`, `launch_timestamp`.
+    ///
+    /// ## Parameters
+    /// - `is_verified` – pass `true` when `project.verification_status == Verified`.
+    /// - `name_changed` – `true` when the caller is attempting to change the name.
+    /// - `slug_changed` – `true` when the caller is attempting to change the slug.
+    /// - `category_changed` – `true` when the caller is attempting to change the category.
+    /// - `logo_cid_changed` – `true` when the caller is attempting to change the logo CID.
+    /// - `metadata_cid_changed` – `true` when the caller is attempting to change the metadata CID.
+    ///
+    /// Returns `Err(ContractError::VerifiedFieldFrozen)` if any frozen field
+    /// would be mutated, `Ok(())` otherwise.
+    pub fn check_frozen_fields(
+        is_verified: bool,
+        name_changed: bool,
+        slug_changed: bool,
+        category_changed: bool,
+        logo_cid_changed: bool,
+        metadata_cid_changed: bool,
+    ) -> Result<(), ContractError> {
+        if !is_verified {
+            return Ok(());
+        }
+        if name_changed || slug_changed || category_changed || logo_cid_changed || metadata_cid_changed {
+            return Err(ContractError::VerifiedFieldFrozen);
+        }
+        Ok(())
+    }
 }

@@ -25,6 +25,18 @@ mod renewal;
 mod review_settings;
 mod verification_features;
 
+// String validation: names, descriptions, CIDs, categories, URLs
+mod string_validation;
+
+// Metadata freeze policy for verified projects
+mod verified_freeze;
+
+// Fee token rotation and payment behavior
+mod fee_token_rotation;
+
+// Storage field size boundary tests
+mod field_limits;
+
 // Test infrastructure
 mod bookmarks;
 mod duplicate_dispute;

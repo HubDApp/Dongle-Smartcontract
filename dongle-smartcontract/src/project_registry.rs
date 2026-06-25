@@ -208,6 +208,48 @@ impl ProjectRegistry {
             return Err(ContractError::Unauthorized);
         }
 
+        // ── Metadata freeze guard ──────────────────────────────────────────
+        // For verified projects, identity-critical fields are frozen.
+        // Detect whether any frozen field is being changed before mutating.
+        let is_verified =
+            project.verification_status == VerificationStatus::Verified;
+
+        let new_name_differs = params
+            .name
+            .as_ref()
+            .map(|v| !v.is_empty() && *v != project.name)
+            .unwrap_or(false);
+        let new_slug_differs = params
+            .slug
+            .as_ref()
+            .map(|v| *v != project.slug)
+            .unwrap_or(false);
+        let new_category_differs = params
+            .category
+            .as_ref()
+            .map(|v| *v != project.category)
+            .unwrap_or(false);
+        let new_logo_differs = params
+            .logo_cid
+            .as_ref()
+            .map(|opt| opt.as_ref() != project.logo_cid.as_ref())
+            .unwrap_or(false);
+        let new_meta_differs = params
+            .metadata_cid
+            .as_ref()
+            .map(|opt| opt.as_ref() != project.metadata_cid.as_ref())
+            .unwrap_or(false);
+
+        Utils::check_frozen_fields(
+            is_verified,
+            new_name_differs,
+            new_slug_differs,
+            new_category_differs,
+            new_logo_differs,
+            new_meta_differs,
+        )?;
+        // ─────────────────────────────────────────────────────────────────
+
         // Store old name for cleanup if name is being updated
         let old_name = project.name.clone();
         let mut name_updated = false;
