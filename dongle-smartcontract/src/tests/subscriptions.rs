@@ -173,7 +173,7 @@ fn test_get_user_subscriptions_pagination() {
     extern crate alloc;
     use alloc::string::ToString;
 
-    let names = ["Proj_0", "Proj_1", "Proj_2", "Proj_3"];
+    let names = ["Proj-0", "Proj-1", "Proj-2", "Proj-3"];
     for name in names {
         let project_id = create_test_project(&client, &owner, name);
         client.follow_project(&project_id, &follower);

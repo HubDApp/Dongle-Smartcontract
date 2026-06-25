@@ -53,23 +53,51 @@ make test-verbose
 cargo test -- --nocapture
 ```
 
-### Deploy to Testnet
+### Deploy and Invoke via Scripts
 
+We provide convenient scripts under the `scripts/` directory to simplify building, deploying, initializing, and invoking the contract on Stellar networks.
+
+#### Environment Variables
+
+Before running the scripts, configure the following environment variables. You can set them in your terminal shell or create a `.env` file in the root of the repository:
+
+| Variable | Description | Default Value |
+|---|---|---|
+| `DEPLOYER_IDENTITY` | **Required**. The Soroban key identity used to sign transactions (e.g., `alice`). | *None* |
+| `NETWORK` | The Stellar network to target (`testnet`, `mainnet`, or `local`). | `testnet` |
+| `RPC_URL` | RPC endpoint URL for network communication. | SDF Testnet RPC URL |
+| `PASSPHRASE` | Passphrase of the targeted Stellar network. | SDF Testnet Passphrase |
+| `CONTRACT_ID` | The ID of the deployed contract. Automatically read from `.contract_id` if omitted. | *None* |
+| `ADMIN_ADDRESS` | Address of the initial admin during contract initialization. | Deployer identity address |
+
+#### 1. Deploy Contract
+Builds, optimizes, and deploys the contract to the configured network:
 ```bash
-# Configure network (first time only)
-soroban network add \
-  --global testnet \
-  --rpc-url https://soroban-testnet.stellar.org:443 \
-  --network-passphrase "Test SDF Network ; September 2015"
+# Export the deployer identity (or add to a .env file in the root)
+export DEPLOYER_IDENTITY=alice
 
-# Create identity (first time only)
-soroban keys generate --global alice --network testnet
+# Execute deployment
+./scripts/deploy_testnet.sh
+```
+This script automatically saves the deployed contract ID to `.contract_id` in the project root.
 
-# Fund account (first time only)
-soroban keys fund alice --network testnet
+#### 2. Initialize Contract
+Initializes the newly deployed contract with an admin:
+```bash
+./scripts/initialize.sh
+```
 
-# Deploy
-make deploy-testnet
+#### 3. Common Invocations
+Use the invocation helper script for common functions:
+```bash
+# Register a project
+./scripts/invoke.sh register <owner_address> "My Project" "my-project" "Project description" "DeFi"
+
+# Fetch project details by ID
+./scripts/invoke.sh get_project 1
+
+# Fetch project details by Slug
+./scripts/invoke.sh get_project_by_slug "my-project"
 ```
 
 > [!IMPORTANT]
@@ -1699,6 +1727,13 @@ src/
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
 - [Soroban Examples](https://github.com/stellar/soroban-examples)
+
+## Schemas & References
+
+- **Event Reference:** [EVENTS_SCHEMA.md](../EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
+- **Threat Model:** [THREAT_MODEL.md](../THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
+- **Review CID Schema:** [review-cid.schema.json](../review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
+- **Review Example:** [review-cid.example.json](../review-cid.example.json) provides a valid off-chain review document matching the schema.
 
 ## Contributing
 

@@ -39,7 +39,7 @@ fn env() -> Env {
 }
 
 fn rep(ch: char, n: usize) -> StdString {
-    alloc::iter::repeat(ch).take(n).collect()
+    core::iter::repeat(ch).take(n).collect()
 }
 
 fn ss(env: &Env, s: &str) -> SStr {
@@ -196,7 +196,7 @@ fn reg_category_over_max_rejected() {
     let mut p = base_params(&e, &owner, "CatOver");
     p.category = ss_rep(&e, 'c', MAX_CATEGORY_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::CategoryTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCategory.into())));
     let _ = admin;
 }
 
@@ -229,7 +229,7 @@ fn reg_website_over_max_rejected() {
     let mut p = base_params(&e, &owner, "WebOver");
     p.website = Some(ss(&e, &url));
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::WebsiteTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidWebsite.into())));
     let _ = admin;
 }
 
@@ -381,7 +381,7 @@ fn update_category_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.category = Some(ss_rep(&e, 'c', MAX_CATEGORY_LEN + 1));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::CategoryTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCategory.into())));
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn update_website_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.website = Some(Some(ss(&e, &url)));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::WebsiteTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidWebsite.into())));
 }
 
 #[test]

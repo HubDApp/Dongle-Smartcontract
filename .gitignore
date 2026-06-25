@@ -10,3 +10,6 @@ dongle-smartcontract/test_results*.txt
 dongle-smartcontract/test_build_errors*.txt
 dongle-smartcontract/*_errors.txt
 .DS_Store
+.agents/
+skills-lock.json
+issue.md

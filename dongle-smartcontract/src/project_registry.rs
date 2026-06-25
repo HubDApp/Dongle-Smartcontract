@@ -33,7 +33,7 @@ impl ProjectRegistry {
 
         // Validate inputs - return typed errors instead of panicking
         Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_name(&params.slug)?;
+        Utils::validate_project_slug(&params.slug)?;
 
         // Check registration fee payment
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -286,7 +286,7 @@ impl ProjectRegistry {
             }
         }
         if let Some(value) = params.slug {
-            Utils::validate_project_name(&value)?;
+            Utils::validate_project_slug(&value)?;
 
             // Check if new slug is different from current slug
             if value != old_slug {
