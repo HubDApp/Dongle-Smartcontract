@@ -17,7 +17,7 @@ mod review;
 mod cleanup;
 mod events;
 mod moderation;
-// mod pagination;
+mod pagination;
 mod claim;
 mod dependencies;
 mod maintainers;
@@ -39,6 +39,12 @@ mod field_limits;
 
 // Storage index size limits (owner projects, reviews)
 mod index_limits;
+
+// Security invariant tests: stats, owner index, verification, admin count
+mod invariants;
+
+// Property-based pagination tests using proptest
+mod proptest_pagination;
 
 // Test infrastructure
 mod bookmarks;

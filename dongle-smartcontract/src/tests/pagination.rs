@@ -30,6 +30,7 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
         metadata_cid: None,
         tags: None,
         social_links: None,
+        launch_timestamp: None,
     };
     client.mock_all_auths().register_project(&params)
 }

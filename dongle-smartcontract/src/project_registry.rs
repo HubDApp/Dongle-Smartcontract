@@ -510,12 +510,11 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
-                proj.bounty_url = env
+            proj.bounty_url = env
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectBountyUrl(project_id));
-                }
-                }
+        }
 
         // Bump TTL on read
         if project.is_some() {

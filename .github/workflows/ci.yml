@@ -109,3 +109,42 @@ jobs:
 
       - name: Build WASM release
         run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+
+  optimize:
+    name: Optimize WASM
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: ${{ runner.os }}-optimize-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-optimize-
+
+      - name: Install Stellar CLI with wasm-opt
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Build WASM release
+        run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+
+      - name: Optimize WASM
+        run: bash scripts/optimize_wasm.sh
+
+      - name: Upload optimized artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dongle_contract_optimized
+          path: target/wasm32-unknown-unknown/release/dongle_contract.optimized.wasm
