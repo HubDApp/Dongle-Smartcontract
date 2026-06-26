@@ -40,6 +40,11 @@ impl FeeManager {
 
     /// Pay the verification fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
+    /// 
+    /// # Behavior on Token Transfer Failure
+    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
+    /// - The fee paid event is NOT emitted
+    /// - The caller receives an error and can retry after acquiring sufficient tokens
     pub fn pay_fee(
         env: &Env,
         payer: Address,
@@ -70,13 +75,17 @@ impl FeeManager {
         if amount > 0 {
             let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
+            // Transfer must succeed before we set the payment flag.
+            // If transfer fails, this function returns early without setting the flag.
             client.transfer(&payer, &treasury, &(amount as i128));
         }
 
+        // Only set payment flag after successful token transfer
         env.storage()
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
 
+        // Only emit event after successful payment
         publish_fee_paid_event(env, project_id, payer, amount);
         Ok(())
     }
@@ -141,6 +150,11 @@ impl FeeManager {
 
     /// Pay the registration fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
+    ///
+    /// # Behavior on Token Transfer Failure
+    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
+    /// - The fee paid event is NOT emitted
+    /// - The caller receives an error and can retry after acquiring sufficient tokens
     pub fn pay_registration_fee(
         env: &Env,
         payer: Address,
@@ -163,13 +177,17 @@ impl FeeManager {
         if amount > 0 {
             let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
+            // Transfer must succeed before we set the payment flag.
+            // If transfer fails, this function returns early without setting the flag.
             client.transfer(&payer, &treasury, &(amount as i128));
         }
 
+        // Only set payment flag after successful token transfer
         env.storage()
             .persistent()
             .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
 
+        // Only emit event after successful payment
         publish_fee_paid_event(env, 0, payer, amount);
         Ok(())
     }
