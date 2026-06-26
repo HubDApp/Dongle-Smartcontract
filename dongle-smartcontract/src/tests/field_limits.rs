@@ -77,6 +77,7 @@ fn base_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationPar
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     }
 }
 
@@ -335,6 +336,7 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     }
 }
 

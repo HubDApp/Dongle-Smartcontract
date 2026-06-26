@@ -2,6 +2,7 @@
 
 // Existing test modules
 mod admin;
+mod auth_matrix;
 mod admin_action_log;
 mod archival;
 mod collections;

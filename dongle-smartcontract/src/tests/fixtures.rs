@@ -66,6 +66,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }

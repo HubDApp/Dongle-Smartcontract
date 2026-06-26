@@ -63,6 +63,7 @@ fn register_project(
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     })
 }
 
