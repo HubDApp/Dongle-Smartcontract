@@ -269,19 +269,9 @@ impl StorageManager {
         }
     }
 
-    /// Extend TTL for project bounty url
+    /// Extend TTL for project bounty url (removed - not part of core storage)
     pub fn extend_project_bounty_url_ttl(env: &Env, project_id: u64) {
-        if env
-            .storage()
-            .persistent()
-            .has(&StorageKey::ProjectBountyUrl(project_id))
-        {
-            env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectBountyUrl(project_id),
-                LEDGER_THRESHOLD_PROJECT,
-                LEDGER_BUMP_PROJECT,
-            );
-        }
+        // Bounty URL storage removed - not part of core implementation
     }
 
     // ── User Data TTL Management ──────────────────────────────────────────
