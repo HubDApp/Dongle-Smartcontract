@@ -462,5 +462,20 @@ fn test_multiple_projects_independent_moderation() {
     assert_eq!(stats2.rating_sum, 400);
 }
 
+#[test]
+fn test_cannot_add_review_if_already_reviewed_and_hidden() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+    let project_id = create_test_project(&client, &admin, "ProjectW");
 
+    let reviewer = Address::generate(&env);
+    client.add_review(&project_id, &reviewer, &5, &None);
 
+    // Hide review
+    client.hide_review(&project_id, &reviewer, &admin);
+
+    // Try to add review again
+    let result = client.try_add_review(&project_id, &reviewer, &4, &None);
+    assert_eq!(result, Err(Ok(ContractError::DuplicateReview.into())));
+}

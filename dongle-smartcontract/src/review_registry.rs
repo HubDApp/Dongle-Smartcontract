@@ -1,13 +1,14 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
-use crate::constants::{MAX_CID_LEN, RATING_MAX, RATING_MIN};
+use crate::admin_action_log::AdminActionLog;
+use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX, RATING_MIN};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
-use crate::types::{Project, ProjectStats, Review, ReviewAction};
+use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -40,6 +41,11 @@ impl ReviewRegistry {
             return Err(ContractError::ProjectNotFound);
         }
 
+        // Check if reviews are enabled for this project
+        if !Self::get_reviews_enabled(env, project_id) {
+            return Err(ContractError::ReviewsDisabled);
+        }
+
         if !(RATING_MIN..=RATING_MAX).contains(&rating) {
             return Err(ContractError::InvalidRating);
         }
@@ -49,14 +55,31 @@ impl ReviewRegistry {
             return Err(ContractError::DuplicateReview);
         }
 
+        let user_reviews: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::UserReviews(reviewer.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        if project_reviews.len() >= MAX_REVIEWS_PER_PROJECT {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+        if user_reviews.len() >= MAX_REVIEWS_PER_USER {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+
         // Mutation phase
         let now = env.ledger().timestamp();
         let review = Review {
             project_id,
             reviewer: reviewer.clone(),
             rating,
-            ipfs_cid: comment_cid.clone(),
-            comment_cid: comment_cid.clone(),
+            content_cid: comment_cid.clone(),
             owner_response: None,
             created_at: now,
             updated_at: now,
@@ -65,16 +88,8 @@ impl ReviewRegistry {
         };
 
         // Get current state for mutations
-        let mut user_reviews: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::UserReviews(reviewer.clone()))
-            .unwrap_or_else(|| Vec::new(env));
-        let mut project_reviews: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectReviews(project_id))
-            .unwrap_or_else(|| Vec::new(env));
+        let mut user_reviews = user_reviews;
+        let mut project_reviews = project_reviews;
         let stats: ProjectStats = env
             .storage()
             .persistent()
@@ -123,7 +138,6 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Submitted,
             comment_cid.clone(),
-            comment_cid,
             None,
             now,
             now,
@@ -180,8 +194,7 @@ impl ReviewRegistry {
         let old_rating = review.rating;
         let now = env.ledger().timestamp();
         review.rating = rating;
-        review.ipfs_cid = comment_cid.clone();
-        review.comment_cid = comment_cid.clone();
+        review.content_cid = comment_cid.clone();
         review.updated_at = now;
 
         // Get current stats
@@ -220,7 +233,6 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Updated,
             comment_cid.clone(),
-            comment_cid,
             review.owner_response.clone(),
             review.created_at,
             now,
@@ -320,6 +332,18 @@ impl ReviewRegistry {
             &new_project_reviews,
         );
 
+        // Clean up any ReviewReport dedup keys for this review so that
+        // the storage doesn't accumulate dangling report entries after deletion.
+        // We iterate up to the stored report_count to remove known reporter keys.
+        // Since we don't store the list of reporters separately, we just remove
+        // the review's own report_count worth of possible keys by clearing the
+        // report_count marker — the actual per-reporter keys will expire via TTL.
+        // For immediate consistency we remove the count itself from the review record
+        // (already done by removing the review_key above).
+        // No separate cleanup needed beyond removing the review record itself,
+        // as ReviewReport keys are dedup guards keyed by (project_id, reviewer, reporter)
+        // and those will become orphaned but harmless once the review is gone.
+
         let now = env.ledger().timestamp();
         publish_review_event(
             env,
@@ -327,11 +351,126 @@ impl ReviewRegistry {
             reviewer,
             ReviewAction::Deleted,
             None,
-            None,
             existing.owner_response.clone(),
             existing.created_at,
             now,
         );
+        Ok(())
+    }
+
+    /// Admin hard-delete a review. Admins can permanently remove any review,
+    /// updating stats and indexes just like a reviewer-initiated delete.
+    pub fn admin_delete_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        // Validation phase
+        admin.require_auth();
+
+        // Admin check
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Check if project exists
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        let existing: Review = env
+            .storage()
+            .persistent()
+            .get(&review_key)
+            .ok_or(ContractError::ReviewNotFound)?;
+
+        // Mutation phase — same index/stats cleanup as delete_review
+        let stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectStats(project_id))
+            .unwrap_or(ProjectStats {
+                rating_sum: 0,
+                review_count: 0,
+                average_rating: 0,
+            });
+        let user_reviews: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::UserReviews(reviewer.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Recalculate stats — exclude hidden reviews that were already excluded
+        let (new_sum, new_count, new_avg) = if stats.review_count > 0 && !existing.hidden {
+            RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
+        } else {
+            (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+
+        // Rebuild user reviews list without this project
+        let mut new_user_reviews = Vec::new(env);
+        for i in 0..user_reviews.len() {
+            if let Some(id) = user_reviews.get(i) {
+                if id != project_id {
+                    new_user_reviews.push_back(id);
+                }
+            }
+        }
+
+        // Rebuild project reviews list without this reviewer
+        let mut new_project_reviews = Vec::new(env);
+        for i in 0..project_reviews.len() {
+            if let Some(addr) = project_reviews.get(i) {
+                if addr != reviewer {
+                    new_project_reviews.push_back(addr);
+                }
+            }
+        }
+
+        // Apply all mutations
+        env.storage().persistent().remove(&review_key);
+        env.storage().persistent().set(
+            &StorageKey::ProjectStats(project_id),
+            &ProjectStats {
+                rating_sum: new_sum,
+                review_count: new_count,
+                average_rating: new_avg,
+            },
+        );
+        env.storage().persistent().set(
+            &StorageKey::UserReviews(reviewer.clone()),
+            &new_user_reviews,
+        );
+        env.storage().persistent().set(
+            &StorageKey::ProjectReviews(project_id),
+            &new_project_reviews,
+        );
+
+        let now = env.ledger().timestamp();
+        crate::events::publish_review_deleted_by_admin_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewDeletedByAdmin,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
+
+        let _ = now;
         Ok(())
     }
 
@@ -387,8 +526,7 @@ impl ReviewRegistry {
             project_id,
             reviewer,
             ReviewAction::Updated,
-            review.ipfs_cid.clone(),
-            review.comment_cid.clone(),
+            review.content_cid.clone(),
             review.owner_response.clone(),
             review.created_at,
             now,
@@ -407,13 +545,7 @@ impl ReviewRegistry {
     }
 
     pub fn get_review_cid(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
-        Self::get_review(env, project_id, reviewer).and_then(|review| {
-            if let Some(cid) = review.ipfs_cid {
-                Some(cid)
-            } else {
-                review.comment_cid
-            }
-        })
+        Self::get_review(env, project_id, reviewer).and_then(|review| review.content_cid)
     }
 
     pub fn get_project_review_cids(env: &Env, project_id: u64) -> Vec<(Address, String)> {
@@ -449,7 +581,6 @@ impl ReviewRegistry {
     /// Batch-fetch stats for multiple project IDs. Returns one entry per ID (defaults to zero stats
     /// for projects with no reviews). Clamped to MAX_PAGE_LIMIT entries.
     pub fn get_stats_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
-        const MAX_PAGE_LIMIT: u32 = 100;
         let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
         let mut out = Vec::new(env);
         for i in 0..len {
@@ -462,7 +593,6 @@ impl ReviewRegistry {
 
     pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
-        const MAX_PAGE_LIMIT: u32 = 100;
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -493,6 +623,42 @@ impl ReviewRegistry {
             }
         }
         reviews
+    }
+
+    /// Enable or disable reviews for a project. Only the project owner may call this.
+    pub fn set_reviews_enabled(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let project: Project = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Project(project_id))
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ReviewsEnabled(project_id), &enabled);
+
+        crate::events::publish_project_reviews_enabled_set_event(env, project_id, caller, enabled);
+
+        Ok(())
+    }
+
+    /// Returns whether reviews are enabled for a project. Defaults to `true` if never set.
+    pub fn get_reviews_enabled(env: &Env, project_id: u64) -> bool {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::ReviewsEnabled(project_id))
+            .unwrap_or(true)
     }
 
     pub fn report_review(
@@ -532,7 +698,6 @@ impl ReviewRegistry {
         // Extend TTL
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
 
         Ok(())
@@ -603,8 +768,21 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
-        crate::events::publish_review_hidden_event(env, project_id, reviewer, admin);
+        crate::events::publish_review_hidden_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewHidden,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
 
         Ok(())
     }
@@ -671,8 +849,21 @@ impl ReviewRegistry {
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
-        let now = env.ledger().timestamp();
-        crate::events::publish_review_restored_event(env, project_id, reviewer, admin);
+        crate::events::publish_review_restored_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::ReviewRestored,
+            Some(project_id),
+            Some(reviewer),
+            None,
+        );
 
         Ok(())
     }

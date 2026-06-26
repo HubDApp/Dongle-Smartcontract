@@ -39,7 +39,7 @@ pub fn setup_with_fees(
     let treasury = Address::generate(env);
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &fee_amount, &fee_amount, &treasury);
+        .set_fee(&admin, &None, &fee_amount, &0u128, &treasury);
     (client, admin, treasury)
 }
 
@@ -48,12 +48,12 @@ pub fn setup_with_fees(
 /// Returns the project ID.
 pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
-    
+
     // Generate slug from name: lowercase, replace spaces with hyphens
     extern crate alloc;
     use alloc::string::ToString;
     let slug_str = name.to_lowercase().replace(" ", "-");
-    
+
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
@@ -63,8 +63,11 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
     };
-    client.register_project(&params)
+    client.mock_all_auths().register_project(&params)
 }
 
 pub fn create_project_with_reviews(

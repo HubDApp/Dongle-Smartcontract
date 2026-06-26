@@ -118,4 +118,3 @@ fn test_admin_list_updates_correctly() {
     assert!(list.contains(&admin1));
     assert!(list.contains(&admin3));
 }
-

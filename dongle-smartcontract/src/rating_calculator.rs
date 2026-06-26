@@ -86,6 +86,151 @@ impl RatingCalculator {
 }
 
 #[cfg(test)]
+mod prop_tests {
+    extern crate std;
+    use super::RatingCalculator;
+    use proptest::prelude::*;
+
+    // Valid rating range: 1–5 (matches RATING_MIN / RATING_MAX constants)
+    const RATING_RANGE: core::ops::RangeInclusive<u32> = 1..=5;
+    // Reasonable ceiling so arithmetic never overflows u64
+    const MAX_SUM: u64 = 500_000;
+    const MAX_COUNT: u32 = 1_000;
+
+    proptest! {
+        /// Adding a rating and then immediately removing it restores the original (sum, count, avg).
+        #[test]
+        fn prop_add_then_remove_is_identity(
+            sum in 0u64..MAX_SUM,
+            count in 0u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, _) = RatingCalculator::add_rating(sum, count, rating);
+            let (restored_sum, restored_count, restored_avg) =
+                RatingCalculator::remove_rating(new_sum, new_count, rating);
+            prop_assert_eq!(restored_sum, sum);
+            prop_assert_eq!(restored_count, count);
+            prop_assert_eq!(restored_avg, RatingCalculator::calculate_average(sum, count));
+        }
+
+        /// Updating a rating to the same value never changes sum, count, or average.
+        #[test]
+        fn prop_update_same_rating_is_identity(
+            sum in 0u64..MAX_SUM,
+            count in 1u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, new_avg) =
+                RatingCalculator::update_rating(sum, count, rating, rating);
+            prop_assert_eq!(new_sum, sum);
+            prop_assert_eq!(new_count, count);
+            prop_assert_eq!(new_avg, RatingCalculator::calculate_average(sum, count));
+        }
+
+        /// calculate_average is exactly integer division of sum by count.
+        #[test]
+        fn prop_average_equals_integer_division(
+            rating_sum in 0u64..1_000_000u64,
+            review_count in 1u32..MAX_COUNT,
+        ) {
+            let avg = RatingCalculator::calculate_average(rating_sum, review_count);
+            prop_assert_eq!(avg, (rating_sum / review_count as u64) as u32);
+        }
+
+        /// calculate_average returns 0 for zero reviews regardless of sum.
+        #[test]
+        fn prop_average_zero_for_empty(sum in 0u64..MAX_SUM) {
+            prop_assert_eq!(RatingCalculator::calculate_average(sum, 0), 0);
+        }
+
+        /// add_rating increases sum by exactly rating * 100 and increments count by 1.
+        #[test]
+        fn prop_add_increases_sum_and_count(
+            sum in 0u64..MAX_SUM,
+            count in 0u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, _) = RatingCalculator::add_rating(sum, count, rating);
+            prop_assert_eq!(new_sum, sum + (rating as u64) * 100);
+            prop_assert_eq!(new_count, count + 1);
+        }
+
+        /// update_rating changes sum by (new - old) * 100 and leaves count unchanged.
+        #[test]
+        fn prop_update_sum_delta_and_stable_count(
+            sum in 0u64..MAX_SUM,
+            count in 1u32..MAX_COUNT,
+            old_rating in RATING_RANGE,
+            new_rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, _) =
+                RatingCalculator::update_rating(sum, count, old_rating, new_rating);
+            let expected = sum
+                .saturating_sub((old_rating as u64) * 100)
+                .saturating_add((new_rating as u64) * 100);
+            prop_assert_eq!(new_sum, expected);
+            prop_assert_eq!(new_count, count);
+        }
+
+        /// remove_rating decreases sum by rating * 100 (saturating) and count by 1 (saturating).
+        #[test]
+        fn prop_remove_decreases_sum_and_count(
+            sum in 0u64..MAX_SUM,
+            count in 1u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, _) = RatingCalculator::remove_rating(sum, count, rating);
+            prop_assert_eq!(new_sum, sum.saturating_sub((rating as u64) * 100));
+            prop_assert_eq!(new_count, count - 1);
+        }
+
+        /// The average returned by add_rating matches independently computed average.
+        #[test]
+        fn prop_add_average_consistent(
+            sum in 0u64..MAX_SUM,
+            count in 0u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, new_avg) = RatingCalculator::add_rating(sum, count, rating);
+            prop_assert_eq!(
+                new_avg,
+                RatingCalculator::calculate_average(new_sum, new_count)
+            );
+        }
+
+        /// The average returned by remove_rating matches independently computed average.
+        #[test]
+        fn prop_remove_average_consistent(
+            sum in 0u64..MAX_SUM,
+            count in 1u32..MAX_COUNT,
+            rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, new_avg) = RatingCalculator::remove_rating(sum, count, rating);
+            prop_assert_eq!(
+                new_avg,
+                RatingCalculator::calculate_average(new_sum, new_count)
+            );
+        }
+
+        /// The average returned by update_rating matches independently computed average.
+        #[test]
+        fn prop_update_average_consistent(
+            sum in 0u64..MAX_SUM,
+            count in 1u32..MAX_COUNT,
+            old_rating in RATING_RANGE,
+            new_rating in RATING_RANGE,
+        ) {
+            let (new_sum, new_count, new_avg) =
+                RatingCalculator::update_rating(sum, count, old_rating, new_rating);
+            prop_assert_eq!(
+                new_avg,
+                RatingCalculator::calculate_average(new_sum, new_count)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -22,16 +22,20 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 
 fn register_project(client: &DongleContractClient, owner: &Address, name: &str) -> u64 {
     let env = &client.env;
+    let slug = name.to_lowercase().replace(' ', "-");
     client
         .mock_all_auths()
         .register_project(&ProjectRegistrationParams {
             owner: owner.clone(),
             name: String::from_str(env, name),
+            slug: String::from_str(env, &slug),
             description: String::from_str(env, "Description"),
             category: String::from_str(env, "DeFi"),
             website: None,
             logo_cid: None,
             metadata_cid: None,
+            tags: None,
+            social_links: None,
         })
 }
 
@@ -49,9 +53,13 @@ fn setup_with_token(
     let token_client = soroban_sdk::token::StellarAssetClient::new(env, &token_address);
     token_client.mint(owner, &(fee * 10));
 
-    client
-        .mock_all_auths()
-        .set_fee(admin, &Some(token_address.clone()), &(fee as u128), admin);
+    client.mock_all_auths().set_fee(
+        admin,
+        &Some(token_address.clone()),
+        &(fee as u128),
+        &0u128,
+        admin,
+    );
 
     let project_id = register_project(client, owner, "TokenProject");
     client
@@ -110,11 +118,14 @@ fn test_update_project_by_non_owner_fails() {
         project_id,
         caller: attacker.clone(),
         name: Some(String::from_str(&env, "Hijacked")),
+        slug: None,
         description: None,
         category: None,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -136,11 +147,14 @@ fn test_update_project_nonexistent_fails() {
         project_id: 999,
         caller: caller.clone(),
         name: Some(String::from_str(&env, "Ghost")),
+        slug: None,
         description: None,
         category: None,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -260,7 +274,7 @@ fn test_set_fee_by_non_admin_fails() {
 
     let result = client
         .mock_all_auths()
-        .try_set_fee(&non_admin, &None, &500u128, &treasury);
+        .try_set_fee(&non_admin, &None, &500u128, &0u128, &treasury);
 
     assert_eq!(result, Err(Ok(ContractError::AdminOnly)));
 }
@@ -273,7 +287,7 @@ fn test_set_fee_by_admin_succeeds() {
 
     client
         .mock_all_auths()
-        .set_fee(&admin, &None, &1000u128, &treasury);
+        .set_fee(&admin, &None, &1000u128, &0u128, &treasury);
 
     let config = client.get_fee_config();
     assert_eq!(config.verification_fee, 1000u128);
@@ -403,7 +417,13 @@ fn test_request_verification_without_fee_payment_fails() {
         .register_stellar_asset_contract_v2(token_admin)
         .address();
 
-    client.set_fee(&admin, &Some(token_address.clone()), &100u128, &treasury);
+    client.set_fee(
+        &admin,
+        &Some(token_address.clone()),
+        &100u128,
+        &0u128,
+        &treasury,
+    );
 
     let project_id = register_project(&client, &owner, "NoFeeProject");
 
@@ -433,11 +453,14 @@ fn test_unauthorized_update_does_not_mutate_state() {
         project_id,
         caller: attacker.clone(),
         name: Some(String::from_str(&env, "Mutated")),
+        slug: None,
         description: None,
         category: None,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
     let _ = client.mock_all_auths().try_update_project(&params);
 
@@ -480,11 +503,14 @@ fn test_owner_can_update_own_project() {
         project_id,
         caller: owner.clone(),
         name: Some(String::from_str(&env, "UpdatedName")),
+        slug: None,
         description: None,
         category: None,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     };
 
     let result = client.mock_all_auths().update_project(&params);

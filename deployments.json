@@ -1,0 +1,12 @@
+{
+  "$schema": "./deployments.schema.json",
+  "testnet": [
+    {
+      "contract_id": "CCWUXOTO2RJK5QRPNDP2K2OTW247V7OVDJ3Z4R3V47N4TZOQCXJ42N73",
+      "wasm_hash": "a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f901a2b3c4d5e6f7",
+      "deployer": "GDAMR3SOTO2RJK5QRPNDP2K2OTW247V7OVDJ3Z4R3V47N4TZOQCXJ42N",
+      "timestamp": "2026-06-24T12:00:00Z"
+    }
+  ],
+  "mainnet": []
+}

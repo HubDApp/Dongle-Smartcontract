@@ -246,7 +246,7 @@ fn test_invalid_transitions_from_pending() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -270,15 +270,15 @@ fn test_invalid_transitions_from_verified() {
         &owner,
         &String::from_str(&env, "ipfs://evidence2"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot approve already verified project
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot reject already verified project
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -298,11 +298,11 @@ fn test_invalid_transitions_from_rejected() {
 
     // Cannot approve directly from rejected state
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot reject again from rejected state
     let result = client.try_reject_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn test_multiple_verification_cycles() {
         &owner,
         &String::from_str(&env, "ipfs://evidence3"),
     );
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -400,7 +400,7 @@ fn test_idempotent_transitions() {
 
     // Try to approve again - should fail (already Verified)
     let result = client.try_approve_verification(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::InvalidStatusTransition)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -477,12 +477,9 @@ fn test_revoke_non_verified_project_fails() {
     let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Not Verified");
 
     // Cannot revoke an unverified project
-    let result = client.try_revoke_verification(
-        &project_id,
-        &admin,
-        &String::from_str(&env, "reason"),
-    );
-    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+    let result =
+        client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 
     // Cannot revoke a pending project
     client.request_verification(
@@ -490,12 +487,9 @@ fn test_revoke_non_verified_project_fails() {
         &owner,
         &String::from_str(&env, "ipfs://evidence"),
     );
-    let result = client.try_revoke_verification(
-        &project_id,
-        &admin,
-        &String::from_str(&env, "reason"),
-    );
-    assert_eq!(result, Err(Ok(ContractError::VerificationNotRevocable)));
+    let result =
+        client.try_revoke_verification(&project_id, &admin, &String::from_str(&env, "reason"));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -514,11 +508,8 @@ fn test_revoke_by_non_admin_fails() {
     client.approve_verification(&project_id, &admin);
 
     let non_admin = Address::generate(&env);
-    let result = client.try_revoke_verification(
-        &project_id,
-        &non_admin,
-        &String::from_str(&env, "reason"),
-    );
+    let result =
+        client.try_revoke_verification(&project_id, &non_admin, &String::from_str(&env, "reason"));
     assert_eq!(result, Err(Ok(ContractError::AdminOnly)));
 }
 
@@ -528,11 +519,7 @@ fn test_revoke_nonexistent_project_fails() {
     env.mock_all_auths();
     let (client, admin, _owner) = setup(&env);
 
-    let result = client.try_revoke_verification(
-        &9999,
-        &admin,
-        &String::from_str(&env, "reason"),
-    );
+    let result = client.try_revoke_verification(&9999, &admin, &String::from_str(&env, "reason"));
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
 }
 
@@ -581,4 +568,163 @@ fn test_revoked_project_can_re_request_verification() {
         client.get_project(&project_id).unwrap().verification_status,
         VerificationStatus::Pending
     );
+}
+
+#[test]
+fn test_verification_history_ordering() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_id = setup_project_with_fee(&client, &env, &admin, &owner, "Project Order Test");
+
+    // Initially, verification ID is None
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, None);
+
+    // Request #1 -> Reject
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa1"),
+    );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(1));
+    client.reject_verification(&project_id, &admin);
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(1));
+
+    // Pay fee again for second request
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&owner, &1000);
+    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.pay_fee(&owner, &project_id, &Some(token_address));
+
+    // Request #2 -> Approve
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa2"),
+    );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
+    client.approve_verification(&project_id, &admin);
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
+
+    // Revoke
+    client.revoke_verification(
+        &project_id,
+        &admin,
+        &String::from_str(&env, "Revoke for re-request"),
+    );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(2));
+
+    // Pay fee again for third request
+    let token_admin2 = Address::generate(&env);
+    let token_address2 = env
+        .register_stellar_asset_contract_v2(token_admin2)
+        .address();
+    let token_client2 = soroban_sdk::token::StellarAssetClient::new(&env, &token_address2);
+    token_client2.mint(&owner, &1000);
+    client.set_fee(&admin, &Some(token_address2.clone()), &100, &admin);
+    client.pay_fee(&owner, &project_id, &Some(token_address2));
+
+    // Request #3 -> Pending
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa3"),
+    );
+    assert_eq!(client.get_project(&project_id).unwrap().current_verification_id, Some(3));
+
+    // Retrieve history
+    let history = client.get_verification_history(&project_id);
+    assert_eq!(history.len(), 3);
+
+    // Assert request IDs
+    let h0 = history.get(0).unwrap();
+    let h1 = history.get(1).unwrap();
+    let h2 = history.get(2).unwrap();
+
+    assert_eq!(h0.request_id, 1);
+    assert_eq!(h0.status, VerificationStatus::Rejected);
+    assert_eq!(
+        h0.evidence_cid,
+        String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa1")
+    );
+
+    assert_eq!(h1.request_id, 2);
+    assert_eq!(h1.status, VerificationStatus::Unverified);
+    assert_eq!(
+        h1.evidence_cid,
+        String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa2")
+    );
+    assert_eq!(
+        h1.revoke_reason,
+        Some(String::from_str(&env, "Revoke for re-request"))
+    );
+
+    assert_eq!(h2.request_id, 3);
+    assert_eq!(h2.status, VerificationStatus::Pending);
+    assert_eq!(
+        h2.evidence_cid,
+        String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa3")
+    );
+
+    // Assert current verification lookup gets the latest record
+    let current = client.get_verification(&project_id);
+    assert_eq!(current.request_id, 3);
+    assert_eq!(current.status, VerificationStatus::Pending);
+}
+
+#[test]
+fn test_unique_request_ids_across_projects() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let project_a = setup_project_with_fee(&client, &env, &admin, &owner, "Project A");
+    let project_b = setup_project_with_fee(&client, &env, &admin, &owner, "Project B");
+
+    // 1. Request verification for Project A -> request_id 1
+    client.request_verification(
+        &project_a,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaA1"),
+    );
+
+    // 2. Request verification for Project B -> request_id 2
+    client.request_verification(
+        &project_b,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaB1"),
+    );
+
+    // 3. Pay fee again and request verification for Project A -> request_id 3
+    client.reject_verification(&project_a, &admin);
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&owner, &1000);
+    client.set_fee(&admin, &Some(token_address.clone()), &100, &admin);
+    client.pay_fee(&owner, &project_a, &Some(token_address));
+
+    client.request_verification(
+        &project_a,
+        &owner,
+        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPaA2"),
+    );
+
+    // Verify Project A history
+    let history_a = client.get_verification_history(&project_a);
+    assert_eq!(history_a.len(), 2);
+    assert_eq!(history_a.get(0).unwrap().request_id, 1);
+    assert_eq!(history_a.get(1).unwrap().request_id, 3);
+
+    // Verify Project B history
+    let history_b = client.get_verification_history(&project_b);
+    assert_eq!(history_b.len(), 1);
+    assert_eq!(history_b.get(0).unwrap().request_id, 2);
 }

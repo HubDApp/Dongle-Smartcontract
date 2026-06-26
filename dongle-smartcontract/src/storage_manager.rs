@@ -4,8 +4,8 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String};
+use crate::storage_keys::{ExtensionKey, StorageKey};
+use soroban_sdk::{Address, Env, String, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -134,6 +134,43 @@ impl StorageManager {
         }
     }
 
+    /// Extend TTL for a project's dependency index + dependency records.
+    pub fn extend_project_dependency_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectDependencyKeys(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectDependencyKeys(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+
+        if let Some(keys) = env
+            .storage()
+            .persistent()
+            .get::<_, soroban_sdk::Vec<String>>(&ExtensionKey::ProjectDependencyKeys(project_id))
+        {
+            for i in 0..keys.len() {
+                if let Some(k) = keys.get(i) {
+                    if env
+                        .storage()
+                        .persistent()
+                        .has(&ExtensionKey::ProjectDependency(project_id, k.clone()))
+                    {
+                        env.storage().persistent().extend_ttl(
+                            &ExtensionKey::ProjectDependency(project_id, k.clone()),
+                            LEDGER_THRESHOLD_PROJECT,
+                            LEDGER_BUMP_PROJECT,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     // ── Review Data TTL Management ────────────────────────────────────────
 
     /// Extend TTL for a specific review
@@ -170,6 +207,7 @@ impl StorageManager {
 
     /// Extend TTL for verification record
     pub fn extend_verification_ttl(env: &Env, project_id: u64) {
+        // 1. Extend current verification record TTL
         if env
             .storage()
             .persistent()
@@ -180,6 +218,39 @@ impl StorageManager {
                 LEDGER_THRESHOLD_VERIFICATION,
                 LEDGER_BUMP_VERIFICATION,
             );
+        }
+
+        // 2. Extend history vector TTL
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectVerificationHistory(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectVerificationHistory(project_id),
+                LEDGER_THRESHOLD_VERIFICATION,
+                LEDGER_BUMP_VERIFICATION,
+            );
+            // 3. Extend all historical record TTLs
+            if let Some(history) = env.storage().persistent().get::<_, soroban_sdk::Vec<u64>>(
+                &StorageKey::ProjectVerificationHistory(project_id),
+            ) {
+                for i in 0..history.len() {
+                    if let Some(req_id) = history.get(i) {
+                        if env
+                            .storage()
+                            .persistent()
+                            .has(&StorageKey::VerificationRecord(req_id))
+                        {
+                            env.storage().persistent().extend_ttl(
+                                &StorageKey::VerificationRecord(req_id),
+                                LEDGER_THRESHOLD_VERIFICATION,
+                                LEDGER_BUMP_VERIFICATION,
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -194,6 +265,21 @@ impl StorageManager {
                 &StorageKey::FeePaidForProject(project_id),
                 LEDGER_THRESHOLD_VERIFICATION,
                 LEDGER_BUMP_VERIFICATION,
+            );
+        }
+    }
+
+    /// Extend TTL for project bounty url
+    pub fn extend_project_bounty_url_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectBountyUrl(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectBountyUrl(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
             );
         }
     }
@@ -247,11 +333,109 @@ impl StorageManager {
 
     // ── Composite Operations ──────────────────────────────────────────────
 
-    /// Extend TTL for all project-related data (project + stats + name mapping)
+    /// Extend TTL for project followers list and count
+    pub fn extend_followers_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectFollowers(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectFollowers(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::FollowerCount(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::FollowerCount(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for user bookmarks list
+    pub fn extend_user_bookmarks_ttl(env: &Env, user: &Address) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::UserBookmarks(user.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::UserBookmarks(user.clone()),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for project endorsements list and count
+    pub fn extend_endorsements_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectEndorsements(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectEndorsements(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::EndorsementCount(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::EndorsementCount(project_id),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for user subscriptions list
+    pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::UserSubscriptions(user.clone()))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::UserSubscriptions(user.clone()),
+                LEDGER_THRESHOLD_USER,
+                LEDGER_BUMP_USER,
+            );
+        }
+    }
+
+    /// Extend TTL for a project's maintainer list
+    pub fn extend_project_maintainers_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectMaintainers(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectMaintainers(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+    }
+
+    /// Extend TTL for all project-related data (project + stats + name mapping + maintainers)
     pub fn extend_project_full_ttl(env: &Env, project_id: u64, name: &String) {
         Self::extend_project_ttl(env, project_id);
         Self::extend_project_stats_ttl(env, project_id);
         Self::extend_project_by_name_ttl(env, name);
+        Self::extend_project_maintainers_ttl(env, project_id);
     }
 
     /// Extend TTL for all admin-related data
@@ -265,6 +449,48 @@ impl StorageManager {
         Self::extend_admin_list_ttl(env);
         Self::extend_fee_config_ttl(env);
         Self::extend_treasury_ttl(env);
+    }
+
+    /// Extend TTL for a claim request
+    pub fn extend_claim_request_ttl(env: &Env, claim_request_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ClaimRequest(claim_request_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ClaimRequest(claim_request_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
+    }
+
+    /// Extend TTL for all claim-related data for a project
+    pub fn extend_project_claims_ttl(env: &Env, project_id: u64) {
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectClaimRequests(project_id))
+        {
+            env.storage().persistent().extend_ttl(
+                &ExtensionKey::ProjectClaimRequests(project_id),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+            // Extend all individual claim request TTLs
+            if let Some(request_ids) = env
+                .storage()
+                .persistent()
+                .get::<_, Vec<u64>>(&ExtensionKey::ProjectClaimRequests(project_id))
+            {
+                for i in 0..request_ids.len() {
+                    if let Some(request_id) = request_ids.get(i) {
+                        Self::extend_claim_request_ttl(env, request_id);
+                    }
+                }
+            }
+        }
     }
 }
 

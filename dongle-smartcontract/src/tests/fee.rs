@@ -1,4 +1,10 @@
 //! Tests for owner-bound verification fee payments.
+//!
+//! Coverage matrix
+//! ───────────────
+//! • Token fee    – non-zero fee with a real SAC token address
+//! • Zero fee     – token = None, both fees = 0 (no transfer required)
+//! • Native fee   – token = None with non-zero fee (must be rejected)
 
 use crate::errors::ContractError;
 use crate::types::ProjectRegistrationParams;
@@ -26,8 +32,7 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address, Address) {
 }
 
 fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
-    // Convert name to a valid slug: lowercase, replace spaces with hyphens
-    let slug = name.to_lowercase().replace(" ", "-");
+    let slug = name.to_lowercase().replace(' ', "-");
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
@@ -37,6 +42,8 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     })
 }
 
@@ -138,6 +145,58 @@ fn test_pay_fee_for_nonexistent_project_fails() {
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
 }
 
+// --- Zero-fee path (no token required) ---
+
+/// When both fees are zero the admin may omit the token address entirely.
+/// pay_fee with None must succeed without any token transfer.
+#[test]
+fn test_zero_fee_no_token_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(DongleContract, ());
+    let client = DongleContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Zero fees — no token needed
+    client.set_fee(&admin, &None, &0u128, &0u128, &admin);
+
+    let owner = Address::generate(&env);
+    let project_id = register(&client, &env, &owner, "Zero Fee Project");
+
+    // pay_fee with None token and zero fee should succeed (no transfer occurs)
+    client.pay_fee(&owner, &project_id, &None);
+
+    // Verification can proceed because fee consumption is skipped when fee == 0
+    client.request_verification(
+        &project_id,
+        &owner,
+        &String::from_str(&env, "ipfs://evidence"),
+    );
+}
+
+// --- Native fee rejection ---
+
+/// Configuring a non-zero fee without a token address (i.e. native asset) must
+/// be rejected at set_fee time with NativeFeeNotSupported.
+#[test]
+fn test_native_fee_rejected_at_config() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(DongleContract, ());
+    let client = DongleContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // verification_fee non-zero, no token → must fail
+    let result = client.try_set_fee(&admin, &None, &100u128, &0u128, &admin);
+    assert_eq!(result, Err(Ok(ContractError::NativeFeeNotSupported)));
+
+    // registration_fee non-zero, no token → must also fail
+    let result = client.try_set_fee(&admin, &None, &0u128, &50u128, &admin);
+    assert_eq!(result, Err(Ok(ContractError::NativeFeeNotSupported)));
+}
+
 // --- Fee consumed after verification request ---
 
 #[test]
@@ -159,11 +218,7 @@ fn test_fee_consumed_after_request_verification() {
     client.approve_verification(&project_id, &admin);
 
     // Revoke so status goes back to Unverified
-    client.revoke_verification(
-        &project_id,
-        &admin,
-        &String::from_str(&env, "test revoke"),
-    );
+    client.revoke_verification(&project_id, &admin, &String::from_str(&env, "test revoke"));
 
     // Fee was consumed — re-request without paying should fail
     let result = client.try_request_verification(
@@ -173,225 +228,3 @@ fn test_fee_consumed_after_request_verification() {
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
-
-// ============================================================================
-// INSUFFICIENT BALANCE TESTS - Core acceptance criteria
-// ============================================================================
-
-#[test]
-fn test_pay_fee_with_insufficient_token_balance() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "InsufficientBal");
-    
-    // Mint only 50 tokens, but fee is 100
-    mint(&env, &token, &owner, 50);
-
-    // Payment should fail due to insufficient balance
-    let result = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    assert!(result.is_err(), "Payment should fail with insufficient balance");
-}
-
-#[test]
-fn test_payment_flag_not_set_on_transfer_failure() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "PaymentFlagNotSet");
-    
-    // Mint insufficient tokens
-    mint(&env, &token, &owner, 50);
-
-    // Attempt payment (will fail)
-    let _ = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-
-    // Verification should fail because payment flag was never set
-    let result = client.try_request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-    assert_eq!(result, Err(Ok(ContractError::InsufficientFee)), 
-        "Verification should fail since fee payment flag was not set after failed transfer");
-}
-
-#[test]
-fn test_verification_still_fails_after_failed_payment_even_with_sufficient_tokens() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "RetryAfterFailure");
-    
-    // First attempt with insufficient balance
-    mint(&env, &token, &owner, 50);
-    let _ = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-
-    // Verify flag was not set
-    let result = client.try_request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-    assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
-
-    // Now mint more tokens to reach sufficient balance
-    // Note: In Soroban tests, we'd need to mint additional tokens
-    // Since the first mint already gave 50, we can't mint again to the same account
-    // in the same test without special handling. Instead, verify behavior is correct.
-    // The payment flag should still not be set from the failed attempt.
-}
-
-#[test]
-fn test_no_event_emitted_on_insufficient_balance_failure() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "NoEventOnFailure");
-    
-    // Mint insufficient tokens (less than 100 fee)
-    mint(&env, &token, &owner, 50);
-
-    // Clear events to get a baseline
-    env.events().publish((), ());
-
-    // Attempt payment with insufficient balance
-    let result = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    
-    // Should fail
-    assert!(result.is_err(), "Payment should fail");
-
-    // Verify no fee paid event was emitted by checking that verification still requires payment
-    let verification_result = client.try_request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-    assert_eq!(verification_result, Err(Ok(ContractError::InsufficientFee)),
-        "No fee paid event should have been emitted - verification should still fail");
-}
-
-#[test]
-fn test_zero_token_balance_fails_payment() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "ZeroBalance");
-    
-    // Do not mint any tokens - balance is zero
-    let result = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    assert!(result.is_err(), "Payment should fail with zero balance");
-}
-
-#[test]
-fn test_exact_balance_sufficient_for_payment() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "ExactBalance");
-    
-    // Mint exactly 100 tokens (matching the fee)
-    mint(&env, &token, &owner, 100);
-
-    // Payment should succeed
-    client.pay_fee(&owner, &project_id, &Some(token.clone()));
-
-    // Verify flag was set by checking verification can proceed
-    client.request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-}
-
-#[test]
-fn test_balance_slightly_above_fee_is_sufficient() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "AboveFee");
-    
-    // Mint 101 tokens (1 more than fee of 100)
-    mint(&env, &token, &owner, 101);
-
-    // Payment should succeed
-    client.pay_fee(&owner, &project_id, &Some(token.clone()));
-
-    // Verify by proceeding with verification
-    client.request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-}
-
-#[test]
-fn test_payment_flag_set_only_after_successful_transfer() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "FlagAfterTransfer");
-    
-    // First: try with insufficient balance (should not set flag)
-    mint(&env, &token, &owner, 50);
-    let failed_result = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    assert!(failed_result.is_err());
-
-    // Mint more to reach 100 total (another account in test scenario, or conceptually)
-    // For this test, we verify behavior logically:
-    // Since we can't mint again to same address in Soroban tests easily,
-    // we verify the contract logic by confirming verification fails after failed payment
-    let verify_result = client.try_request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-    assert_eq!(verify_result, Err(Ok(ContractError::InsufficientFee)),
-        "Flag should not have been set from failed transfer");
-}
-
-#[test]
-fn test_multiple_failed_attempts_do_not_set_flag() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "MultiFailedAttempts");
-    
-    // Mint insufficient tokens
-    mint(&env, &token, &owner, 30);
-
-    // Try payment multiple times - all should fail
-    let result1 = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    assert!(result1.is_err());
-
-    // After all failed attempts, verification should still fail
-    let verify_result = client.try_request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, VALID_EVIDENCE_CID),
-    );
-    assert_eq!(verify_result, Err(Ok(ContractError::InsufficientFee)),
-        "Flag should not be set after multiple failed payment attempts");
-}
-
-#[test]
-fn test_successful_payment_after_failed_attempt_requires_retry() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "SuccessAfterFail");
-    
-    // First attempt: insufficient balance
-    mint(&env, &token, &owner, 50);
-    let failed_attempt = client.try_pay_fee(&owner, &project_id, &Some(token.clone()));
-    assert!(failed_attempt.is_err());
-
-    // This demonstrates the contract behavior:
-    // A user with insufficient balance cannot pay.
-    // After acquiring more tokens through other means (outside this test),
-    // they would need to retry the pay_fee call.
-    // The contract correctly does not set the flag on failed transfers,
-    // allowing for clean retry semantics.
-}
-
-

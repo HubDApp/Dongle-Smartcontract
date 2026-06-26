@@ -14,15 +14,18 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 }
 
 fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
+    let slug = name.to_lowercase().replace(' ', "-");
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
-        slug: String::from_str(env, &name.to_lowercase()),
+        slug: String::from_str(env, &slug),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
     })
 }
 
@@ -84,7 +87,12 @@ fn test_project_count_matches_list_projects_range() {
     let owner = Address::generate(&env);
 
     for i in 0..5u32 {
-        register(&client, &env, &owner, ["Proj0", "Proj1", "Proj2", "Proj3", "Proj4"][i as usize]);
+        register(
+            &client,
+            &env,
+            &owner,
+            ["Proj0", "Proj1", "Proj2", "Proj3", "Proj4"][i as usize],
+        );
     }
 
     let count = client.get_project_count();
@@ -172,7 +180,12 @@ fn test_stats_batch_clamped_to_100() {
 
     // Register 5 projects but pass 110 IDs (many nonexistent — stats default to zero)
     for i in 0..5u32 {
-        register(&client, &env, &owner, ["Clamp0", "Clamp1", "Clamp2", "Clamp3", "Clamp4"][i as usize]);
+        register(
+            &client,
+            &env,
+            &owner,
+            ["Clamp0", "Clamp1", "Clamp2", "Clamp3", "Clamp4"][i as usize],
+        );
     }
 
     let mut ids = Vec::new(&env);
@@ -266,8 +279,14 @@ fn test_verifications_batch_full() {
 
     let result = client.get_verifications_batch(&ids);
     assert_eq!(result.len(), 2);
-    assert_eq!(result.get(0).unwrap().1.status, VerificationStatus::Verified);
-    assert_eq!(result.get(1).unwrap().1.status, VerificationStatus::Verified);
+    assert_eq!(
+        result.get(0).unwrap().1.status,
+        VerificationStatus::Verified
+    );
+    assert_eq!(
+        result.get(1).unwrap().1.status,
+        VerificationStatus::Verified
+    );
 }
 
 #[test]
@@ -284,8 +303,8 @@ fn test_verifications_batch_clamped_to_100() {
     let result = client.get_verifications_batch(&ids);
     // All nonexistent → skipped, but input was clamped to 100 before iteration
     assert_eq!(result.len(), 0); // none have records
-    // Verify the clamp by checking we didn't iterate past 100
-    // (indirectly: if we iterated 110 nonexistent IDs the result is still 0 — clamp is internal)
+                                 // Verify the clamp by checking we didn't iterate past 100
+                                 // (indirectly: if we iterated 110 nonexistent IDs the result is still 0 — clamp is internal)
 }
 
 // ── Indexer sync simulation ──────────────────────────────────────────────────
@@ -298,7 +317,14 @@ fn test_indexer_can_sync_all_projects_using_count_and_list() {
     let owner = Address::generate(&env);
 
     for i in 0..7u32 {
-        register(&client, &env, &owner, ["Sync0", "Sync1", "Sync2", "Sync3", "Sync4", "Sync5", "Sync6"][i as usize]);
+        register(
+            &client,
+            &env,
+            &owner,
+            [
+                "Sync0", "Sync1", "Sync2", "Sync3", "Sync4", "Sync5", "Sync6",
+            ][i as usize],
+        );
     }
 
     let total = client.get_project_count();
@@ -324,4 +350,3 @@ fn test_indexer_can_sync_all_projects_using_count_and_list() {
 
     assert_eq!(synced, 7);
 }
-
