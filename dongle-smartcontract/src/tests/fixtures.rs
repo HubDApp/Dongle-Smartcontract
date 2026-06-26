@@ -66,6 +66,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -98,3 +99,4 @@ pub fn assert_project_state(
     assert_eq!(project.owner, *expected_owner);
     assert_eq!(project.verification_status, expected_status);
 }
+

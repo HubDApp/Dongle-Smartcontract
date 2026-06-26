@@ -120,6 +120,7 @@ fn verified_project_update_name_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -146,6 +147,7 @@ fn verified_project_update_slug_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -172,6 +174,7 @@ fn verified_project_update_category_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -201,6 +204,7 @@ fn verified_project_update_logo_cid_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -230,6 +234,7 @@ fn verified_project_update_metadata_cid_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -258,6 +263,7 @@ fn verified_project_update_description_allowed() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "description update should be allowed on verified project");
@@ -289,6 +295,7 @@ fn verified_project_update_website_allowed() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "website update should be allowed on verified project");
@@ -320,6 +327,7 @@ fn verified_project_no_change_to_frozen_fields_allowed() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -364,6 +372,7 @@ fn after_revoke_frozen_fields_become_mutable() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -397,6 +406,7 @@ fn unverified_project_all_fields_mutable() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "unverified project should allow all field updates");
@@ -433,6 +443,7 @@ fn pending_verification_project_fields_are_mutable() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -440,3 +451,4 @@ fn pending_verification_project_fields_are_mutable() {
         "fields should be mutable while verification is only Pending"
     );
 }
+
