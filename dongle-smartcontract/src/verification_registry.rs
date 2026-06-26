@@ -217,7 +217,8 @@ impl VerificationRegistry {
             requester: requester.clone(),
             status: VerificationStatus::Pending,
             evidence_cid: evidence_cid.clone(),
-            timestamp: now,
+            requested_at: now,
+            decided_at: 0,
             fee_amount,
             revoke_reason: None,
             expires_at: 0,
@@ -287,6 +288,7 @@ impl VerificationRegistry {
         // Update record
         record.status = VerificationStatus::Verified;
         record.expires_at = now.saturating_add(Self::get_verification_duration(env));
+        record.decided_at = now;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record.request_id);
@@ -302,7 +304,7 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_approved_event(env, project_id, admin.clone());
+        publish_verification_approved_event(env, project_id, admin.clone(), now);
 
         AdminActionLog::record_action(
             env,
@@ -344,6 +346,7 @@ impl VerificationRegistry {
 
         // Update record
         record.status = VerificationStatus::Rejected;
+        record.decided_at = now;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record.request_id);
@@ -359,7 +362,7 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_rejected_event(env, project_id, admin.clone());
+        publish_verification_rejected_event(env, project_id, admin.clone(), now);
 
         AdminActionLog::record_action(
             env,
@@ -483,6 +486,7 @@ impl VerificationRegistry {
 
         record.status = VerificationStatus::Unverified;
         record.revoke_reason = Some(reason.clone());
+        record.decided_at = now;
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record.request_id);
