@@ -113,3 +113,8 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Minimum timelock delay in seconds (1 day).
 /// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
 pub const TIMELOCK_MIN_DELAY: u64 = 86400;
+
+/// Fee payment validity window in seconds (7 days).
+/// After this window, the payment record is considered expired and the
+/// verification request is rejected until the owner re-pays.
+pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;

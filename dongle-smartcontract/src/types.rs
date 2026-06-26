@@ -171,7 +171,8 @@ pub struct VerificationRecord {
     pub requester: Address,
     pub status: VerificationStatus,
     pub evidence_cid: String,
-    pub timestamp: u64,
+    pub requested_at: u64,
+    pub decided_at: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
     /// Unix timestamp when verification expires (0 = no expiry)
@@ -200,6 +201,34 @@ pub struct FeeConfig {
     pub token: Option<Address>,
     pub verification_fee: u128,
     pub registration_fee: u128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeePaymentRecord {
+    pub paid_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeRefundRecord {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub payer: Address,
+    pub token: Option<Address>,
+    pub amount: u128,
+    pub refunded: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeConfigHistoryEntry {
+    pub admin: Address,
+    pub token: Option<Address>,
+    pub verification_fee: u128,
+    pub registration_fee: u128,
+    pub treasury: Address,
+    pub timestamp: u64,
 }
 
 #[contracttype]
@@ -298,6 +327,7 @@ pub enum AdminActionType {
     DuplicateDisputeRejected,
     VerificationDurationSet,
     ThresholdChanged,
+    FeeRefunded,
 }
 
 #[contracttype]

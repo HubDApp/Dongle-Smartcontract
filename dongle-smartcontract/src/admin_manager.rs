@@ -430,6 +430,7 @@ impl AdminManager {
                 )?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Verified;
+                record.decided_at = now;
                 record.expires_at = now.saturating_add(
                     crate::verification_registry::VerificationRegistry::get_verification_duration(
                         env,
@@ -447,7 +448,7 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_approved_event(env, project_id, caller.clone());
+                crate::events::publish_verification_approved_event(env, project_id, caller.clone(), now);
             }
             ProposalPayload::RejectVerification(project_id) => {
                 let mut project =
@@ -463,6 +464,7 @@ impl AdminManager {
                 )?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Rejected;
+                record.decided_at = now;
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Verification(project_id), &record.request_id);
@@ -475,7 +477,7 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_rejected_event(env, project_id, caller.clone());
+                crate::events::publish_verification_rejected_event(env, project_id, caller.clone(), now);
             }
             ProposalPayload::RevokeVerification(project_id, reason) => {
                 let mut project =
