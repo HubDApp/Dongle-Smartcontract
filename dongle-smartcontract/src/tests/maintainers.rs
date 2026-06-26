@@ -64,11 +64,13 @@ fn test_maintainer_can_update_metadata() {
         description: Some(new_desc.clone()),
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
 
     let updated_proj = client.mock_all_auths().update_project(&update_params);
@@ -127,11 +129,13 @@ fn test_unauthorized_user_cannot_do_anything() {
         description: Some(String::from_str(&env, "Hacked")),
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let res = client.mock_all_auths().try_update_project(&update_params);
     assert_eq!(res, Err(Ok(ContractError::Unauthorized)));
@@ -212,11 +216,13 @@ fn test_owner_does_not_lose_ownership_privileges() {
         description: Some(new_desc.clone()),
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let updated_proj = client.mock_all_auths().update_project(&update_params);
     assert_eq!(updated_proj.description, new_desc);

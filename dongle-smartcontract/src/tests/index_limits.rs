@@ -24,11 +24,13 @@ fn register_project_for_owner(
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -56,11 +58,13 @@ fn test_max_projects_per_user_enforced() {
         description: String::from_str(&env, "Too many projects"),
         category: String::from_str(&env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     });
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));

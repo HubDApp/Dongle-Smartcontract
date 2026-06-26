@@ -58,11 +58,13 @@ fn register_project(
         description: String::from_str(env, "A test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     })
 }
 

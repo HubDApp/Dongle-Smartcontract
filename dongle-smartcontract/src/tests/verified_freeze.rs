@@ -115,11 +115,13 @@ fn verified_project_update_name_blocked() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -141,11 +143,13 @@ fn verified_project_update_slug_blocked() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -167,11 +171,13 @@ fn verified_project_update_category_blocked() {
         description: None,
         category: Some(SorobanString::from_str(&env, "NFT")),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -193,6 +199,7 @@ fn verified_project_update_logo_cid_blocked() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: Some(Some(SorobanString::from_str(
             &env,
             "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
@@ -201,6 +208,7 @@ fn verified_project_update_logo_cid_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -222,6 +230,7 @@ fn verified_project_update_metadata_cid_blocked() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: Some(Some(SorobanString::from_str(
             &env,
@@ -230,6 +239,7 @@ fn verified_project_update_metadata_cid_blocked() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -253,11 +263,13 @@ fn verified_project_update_description_allowed() {
         description: Some(SorobanString::from_str(&env, "Updated description text")),
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "description update should be allowed on verified project");
@@ -284,11 +296,13 @@ fn verified_project_update_website_allowed() {
         description: None,
         category: None,
         website: Some(Some(SorobanString::from_str(&env, "https://newsite.example.com"))),
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "website update should be allowed on verified project");
@@ -315,11 +329,13 @@ fn verified_project_no_change_to_frozen_fields_allowed() {
         description: Some(SorobanString::from_str(&env, "Updated description")),
         category: Some(project.category.clone()),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -359,11 +375,13 @@ fn after_revoke_frozen_fields_become_mutable() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -392,11 +410,13 @@ fn unverified_project_all_fields_mutable() {
         description: Some(SorobanString::from_str(&env, "New description")),
         category: Some(SorobanString::from_str(&env, "NFT")),
         website: Some(Some(SorobanString::from_str(&env, "https://example.com"))),
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(result.is_ok(), "unverified project should allow all field updates");
@@ -428,11 +448,13 @@ fn pending_verification_project_fields_are_mutable() {
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(

@@ -9,13 +9,14 @@ pub struct ProjectRegistrationParams {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub tags: Option<Vec<String>>,
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub bounty_url: Option<String>,
-|}
+}
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -27,13 +28,14 @@ pub struct ProjectUpdateParams {
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
+    pub license: Option<Option<String>>,
     pub logo_cid: Option<Option<String>>,
     pub metadata_cid: Option<Option<String>>,
     pub tags: Option<Option<Vec<String>>>,
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
-|}
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -117,6 +119,7 @@ pub struct Project {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
@@ -130,7 +133,7 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
-|}
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
