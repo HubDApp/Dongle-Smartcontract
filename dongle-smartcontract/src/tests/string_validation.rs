@@ -7,7 +7,9 @@
 extern crate alloc;
 use alloc::string::String as StdString;
 
-use crate::constants::{MAX_CATEGORY_LEN, MAX_DESCRIPTION_LEN, MAX_NAME_LEN, MAX_WEBSITE_LEN};
+use crate::constants::{
+    MAX_CATEGORY_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN, MAX_WEBSITE_LEN,
+};
 use crate::errors::ContractError;
 use crate::utils::Utils;
 use proptest::prelude::*;
@@ -389,6 +391,44 @@ fn validate_metadata_cid_empty_invalid() {
 fn validate_metadata_cid_valid() {
     let e = mk_env();
     assert!(Utils::validate_metadata_cid(&s(&e, VALID_CIDV1)).is_ok());
+}
+
+#[test]
+fn validate_license_missing_value_is_not_required() {
+    let _e = mk_env();
+}
+
+#[test]
+fn validate_license_valid_spdx_id() {
+    let e = mk_env();
+    for license in ["MIT", "Apache-2.0", "GPL-2.0+", "BSD-3-Clause"] {
+        assert!(
+            Utils::validate_license(&s(&e, license)).is_ok(),
+            "license {license:?} should be valid"
+        );
+    }
+}
+
+#[test]
+fn validate_license_invalid_spdx_id() {
+    let e = mk_env();
+    for license in ["", "MIT OR Apache-2.0", "Apache_2.0", "GPL/3.0"] {
+        assert_eq!(
+            Utils::validate_license(&s(&e, license)),
+            Err(ContractError::InvalidProjectData),
+            "license {license:?} should be invalid"
+        );
+    }
+}
+
+#[test]
+fn validate_license_over_max_invalid() {
+    let e = mk_env();
+    let license = repeat_byte(&e, b'A', MAX_LICENSE_LEN + 1);
+    assert_eq!(
+        Utils::validate_license(&license),
+        Err(ContractError::InvalidProjectData)
+    );
 }
 
 // ─── CID: randomized boundary tests ─────────────────────────────────────────

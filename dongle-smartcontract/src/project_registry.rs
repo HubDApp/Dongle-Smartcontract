@@ -71,9 +71,8 @@ impl ProjectRegistry {
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
         }
-        // Bounty URL storage removed - not part of core StorageKey
-        if let Some(_bounty_url) = &params.bounty_url {
-            // Feature not implemented in core storage
+        if let Some(bounty_url) = &params.bounty_url {
+            Utils::validate_website(bounty_url)?;
         }
 
         Self::ensure_owner_capacity(env, &params.owner)?;
@@ -113,6 +112,7 @@ impl ProjectRegistry {
             description: params.description,
             category: params.category,
             website: params.website,
+            license: params.license,
             logo_cid: params.logo_cid,
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
@@ -183,6 +183,11 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectSocialLinks(count), social_links);
+        }
+        if let Some(bounty_url) = &params.bounty_url {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
 
         publish_project_registered_event(
@@ -326,6 +331,12 @@ impl ProjectRegistry {
             }
             project.website = value;
         }
+        if let Some(value) = params.license {
+            if let Some(ref license) = value {
+                Utils::validate_license(license)?;
+            }
+            project.license = value;
+        }
         if let Some(value) = params.logo_cid {
             if let Some(ref cid) = value {
                 Utils::validate_logo_cid(cid)?;
@@ -394,6 +405,22 @@ impl ProjectRegistry {
                 );
             }
             project.social_links = value;
+        }
+        if let Some(value) = params.launch_timestamp {
+            project.launch_timestamp = value;
+        }
+        if let Some(value) = params.bounty_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::ProjectBountyUrl(params.project_id), url);
+            } else {
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::ProjectBountyUrl(params.project_id));
+            }
+            project.bounty_url = value;
         }
 
         project.updated_at = env.ledger().timestamp();
@@ -501,7 +528,10 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
-            // proj.bounty_url - bounty_url storage removed from StorageKey
+            proj.bounty_url = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::ProjectBountyUrl(project_id));
         }
 
         // Bump TTL on read
