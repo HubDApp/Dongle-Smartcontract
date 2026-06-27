@@ -158,7 +158,6 @@ pub enum DataKey {
     Treasury,
     ProjectStats(u64),
     FeePaidForProject(u64),
-    ProjectBountyUrl(u64),
 }
 
 #[contracttype]

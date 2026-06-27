@@ -100,3 +100,4 @@ pub fn assert_project_state(
     assert_eq!(project.owner, *expected_owner);
     assert_eq!(project.verification_status, expected_status);
 }
+

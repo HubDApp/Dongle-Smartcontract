@@ -462,3 +462,4 @@ fn pending_verification_project_fields_are_mutable() {
         "fields should be mutable while verification is only Pending"
     );
 }
+

@@ -51,8 +51,9 @@ impl ProjectRegistry {
         if let Some(website) = &params.website {
             Utils::validate_website(website)?;
         }
-        if let Some(license) = &params.license {
-            Utils::validate_license(license)?;
+        if let Some(value) = &params.bounty_url {
+            Utils::validate_website(value)?;
+            // Bounty URL storage removed - not part of core StorageKey
         }
         if let Some(logo_cid) = &params.logo_cid {
             Utils::validate_logo_cid(logo_cid)?;

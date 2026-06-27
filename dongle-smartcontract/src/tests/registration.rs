@@ -24,11 +24,16 @@ fn test_register_project_success() {
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: name.clone(),
+        slug: String::from_str(&env, &name.to_string().to_lowercase().replace(' ', "-")),
         description: desc,
         category: cat,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let id = client.register_project(&params);
@@ -52,11 +57,16 @@ fn test_register_duplicate_project_fails() {
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: name.clone(),
+        slug: String::from_str(&env, &name.to_string().to_lowercase().replace(' ', "-")),
         description: desc.clone(),
         category: cat.clone(),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     // Register first project
@@ -80,24 +90,34 @@ fn test_register_different_projects_success() {
 
     let params1 = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: name1,
+        name: name1.clone(),
+        slug: String::from_str(&env, &name1.to_string().to_lowercase().replace(' ', "-")),
         description: desc.clone(),
         category: cat.clone(),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     let id1 = client.register_project(&params1);
     assert_eq!(id1, 1);
 
     let params2 = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: name2,
+        name: name2.clone(),
+        slug: String::from_str(&env, &name2.to_string().to_lowercase().replace(' ', "-")),
         description: desc,
         category: cat,
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     let id2 = client.register_project(&params2);
     assert_eq!(id2, 2);

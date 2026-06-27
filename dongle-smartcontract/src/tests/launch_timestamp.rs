@@ -23,6 +23,7 @@ fn test_register_project_with_launch_timestamp() {
         tags: None,
         social_links: None,
         launch_timestamp: Some(ts),
+        bounty_url: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
     let project = client.get_project(&project_id).unwrap();

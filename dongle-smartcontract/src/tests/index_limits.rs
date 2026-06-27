@@ -181,3 +181,4 @@ fn test_max_reviews_per_user_enforced() {
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));
 }
+

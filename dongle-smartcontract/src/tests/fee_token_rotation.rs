@@ -391,3 +391,4 @@ fn test_non_admin_cannot_rotate_fee_token() {
         "non-admin must not be allowed to rotate the fee token"
     );
 }
+
