@@ -42,7 +42,7 @@ use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, DependencyRef,
-    DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, Project,
+    DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project,
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
     ProposalPayload, Review, SecurityContactStatus, TimelockAction, VerificationRecord,
     VerificationStatus,
@@ -557,6 +557,56 @@ impl DongleContract {
         VerificationRegistry::clear_renewal_history(&env, project_id, &admin)
     }
 
+    // --- Verification Assignment ---
+
+    /// Admin: assign a pending verification to a specific admin for review.
+    pub fn assign_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::assign_verification(&env, project_id, admin, assignee)
+    }
+
+    /// Get the admin assigned to review a verification request.
+    pub fn get_assigned_admin(
+        env: Env,
+        project_id: u64,
+    ) -> Result<Option<Address>, ContractError> {
+        VerificationRegistry::get_assigned_admin(&env, project_id)
+    }
+
+    // --- Reserved Project Names ---
+
+    /// Admin: add a name to the reserved list.
+    pub fn add_reserved_name(
+        env: Env,
+        admin: Address,
+        name: String,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::add_reserved_name(&env, admin, name)
+    }
+
+    /// Admin: remove a name from the reserved list.
+    pub fn remove_reserved_name(
+        env: Env,
+        admin: Address,
+        name: String,
+    ) -> Result<(), ContractError> {
+        ProjectRegistry::remove_reserved_name(&env, admin, name)
+    }
+
+    /// Get the list of reserved project names.
+    pub fn get_reserved_names(env: Env) -> Vec<String> {
+        ProjectRegistry::get_reserved_names(&env)
+    }
+
+    /// Check if a specific name is reserved.
+    pub fn is_name_reserved(env: Env, name: String) -> bool {
+        ProjectRegistry::is_name_reserved(&env, &name)
+    }
+
     // --- Fee Manager ---
 
     pub fn set_fee(
@@ -588,6 +638,19 @@ impl DongleContract {
 
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
         FeeManager::get_fee_config(&env)
+    }
+
+    /// Get fee payment details for a project (payer, amount, token, timestamp).
+    pub fn get_fee_payment_details(env: Env, project_id: u64) -> Option<FeePaymentRecord> {
+        FeeManager::get_fee_payment_details(&env, project_id)
+    }
+
+    /// Get registration fee payment details for an address.
+    pub fn get_registration_fee_payment_details(
+        env: Env,
+        address: Address,
+    ) -> Option<FeePaymentRecord> {
+        FeeManager::get_registration_fee_payment_details(&env, &address)
     }
 
     // --- TTL Management ---

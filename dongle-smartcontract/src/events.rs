@@ -1664,6 +1664,80 @@ pub fn publish_fee_refunded_event(
     );
 }
 
+// ── Verification Assignment Events ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignedEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assigned_admin: Address,
+    pub assigner: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_verification_assigned_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    assigned_admin: Address,
+    assigner: Address,
+) {
+    let event_data = VerificationAssignedEvent {
+        project_id,
+        request_id,
+        assigned_admin,
+        assigner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("ASSIGNED"), project_id),
+        event_data,
+    );
+}
+
+// ── Reserved Name Events ──────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReservedNameAddedEvent {
+    pub name: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReservedNameRemovedEvent {
+    pub name: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_reserved_name_added_event(env: &Env, name: String, admin: Address) {
+    let event_data = ReservedNameAddedEvent {
+        name,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("RSVD_ADD")),
+        event_data,
+    );
+}
+
+pub fn publish_reserved_name_removed_event(env: &Env, name: String, admin: Address) {
+    let event_data = ReservedNameRemovedEvent {
+        name,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("RSVD_REM")),
+        event_data,
+    );
+}
+
 pub fn publish_fee_payment_cleared_event(
     env: &Env,
     project_id: u64,
