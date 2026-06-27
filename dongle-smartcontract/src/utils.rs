@@ -82,6 +82,25 @@ impl Utils {
         Ok(())
     }
 
+    pub fn validate_license(license: &String) -> Result<(), ContractError> {
+        let len = license.len();
+        if len == 0 || len > crate::constants::MAX_LICENSE_LEN as u32 {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; crate::constants::MAX_LICENSE_LEN];
+        let slice = &mut buf[..len as usize];
+        license.copy_into_slice(slice);
+
+        for &b in slice.iter() {
+            if !b.is_ascii_alphanumeric() && b != b'.' && b != b'-' && b != b'+' {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn sanitize_string(input: &String) -> String {
         input.clone()
     }
