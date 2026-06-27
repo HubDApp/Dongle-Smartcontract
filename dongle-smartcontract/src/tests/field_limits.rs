@@ -72,11 +72,13 @@ fn base_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationPar
         description: ss(env, "Default description for field limit tests."),
         category: ss(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     }
 }
 
@@ -330,11 +332,13 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     }
 }
 

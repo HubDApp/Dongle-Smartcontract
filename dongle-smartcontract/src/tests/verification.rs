@@ -21,14 +21,20 @@ fn setup_project_with_fee(
     owner: &Address,
     project_name: &str,
 ) -> u64 {
+    let slug = project_name.to_lowercase().replace(' ', "-");
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, project_name),
+        slug: String::from_str(env, &slug),
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     let project_id = client.register_project(&params);
 
@@ -58,11 +64,16 @@ fn test_verification_lifecycle() {
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(&env, "Project X"),
+        slug: String::from_str(&env, "project-x"),
         description: String::from_str(&env, "Description... Description... Description..."),
         category: String::from_str(&env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     let project_id = client.register_project(&params);
 
@@ -112,11 +123,16 @@ fn test_reject_verification() {
     let params = ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(&env, "Project Y"),
+        slug: String::from_str(&env, "project-y"),
         description: String::from_str(&env, "Description... Description... Description..."),
         category: String::from_str(&env, "NFT"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     let project_id = client.register_project(&params);
 

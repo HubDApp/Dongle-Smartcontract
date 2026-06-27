@@ -448,7 +448,12 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_approved_event(env, project_id, caller.clone(), now);
+                crate::events::publish_verification_approved_event(
+                    env,
+                    project_id,
+                    caller.clone(),
+                    now,
+                );
             }
             ProposalPayload::RejectVerification(project_id) => {
                 let mut project =
@@ -477,7 +482,12 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_rejected_event(env, project_id, caller.clone(), now);
+                crate::events::publish_verification_rejected_event(
+                    env,
+                    project_id,
+                    caller.clone(),
+                    now,
+                );
             }
             ProposalPayload::RevokeVerification(project_id, reason) => {
                 let mut project =

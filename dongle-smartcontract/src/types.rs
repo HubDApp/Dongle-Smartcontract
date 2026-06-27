@@ -9,13 +9,14 @@ pub struct ProjectRegistrationParams {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub tags: Option<Vec<String>>,
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub bounty_url: Option<String>,
-|}
+}
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -27,13 +28,14 @@ pub struct ProjectUpdateParams {
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
+    pub license: Option<Option<String>>,
     pub logo_cid: Option<Option<String>>,
     pub metadata_cid: Option<Option<String>>,
     pub tags: Option<Option<Vec<String>>>,
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
-|}
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -117,6 +119,7 @@ pub struct Project {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
@@ -130,7 +133,18 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
-|}
+    pub security_contact: Option<String>,
+    pub security_contact_proof_cid: Option<String>,
+    pub security_contact_verified: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactStatus {
+    pub contact: Option<String>,
+    pub proof_cid: Option<String>,
+    pub verified: bool,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -155,7 +169,6 @@ pub enum DataKey {
     Treasury,
     ProjectStats(u64),
     FeePaidForProject(u64),
-    ProjectBountyUrl(u64),
 }
 
 #[contracttype]
@@ -183,6 +196,8 @@ pub struct VerificationRecord {
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
     pub last_renewed_at: u64,
+    /// Admin assigned to review this verification request
+    pub assigned_admin: Option<Address>,
 }
 
 #[contracttype]
@@ -211,6 +226,9 @@ pub struct FeeConfig {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
     pub paid_at: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub token: Option<Address>,
 }
 
 #[contracttype]
@@ -334,6 +352,9 @@ pub enum AdminActionType {
     VerificationDurationSet,
     ThresholdChanged,
     FeeRefunded,
+    VerificationAssigned,
+    ReservedNameAdded,
+    ReservedNameRemoved,
 }
 
 #[contracttype]

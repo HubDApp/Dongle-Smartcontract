@@ -47,6 +47,8 @@ pub enum StorageKey {
     /// Project tags by project ID.
     ProjectTags(u64),
     ProjectLaunchTimestamp(u64),
+    /// Project bounty URL by project ID.
+    ProjectBountyUrl(u64),
     /// Project social links by project ID.
     ProjectSocialLinks(u64),
     /// Project maintainers by project ID.
@@ -146,4 +148,10 @@ pub enum ExtensionKey {
     FeeConfigHistoryCount,
     /// Fee config history entry by index (oldest = 0).
     FeeConfigHistoryEntry(u32),
+    /// Fee payment details for a project (payer, amount, token, timestamp).
+    FeePaymentDetails(u64),
+    /// Fee payment details for a registration (payer, amount, token, timestamp).
+    RegistrationFeePaymentDetails(Address),
+    /// List of reserved project names (admin-managed).
+    ReservedNames,
 }

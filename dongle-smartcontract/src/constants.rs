@@ -41,9 +41,22 @@ pub const MAX_CATEGORY_LEN: usize = 64;
 #[allow(dead_code)]
 pub const MAX_WEBSITE_LEN: usize = 256;
 
+/// Maximum length for a project's published security contact.
+pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
+
 /// Maximum length for any CID (logo, metadata, comment, evidence).
 #[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
+
+/// Project metadata fields whose changes invalidate an existing verification.
+pub const MAJOR_METADATA_FIELD_NAME: &str = "name";
+pub const MAJOR_METADATA_FIELD_WEBSITE: &str = "website";
+pub const MAJOR_METADATA_FIELD_METADATA_CID: &str = "metadata_cid";
+pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
+    MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE,
+    MAJOR_METADATA_FIELD_METADATA_CID,
+];
 
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;

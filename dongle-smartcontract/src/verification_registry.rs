@@ -180,7 +180,10 @@ impl VerificationRegistry {
             VerificationStatus::Pending,
         )?;
 
-        // 5. Consume fee payment when configured
+        // 5. Validate evidence before any storage mutation, including fee consumption.
+        Self::validate_evidence_cid(&evidence_cid)?;
+
+        // 6. Consume fee payment when configured
         let fee_amount = match FeeManager::get_fee_config(env) {
             Ok(config) if config.verification_fee > 0 => {
                 FeeManager::consume_fee_payment(
@@ -195,10 +198,7 @@ impl VerificationRegistry {
             Err(_) => 0,
         };
 
-        // 6. Validate evidence
-        Self::validate_evidence_cid(&evidence_cid)?;
-
-        // 6. Generate a unique request ID
+        // 7. Generate a unique request ID
         let mut request_id = env
             .storage()
             .persistent()
@@ -223,6 +223,7 @@ impl VerificationRegistry {
             revoke_reason: None,
             expires_at: 0,
             last_renewed_at: 0,
+            assigned_admin: None,
         };
 
         // 8. Save to historical record
@@ -442,6 +443,59 @@ impl VerificationRegistry {
             }
         }
         out
+    }
+
+    /// Admin: assign a pending verification request to a specific admin for review.
+    pub fn assign_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        // Assignee must also be an admin
+        if !crate::admin_manager::AdminManager::is_admin(env, &assignee) {
+            return Err(ContractError::AdminNotFound);
+        }
+
+        let mut record = Self::get_verification(env, project_id)?;
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationNotPending);
+        }
+
+        record.assigned_admin = Some(assignee.clone());
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        crate::events::publish_verification_assigned_event(
+            env,
+            project_id,
+            record.request_id,
+            assignee.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationAssigned,
+            Some(project_id),
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
+    /// Get the admin assigned to review a verification request.
+    pub fn get_assigned_admin(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<Option<Address>, ContractError> {
+        let record = Self::get_verification(env, project_id)?;
+        Ok(record.assigned_admin)
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
