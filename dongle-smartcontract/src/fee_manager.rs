@@ -104,7 +104,6 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
 
-        // Only emit event after successful payment
         publish_fee_paid_event(
             env,
             project_id,
