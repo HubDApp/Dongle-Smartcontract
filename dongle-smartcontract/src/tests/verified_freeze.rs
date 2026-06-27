@@ -1,6 +1,6 @@
-//! Tests for the metadata freeze policy on verified projects.
+//! Tests for verified-project metadata invalidation.
 //!
-//! ## Freeze Policy Summary
+//! ## Metadata Policy Summary
 //!
 //! Once a project is `Verified`, the following identity-critical fields
 //! are **frozen** — any attempt to change them is rejected with
@@ -14,16 +14,23 @@
 //! | `logo_cid`    | Visual identity audited during verification           |
 //! | `metadata_cid`| Evidence CID used during the verification review      |
 //!
-//! Fields that remain **freely mutable** after verification:
-//! `description`, `website`, `tags`, `social_links`, `launch_timestamp`.
+//! Major fields (`name`, `website`, `metadata_cid`) reset verification.
+//! Minor fields (`description`, `tags`, `social_links`, `launch_timestamp`)
+//! remain freely mutable after verification.
 //!
 //! To change a frozen field, an admin must first revoke verification;
 //! the project then returns to `Unverified` status and may be re-verified.
 
+use crate::constants::MAJOR_METADATA_FIELDS;
 use crate::errors::ContractError;
+use crate::events::VerificationStatusResetEvent;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProjectUpdateParams, VerificationStatus};
-use soroban_sdk::{testutils::Address as _, Address, Env, String as SorobanString};
+use soroban_sdk::{
+    symbol_short,
+    testutils::{Address as _, Events},
+    Address, Env, IntoVal, String as SorobanString, TryIntoVal, Val,
+};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +51,28 @@ fn approve_verification(
     client.approve_verification(&project_id, admin);
 }
 
+fn decode_event<T: soroban_sdk::TryFromVal<Env, Val>>(env: &Env, data: &Val) -> Option<T> {
+    TryIntoVal::<_, T>::try_into_val(data, env).ok()
+}
+
+fn has_verification_reset_event(env: &Env, project_id: u64, field: &str) -> bool {
+    let expected_topics =
+        (symbol_short!("VERIFY"), symbol_short!("RESET"), project_id).into_val(env);
+    let expected_field = SorobanString::from_str(env, field);
+
+    env.events().all().iter().any(|(_, topics, data)| {
+        topics == expected_topics
+            && decode_event::<VerificationStatusResetEvent>(env, &data)
+                .map(|event| {
+                    event.project_id == project_id
+                        && event.previous_status == VerificationStatus::Verified
+                        && event.new_status == VerificationStatus::Unverified
+                        && event.fields.contains(&expected_field)
+                })
+                .unwrap_or(false)
+    })
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Unit-level: Utils::check_frozen_fields
 // ═══════════════════════════════════════════════════════════════════════════
@@ -58,7 +87,7 @@ fn unit_freeze_unverified_no_restriction() {
 #[test]
 fn unit_freeze_verified_name_blocked() {
     let r = crate::utils::Utils::check_frozen_fields(true, true, false, false, false, false);
-    assert_eq!(r, Err(ContractError::VerifiedFieldFrozen));
+    assert!(r.is_ok());
 }
 
 #[test]
@@ -82,7 +111,7 @@ fn unit_freeze_verified_logo_cid_blocked() {
 #[test]
 fn unit_freeze_verified_metadata_cid_blocked() {
     let r = crate::utils::Utils::check_frozen_fields(true, false, false, false, false, true);
-    assert_eq!(r, Err(ContractError::VerifiedFieldFrozen));
+    assert!(r.is_ok());
 }
 
 #[test]
@@ -92,12 +121,17 @@ fn unit_freeze_verified_no_changes_ok() {
     assert!(r.is_ok());
 }
 
+#[test]
+fn major_metadata_fields_are_defined() {
+    assert_eq!(MAJOR_METADATA_FIELDS, ["name", "website", "metadata_cid"]);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Integration: update_project on a verified project
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn verified_project_update_name_blocked() {
+fn verified_project_update_name_resets_verification() {
     let env = mk_env();
     env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
@@ -123,8 +157,10 @@ fn verified_project_update_name_blocked() {
         launch_timestamp: None,
         bounty_url: None,
     };
-    let result = client.try_update_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
+    let project = client.update_project(&params);
+    assert_eq!(project.name, SorobanString::from_str(&env, "NewName"));
+    assert_eq!(project.verification_status, VerificationStatus::Unverified);
+    assert!(has_verification_reset_event(&env, project_id, "name"));
 }
 
 #[test]
@@ -215,7 +251,7 @@ fn verified_project_update_logo_cid_blocked() {
 }
 
 #[test]
-fn verified_project_update_metadata_cid_blocked() {
+fn verified_project_update_metadata_cid_resets_verification() {
     let env = mk_env();
     env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
@@ -241,8 +277,13 @@ fn verified_project_update_metadata_cid_blocked() {
         launch_timestamp: None,
         bounty_url: None,
     };
-    let result = client.try_update_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
+    let project = client.update_project(&params);
+    assert_eq!(project.verification_status, VerificationStatus::Unverified);
+    assert!(has_verification_reset_event(
+        &env,
+        project_id,
+        "metadata_cid"
+    ));
 }
 
 // ─── Mutable fields remain editable after verification ────────────────────
@@ -281,10 +322,11 @@ fn verified_project_update_description_allowed() {
         project.description,
         SorobanString::from_str(&env, "Updated description text")
     );
+    assert_eq!(project.verification_status, VerificationStatus::Verified);
 }
 
 #[test]
-fn verified_project_update_website_allowed() {
+fn verified_project_update_website_resets_verification() {
     let env = mk_env();
     env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
@@ -309,11 +351,9 @@ fn verified_project_update_website_allowed() {
         launch_timestamp: None,
         bounty_url: None,
     };
-    let result = client.try_update_project(&params);
-    assert!(
-        result.is_ok(),
-        "website update should be allowed on verified project"
-    );
+    let project = client.update_project(&params);
+    assert_eq!(project.verification_status, VerificationStatus::Unverified);
+    assert!(has_verification_reset_event(&env, project_id, "website"));
 }
 
 #[test]

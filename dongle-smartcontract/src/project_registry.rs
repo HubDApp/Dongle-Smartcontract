@@ -1,12 +1,15 @@
 use crate::admin_manager::AdminManager;
-use crate::constants::{MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER};
+use crate::constants::{
+    MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME, MAJOR_METADATA_FIELD_WEBSITE,
+    MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+};
 use crate::errors::ContractError;
 use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
     publish_claim_request_submitted_event, publish_ownership_transferred_event,
     publish_project_archived_event, publish_project_claimable_set_event,
     publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event,
+    publish_project_updated_event, publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
@@ -248,6 +251,11 @@ impl ProjectRegistry {
             .as_ref()
             .map(|opt| opt.as_ref() != project.metadata_cid.as_ref())
             .unwrap_or(false);
+        let new_website_differs = params
+            .website
+            .as_ref()
+            .map(|opt| opt.as_ref() != project.website.as_ref())
+            .unwrap_or(false);
 
         Utils::check_frozen_fields(
             is_verified,
@@ -257,6 +265,21 @@ impl ProjectRegistry {
             new_logo_differs,
             new_meta_differs,
         )?;
+
+        let major_metadata_changed =
+            is_verified && (new_name_differs || new_website_differs || new_meta_differs);
+        let mut major_fields: Vec<String> = Vec::new(env);
+        if major_metadata_changed {
+            if new_name_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_NAME));
+            }
+            if new_website_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_WEBSITE));
+            }
+            if new_meta_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_METADATA_CID));
+            }
+        }
         // ─────────────────────────────────────────────────────────────────
 
         // Store old name for cleanup if name is being updated
@@ -352,19 +375,28 @@ impl ProjectRegistry {
             project.metadata_cid = value;
         }
 
-        if let Some(value) = params.tags.as_ref() {
-            if let Some(tags) = value {
-                Utils::validate_tags(tags)?;
+        if major_metadata_changed {
+            let now = env.ledger().timestamp();
+            if let Some(request_id) = project.current_verification_id {
+                if let Some(mut record) = env
+                    .storage()
+                    .persistent()
+                    .get::<StorageKey, crate::types::VerificationRecord>(
+                        &StorageKey::VerificationRecord(request_id),
+                    )
+                {
+                    record.status = VerificationStatus::Unverified;
+                    record.revoke_reason = Some(String::from_str(env, "MajorMetadataChanged"));
+                    record.decided_at = now;
+                    env.storage()
+                        .persistent()
+                        .set(&StorageKey::VerificationRecord(request_id), &record);
+                }
             }
-        }
-        if let Some(value) = params.social_links.as_ref() {
-            if let Some(social_links) = value {
-                Utils::validate_social_links(social_links)?;
-            }
+            project.verification_status = VerificationStatus::Unverified;
         }
 
-        let tags_update = params.tags.clone();
-        let social_links_update = params.social_links.clone();
+        // Handle tags update
         if let Some(value) = params.tags {
             project.tags = value;
         }
@@ -523,6 +555,15 @@ impl ProjectRegistry {
         }
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
+        if major_metadata_changed {
+            publish_verification_status_reset_event(
+                env,
+                params.project_id,
+                params.caller,
+                VerificationStatus::Verified,
+                major_fields,
+            );
+        }
         StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
 
         Ok(project)

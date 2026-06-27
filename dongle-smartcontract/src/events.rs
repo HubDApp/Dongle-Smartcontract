@@ -1,4 +1,4 @@
-use crate::types::{AdminActionType, ReviewAction, ReviewEventData};
+use crate::types::{AdminActionType, ReviewAction, ReviewEventData, VerificationStatus};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -27,6 +27,17 @@ pub struct ProjectRegisteredEvent {
 pub struct ProjectUpdatedEvent {
     pub project_id: u64,
     pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationStatusResetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub previous_status: VerificationStatus,
+    pub new_status: VerificationStatus,
+    pub fields: Vec<String>,
     pub timestamp: u64,
 }
 
@@ -343,6 +354,27 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
             symbol_short!("UPDATED"),
             project_id,
         ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_status_reset_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    previous_status: VerificationStatus,
+    fields: Vec<String>,
+) {
+    let event_data = VerificationStatusResetEvent {
+        project_id,
+        caller,
+        previous_status,
+        new_status: VerificationStatus::Unverified,
+        fields,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RESET"), project_id),
         event_data,
     );
 }
