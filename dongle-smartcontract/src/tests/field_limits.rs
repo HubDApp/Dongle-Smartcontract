@@ -528,4 +528,3 @@ fn boundary_cid_at_127_passes() {
     assert!(client.try_register_project(&p).is_ok());
     let _ = admin;
 }
-

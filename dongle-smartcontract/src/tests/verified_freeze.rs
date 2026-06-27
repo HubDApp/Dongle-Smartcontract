@@ -272,7 +272,10 @@ fn verified_project_update_description_allowed() {
         bounty_url: None,
     };
     let result = client.try_update_project(&params);
-    assert!(result.is_ok(), "description update should be allowed on verified project");
+    assert!(
+        result.is_ok(),
+        "description update should be allowed on verified project"
+    );
     let project = client.get_project(&project_id).unwrap();
     assert_eq!(
         project.description,
@@ -295,8 +298,10 @@ fn verified_project_update_website_allowed() {
         slug: None,
         description: None,
         category: None,
-        website: Some(Some(SorobanString::from_str(&env, "https://newsite.example.com"))),
-        license: None,
+        website: Some(Some(SorobanString::from_str(
+            &env,
+            "https://newsite.example.com",
+        ))),
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -305,7 +310,10 @@ fn verified_project_update_website_allowed() {
         bounty_url: None,
     };
     let result = client.try_update_project(&params);
-    assert!(result.is_ok(), "website update should be allowed on verified project");
+    assert!(
+        result.is_ok(),
+        "website update should be allowed on verified project"
+    );
 }
 
 #[test]
@@ -419,7 +427,10 @@ fn unverified_project_all_fields_mutable() {
         bounty_url: None,
     };
     let result = client.try_update_project(&params);
-    assert!(result.is_ok(), "unverified project should allow all field updates");
+    assert!(
+        result.is_ok(),
+        "unverified project should allow all field updates"
+    );
 }
 
 // ─── Pending-verification project: frozen fields still mutable ────────────
@@ -462,4 +473,3 @@ fn pending_verification_project_fields_are_mutable() {
         "fields should be mutable while verification is only Pending"
     );
 }
-

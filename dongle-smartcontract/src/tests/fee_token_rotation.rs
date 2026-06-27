@@ -226,7 +226,10 @@ fn test_pay_fee_with_none_token_sets_flag_at_zero_fee() {
 
     // pay_fee with None token at zero fee must succeed without any transfer
     let result = client.try_pay_fee(&owner, &project_id, &None);
-    assert!(result.is_ok(), "zero-fee payment with None token should succeed");
+    assert!(
+        result.is_ok(),
+        "zero-fee payment with None token should succeed"
+    );
 }
 
 #[test]
@@ -391,4 +394,3 @@ fn test_non_admin_cannot_rotate_fee_token() {
         "non-admin must not be allowed to rotate the fee token"
     );
 }
-

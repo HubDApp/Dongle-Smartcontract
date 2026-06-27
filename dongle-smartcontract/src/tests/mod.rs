@@ -50,3 +50,6 @@ mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;
 mod timelock;
+
+// Atomicity tests for multi-storage operations
+mod atomicity;

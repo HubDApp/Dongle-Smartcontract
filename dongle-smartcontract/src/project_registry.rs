@@ -218,8 +218,7 @@ impl ProjectRegistry {
         // ── Metadata freeze guard ──────────────────────────────────────────
         // For verified projects, identity-critical fields are frozen.
         // Detect whether any frozen field is being changed before mutating.
-        let is_verified =
-            project.verification_status == VerificationStatus::Verified;
+        let is_verified = project.verification_status == VerificationStatus::Verified;
 
         let new_name_differs = params
             .name
@@ -350,10 +349,34 @@ impl ProjectRegistry {
             project.metadata_cid = value;
         }
 
-        // Handle tags update
-        if let Some(value) = params.tags {
-            if let Some(tags) = &value {
+        if let Some(value) = params.tags.as_ref() {
+            if let Some(tags) = value {
                 Utils::validate_tags(tags)?;
+            }
+        }
+        if let Some(value) = params.social_links.as_ref() {
+            if let Some(social_links) = value {
+                Utils::validate_social_links(social_links)?;
+            }
+        }
+
+        let tags_update = params.tags.clone();
+        let social_links_update = params.social_links.clone();
+        if let Some(value) = params.tags {
+            project.tags = value;
+        }
+        if let Some(value) = params.social_links {
+            project.social_links = value;
+        }
+
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(params.project_id), &project);
+
+        // Handle tags update
+        if let Some(value) = tags_update {
+            if let Some(tags) = &value {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::ProjectTags(params.project_id), tags);
@@ -364,7 +387,6 @@ impl ProjectRegistry {
                     value.clone(),
                 );
             } else {
-                // Remove tags if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectTags(params.project_id));
@@ -375,13 +397,11 @@ impl ProjectRegistry {
                     None,
                 );
             }
-            project.tags = value;
         }
 
         // Handle social links update
-        if let Some(value) = params.social_links {
+        if let Some(value) = social_links_update {
             if let Some(social_links) = &value {
-                Utils::validate_social_links(social_links)?;
                 env.storage().persistent().set(
                     &StorageKey::ProjectSocialLinks(params.project_id),
                     social_links,
@@ -393,7 +413,6 @@ impl ProjectRegistry {
                     value.clone(),
                 );
             } else {
-                // Remove social links if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectSocialLinks(params.project_id));
@@ -404,7 +423,6 @@ impl ProjectRegistry {
                     None,
                 );
             }
-            project.social_links = value;
         }
         if let Some(value) = params.launch_timestamp {
             project.launch_timestamp = value;
@@ -422,11 +440,6 @@ impl ProjectRegistry {
             }
             project.bounty_url = value;
         }
-
-        project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(params.project_id), &project);
 
         // If name was updated, update the ProjectByName mappings
         if name_updated {
@@ -528,10 +541,8 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
-            proj.bounty_url = env
-                .storage()
-                .persistent()
-                .get(&StorageKey::ProjectBountyUrl(project_id));
+            proj.maintainers = Some(Self::get_maintainers(env, project_id));
+            // proj.bounty_url - bounty_url storage removed from StorageKey
         }
 
         // Bump TTL on read

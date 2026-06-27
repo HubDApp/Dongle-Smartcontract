@@ -91,7 +91,15 @@ fn name_whitespace_only_invalid() {
 #[test]
 fn name_allowed_chars_valid() {
     let e = mk_env();
-    for name in ["hello", "Hello-World", "my_project", "abc123", "A1-B2_C3", "X", "a-b"] {
+    for name in [
+        "hello",
+        "Hello-World",
+        "my_project",
+        "abc123",
+        "A1-B2_C3",
+        "X",
+        "a-b",
+    ] {
         assert!(
             Utils::validate_project_name(&s(&e, name)).is_ok(),
             "name {name:?} should be valid"
@@ -133,7 +141,10 @@ fn name_disallowed_chars_invalid() {
     ];
     for name in cases {
         let r = Utils::validate_project_name(&s(&e, name));
-        assert!(r.is_err(), "name {name:?} with disallowed char should be invalid");
+        assert!(
+            r.is_err(),
+            "name {name:?} with disallowed char should be invalid"
+        );
     }
 }
 
@@ -360,7 +371,9 @@ fn cid_wrong_prefix_invalid() {
         v.push_str(&repeat_char('m', 45));
         v
     };
-    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(&e, &bad)));
+    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(
+        &e, &bad
+    )));
 }
 
 #[test]
@@ -580,7 +593,10 @@ fn name_rejects_control_chars() {
     for ch in ['\x01', '\x07', '\x1b', '\x7f'] {
         let name = alloc::format!("abc{ch}def");
         let result = Utils::validate_project_name(&s(&e, &name));
-        assert!(result.is_err(), "name with control char {ch:?} should be rejected");
+        assert!(
+            result.is_err(),
+            "name with control char {ch:?} should be rejected"
+        );
     }
 }
 
