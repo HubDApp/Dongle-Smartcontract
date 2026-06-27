@@ -130,6 +130,17 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
+    pub security_contact: Option<String>,
+    pub security_contact_proof_cid: Option<String>,
+    pub security_contact_verified: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactStatus {
+    pub contact: Option<String>,
+    pub proof_cid: Option<String>,
+    pub verified: bool,
 }
 
 #[contracttype]

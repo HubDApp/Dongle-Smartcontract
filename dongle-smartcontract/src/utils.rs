@@ -123,6 +123,24 @@ impl Utils {
         Ok(())
     }
 
+    pub fn validate_security_contact(contact: &String) -> Result<(), ContractError> {
+        let len = contact.len();
+        if len == 0 || len > crate::constants::MAX_SECURITY_CONTACT_LEN as u32 {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; crate::constants::MAX_SECURITY_CONTACT_LEN];
+        contact.copy_into_slice(&mut buf[..len as usize]);
+        let is_whitespace_only = buf[..len as usize]
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r');
+        if is_whitespace_only {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        Ok(())
+    }
+
     pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
         const MAX_LIMIT: u32 = 100;
 
@@ -343,7 +361,12 @@ impl Utils {
         if !is_verified {
             return Ok(());
         }
-        if name_changed || slug_changed || category_changed || logo_cid_changed || metadata_cid_changed {
+        if name_changed
+            || slug_changed
+            || category_changed
+            || logo_cid_changed
+            || metadata_cid_changed
+        {
             return Err(ContractError::VerifiedFieldFrozen);
         }
         Ok(())

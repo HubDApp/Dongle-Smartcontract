@@ -13,7 +13,7 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    VerificationStatus,
+    SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -126,6 +126,9 @@ impl ProjectRegistry {
             launch_timestamp: params.launch_timestamp,
             maintainers: Some(Vec::new(env)),
             bounty_url: params.bounty_url.clone(),
+            security_contact: None,
+            security_contact_proof_cid: None,
+            security_contact_verified: false,
         };
 
         // Get current owner projects
@@ -213,8 +216,7 @@ impl ProjectRegistry {
         // ── Metadata freeze guard ──────────────────────────────────────────
         // For verified projects, identity-critical fields are frozen.
         // Detect whether any frozen field is being changed before mutating.
-        let is_verified =
-            project.verification_status == VerificationStatus::Verified;
+        let is_verified = project.verification_status == VerificationStatus::Verified;
 
         let new_name_differs = params
             .name
@@ -485,6 +487,87 @@ impl ProjectRegistry {
         Ok(project)
     }
 
+    pub fn update_security_contact(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        contact: Option<String>,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if let Some(value) = &contact {
+            Utils::validate_security_contact(value)?;
+        }
+
+        if project.security_contact != contact {
+            project.security_contact = contact;
+            project.security_contact_proof_cid = None;
+            project.security_contact_verified = false;
+        }
+
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_updated_event(env, project_id, project.owner.clone());
+
+        Ok(project)
+    }
+
+    pub fn submit_security_contact_proof(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        proof_cid: String,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.security_contact.is_none() {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        Utils::validate_metadata_cid(&proof_cid)?;
+        project.security_contact_proof_cid = Some(proof_cid);
+        project.security_contact_verified = true;
+        project.updated_at = env.ledger().timestamp();
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_updated_event(env, project_id, project.owner.clone());
+
+        Ok(project)
+    }
+
+    pub fn get_security_contact_status(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<SecurityContactStatus, ContractError> {
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        Ok(SecurityContactStatus {
+            contact: project.security_contact,
+            proof_cid: project.security_contact_proof_cid,
+            verified: project.security_contact_verified,
+        })
+    }
+
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
         let mut project: Option<Project> = env
             .storage()
@@ -501,6 +584,7 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
+            proj.maintainers = Some(Self::get_maintainers(env, project_id));
             // proj.bounty_url - bounty_url storage removed from StorageKey
         }
 

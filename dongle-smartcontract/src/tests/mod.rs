@@ -23,6 +23,7 @@ mod dependencies;
 mod maintainers;
 mod renewal;
 mod review_settings;
+mod security_contact;
 mod verification_features;
 
 // String validation: names, descriptions, CIDs, categories, URLs
