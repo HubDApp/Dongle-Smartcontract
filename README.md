@@ -41,6 +41,42 @@ make build
 cargo build --target wasm32-unknown-unknown --release
 ```
 
+### Optimize WASM
+
+After building, run the optimization step before deploying to reduce on-chain storage costs
+and improve execution performance.
+
+```bash
+# Build first
+cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+
+# Optimize (requires stellar-cli installed with wasm-opt support)
+bash scripts/optimize_wasm.sh
+# or with explicit paths:
+bash scripts/optimize_wasm.sh \
+  target/wasm32-unknown-unknown/release/dongle_contract.wasm \
+  target/wasm32-unknown-unknown/release/dongle_contract.optimized.wasm
+```
+
+Install the Stellar CLI with optimization support:
+
+```bash
+cargo install --locked stellar-cli --features opt
+```
+
+**When to use the optimized artifact:**
+
+- **Testnet / Mainnet deployments** — always use `dongle_contract.optimized.wasm`.
+  It is smaller (lower fees) and faster to execute.
+- **Local development** — the unoptimized `dongle_contract.wasm` is fine; it
+  builds faster and includes debug symbols.
+- **CI** — the `optimize` job in CI builds and uploads the optimized artifact
+  as `dongle_contract_optimized` so every merged commit has a verified,
+  deployment-ready WASM.
+
+The unoptimized file is safe to use for local invocations and snapshot tests.
+Always deploy the `.optimized.wasm` in production environments.
+
 ### Test
 
 ```bash
