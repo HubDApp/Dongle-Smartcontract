@@ -1,7 +1,10 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
 use crate::admin_action_log::AdminActionLog;
-use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX, RATING_MIN};
+use crate::constants::{
+    MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX,
+    RATING_MIN,
+};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::project_registry::ProjectRegistry;

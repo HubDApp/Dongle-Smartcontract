@@ -598,7 +598,12 @@ pub fn publish_verification_requested_event(
     );
 }
 
-pub fn publish_verification_approved_event(env: &Env, project_id: u64, admin: Address, decided_at: u64) {
+pub fn publish_verification_approved_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    decided_at: u64,
+) {
     let event_data = VerificationApprovedEvent {
         project_id,
         admin,
@@ -611,7 +616,12 @@ pub fn publish_verification_approved_event(env: &Env, project_id: u64, admin: Ad
     );
 }
 
-pub fn publish_verification_rejected_event(env: &Env, project_id: u64, admin: Address, decided_at: u64) {
+pub fn publish_verification_rejected_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    decided_at: u64,
+) {
     let event_data = VerificationRejectedEvent {
         project_id,
         admin,

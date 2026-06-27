@@ -514,6 +514,7 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
+            proj.maintainers = Some(Self::get_maintainers(env, project_id));
             // proj.bounty_url - bounty_url storage removed from StorageKey
         }
 

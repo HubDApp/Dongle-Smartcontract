@@ -179,11 +179,17 @@ fn test_invalid_dependency_reference_rejected() {
 
 fn mk_contract_address(env: &Env) -> String {
     // Valid 56-char Stellar contract address (starts with 'C', uppercase base32)
-    String::from_str(env, "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+    String::from_str(
+        env,
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    )
 }
 
 fn mk_contract_address_2(env: &Env) -> String {
-    String::from_str(env, "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB5")
+    String::from_str(
+        env,
+        "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB5",
+    )
 }
 
 #[test]
