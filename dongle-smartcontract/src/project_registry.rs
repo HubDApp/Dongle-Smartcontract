@@ -32,6 +32,9 @@ impl ProjectRegistry {
         Utils::validate_project_name(&params.name)?;
         Utils::validate_project_slug(&params.slug)?;
 
+        // Check reserved names
+        Self::check_reserved_name(env, &params.name)?;
+
         // Check registration fee payment
         if let Ok(config) = FeeManager::get_fee_config(env) {
             if config.registration_fee > 0 {
@@ -268,6 +271,9 @@ impl ProjectRegistry {
             if value.is_empty() {
                 return Err(ContractError::InvalidProjectName);
             }
+
+            // Check reserved names on update
+            Self::check_reserved_name(env, &value)?;
 
             // Check if new name is different from current name
             if value != old_name {
@@ -1450,6 +1456,133 @@ impl ProjectRegistry {
             }
             None => Err(ContractError::AdminNotFound),
         }
+    }
+
+    // ── Reserved Names ────────────────────────────────────────────────────
+
+    /// Check if a name is reserved (case-insensitive comparison).
+    fn check_reserved_name(env: &Env, name: &String) -> Result<(), ContractError> {
+        let reserved: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ReservedNames)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let name_lower = Utils::to_lowercase(env, name);
+        for i in 0..reserved.len() {
+            if let Some(r) = reserved.get(i) {
+                if Utils::to_lowercase(env, &r) == name_lower {
+                    return Err(ContractError::ReservedName);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Admin: add a name to the reserved list.
+    pub fn add_reserved_name(
+        env: &Env,
+        admin: Address,
+        name: String,
+    ) -> Result<(), ContractError> {
+        crate::auth::require_admin_auth(env, &admin)?;
+
+        let mut reserved: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ReservedNames)
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Check if already reserved (case-insensitive)
+        let name_lower = Utils::to_lowercase(env, &name);
+        for i in 0..reserved.len() {
+            if let Some(r) = reserved.get(i) {
+                if Utils::to_lowercase(env, &r) == name_lower {
+                    return Ok(()); // already reserved, no-op
+                }
+            }
+        }
+
+        reserved.push_back(name.clone());
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ReservedNames, &reserved);
+
+        crate::events::publish_reserved_name_added_event(env, name, admin.clone());
+
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ReservedNameAdded,
+            None,
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
+    /// Admin: remove a name from the reserved list.
+    pub fn remove_reserved_name(
+        env: &Env,
+        admin: Address,
+        name: String,
+    ) -> Result<(), ContractError> {
+        crate::auth::require_admin_auth(env, &admin)?;
+
+        let reserved: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ReservedNames)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let name_lower = Utils::to_lowercase(env, &name);
+        let mut new_list = Vec::new(env);
+        let mut found = false;
+
+        for i in 0..reserved.len() {
+            if let Some(r) = reserved.get(i) {
+                if Utils::to_lowercase(env, &r) == name_lower {
+                    found = true;
+                } else {
+                    new_list.push_back(r);
+                }
+            }
+        }
+
+        if !found {
+            return Ok(()); // not in list, no-op
+        }
+
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ReservedNames, &new_list);
+
+        crate::events::publish_reserved_name_removed_event(env, name, admin.clone());
+
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ReservedNameRemoved,
+            None,
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
+    /// Get the list of reserved names.
+    pub fn get_reserved_names(env: &Env) -> Vec<String> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ReservedNames)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Check if a specific name is reserved.
+    pub fn is_name_reserved(env: &Env, name: &String) -> bool {
+        Self::check_reserved_name(env, name).is_err()
     }
 }
 

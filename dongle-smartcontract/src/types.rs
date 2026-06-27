@@ -182,6 +182,8 @@ pub struct VerificationRecord {
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
     pub last_renewed_at: u64,
+    /// Admin assigned to review this verification request
+    pub assigned_admin: Option<Address>,
 }
 
 #[contracttype]
@@ -210,6 +212,9 @@ pub struct FeeConfig {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
     pub paid_at: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub token: Option<Address>,
 }
 
 #[contracttype]
@@ -333,6 +338,9 @@ pub enum AdminActionType {
     VerificationDurationSet,
     ThresholdChanged,
     FeeRefunded,
+    VerificationAssigned,
+    ReservedNameAdded,
+    ReservedNameRemoved,
 }
 
 #[contracttype]

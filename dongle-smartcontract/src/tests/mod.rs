@@ -49,3 +49,10 @@ mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;
 mod timelock;
+
+// Issue #223: Fee payment payer getter
+mod fee_payment_details;
+// Issue #227: Verification assignment to admin
+mod verification_assignment;
+// Issue #231: Reserved project names
+mod reserved_names;
