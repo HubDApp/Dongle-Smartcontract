@@ -29,6 +29,7 @@ fn register_project_for_owner(
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -61,6 +62,7 @@ fn test_max_projects_per_user_enforced() {
         tags: None,
         social_links: None,
         launch_timestamp: None,
+        bounty_url: None,
     });
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));
@@ -177,3 +179,4 @@ fn test_max_reviews_per_user_enforced() {
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));
 }
+

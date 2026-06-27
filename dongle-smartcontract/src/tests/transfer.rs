@@ -15,14 +15,20 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 }
 
 fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
+    let slug = name.to_lowercase().replace(' ', "-");
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &slug),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     })
 }
 
