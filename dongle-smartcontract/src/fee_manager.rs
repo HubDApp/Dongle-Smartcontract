@@ -57,7 +57,7 @@ impl FeeManager {
 
     /// Pay the verification fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
-    /// 
+    ///
     /// # Behavior on Token Transfer Failure
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
@@ -104,8 +104,6 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::FeePaidForProject(project_id), &true);
 
-        // Only emit event after successful payment
-        publish_fee_paid_event(env, project_id, payer, amount);
         publish_fee_paid_event(
             env,
             project_id,
@@ -217,12 +215,6 @@ impl FeeManager {
         }
 
         // Only set payment flag after successful token transfer
-        env.storage()
-            .persistent()
-            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
-
-        // Only emit event after successful payment
-        publish_fee_paid_event(env, 0, payer, amount);
         env.storage().persistent().set(
             &StorageKey::RegistrationFeePaidForAddress(payer.clone()),
             &true,

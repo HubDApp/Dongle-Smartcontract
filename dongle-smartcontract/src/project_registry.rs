@@ -1,12 +1,15 @@
 use crate::admin_manager::AdminManager;
-use crate::constants::{MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER};
+use crate::constants::{
+    MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME, MAJOR_METADATA_FIELD_WEBSITE,
+    MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+};
 use crate::errors::ContractError;
 use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
     publish_claim_request_submitted_event, publish_ownership_transferred_event,
     publish_project_archived_event, publish_project_claimable_set_event,
     publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event,
+    publish_project_updated_event, publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
@@ -213,8 +216,7 @@ impl ProjectRegistry {
         // ── Metadata freeze guard ──────────────────────────────────────────
         // For verified projects, identity-critical fields are frozen.
         // Detect whether any frozen field is being changed before mutating.
-        let is_verified =
-            project.verification_status == VerificationStatus::Verified;
+        let is_verified = project.verification_status == VerificationStatus::Verified;
 
         let new_name_differs = params
             .name
@@ -241,6 +243,11 @@ impl ProjectRegistry {
             .as_ref()
             .map(|opt| opt.as_ref() != project.metadata_cid.as_ref())
             .unwrap_or(false);
+        let new_website_differs = params
+            .website
+            .as_ref()
+            .map(|opt| opt.as_ref() != project.website.as_ref())
+            .unwrap_or(false);
 
         Utils::check_frozen_fields(
             is_verified,
@@ -250,6 +257,21 @@ impl ProjectRegistry {
             new_logo_differs,
             new_meta_differs,
         )?;
+
+        let major_metadata_changed =
+            is_verified && (new_name_differs || new_website_differs || new_meta_differs);
+        let mut major_fields: Vec<String> = Vec::new(env);
+        if major_metadata_changed {
+            if new_name_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_NAME));
+            }
+            if new_website_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_WEBSITE));
+            }
+            if new_meta_differs {
+                major_fields.push_back(String::from_str(env, MAJOR_METADATA_FIELD_METADATA_CID));
+            }
+        }
         // ─────────────────────────────────────────────────────────────────
 
         // Store old name for cleanup if name is being updated
@@ -337,6 +359,27 @@ impl ProjectRegistry {
                 Utils::validate_metadata_cid(cid)?;
             }
             project.metadata_cid = value;
+        }
+
+        if major_metadata_changed {
+            let now = env.ledger().timestamp();
+            if let Some(request_id) = project.current_verification_id {
+                if let Some(mut record) = env
+                    .storage()
+                    .persistent()
+                    .get::<StorageKey, crate::types::VerificationRecord>(
+                        &StorageKey::VerificationRecord(request_id),
+                    )
+                {
+                    record.status = VerificationStatus::Unverified;
+                    record.revoke_reason = Some(String::from_str(env, "MajorMetadataChanged"));
+                    record.decided_at = now;
+                    env.storage()
+                        .persistent()
+                        .set(&StorageKey::VerificationRecord(request_id), &record);
+                }
+            }
+            project.verification_status = VerificationStatus::Unverified;
         }
 
         // Handle tags update
@@ -480,6 +523,15 @@ impl ProjectRegistry {
         }
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
+        if major_metadata_changed {
+            publish_verification_status_reset_event(
+                env,
+                params.project_id,
+                params.caller,
+                VerificationStatus::Verified,
+                major_fields,
+            );
+        }
         StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
 
         Ok(project)
@@ -501,6 +553,7 @@ impl ProjectRegistry {
                 .storage()
                 .persistent()
                 .get(&StorageKey::ProjectSocialLinks(project_id));
+            proj.maintainers = Some(Self::get_maintainers(env, project_id));
             // proj.bounty_url - bounty_url storage removed from StorageKey
         }
 
