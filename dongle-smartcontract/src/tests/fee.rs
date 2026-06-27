@@ -12,6 +12,9 @@ use crate::DongleContract;
 use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
+// A valid IPFS CIDv0 for testing (46 characters)
+const VALID_EVIDENCE_CID: &str = "QmTu64kW8cUwwigCcJcKQS6F6wTwwJeD8Y18qr9s9DXkXy";
+
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address, Address) {
     let contract_id = env.register(DongleContract, ());
     let client = DongleContractClient::new(env, &contract_id);
@@ -22,6 +25,7 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address, Address, Address) {
     let token = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
+    // Set fees: verification_fee = 100, registration_fee = 0 (to avoid registration fee during tests)
     client.set_fee(&admin, &Some(token.clone()), &100, &0u128, &admin);
 
     (client, admin, Address::generate(env), token)
@@ -54,7 +58,7 @@ fn test_owner_can_pay_fee() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "Owner Pay");
+    let project_id = register(&client, &env, &owner, "OwnerPay");
     mint(&env, &token, &owner, 100);
 
     // Should succeed without error
@@ -64,7 +68,7 @@ fn test_owner_can_pay_fee() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, VALID_EVIDENCE_CID),
     );
 }
 
@@ -75,7 +79,7 @@ fn test_non_owner_pay_fee_fails() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "Third Party Pay");
+    let project_id = register(&client, &env, &owner, "ThirdPartyPay");
 
     let stranger = Address::generate(&env);
     mint(&env, &token, &stranger, 100);
@@ -89,7 +93,7 @@ fn test_non_owner_payment_does_not_enable_verification() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "No Stranger Fee");
+    let project_id = register(&client, &env, &owner, "NoStrangerFee");
 
     let stranger = Address::generate(&env);
     mint(&env, &token, &stranger, 100);
@@ -101,7 +105,7 @@ fn test_non_owner_payment_does_not_enable_verification() {
     let result = client.try_request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, VALID_EVIDENCE_CID),
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
@@ -113,7 +117,7 @@ fn test_repeated_payment_by_owner_overwrites_flag() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "Repeat Pay");
+    let project_id = register(&client, &env, &owner, "RepeatPay");
     mint(&env, &token, &owner, 200);
 
     // Pay twice — second call should succeed (idempotent flag set)
@@ -124,7 +128,7 @@ fn test_repeated_payment_by_owner_overwrites_flag() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, VALID_EVIDENCE_CID),
     );
 }
 
@@ -200,14 +204,14 @@ fn test_fee_consumed_after_request_verification() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, admin, owner, token) = setup(&env);
-    let project_id = register(&client, &env, &owner, "Fee Consumed");
+    let project_id = register(&client, &env, &owner, "FeeConsumed");
     mint(&env, &token, &owner, 200);
 
     client.pay_fee(&owner, &project_id, &Some(token.clone()));
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, VALID_EVIDENCE_CID),
     );
 
     // Reject so we can try to re-request without paying again
