@@ -47,6 +47,8 @@ pub enum StorageKey {
     /// Project tags by project ID.
     ProjectTags(u64),
     ProjectLaunchTimestamp(u64),
+    /// Project bounty URL by project ID.
+    ProjectBountyUrl(u64),
     /// Project social links by project ID.
     ProjectSocialLinks(u64),
     /// Project maintainers by project ID.

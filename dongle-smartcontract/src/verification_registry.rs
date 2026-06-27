@@ -180,7 +180,10 @@ impl VerificationRegistry {
             VerificationStatus::Pending,
         )?;
 
-        // 5. Consume fee payment when configured
+        // 5. Validate evidence before any storage mutation, including fee consumption.
+        Self::validate_evidence_cid(&evidence_cid)?;
+
+        // 6. Consume fee payment when configured
         let fee_amount = match FeeManager::get_fee_config(env) {
             Ok(config) if config.verification_fee > 0 => {
                 FeeManager::consume_fee_payment(
@@ -195,10 +198,7 @@ impl VerificationRegistry {
             Err(_) => 0,
         };
 
-        // 6. Validate evidence
-        Self::validate_evidence_cid(&evidence_cid)?;
-
-        // 6. Generate a unique request ID
+        // 7. Generate a unique request ID
         let mut request_id = env
             .storage()
             .persistent()

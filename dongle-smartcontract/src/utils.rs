@@ -82,6 +82,25 @@ impl Utils {
         Ok(())
     }
 
+    pub fn validate_license(license: &String) -> Result<(), ContractError> {
+        let len = license.len();
+        if len == 0 || len > crate::constants::MAX_LICENSE_LEN as u32 {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; crate::constants::MAX_LICENSE_LEN];
+        let slice = &mut buf[..len as usize];
+        license.copy_into_slice(slice);
+
+        for &b in slice.iter() {
+            if !b.is_ascii_alphanumeric() && b != b'.' && b != b'-' && b != b'+' {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn sanitize_string(input: &String) -> String {
         input.clone()
     }
@@ -120,6 +139,24 @@ impl Utils {
         if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
             return Err(ContractError::InvalidMetaCid);
         }
+        Ok(())
+    }
+
+    pub fn validate_security_contact(contact: &String) -> Result<(), ContractError> {
+        let len = contact.len();
+        if len == 0 || len > crate::constants::MAX_SECURITY_CONTACT_LEN as u32 {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; crate::constants::MAX_SECURITY_CONTACT_LEN];
+        contact.copy_into_slice(&mut buf[..len as usize]);
+        let is_whitespace_only = buf[..len as usize]
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r');
+        if is_whitespace_only {
+            return Err(ContractError::InvalidProjectData);
+        }
+
         Ok(())
     }
 

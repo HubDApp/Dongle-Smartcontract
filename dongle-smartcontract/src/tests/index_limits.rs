@@ -22,6 +22,7 @@ fn register_project_for_owner(
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,

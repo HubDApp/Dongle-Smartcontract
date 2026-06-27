@@ -44,7 +44,8 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, DependencyRef,
     DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, Project,
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
-    ProposalPayload, Review, TimelockAction, VerificationRecord, VerificationStatus,
+    ProposalPayload, Review, SecurityContactStatus, TimelockAction, VerificationRecord,
+    VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -135,6 +136,31 @@ impl DongleContract {
 
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         ProjectRegistry::update_project(&env, params)
+    }
+
+    pub fn update_security_contact(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        contact: Option<String>,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
+    }
+
+    pub fn submit_security_contact_proof(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        proof_cid: String,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::submit_security_contact_proof(&env, project_id, caller, proof_cid)
+    }
+
+    pub fn get_security_contact_status(
+        env: Env,
+        project_id: u64,
+    ) -> Result<SecurityContactStatus, ContractError> {
+        ProjectRegistry::get_security_contact_status(&env, project_id)
     }
 
     pub fn link_project(

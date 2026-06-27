@@ -41,6 +41,9 @@ pub const MAX_CATEGORY_LEN: usize = 64;
 #[allow(dead_code)]
 pub const MAX_WEBSITE_LEN: usize = 256;
 
+/// Maximum length for a project's published security contact.
+pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
+
 /// Maximum length for any CID (logo, metadata, comment, evidence).
 #[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;

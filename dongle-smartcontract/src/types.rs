@@ -9,6 +9,7 @@ pub struct ProjectRegistrationParams {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub tags: Option<Vec<String>>,
@@ -27,6 +28,7 @@ pub struct ProjectUpdateParams {
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
+    pub license: Option<Option<String>>,
     pub logo_cid: Option<Option<String>>,
     pub metadata_cid: Option<Option<String>>,
     pub tags: Option<Option<Vec<String>>>,
@@ -117,6 +119,7 @@ pub struct Project {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
+    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub verification_status: VerificationStatus,
@@ -130,6 +133,17 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
+    pub security_contact: Option<String>,
+    pub security_contact_proof_cid: Option<String>,
+    pub security_contact_verified: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactStatus {
+    pub contact: Option<String>,
+    pub proof_cid: Option<String>,
+    pub verified: bool,
 }
 
 #[contracttype]

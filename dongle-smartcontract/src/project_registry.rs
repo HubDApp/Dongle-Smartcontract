@@ -16,7 +16,7 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    VerificationStatus,
+    SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -74,9 +74,8 @@ impl ProjectRegistry {
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
         }
-        // Bounty URL storage removed - not part of core StorageKey
-        if let Some(_bounty_url) = &params.bounty_url {
-            // Feature not implemented in core storage
+        if let Some(bounty_url) = &params.bounty_url {
+            Utils::validate_website(bounty_url)?;
         }
 
         Self::ensure_owner_capacity(env, &params.owner)?;
@@ -116,6 +115,7 @@ impl ProjectRegistry {
             description: params.description,
             category: params.category,
             website: params.website,
+            license: params.license,
             logo_cid: params.logo_cid,
             metadata_cid: params.metadata_cid,
             verification_status: VerificationStatus::Unverified,
@@ -129,6 +129,9 @@ impl ProjectRegistry {
             launch_timestamp: params.launch_timestamp,
             maintainers: Some(Vec::new(env)),
             bounty_url: params.bounty_url.clone(),
+            security_contact: None,
+            security_contact_proof_cid: None,
+            security_contact_verified: false,
         };
 
         // Get current owner projects
@@ -186,6 +189,11 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectSocialLinks(count), social_links);
+        }
+        if let Some(bounty_url) = &params.bounty_url {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
 
         publish_project_registered_event(
@@ -348,6 +356,12 @@ impl ProjectRegistry {
             }
             project.website = value;
         }
+        if let Some(value) = params.license {
+            if let Some(ref license) = value {
+                Utils::validate_license(license)?;
+            }
+            project.license = value;
+        }
         if let Some(value) = params.logo_cid {
             if let Some(ref cid) = value {
                 Utils::validate_logo_cid(cid)?;
@@ -384,8 +398,20 @@ impl ProjectRegistry {
 
         // Handle tags update
         if let Some(value) = params.tags {
+            project.tags = value;
+        }
+        if let Some(value) = params.social_links {
+            project.social_links = value;
+        }
+
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(params.project_id), &project);
+
+        // Handle tags update
+        if let Some(value) = tags_update {
             if let Some(tags) = &value {
-                Utils::validate_tags(tags)?;
                 env.storage()
                     .persistent()
                     .set(&StorageKey::ProjectTags(params.project_id), tags);
@@ -396,7 +422,6 @@ impl ProjectRegistry {
                     value.clone(),
                 );
             } else {
-                // Remove tags if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectTags(params.project_id));
@@ -407,13 +432,11 @@ impl ProjectRegistry {
                     None,
                 );
             }
-            project.tags = value;
         }
 
         // Handle social links update
-        if let Some(value) = params.social_links {
+        if let Some(value) = social_links_update {
             if let Some(social_links) = &value {
-                Utils::validate_social_links(social_links)?;
                 env.storage().persistent().set(
                     &StorageKey::ProjectSocialLinks(params.project_id),
                     social_links,
@@ -425,7 +448,6 @@ impl ProjectRegistry {
                     value.clone(),
                 );
             } else {
-                // Remove social links if None
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::ProjectSocialLinks(params.project_id));
@@ -436,13 +458,23 @@ impl ProjectRegistry {
                     None,
                 );
             }
-            project.social_links = value;
         }
-
-        project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(params.project_id), &project);
+        if let Some(value) = params.launch_timestamp {
+            project.launch_timestamp = value;
+        }
+        if let Some(value) = params.bounty_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::ProjectBountyUrl(params.project_id), url);
+            } else {
+                env.storage()
+                    .persistent()
+                    .remove(&StorageKey::ProjectBountyUrl(params.project_id));
+            }
+            project.bounty_url = value;
+        }
 
         // If name was updated, update the ProjectByName mappings
         if name_updated {
@@ -535,6 +567,87 @@ impl ProjectRegistry {
         StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
 
         Ok(project)
+    }
+
+    pub fn update_security_contact(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        contact: Option<String>,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if let Some(value) = &contact {
+            Utils::validate_security_contact(value)?;
+        }
+
+        if project.security_contact != contact {
+            project.security_contact = contact;
+            project.security_contact_proof_cid = None;
+            project.security_contact_verified = false;
+        }
+
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_updated_event(env, project_id, project.owner.clone());
+
+        Ok(project)
+    }
+
+    pub fn submit_security_contact_proof(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        proof_cid: String,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.security_contact.is_none() {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        Utils::validate_metadata_cid(&proof_cid)?;
+        project.security_contact_proof_cid = Some(proof_cid);
+        project.security_contact_verified = true;
+        project.updated_at = env.ledger().timestamp();
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_updated_event(env, project_id, project.owner.clone());
+
+        Ok(project)
+    }
+
+    pub fn get_security_contact_status(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<SecurityContactStatus, ContractError> {
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        Ok(SecurityContactStatus {
+            contact: project.security_contact,
+            proof_cid: project.security_contact_proof_cid,
+            verified: project.security_contact_verified,
+        })
     }
 
     pub fn get_project(env: &Env, project_id: u64) -> Option<Project> {
