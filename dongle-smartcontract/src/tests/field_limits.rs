@@ -72,6 +72,7 @@ fn base_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationPar
         description: ss(env, "Default description for field limit tests."),
         category: ss(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -331,6 +332,7 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         description: None,
         category: None,
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -526,4 +528,3 @@ fn boundary_cid_at_127_passes() {
     assert!(client.try_register_project(&p).is_ok());
     let _ = admin;
 }
-

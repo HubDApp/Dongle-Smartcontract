@@ -61,6 +61,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -99,4 +100,3 @@ pub fn assert_project_state(
     assert_eq!(project.owner, *expected_owner);
     assert_eq!(project.verification_status, expected_status);
 }
-

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dongle.example/schemas/project-metadata.schema.json",
+  "title": "Dongle Project Metadata",
+  "type": "object",
+  "properties": {
+    "security_contact": {
+      "type": "object",
+      "description": "Public security contact details and on-chain ownership proof status.",
+      "properties": {
+        "contact": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Email address, security.txt URL, web page, or other contact route published by the project."
+        },
+        "proof_cid": {
+          "type": "string",
+          "minLength": 46,
+          "maxLength": 128,
+          "description": "IPFS CID containing evidence that the contact is controlled by the project."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether the on-chain project record has accepted a proof CID for the current contact."
+        }
+      },
+      "required": ["contact"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

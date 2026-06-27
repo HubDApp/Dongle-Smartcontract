@@ -1,8 +1,6 @@
 //! Storage index size limit tests: owner projects and review indexes.
 
-use crate::constants::{
-    MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER,
-};
+use crate::constants::{MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER};
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::ProjectRegistrationParams;
@@ -24,6 +22,7 @@ fn register_project_for_owner(
         description: String::from_str(env, "Test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -48,22 +47,27 @@ fn test_max_projects_per_user_enforced() {
         register_project_for_owner(&env, &client, &owner, &name);
     }
 
-    assert_eq!(client.get_owner_project_count(&owner), MAX_PROJECTS_PER_USER);
+    assert_eq!(
+        client.get_owner_project_count(&owner),
+        MAX_PROJECTS_PER_USER
+    );
 
-    let result = client.mock_all_auths().try_register_project(&ProjectRegistrationParams {
-        owner: owner.clone(),
-        name: String::from_str(&env, "Overflow"),
-        slug: String::from_str(&env, "overflow"),
-        description: String::from_str(&env, "Too many projects"),
-        category: String::from_str(&env, "DeFi"),
-        website: None,
-        logo_cid: None,
-        metadata_cid: None,
-        tags: None,
-        social_links: None,
-        launch_timestamp: None,
-        bounty_url: None,
-    });
+    let result = client
+        .mock_all_auths()
+        .try_register_project(&ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(&env, "Overflow"),
+            slug: String::from_str(&env, "overflow"),
+            description: String::from_str(&env, "Too many projects"),
+            category: String::from_str(&env, "DeFi"),
+            website: None,
+            logo_cid: None,
+            metadata_cid: None,
+            tags: None,
+            social_links: None,
+            launch_timestamp: None,
+            bounty_url: None,
+        });
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));
 }
@@ -179,4 +183,3 @@ fn test_max_reviews_per_user_enforced() {
 
     assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded.into())));
 }
-

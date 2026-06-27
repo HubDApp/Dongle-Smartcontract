@@ -57,7 +57,7 @@ impl FeeManager {
 
     /// Pay the verification fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
-    /// 
+    ///
     /// # Behavior on Token Transfer Failure
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted

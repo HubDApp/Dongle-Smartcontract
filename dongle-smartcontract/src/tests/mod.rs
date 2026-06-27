@@ -23,10 +23,12 @@ mod dependencies;
 mod maintainers;
 mod renewal;
 mod review_settings;
+mod security_contact;
 mod verification_features;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod string_validation;
+mod license_metadata;
 
 // Metadata freeze policy for verified projects
 mod verified_freeze;
@@ -50,9 +52,5 @@ mod multisig_and_history;
 mod subscriptions;
 mod timelock;
 
-// Issue #223: Fee payment payer getter
-mod fee_payment_details;
-// Issue #227: Verification assignment to admin
-mod verification_assignment;
-// Issue #231: Reserved project names
-mod reserved_names;
+// Atomicity tests for multi-storage operations
+mod atomicity;
