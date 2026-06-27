@@ -343,7 +343,12 @@ impl Utils {
         if !is_verified {
             return Ok(());
         }
-        if name_changed || slug_changed || category_changed || logo_cid_changed || metadata_cid_changed {
+        if name_changed
+            || slug_changed
+            || category_changed
+            || logo_cid_changed
+            || metadata_cid_changed
+        {
             return Err(ContractError::VerifiedFieldFrozen);
         }
         Ok(())
