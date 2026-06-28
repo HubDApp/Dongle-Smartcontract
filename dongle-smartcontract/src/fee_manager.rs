@@ -90,6 +90,11 @@ impl FeeManager {
 
         let amount = config.verification_fee;
         if amount > 0 {
+            // Safety: fee amounts are stored as u128 but the token interface requires i128.
+            // Reject any value that exceeds i128::MAX to prevent a silent truncating cast.
+            if amount > i128::MAX as u128 {
+                return Err(ContractError::InvalidProjectData);
+            }
             // set_fee enforces that token is Some when fees are non-zero, so this
             // ok_or branch is a defensive guard against corrupted storage state.
             let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
@@ -219,6 +224,11 @@ impl FeeManager {
 
         let amount = config.registration_fee;
         if amount > 0 {
+            // Safety: fee amounts are stored as u128 but the token interface requires i128.
+            // Reject any value that exceeds i128::MAX to prevent a silent truncating cast.
+            if amount > i128::MAX as u128 {
+                return Err(ContractError::InvalidProjectData);
+            }
             // Defensive guard — set_fee already rejects None token with non-zero fees.
             let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);

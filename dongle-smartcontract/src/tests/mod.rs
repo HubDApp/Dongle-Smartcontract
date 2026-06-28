@@ -47,6 +47,10 @@ mod invariants;
 
 // Property-based pagination tests using proptest
 mod proptest_pagination;
+// Issue #221: fee amount boundary tests
+mod fee_boundary;
+// Issues #240, #241, #246: review tombstones, sorting, cooldown
+mod review_features;
 
 // Test infrastructure
 mod bookmarks;
