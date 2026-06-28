@@ -56,6 +56,7 @@ pub enum ContractError {
     NativeFeeNotSupported = 54,
     ReservedName = 55,
     VerificationNotPend = 56,
+    OwnerCannotReview = 57,
 }
 
 pub type Error = ContractError;

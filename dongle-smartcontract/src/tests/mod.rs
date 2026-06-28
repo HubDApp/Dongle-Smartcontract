@@ -66,3 +66,6 @@ mod timelock;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
+
+// Project region metadata (#238) and integrity hash (#250)
+mod region_and_integrity;

@@ -29,6 +29,7 @@ mod verification_registry;
 #[cfg(test)]
 mod tests;
 
+use crate::storage_keys::ExtensionKey;
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
@@ -237,6 +238,46 @@ impl DongleContract {
 
     pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
         ProjectRegistry::get_projects_by_ids(&env, ids)
+    }
+
+    /// Sets an optional region tag for a project (owner only).
+    pub fn set_project_region(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        region: Option<String>,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let project = ProjectRegistry::get_project(&env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        match region {
+            Some(r) => env
+                .storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectRegion(project_id), &r),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectRegion(project_id)),
+        }
+        Ok(())
+    }
+
+    /// Returns the region tag for a project, if set.
+    pub fn get_project_region(env: Env, project_id: u64) -> Option<String> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectRegion(project_id))
+    }
+
+    /// Returns the stored integrity hash for a project, if any.
+    pub fn get_project_integrity_hash(env: Env, project_id: u64) -> Option<soroban_sdk::Bytes> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectIntegrityHash(project_id))
     }
 
     pub fn list_projects_by_status(
