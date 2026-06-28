@@ -4,6 +4,7 @@
 
 - Confirm deployer wallet and network are correct.
 - Confirm initialization admin argument is not the zero address.
+- Confirm initialization admin argument is not the zero-contract address.
 - Confirm initialization is executed only once.
 - Confirm admin list contains exactly the intended bootstrap admin after initialization.
 - Confirm the contract rejects a second initialization attempt.
