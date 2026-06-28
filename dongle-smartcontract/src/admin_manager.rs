@@ -27,7 +27,14 @@ impl AdminManager {
             env,
             "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
         ));
+        let zero_contract = Address::from_string(&String::from_str(
+            env,
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        ));
         if admin == zero_account {
+            panic!("admin cannot be zero address");
+        }
+        if admin == zero_contract {
             panic!("admin cannot be zero address");
         }
 

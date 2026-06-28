@@ -271,8 +271,14 @@ impl ReviewRegistry {
             old_rating,
             rating,
         );
-        let mut new_distribution = Self::distribution_decrement(env, &stats.rating_distribution, old_rating);
-        new_distribution = Self::distribution_increment(env, &new_distribution, rating);
+        let new_distribution = if old_rating == rating {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
+        } else {
+            let mut distribution =
+                Self::distribution_decrement(env, &stats.rating_distribution, old_rating);
+            distribution = Self::distribution_increment(env, &distribution, rating);
+            distribution
+        };
 
         // Perform mutations
         env.storage().persistent().set(&review_key, &review);
