@@ -43,6 +43,7 @@ pub struct ProjectStats {
     pub rating_sum: u64,
     pub review_count: u32,
     pub average_rating: u32,
+    pub rating_distribution: Vec<u32>,
 }
 
 #[contracttype]

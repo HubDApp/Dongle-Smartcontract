@@ -12,7 +12,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
-use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Env, String, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -21,6 +21,14 @@ impl AdminManager {
         // Check if already initialized
         if env.storage().persistent().has(&StorageKey::AdminList) {
             panic!("Contract already initialized");
+        }
+
+        let zero_account = Address::from_string(&String::from_str(
+            env,
+            "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+        ));
+        if admin == zero_account {
+            panic!("admin cannot be zero address");
         }
 
         // Don't require auth during initialization - this is typically called once during contract deployment
