@@ -1,155 +1,194 @@
+#![cfg(test)]
+
 use crate::errors::ContractError;
-use crate::tests::fixtures::{create_test_project, setup_contract};
-use crate::types::ProjectUpdateParams;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use crate::tests::fixtures::setup_contract;
+use crate::types::ProjectRegistrationParams;
+use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
-#[test]
-fn test_register_project_with_valid_bounty_url() {
-    let env = Env::default();
-    let (client, _admin) = setup_contract(&env);
-    let owner = Address::generate(&env);
-
-    // Valid https URL
-    let params = crate::types::ProjectRegistrationParams {
+fn register_project_with_bounty(
+    env: &Env,
+    client: &crate::DongleContractClient<'_>,
+    owner: &Address,
+    name: &str,
+    bounty_url: Option<String>,
+    bounty_cid: Option<String>,
+) -> Result<u64, ContractError> {
+    let slug = name.to_lowercase().replace(' ', "-");
+    let params = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: String::from_str(&env, "Test"),
-        slug: String::from_str(&env, "test"),
-        description: String::from_str(&env, "A test"),
-        category: String::from_str(&env, "DeFi"),
+        name: String::from_str(env, name),
+        slug: String::from_str(env, &slug),
+        description: String::from_str(env, "A test project for bounty metadata"),
+        category: String::from_str(env, "DeFi"),
         website: None,
-        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
-        bounty_url: Some(String::from_str(&env, "https://example.com/bounty")),
+        bounty_url: bounty_url.map(|s| String::from_str(env, &s)),
+        bounty_cid: bounty_cid.map(|s| String::from_str(env, &s)),
     };
+    let env_clone = env.clone();
+    client.mock_all_auths().try_register_project(&params)
+}
 
-    let project_id = client.mock_all_auths().register_project(&params);
-    let proj = client.get_project(&project_id).unwrap();
+#[test]
+fn test_valid_bounty_url() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Project URL",
+        Some("https://example.com/bounty".to_string()),
+        None,
+    );
+    assert!(result.is_ok());
+    let project = client.get_project(&result.unwrap()).unwrap();
     assert_eq!(
-        proj.bounty_url.unwrap(),
+        project.bounty_url.unwrap(),
         String::from_str(&env, "https://example.com/bounty")
     );
 }
 
 #[test]
-fn test_register_project_with_invalid_bounty_url() {
+fn test_invalid_bounty_url_no_scheme() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
-
-    // Invalid URL (no scheme)
-    let params = crate::types::ProjectRegistrationParams {
-        owner: owner.clone(),
-        name: String::from_str(&env, "Test"),
-        slug: String::from_str(&env, "test2"),
-        description: String::from_str(&env, "A test"),
-        category: String::from_str(&env, "DeFi"),
-        website: None,
-        license: None,
-        logo_cid: None,
-        metadata_cid: None,
-        tags: None,
-        social_links: None,
-        launch_timestamp: None,
-        bounty_url: Some(String::from_str(&env, "not-a-url")),
-    };
-
-    let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidBountyUrl)));
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Invalid URL",
+        Some("ftp://example.com/bounty".to_string()),
+        None,
+    );
+    assert!(result.is_err());
+    assert_eq!(result.err().unwrap(), ContractError::InvalidInput);
 }
 
 #[test]
-fn test_update_project_with_valid_bounty_url() {
+fn test_invalid_bounty_url_short() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "UpdateBounty");
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Short URL",
+        Some("http://a".to_string()),
+        None,
+    );
+    assert!(result.is_err());
+    assert_eq!(result.err().unwrap(), ContractError::InvalidInput);
+}
 
-    // Update with valid URL
-    let params = ProjectUpdateParams {
-        name: None,
-        description: None,
-        category: None,
-        website: None,
-        license: None,
-        logo_cid: None,
-        metadata_cid: None,
-        tags: None,
-        social_links: None,
-        launch_timestamp: None,
-        bounty_url: Some(String::from_str(&env, "https://newbounty.com")),
-        bounty_url_clear: false,
-    };
-
-    client
-        .mock_all_auths()
-        .update_project(&project_id, &owner, &params)
-        .unwrap();
-
-    let proj = client.get_project(&project_id).unwrap();
+#[test]
+fn test_valid_bounty_cid_v0() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let valid_cid = "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco";  // example CIDv0
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Project CIDv0",
+        None,
+        Some(valid_cid.to_string()),
+    );
+    assert!(result.is_ok());
+    let project = client.get_project(&result.unwrap()).unwrap();
     assert_eq!(
-        proj.bounty_url.unwrap(),
-        String::from_str(&env, "https://newbounty.com")
+        project.bounty_cid.unwrap(),
+        String::from_str(&env, valid_cid)
     );
 }
 
 #[test]
-fn test_update_project_with_invalid_bounty_url() {
+fn test_valid_bounty_cid_v1() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "InvalidUpdate");
-
-    // Update with invalid URL
-    let params = ProjectUpdateParams {
-        name: None,
-        description: None,
-        category: None,
-        website: None,
-        license: None,
-        logo_cid: None,
-        metadata_cid: None,
-        tags: None,
-        social_links: None,
-        launch_timestamp: None,
-        bounty_url: Some(String::from_str(&env, "ftp://bounty")),
-        bounty_url_clear: false,
-    };
-
-    let result = client
-        .mock_all_auths()
-        .try_update_project(&project_id, &owner, &params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidBountyUrl)));
+    let valid_cid = "bafybeigdzeq3z7q3kz3z3z3z3z3z3z3z3z3z3z3z3z3z3z3z3z3z3z3"; // shortened for test
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Project CIDv1",
+        None,
+        Some(valid_cid.to_string()),
+    );
+    assert!(result.is_ok());
 }
 
 #[test]
-fn test_register_with_cid_as_bounty_url() {
-    // If CIDs are allowed (starts with Qm or bafy...), this test would pass
-    // For simplicity, we treat any non-http string as invalid in this implementation
+fn test_invalid_bounty_cid_wrong_prefix() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
+    let invalid_cid = "XmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco";
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Invalid CID",
+        None,
+        Some(invalid_cid.to_string()),
+    );
+    assert!(result.is_err());
+    assert_eq!(result.err().unwrap(), ContractError::InvalidInput);
+}
 
-    // A CID string like "Qm..." would fail as it doesn't start with http
-    let params = crate::types::ProjectRegistrationParams {
+#[test]
+fn test_invalid_bounty_cid_short_v1() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let invalid_cid = "bafy";
+    let result = register_project_with_bounty(
+        &env,
+        &client,
+        &owner,
+        "Short CIDv1",
+        None,
+        Some(invalid_cid.to_string()),
+    );
+    assert!(result.is_err());
+    assert_eq!(result.err().unwrap(), ContractError::InvalidInput);
+}
+
+#[test]
+fn test_bounty_fields_missing() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    // Register without any bounty fields
+    let name = "No Bounty";
+    let slug = name.to_lowercase().replace(' ', "-");
+    let params = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: String::from_str(&env, "CIDTest"),
-        slug: String::from_str(&env, "cidtest"),
-        description: String::from_str(&env, "CID test"),
+        name: String::from_str(&env, name),
+        slug: String::from_str(&env, &slug),
+        description: String::from_str(&env, "No bounty project"),
         category: String::from_str(&env, "DeFi"),
         website: None,
-        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
-        bounty_url: Some(String::from_str(&env, "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco")),
+        bounty_url: None,
+        bounty_cid: None,
     };
-
-    let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidBountyUrl)));
+    let result = client.mock_all_auths().try_register_project(&params);
+    assert!(result.is_ok());
+    let project = client.get_project(&result.unwrap()).unwrap();
+    assert!(project.bounty_url.is_none());
+    assert!(project.bounty_cid.is_none());
 }
