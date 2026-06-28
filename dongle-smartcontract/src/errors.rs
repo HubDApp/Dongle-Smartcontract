@@ -55,7 +55,7 @@ pub enum ContractError {
     VerifiedFieldFrozen = 53,
     NativeFeeNotSupported = 54,
     ReservedName = 55,
-    VerificationNotPending = 56,
+    VerificationNotPend = 56,
 }
 
 pub type Error = ContractError;

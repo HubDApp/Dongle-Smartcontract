@@ -5,7 +5,8 @@ use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT};
 use crate::errors::ContractError;
 use crate::events::{
-    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_approved_event, publish_verification_evidence_updated_event,
+    publish_verification_rejected_event,
     publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
     publish_verification_renewal_requested_event, publish_verification_requested_event,
     publish_verification_revoked_event,
@@ -260,6 +261,55 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Updates the verification evidence CID for a pending verification request.
+    ///
+    /// This can only be called by the project owner when the request is in the
+    /// Pending status. The supplied CID is validated using the standard CID validation rules.
+    /// Once updated successfully, it persists the new CID and publishes a
+    /// `VerificationEvidenceUpdated` event.
+    pub fn update_verification_evidence(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        // 1. Validate project existence and ownership
+        let project = ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        require_owner_auth(&caller, &project.owner)?;
+
+        // 2. Retrieve verification record
+        let mut record = Self::get_verification(env, project_id)?;
+
+        // 3. Reject if not Pending
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationNotPend);
+        }
+
+        // 4. Validate CID before state mutation
+        Self::validate_evidence_cid(&new_evidence_cid)?;
+
+        // 5. Update CID and persist
+        let old_evidence_cid = record.evidence_cid;
+        record.evidence_cid = new_evidence_cid.clone();
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        // 6. Emit event
+        publish_verification_evidence_updated_event(
+            env,
+            project_id,
+            caller,
+            old_evidence_cid,
+            new_evidence_cid,
+        );
+
+        Ok(())
+    }
+
     pub fn approve_verification(
         env: &Env,
         project_id: u64,
@@ -461,7 +511,7 @@ impl VerificationRegistry {
 
         let mut record = Self::get_verification(env, project_id)?;
         if record.status != VerificationStatus::Pending {
-            return Err(ContractError::VerificationNotPending);
+            return Err(ContractError::VerificationNotPend);
         }
 
         record.assigned_admin = Some(assignee.clone());

@@ -452,6 +452,29 @@ impl DongleContract {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
+    /// Update the verification evidence CID for a pending verification request.
+    ///
+    /// # Restrictions
+    /// - Only the project owner can update the evidence.
+    /// - Updates are allowed only when the request status is `Pending`.
+    /// - Once a request is finalized (either Approved/Verified or Rejected), it is immutable
+    ///   and further updates will be rejected with an error.
+    ///
+    /// # Validation
+    /// - The new evidence CID is validated using the project's standard IPFS CID rules.
+    ///   Malformed or empty CIDs are rejected.
+    ///
+    /// # Events
+    /// - On a successful update, emits a `VerificationEvidenceUpdatedEvent` event.
+    pub fn update_verification_evidence(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        new_evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::update_verification_evidence(&env, project_id, caller, new_evidence_cid)
+    }
+
     pub fn approve_verification(
         env: Env,
         project_id: u64,
@@ -646,7 +669,7 @@ impl DongleContract {
     }
 
     /// Get registration fee payment details for an address.
-    pub fn get_registration_fee_payment_details(
+    pub fn get_reg_fee_payment_details(
         env: Env,
         address: Address,
     ) -> Option<FeePaymentRecord> {

@@ -214,6 +214,9 @@ impl ProjectRegistry {
         env: &Env,
         params: ProjectUpdateParams,
     ) -> Result<Project, ContractError> {
+        let tags_update = params.tags.clone();
+        let social_links_update = params.social_links.clone();
+
         let mut project =
             Self::get_project(env, params.project_id).ok_or(ContractError::ProjectNotFound)?;
 

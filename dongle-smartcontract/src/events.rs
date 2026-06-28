@@ -190,6 +190,16 @@ pub struct VerificationRevokedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceUpdatedEvent {
+    pub project_id: u64,
+    pub requester: Address,
+    pub old_evidence_cid: String,
+    pub new_evidence_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationHistoryClearedEvent {
     pub project_id: u64,
     pub admin: Address,
@@ -209,7 +219,7 @@ pub struct RenewalHistoryClearedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRenewalRequestedEvent {
+pub struct VerificationRenewalReqEvent {
     pub project_id: u64,
     pub requester: Address,
     pub evidence_cid: String,
@@ -688,6 +698,30 @@ pub fn publish_verification_revoked_event(
     );
 }
 
+pub fn publish_verification_evidence_updated_event(
+    env: &Env,
+    project_id: u64,
+    requester: Address,
+    old_evidence_cid: String,
+    new_evidence_cid: String,
+) {
+    let event_data = VerificationEvidenceUpdatedEvent {
+        project_id,
+        requester,
+        old_evidence_cid,
+        new_evidence_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("EV_UPD"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_verification_history_cleared_event(
     env: &Env,
     project_id: u64,
@@ -737,7 +771,7 @@ pub fn publish_verification_renewal_requested_event(
     evidence_cid: String,
     fee_amount: u128,
 ) {
-    let event_data = VerificationRenewalRequestedEvent {
+    let event_data = VerificationRenewalReqEvent {
         project_id,
         requester,
         evidence_cid,
@@ -1108,7 +1142,7 @@ pub struct ProjectAddedToCollectionEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectRemovedFromCollectionEvent {
+pub struct ProjRemovedFromCollectionEvent {
     pub collection_id: u64,
     pub project_id: u64,
     pub admin: Address,
@@ -1198,7 +1232,7 @@ pub fn publish_project_removed_from_collection_event(
     project_id: u64,
     admin: Address,
 ) {
-    let event_data = ProjectRemovedFromCollectionEvent {
+    let event_data = ProjRemovedFromCollectionEvent {
         collection_id,
         project_id,
         admin,
