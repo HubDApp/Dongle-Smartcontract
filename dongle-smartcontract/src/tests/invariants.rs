@@ -218,8 +218,7 @@ fn invariant_verification_status_is_pending_after_request() {
     );
 
     let record = client
-        .get_verification(&project_id)
-        .expect("verification record must exist after request");
+        .get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Pending,
@@ -258,8 +257,7 @@ fn invariant_verification_status_is_verified_after_approval() {
     );
 
     let record = client
-        .get_verification(&project_id)
-        .expect("verification record must persist after approval");
+        .get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Verified,
@@ -294,8 +292,7 @@ fn invariant_verification_status_is_rejected_after_rejection() {
     );
 
     let record = client
-        .get_verification(&project_id)
-        .expect("verification record must persist after rejection");
+        .get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Rejected,

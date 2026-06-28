@@ -101,7 +101,7 @@ fn test_assign_verification_after_approval_fails() {
 
     // Status is now Verified, not Pending — should fail
     let result = client.try_assign_verification(&project_id, &admin, &reviewer);
-    assert_eq!(result, Err(Ok(ContractError::VerificationNotPending)));
+    assert_eq!(result, Err(Ok(ContractError::VerificationNotPend)));
 }
 
 #[test]
