@@ -145,3 +145,7 @@ pub const TIMELOCK_MIN_DELAY: u64 = 86400;
 /// After this window, the payment record is considered expired and the
 /// verification request is rejected until the owner re-pays.
 pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
+/// Configurable by changing this constant.
+pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;

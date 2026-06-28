@@ -471,3 +471,28 @@ pub struct AdminProposal {
     pub status: ProposalStatus,
     pub created_at: u64,
 }
+
+/// Tombstone stored when a review is deleted so indexers can distinguish
+/// deleted reviews from reviews that never existed.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewTombstone {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub deleted_at: u64,
+}
+
+/// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
+/// For large projects this increases compute budget usage proportionally to review count.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReviewSortMode {
+    /// Newest reviews first (highest created_at).
+    Newest,
+    /// Oldest reviews first (lowest created_at).
+    Oldest,
+    /// Highest rating first.
+    RatingHigh,
+    /// Lowest rating first.
+    RatingLow,
+}
