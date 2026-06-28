@@ -44,7 +44,8 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, DependencyRef,
     DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project,
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
-    ProposalPayload, Review, SecurityContactStatus, TimelockAction, VerificationRecord,
+    ProposalPayload, Review, ReviewSortMode, ReviewTombstone, SecurityContactStatus,
+    TimelockAction, VerificationRecord,
     VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -439,6 +440,27 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         ReviewRegistry::admin_delete_review(&env, project_id, reviewer, admin)
+    }
+
+    /// Get the deletion tombstone for a review, distinguishing deleted vs never-existed.
+    pub fn get_review_tombstone(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ReviewTombstone> {
+        ReviewRegistry::get_review_tombstone(&env, project_id, reviewer)
+    }
+
+    /// List reviews sorted by the given sort mode with pagination.
+    /// Sorting is performed on-chain in-memory; compute cost scales with review count.
+    pub fn list_reviews_sorted(
+        env: Env,
+        project_id: u64,
+        start_id: u32,
+        limit: u32,
+        sort_mode: ReviewSortMode,
+    ) -> Vec<Review> {
+        ReviewRegistry::list_reviews_sorted(&env, project_id, start_id, limit, sort_mode)
     }
 
     // --- Verification Registry ---

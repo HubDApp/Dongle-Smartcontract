@@ -3,15 +3,15 @@
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
     MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX,
-    RATING_MIN,
+    RATING_MIN, REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
-use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction};
+use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewSortMode, ReviewTombstone};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -193,6 +193,19 @@ impl ReviewRegistry {
             return Err(ContractError::NotReviewOwner);
         }
 
+        // Cooldown: reject update if within REVIEW_UPDATE_COOLDOWN_SECONDS of the last update.
+        // Note: ContractError::InvalidStatus (9) is reused as the cooldown error because
+        // Soroban SDK 22 #[contracterror] is limited to 50 variants and this enum is full.
+        // A dedicated ReviewCooldownActive variant should be introduced when a variant slot
+        // is freed in a future refactor.
+        let cooldown_key = ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone());
+        if let Some(last_updated_at) = env.storage().persistent().get::<_, u64>(&cooldown_key) {
+            let now_ts = env.ledger().timestamp();
+            if now_ts.saturating_sub(last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS {
+                return Err(ContractError::InvalidStatus);
+            }
+        }
+
         // Mutation phase
         let old_rating = review.rating;
         let now = env.ledger().timestamp();
@@ -229,6 +242,11 @@ impl ReviewRegistry {
                 average_rating: new_avg,
             },
         );
+
+        // Record the update timestamp for cooldown enforcement on subsequent updates.
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone()), &now);
 
         publish_review_event(
             env,
@@ -318,6 +336,12 @@ impl ReviewRegistry {
 
         // Perform all mutations
         env.storage().persistent().remove(&review_key);
+        // Store a tombstone so indexers can distinguish deleted vs never-existed.
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &ExtensionKey::ReviewTombstone(project_id, reviewer.clone()),
+            &ReviewTombstone { project_id, reviewer: reviewer.clone(), deleted_at: now },
+        );
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
@@ -347,7 +371,6 @@ impl ReviewRegistry {
         // as ReviewReport keys are dedup guards keyed by (project_id, reviewer, reporter)
         // and those will become orphaned but harmless once the review is gone.
 
-        let now = env.ledger().timestamp();
         publish_review_event(
             env,
             project_id,
@@ -439,6 +462,12 @@ impl ReviewRegistry {
 
         // Apply all mutations
         env.storage().persistent().remove(&review_key);
+        // Store a tombstone so indexers can distinguish deleted vs never-existed.
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &ExtensionKey::ReviewTombstone(project_id, reviewer.clone()),
+            &ReviewTombstone { project_id, reviewer: reviewer.clone(), deleted_at: now },
+        );
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
@@ -456,7 +485,6 @@ impl ReviewRegistry {
             &new_project_reviews,
         );
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_deleted_by_admin_event(
             env,
             project_id,
@@ -473,7 +501,6 @@ impl ReviewRegistry {
             None,
         );
 
-        let _ = now;
         Ok(())
     }
 
@@ -869,5 +896,81 @@ impl ReviewRegistry {
         );
 
         Ok(())
+    }
+
+    /// Retrieve the deletion tombstone for a review, if one exists.
+    /// Returns `Some` when the review was deleted; `None` when it never existed.
+    pub fn get_review_tombstone(env: &Env, project_id: u64, reviewer: Address) -> Option<ReviewTombstone> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ReviewTombstone(project_id, reviewer))
+    }
+
+    /// List reviews sorted by the requested `sort_mode` with pagination.
+    ///
+    /// # On-chain in-memory sort
+    /// This fetches all non-hidden reviews for the project, sorts them entirely
+    /// in the contract's working memory, then applies pagination. For projects
+    /// with many reviews this increases compute budget usage linearly with the
+    /// total review count. Use `list_reviews` (insertion-order) when sorting is
+    /// not required.
+    pub fn list_reviews_sorted(
+        env: &Env,
+        project_id: u64,
+        start_id: u32,
+        limit: u32,
+        sort_mode: ReviewSortMode,
+    ) -> Vec<Review> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT { MAX_PAGE_LIMIT } else { limit };
+
+        let reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Collect all non-hidden reviews.
+        let mut all: Vec<Review> = Vec::new(env);
+        for i in 0..reviewers.len() {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(review) = Self::get_review(env, project_id, reviewer) {
+                    if !review.hidden {
+                        all.push_back(review);
+                    }
+                }
+            }
+        }
+
+        // Bubble-sort in-memory by the requested mode.
+        let n = all.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                let a = all.get(j).unwrap();
+                let b = all.get(j + 1).unwrap();
+                let swap = match sort_mode {
+                    ReviewSortMode::Newest => a.created_at < b.created_at,
+                    ReviewSortMode::Oldest => a.created_at > b.created_at,
+                    ReviewSortMode::RatingHigh => a.rating < b.rating,
+                    ReviewSortMode::RatingLow => a.rating > b.rating,
+                };
+                if swap {
+                    all.set(j, b);
+                    all.set(j + 1, a);
+                }
+            }
+        }
+
+        // Apply pagination.
+        let mut out = Vec::new(env);
+        if start_id >= n {
+            return out;
+        }
+        let end = core::cmp::min(start_id.saturating_add(effective_limit), n);
+        for i in start_id..end {
+            if let Some(review) = all.get(i) {
+                out.push_back(review);
+            }
+        }
+        out
     }
 }
