@@ -348,6 +348,7 @@ Dongle promotes:
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
 - [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
 - [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [Storage Schema Reference](docs/STORAGE_SCHEMA.md) — canonical storage keys, read/write mapping, index consistency rules, and migration guidance.
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
 - [Soroban Examples](https://github.com/stellar/soroban-examples)
