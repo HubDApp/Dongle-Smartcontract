@@ -28,6 +28,9 @@ async function main() {
 
   // Replace with real deployed address and ABI if running against a live deployment.
   const contractAddress = process.env.DONGLE_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
+  if (contractAddress === "0x0000000000000000000000000000000000000000") {
+    throw new Error("Set DONGLE_CONTRACT_ADDRESS to a deployed contract before benchmarking.");
+  }
   const abi = [
     "function register_project(tuple(address owner,string name,string slug,string description,string category,string website,string license,string logo_cid,string metadata_cid,string[] tags,(string,string)[] social_links,uint64 launch_timestamp,string bounty_url)) returns (uint64)",
     "function add_review(uint64 project_id,address reviewer,uint32 rating,string comment_cid)",
@@ -59,6 +62,9 @@ async function main() {
 
   // Use known project id in your environment. Replace with emitted ID parsing if ABI/events are available.
   const projectId = Number(process.env.BENCHMARK_PROJECT_ID || "1");
+  if (!Number.isFinite(projectId) || projectId <= 0) {
+    throw new Error("BENCHMARK_PROJECT_ID must be a positive integer.");
+  }
 
   const reviewerContract = contract.connect(reviewer);
   const addReviewGas = await measure(
