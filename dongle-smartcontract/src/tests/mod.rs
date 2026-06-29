@@ -59,6 +59,7 @@ mod bookmarks;
 mod duplicate_dispute;
 mod endorsements;
 pub mod fixtures;
+mod issues_242_252_256;
 mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;

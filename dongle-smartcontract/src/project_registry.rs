@@ -16,7 +16,7 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    SecurityContactStatus, VerificationStatus,
+    SecurityContactStatus, VerificationStatus, ContractClaimRequest, ContractClaimStatus, ProjectSortMode,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -1753,7 +1753,257 @@ impl ProjectRegistry {
     pub fn is_name_reserved(env: &Env, name: &String) -> bool {
         Self::check_reserved_name(env, name).is_err()
     }
+
+    pub fn claim_contract_address(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        contract_address: String,
+        proof_cid: String,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+
+        Utils::validate_metadata_cid(&proof_cid)?;
+
+        let req = ContractClaimRequest {
+            project_id,
+            contract_address: contract_address.clone(),
+            claimant: caller.clone(),
+            proof_cid: proof_cid.clone(),
+            status: ContractClaimStatus::Pending,
+            created_at: env.ledger().timestamp(),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
+
+        crate::events::publish_contract_claim_submitted_event(
+            env,
+            project_id,
+            contract_address,
+            caller,
+            proof_cid,
+        );
+        Ok(req)
+    }
+
+    pub fn approve_contract_claim(
+        env: &Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        AdminManager::require_admin(env, &admin)?;
+        let mut req: ContractClaimRequest = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ContractClaim(project_id, contract_address.clone()))
+            .ok_or(ContractError::InvalidProjectData)?;
+
+        if req.status != ContractClaimStatus::Pending {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        req.status = ContractClaimStatus::Approved;
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
+
+        let mut contracts: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectContracts(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        contracts.push_back(contract_address.clone());
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectContracts(project_id), &contracts);
+
+        crate::events::publish_contract_claim_approved_event(
+            env,
+            project_id,
+            contract_address,
+            admin,
+        );
+        Ok(req)
+    }
+
+    pub fn reject_contract_claim(
+        env: &Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        AdminManager::require_admin(env, &admin)?;
+        let mut req: ContractClaimRequest = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ContractClaim(project_id, contract_address.clone()))
+            .ok_or(ContractError::InvalidProjectData)?;
+
+        if req.status != ContractClaimStatus::Pending {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        req.status = ContractClaimStatus::Rejected;
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
+
+        crate::events::publish_contract_claim_rejected_event(
+            env,
+            project_id,
+            contract_address,
+            admin,
+        );
+        Ok(req)
+    }
+
+    pub fn get_verified_contracts(env: &Env, project_id: u64) -> Vec<String> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectContracts(project_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn list_projects_sorted(
+        env: &Env,
+        sort_mode: ProjectSortMode,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut all: Vec<Project> = Vec::new(env);
+        for id in 1..=count {
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived {
+                    all.push_back(project);
+                }
+            }
+        }
+
+        let n = all.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                let a = all.get(j).unwrap();
+                let b = all.get(j + 1).unwrap();
+                let mut swap = false;
+                match sort_mode {
+                    ProjectSortMode::Newest => {
+                        if a.created_at < b.created_at {
+                            swap = true;
+                        }
+                    }
+                    ProjectSortMode::Oldest => {
+                        if a.created_at > b.created_at {
+                            swap = true;
+                        }
+                    }
+                    ProjectSortMode::HighestRated => {
+                        let stats_a: crate::types::ProjectStats = env
+                            .storage()
+                            .persistent()
+                            .get(&StorageKey::ProjectStats(a.id))
+                            .unwrap_or_else(|| crate::types::ProjectStats {
+                                rating_sum: 0,
+                                review_count: 0,
+                                average_rating: 0,
+                            });
+                        let stats_b: crate::types::ProjectStats = env
+                            .storage()
+                            .persistent()
+                            .get(&StorageKey::ProjectStats(b.id))
+                            .unwrap_or_else(|| crate::types::ProjectStats {
+                                rating_sum: 0,
+                                review_count: 0,
+                                average_rating: 0,
+                            });
+                        if stats_a.average_rating < stats_b.average_rating {
+                            swap = true;
+                        } else if stats_a.average_rating == stats_b.average_rating {
+                            if stats_a.review_count < stats_b.review_count {
+                                swap = true;
+                            } else if stats_a.review_count == stats_b.review_count {
+                                if a.created_at < b.created_at {
+                                    swap = true;
+                                }
+                            }
+                        }
+                    }
+                    ProjectSortMode::MostReviewed => {
+                        let stats_a: crate::types::ProjectStats = env
+                            .storage()
+                            .persistent()
+                            .get(&StorageKey::ProjectStats(a.id))
+                            .unwrap_or_else(|| crate::types::ProjectStats {
+                                rating_sum: 0,
+                                review_count: 0,
+                                average_rating: 0,
+                            });
+                        let stats_b: crate::types::ProjectStats = env
+                            .storage()
+                            .persistent()
+                            .get(&StorageKey::ProjectStats(b.id))
+                            .unwrap_or_else(|| crate::types::ProjectStats {
+                                rating_sum: 0,
+                                review_count: 0,
+                                average_rating: 0,
+                            });
+                        if stats_a.review_count < stats_b.review_count {
+                            swap = true;
+                        } else if stats_a.review_count == stats_b.review_count {
+                            if stats_a.average_rating < stats_b.average_rating {
+                                swap = true;
+                            } else if stats_a.average_rating == stats_b.average_rating {
+                                if a.created_at < b.created_at {
+                                    swap = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if swap {
+                    all.set(j, b);
+                    all.set(j + 1, a);
+                }
+            }
+        }
+
+        let mut result = Vec::new(env);
+        let start = start_id as u32;
+        if start < n {
+            let mut items_added = 0;
+            for i in start..n {
+                if items_added >= effective_limit {
+                    break;
+                }
+                result.push_back(all.get(i).unwrap());
+                items_added += 1;
+            }
+        }
+
+        result
+    }
 }
+
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
