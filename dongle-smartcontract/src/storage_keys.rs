@@ -158,4 +158,8 @@ pub enum ExtensionKey {
     RegistrationFeePaymentDetails(Address),
     /// List of reserved project names (admin-managed).
     ReservedNames,
+    /// Contract claim request by (project_id, contract_address)
+    ContractClaim(u64, String),
+    /// List of verified contracts for a project_id
+    ProjectContracts(u64),
 }

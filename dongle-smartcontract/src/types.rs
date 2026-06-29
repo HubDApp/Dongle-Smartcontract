@@ -110,6 +110,26 @@ pub struct ClaimRequest {
 }
 
 #[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContractClaimStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimRequest {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub status: ContractClaimStatus,
+    pub created_at: u64,
+}
+
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     pub id: u64,
@@ -169,6 +189,8 @@ pub enum DataKey {
     Treasury,
     ProjectStats(u64),
     FeePaidForProject(u64),
+    ContractClaim(u64, String),
+    ProjectContracts(u64),
 }
 
 #[contracttype]
@@ -495,4 +517,19 @@ pub enum ReviewSortMode {
     RatingHigh,
     /// Lowest rating first.
     RatingLow,
+}
+
+/// Sort order for `list_projects_sorted`. Sorting is performed on-chain in-memory.
+/// To prevent unbounded loops, this fetches up to a maximum limit.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectSortMode {
+    /// Newest projects first (highest created_at).
+    Newest,
+    /// Oldest projects first (lowest created_at).
+    Oldest,
+    /// Highest rated first.
+    HighestRated,
+    /// Most reviewed first.
+    MostReviewed,
 }
