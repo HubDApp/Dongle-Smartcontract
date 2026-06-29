@@ -158,4 +158,8 @@ pub enum ExtensionKey {
     RegistrationFeePaymentDetails(Address),
     /// List of reserved project names (admin-managed).
     ReservedNames,
+    /// Optional region/market metadata for a project.
+    ProjectRegion(u64),
+    /// Integrity hash of key project metadata fields.
+    ProjectIntegrityHash(u64),
 }

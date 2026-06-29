@@ -16,10 +16,10 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    SecurityContactStatus, VerificationStatus,
+    SecurityContactStatus, VerificationStatus, ContractClaimRequest, ContractClaimStatus, ProjectSortMode,
 };
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
@@ -198,6 +198,8 @@ impl ProjectRegistry {
                 .persistent()
                 .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
+
+        Self::store_integrity_hash(env, count, &project.name, &project.slug, &project.category, &project.description);
 
         publish_project_registered_event(
             env,
@@ -562,6 +564,8 @@ impl ProjectRegistry {
         {
             StorageManager::extend_project_stats_ttl(env, params.project_id);
         }
+
+        Self::store_integrity_hash(env, params.project_id, &project.name, &project.slug, &project.category, &project.description);
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
         if major_metadata_changed {
@@ -1753,7 +1757,49 @@ impl ProjectRegistry {
     pub fn is_name_reserved(env: &Env, name: &String) -> bool {
         Self::check_reserved_name(env, name).is_err()
     }
+
+    /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
+    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    pub fn store_integrity_hash(
+        env: &Env,
+        project_id: u64,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) {
+        let sep = b'|';
+        let name_bytes = name.to_string();
+        let slug_bytes = slug.to_string();
+        let cat_bytes = category.to_string();
+        let desc_bytes = description.to_string();
+
+        let total_len = name_bytes.len() + 1 + slug_bytes.len() + 1 + cat_bytes.len() + 1 + desc_bytes.len();
+        let mut buf = Bytes::new(env);
+        for b in name_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        buf.push_back(sep);
+        for b in slug_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        buf.push_back(sep);
+        for b in cat_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        buf.push_back(sep);
+        for b in desc_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        let _ = total_len;
+        let hash = env.crypto().sha256(&buf);
+        let hash_bytes = Bytes::from_array(env, &hash.to_array());
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+    }
 }
+
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

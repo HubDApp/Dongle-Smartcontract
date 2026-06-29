@@ -59,6 +59,7 @@ mod bookmarks;
 mod duplicate_dispute;
 mod endorsements;
 pub mod fixtures;
+mod issues_242_252_256;
 mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;
@@ -66,3 +67,6 @@ mod timelock;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
+
+// Project region metadata (#238) and integrity hash (#250)
+mod region_and_integrity;

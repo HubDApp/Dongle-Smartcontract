@@ -954,6 +954,35 @@ pub struct ClaimRequestRejectedEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimSubmittedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimApprovedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimRejectedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+
 pub fn publish_project_claimable_set_event(
     env: &Env,
     project_id: u64,
@@ -1050,6 +1079,75 @@ pub fn publish_claim_request_rejected_event(
         event_data,
     );
 }
+
+pub fn publish_contract_claim_submitted_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    claimant: Address,
+    proof_cid: String,
+) {
+    let event_data = ContractClaimSubmittedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        claimant: claimant.clone(),
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("SUBMITTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_contract_claim_approved_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    admin: Address,
+) {
+    let event_data = ContractClaimApprovedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("APPROVED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_contract_claim_rejected_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    admin: Address,
+) {
+    let event_data = ContractClaimRejectedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("REJECTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 
 pub fn publish_min_project_age_set_event(
     env: &Env,
