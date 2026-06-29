@@ -34,6 +34,59 @@ pub struct ProjectUpdateParams {
     pub launch_timestamp: Option<Option<u64>>,
     pub license: Option<Option<String>>,
     pub bounty_url: Option<Option<String>>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectStats {
+    pub rating_sum: u64,
+    pub review_count: u32,
+    pub average_rating: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Review {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub rating: u32,
+    /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair
+    pub content_cid: Option<String>,
+    pub owner_response: Option<String>,
+
+    /// Unix timestamp (seconds) when the review was first submitted.
+    pub created_at: u64,
+
+    /// Unix timestamp (seconds) of the most recent modification to this review.
+    pub updated_at: u64,
+
+    /// Whether the review is hidden by moderation.
+    pub hidden: bool,
+
+    /// Number of times this review has been reported.
+    pub report_count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewAction {
+    Submitted,
+    Updated,
+    Deleted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewEventData {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub action: ReviewAction,
+    pub timestamp: u64,
+    /// Canonical content CID - consolidates the review content
+    pub content_cid: Option<String>,
+    pub owner_response: Option<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
     pub bounty_cid: Option<Option<String>>,
 }
 
