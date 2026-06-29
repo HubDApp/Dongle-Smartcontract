@@ -470,6 +470,10 @@ impl DongleContract {
         ReviewRegistry::get_project_stats(&env, project_id)
     }
 
+    pub fn get_rating_distribution(env: Env, project_id: u64) -> Vec<u32> {
+        ReviewRegistry::get_rating_distribution(&env, project_id)
+    }
+
     pub fn get_stats_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, ProjectStats)> {
         ReviewRegistry::get_stats_batch(&env, ids)
     }

@@ -18,6 +18,42 @@ use soroban_sdk::{Address, Env, String, Vec};
 pub struct ReviewRegistry;
 
 impl ReviewRegistry {
+    fn zero_rating_distribution(env: &Env) -> Vec<u32> {
+        let mut distribution = Vec::new(env);
+        for _ in 0..5 {
+            distribution.push_back(0);
+        }
+        distribution
+    }
+
+    fn normalized_rating_distribution(env: &Env, input: &Vec<u32>) -> Vec<u32> {
+        let mut distribution = Vec::new(env);
+        for i in 0..5 {
+            distribution.push_back(input.get(i).unwrap_or(0));
+        }
+        distribution
+    }
+
+    fn distribution_increment(env: &Env, input: &Vec<u32>, rating: u32) -> Vec<u32> {
+        let mut distribution = Self::normalized_rating_distribution(env, input);
+        if (RATING_MIN..=RATING_MAX).contains(&rating) {
+            let idx = rating - RATING_MIN;
+            let current = distribution.get(idx).unwrap_or(0);
+            distribution.set(idx, current.saturating_add(1));
+        }
+        distribution
+    }
+
+    fn distribution_decrement(env: &Env, input: &Vec<u32>, rating: u32) -> Vec<u32> {
+        let mut distribution = Self::normalized_rating_distribution(env, input);
+        if (RATING_MIN..=RATING_MAX).contains(&rating) {
+            let idx = rating - RATING_MIN;
+            let current = distribution.get(idx).unwrap_or(0);
+            distribution.set(idx, current.saturating_sub(1));
+        }
+        distribution
+    }
+
     fn validate_review_cid(cid: &String) -> Result<(), ContractError> {
         if !Utils::is_valid_ipfs_cid(cid) || cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidProjectData);
@@ -107,7 +143,9 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
+        let new_distribution = Self::distribution_increment(env, &stats.rating_distribution, rating);
 
         // Calculate new stats
         let (new_sum, new_count, new_avg) =
@@ -132,6 +170,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -228,6 +267,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Calculate new stats
@@ -237,6 +277,14 @@ impl ReviewRegistry {
             old_rating,
             rating,
         );
+        let new_distribution = if old_rating == rating {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
+        } else {
+            let mut distribution =
+                Self::distribution_decrement(env, &stats.rating_distribution, old_rating);
+            distribution = Self::distribution_increment(env, &distribution, rating);
+            distribution
+        };
 
         // Perform mutations
         env.storage().persistent().set(&review_key, &review);
@@ -246,6 +294,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: stats.review_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -301,6 +350,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
         let user_reviews: Vec<u64> = env
             .storage()
@@ -318,6 +368,11 @@ impl ReviewRegistry {
             RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+        let new_distribution = if stats.review_count > 0 {
+            Self::distribution_decrement(env, &stats.rating_distribution, existing.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
         };
 
         // Create new user reviews list
@@ -354,6 +409,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
         env.storage().persistent().set(
@@ -427,6 +483,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
         let user_reviews: Vec<u64> = env
             .storage()
@@ -444,6 +501,11 @@ impl ReviewRegistry {
             RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+        let new_distribution = if stats.review_count > 0 && !existing.hidden {
+            Self::distribution_decrement(env, &stats.rating_distribution, existing.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
         };
 
         // Rebuild user reviews list without this project
@@ -480,6 +542,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
         env.storage().persistent().set(
@@ -611,7 +674,13 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             })
+    }
+
+    pub fn get_rating_distribution(env: &Env, project_id: u64) -> Vec<u32> {
+        let stats = Self::get_project_stats(env, project_id);
+        Self::normalized_rating_distribution(env, &stats.rating_distribution)
     }
 
     /// Batch-fetch stats for multiple project IDs. Returns one entry per ID (defaults to zero stats
@@ -782,6 +851,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Recalculate stats without this review
@@ -790,6 +860,11 @@ impl ReviewRegistry {
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
         };
+        let new_distribution = if stats.review_count > 0 {
+            Self::distribution_decrement(env, &stats.rating_distribution, review.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
+        };
 
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
@@ -797,6 +872,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -866,11 +942,13 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Recalculate stats with this review
         let (new_sum, new_count, new_avg) =
             RatingCalculator::add_rating(stats.rating_sum, stats.review_count, review.rating);
+        let new_distribution = Self::distribution_increment(env, &stats.rating_distribution, review.rating);
 
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
@@ -878,6 +956,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
