@@ -1,20 +1,59 @@
 //! Review registry: create/update/delete reviews and maintain aggregates and indexes.
 
 use crate::admin_action_log::AdminActionLog;
-use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX, RATING_MIN};
+use crate::constants::{
+    MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, RATING_MAX,
+    RATING_MIN, REVIEW_UPDATE_COOLDOWN_SECONDS,
+};
 use crate::errors::ContractError;
 use crate::events::publish_review_event;
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
-use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction};
+use crate::types::{AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewSortMode, ReviewTombstone};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
 
 impl ReviewRegistry {
+    fn zero_rating_distribution(env: &Env) -> Vec<u32> {
+        let mut distribution = Vec::new(env);
+        for _ in 0..5 {
+            distribution.push_back(0);
+        }
+        distribution
+    }
+
+    fn normalized_rating_distribution(env: &Env, input: &Vec<u32>) -> Vec<u32> {
+        let mut distribution = Vec::new(env);
+        for i in 0..5 {
+            distribution.push_back(input.get(i).unwrap_or(0));
+        }
+        distribution
+    }
+
+    fn distribution_increment(env: &Env, input: &Vec<u32>, rating: u32) -> Vec<u32> {
+        let mut distribution = Self::normalized_rating_distribution(env, input);
+        if (RATING_MIN..=RATING_MAX).contains(&rating) {
+            let idx = rating - RATING_MIN;
+            let current = distribution.get(idx).unwrap_or(0);
+            distribution.set(idx, current.saturating_add(1));
+        }
+        distribution
+    }
+
+    fn distribution_decrement(env: &Env, input: &Vec<u32>, rating: u32) -> Vec<u32> {
+        let mut distribution = Self::normalized_rating_distribution(env, input);
+        if (RATING_MIN..=RATING_MAX).contains(&rating) {
+            let idx = rating - RATING_MIN;
+            let current = distribution.get(idx).unwrap_or(0);
+            distribution.set(idx, current.saturating_sub(1));
+        }
+        distribution
+    }
+
     fn validate_review_cid(cid: &String) -> Result<(), ContractError> {
         if !Utils::is_valid_ipfs_cid(cid) || cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidProjectData);
@@ -37,8 +76,14 @@ impl ReviewRegistry {
         reviewer.require_auth();
 
         // Check if project exists
-        if ProjectRegistry::get_project(env, project_id).is_none() {
-            return Err(ContractError::ProjectNotFound);
+        let project = match ProjectRegistry::get_project(env, project_id) {
+            Some(p) => p,
+            None => return Err(ContractError::ProjectNotFound),
+        };
+
+        // Project owners cannot review their own project
+        if project.owner == reviewer {
+            return Err(ContractError::OwnerCannotReview);
         }
 
         // Check if reviews are enabled for this project
@@ -98,7 +143,9 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
+        let new_distribution = Self::distribution_increment(env, &stats.rating_distribution, rating);
 
         // Calculate new stats
         let (new_sum, new_count, new_avg) =
@@ -123,6 +170,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -190,6 +238,19 @@ impl ReviewRegistry {
             return Err(ContractError::NotReviewOwner);
         }
 
+        // Cooldown: reject update if within REVIEW_UPDATE_COOLDOWN_SECONDS of the last update.
+        // Note: ContractError::InvalidStatus (9) is reused as the cooldown error because
+        // Soroban SDK 22 #[contracterror] is limited to 50 variants and this enum is full.
+        // A dedicated ReviewCooldownActive variant should be introduced when a variant slot
+        // is freed in a future refactor.
+        let cooldown_key = ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone());
+        if let Some(last_updated_at) = env.storage().persistent().get::<_, u64>(&cooldown_key) {
+            let now_ts = env.ledger().timestamp();
+            if now_ts.saturating_sub(last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS {
+                return Err(ContractError::InvalidStatus);
+            }
+        }
+
         // Mutation phase
         let old_rating = review.rating;
         let now = env.ledger().timestamp();
@@ -206,6 +267,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Calculate new stats
@@ -215,6 +277,14 @@ impl ReviewRegistry {
             old_rating,
             rating,
         );
+        let new_distribution = if old_rating == rating {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
+        } else {
+            let mut distribution =
+                Self::distribution_decrement(env, &stats.rating_distribution, old_rating);
+            distribution = Self::distribution_increment(env, &distribution, rating);
+            distribution
+        };
 
         // Perform mutations
         env.storage().persistent().set(&review_key, &review);
@@ -224,8 +294,14 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: stats.review_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
+
+        // Record the update timestamp for cooldown enforcement on subsequent updates.
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone()), &now);
 
         publish_review_event(
             env,
@@ -274,6 +350,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
         let user_reviews: Vec<u64> = env
             .storage()
@@ -291,6 +368,11 @@ impl ReviewRegistry {
             RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+        let new_distribution = if stats.review_count > 0 {
+            Self::distribution_decrement(env, &stats.rating_distribution, existing.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
         };
 
         // Create new user reviews list
@@ -315,12 +397,19 @@ impl ReviewRegistry {
 
         // Perform all mutations
         env.storage().persistent().remove(&review_key);
+        // Store a tombstone so indexers can distinguish deleted vs never-existed.
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &ExtensionKey::ReviewTombstone(project_id, reviewer.clone()),
+            &ReviewTombstone { project_id, reviewer: reviewer.clone(), deleted_at: now },
+        );
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
         env.storage().persistent().set(
@@ -344,7 +433,6 @@ impl ReviewRegistry {
         // as ReviewReport keys are dedup guards keyed by (project_id, reviewer, reporter)
         // and those will become orphaned but harmless once the review is gone.
 
-        let now = env.ledger().timestamp();
         publish_review_event(
             env,
             project_id,
@@ -395,6 +483,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
         let user_reviews: Vec<u64> = env
             .storage()
@@ -412,6 +501,11 @@ impl ReviewRegistry {
             RatingCalculator::remove_rating(stats.rating_sum, stats.review_count, existing.rating)
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
+        };
+        let new_distribution = if stats.review_count > 0 && !existing.hidden {
+            Self::distribution_decrement(env, &stats.rating_distribution, existing.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
         };
 
         // Rebuild user reviews list without this project
@@ -436,12 +530,19 @@ impl ReviewRegistry {
 
         // Apply all mutations
         env.storage().persistent().remove(&review_key);
+        // Store a tombstone so indexers can distinguish deleted vs never-existed.
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &ExtensionKey::ReviewTombstone(project_id, reviewer.clone()),
+            &ReviewTombstone { project_id, reviewer: reviewer.clone(), deleted_at: now },
+        );
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
         env.storage().persistent().set(
@@ -453,7 +554,6 @@ impl ReviewRegistry {
             &new_project_reviews,
         );
 
-        let now = env.ledger().timestamp();
         crate::events::publish_review_deleted_by_admin_event(
             env,
             project_id,
@@ -470,7 +570,6 @@ impl ReviewRegistry {
             None,
         );
 
-        let _ = now;
         Ok(())
     }
 
@@ -575,7 +674,13 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             })
+    }
+
+    pub fn get_rating_distribution(env: &Env, project_id: u64) -> Vec<u32> {
+        let stats = Self::get_project_stats(env, project_id);
+        Self::normalized_rating_distribution(env, &stats.rating_distribution)
     }
 
     /// Batch-fetch stats for multiple project IDs. Returns one entry per ID (defaults to zero stats
@@ -746,6 +851,7 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Recalculate stats without this review
@@ -754,6 +860,11 @@ impl ReviewRegistry {
         } else {
             (stats.rating_sum, stats.review_count, stats.average_rating)
         };
+        let new_distribution = if stats.review_count > 0 {
+            Self::distribution_decrement(env, &stats.rating_distribution, review.rating)
+        } else {
+            Self::normalized_rating_distribution(env, &stats.rating_distribution)
+        };
 
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
@@ -761,6 +872,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -830,11 +942,13 @@ impl ReviewRegistry {
                 rating_sum: 0,
                 review_count: 0,
                 average_rating: 0,
+                rating_distribution: Self::zero_rating_distribution(env),
             });
 
         // Recalculate stats with this review
         let (new_sum, new_count, new_avg) =
             RatingCalculator::add_rating(stats.rating_sum, stats.review_count, review.rating);
+        let new_distribution = Self::distribution_increment(env, &stats.rating_distribution, review.rating);
 
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
@@ -842,6 +956,7 @@ impl ReviewRegistry {
                 rating_sum: new_sum,
                 review_count: new_count,
                 average_rating: new_avg,
+                rating_distribution: new_distribution,
             },
         );
 
@@ -866,5 +981,81 @@ impl ReviewRegistry {
         );
 
         Ok(())
+    }
+
+    /// Retrieve the deletion tombstone for a review, if one exists.
+    /// Returns `Some` when the review was deleted; `None` when it never existed.
+    pub fn get_review_tombstone(env: &Env, project_id: u64, reviewer: Address) -> Option<ReviewTombstone> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ReviewTombstone(project_id, reviewer))
+    }
+
+    /// List reviews sorted by the requested `sort_mode` with pagination.
+    ///
+    /// # On-chain in-memory sort
+    /// This fetches all non-hidden reviews for the project, sorts them entirely
+    /// in the contract's working memory, then applies pagination. For projects
+    /// with many reviews this increases compute budget usage linearly with the
+    /// total review count. Use `list_reviews` (insertion-order) when sorting is
+    /// not required.
+    pub fn list_reviews_sorted(
+        env: &Env,
+        project_id: u64,
+        start_id: u32,
+        limit: u32,
+        sort_mode: ReviewSortMode,
+    ) -> Vec<Review> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT { MAX_PAGE_LIMIT } else { limit };
+
+        let reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Collect all non-hidden reviews.
+        let mut all: Vec<Review> = Vec::new(env);
+        for i in 0..reviewers.len() {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(review) = Self::get_review(env, project_id, reviewer) {
+                    if !review.hidden {
+                        all.push_back(review);
+                    }
+                }
+            }
+        }
+
+        // Bubble-sort in-memory by the requested mode.
+        let n = all.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                let a = all.get(j).unwrap();
+                let b = all.get(j + 1).unwrap();
+                let swap = match sort_mode {
+                    ReviewSortMode::Newest => a.created_at < b.created_at,
+                    ReviewSortMode::Oldest => a.created_at > b.created_at,
+                    ReviewSortMode::RatingHigh => a.rating < b.rating,
+                    ReviewSortMode::RatingLow => a.rating > b.rating,
+                };
+                if swap {
+                    all.set(j, b);
+                    all.set(j + 1, a);
+                }
+            }
+        }
+
+        // Apply pagination.
+        let mut out = Vec::new(env);
+        if start_id >= n {
+            return out;
+        }
+        let end = core::cmp::min(start_id.saturating_add(effective_limit), n);
+        for i in start_id..end {
+            if let Some(review) = all.get(i) {
+                out.push_back(review);
+            }
+        }
+        out
     }
 }

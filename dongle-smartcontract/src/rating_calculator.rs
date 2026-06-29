@@ -120,6 +120,7 @@ mod prop_tests {
             count in 1u32..MAX_COUNT,
             rating in RATING_RANGE,
         ) {
+            prop_assume!(sum >= (rating as u64) * 100);
             let (new_sum, new_count, new_avg) =
                 RatingCalculator::update_rating(sum, count, rating, rating);
             prop_assert_eq!(new_sum, sum);

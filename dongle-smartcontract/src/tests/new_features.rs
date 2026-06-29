@@ -120,6 +120,8 @@ fn test_project_tags() {
         metadata_cid: None,
         tags: Some(tags.clone()),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -143,6 +145,8 @@ fn test_project_tags() {
         metadata_cid: None,
         tags: Some(Some(new_tags.clone())),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     client.update_project(&update_params);
@@ -161,6 +165,8 @@ fn test_project_tags() {
         metadata_cid: None,
         tags: Some(None),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     client.update_project(&remove_params);
@@ -202,6 +208,8 @@ fn test_project_social_links() {
         metadata_cid: None,
         tags: None,
         social_links: Some(social_links.clone()),
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -227,6 +235,8 @@ fn test_project_social_links() {
         metadata_cid: None,
         tags: None,
         social_links: Some(Some(new_social_links.clone())),
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     client.update_project(&update_params);
@@ -245,6 +255,8 @@ fn test_project_social_links() {
         metadata_cid: None,
         tags: None,
         social_links: Some(None),
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     client.update_project(&remove_params);
@@ -284,6 +296,8 @@ fn test_list_projects_by_tag() {
         metadata_cid: None,
         tags: Some(defi_tags),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     client.register_project(&params1);
 
@@ -298,6 +312,8 @@ fn test_list_projects_by_tag() {
         metadata_cid: None,
         tags: Some(gaming_tags),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     client.register_project(&params2);
 
@@ -312,6 +328,8 @@ fn test_list_projects_by_tag() {
         metadata_cid: None,
         tags: Some(mixed_tags),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
     client.register_project(&params3);
 
@@ -357,6 +375,8 @@ fn test_tag_validation() {
         metadata_cid: None,
         tags: Some(too_many_tags),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let result = client.try_register_project(&params);
@@ -376,6 +396,8 @@ fn test_tag_validation() {
         metadata_cid: None,
         tags: Some(long_tag),
         social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let result = client.try_register_project(&params2);
@@ -416,6 +438,8 @@ fn test_social_links_validation() {
         metadata_cid: None,
         tags: None,
         social_links: Some(too_many_links),
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let result = client.try_register_project(&params);
@@ -438,6 +462,8 @@ fn test_social_links_validation() {
         metadata_cid: None,
         tags: None,
         social_links: Some(invalid_links),
+        launch_timestamp: None,
+        bounty_url: None,
     };
 
     let result = client.try_register_project(&params2);

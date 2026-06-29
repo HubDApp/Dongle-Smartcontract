@@ -230,4 +230,5 @@ fn test_owner_does_not_lose_ownership_privileges() {
         .mock_all_auths()
         .try_initiate_transfer(&project_id, &owner, &new_owner);
     assert!(res.is_ok());
+    // ... rest of test (assume unchanged)
 }

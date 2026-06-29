@@ -58,6 +58,7 @@ fn register_project(
         description: String::from_str(env, "A test project description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -225,7 +226,10 @@ fn test_pay_fee_with_none_token_sets_flag_at_zero_fee() {
 
     // pay_fee with None token at zero fee must succeed without any transfer
     let result = client.try_pay_fee(&owner, &project_id, &None);
-    assert!(result.is_ok(), "zero-fee payment with None token should succeed");
+    assert!(
+        result.is_ok(),
+        "zero-fee payment with None token should succeed"
+    );
 }
 
 #[test]

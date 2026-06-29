@@ -5,7 +5,8 @@ use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT};
 use crate::errors::ContractError;
 use crate::events::{
-    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_approved_event, publish_verification_evidence_updated_event,
+    publish_verification_rejected_event,
     publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
     publish_verification_renewal_requested_event, publish_verification_requested_event,
     publish_verification_revoked_event,
@@ -180,7 +181,10 @@ impl VerificationRegistry {
             VerificationStatus::Pending,
         )?;
 
-        // 5. Consume fee payment when configured
+        // 5. Validate evidence before any storage mutation, including fee consumption.
+        Self::validate_evidence_cid(&evidence_cid)?;
+
+        // 6. Consume fee payment when configured
         let fee_amount = match FeeManager::get_fee_config(env) {
             Ok(config) if config.verification_fee > 0 => {
                 FeeManager::consume_fee_payment(
@@ -195,10 +199,7 @@ impl VerificationRegistry {
             Err(_) => 0,
         };
 
-        // 6. Validate evidence
-        Self::validate_evidence_cid(&evidence_cid)?;
-
-        // 6. Generate a unique request ID
+        // 7. Generate a unique request ID
         let mut request_id = env
             .storage()
             .persistent()
@@ -223,6 +224,7 @@ impl VerificationRegistry {
             revoke_reason: None,
             expires_at: 0,
             last_renewed_at: 0,
+            assigned_admin: None,
         };
 
         // 8. Save to historical record
@@ -256,6 +258,55 @@ impl VerificationRegistry {
             .set(&StorageKey::Project(project_id), &project);
 
         publish_verification_requested_event(env, project_id, requester, evidence_cid);
+        Ok(())
+    }
+
+    /// Updates the verification evidence CID for a pending verification request.
+    ///
+    /// This can only be called by the project owner when the request is in the
+    /// Pending status. The supplied CID is validated using the standard CID validation rules.
+    /// Once updated successfully, it persists the new CID and publishes a
+    /// `VerificationEvidenceUpdated` event.
+    pub fn update_verification_evidence(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        // 1. Validate project existence and ownership
+        let project = ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        require_owner_auth(&caller, &project.owner)?;
+
+        // 2. Retrieve verification record
+        let mut record = Self::get_verification(env, project_id)?;
+
+        // 3. Reject if not Pending
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationNotPend);
+        }
+
+        // 4. Validate CID before state mutation
+        Self::validate_evidence_cid(&new_evidence_cid)?;
+
+        // 5. Update CID and persist
+        let old_evidence_cid = record.evidence_cid;
+        record.evidence_cid = new_evidence_cid.clone();
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        // 6. Emit event
+        publish_verification_evidence_updated_event(
+            env,
+            project_id,
+            caller,
+            old_evidence_cid,
+            new_evidence_cid,
+        );
+
         Ok(())
     }
 
@@ -442,6 +493,59 @@ impl VerificationRegistry {
             }
         }
         out
+    }
+
+    /// Admin: assign a pending verification request to a specific admin for review.
+    pub fn assign_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        // Assignee must also be an admin
+        if !crate::admin_manager::AdminManager::is_admin(env, &assignee) {
+            return Err(ContractError::AdminNotFound);
+        }
+
+        let mut record = Self::get_verification(env, project_id)?;
+        if record.status != VerificationStatus::Pending {
+            return Err(ContractError::VerificationNotPend);
+        }
+
+        record.assigned_admin = Some(assignee.clone());
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        crate::events::publish_verification_assigned_event(
+            env,
+            project_id,
+            record.request_id,
+            assignee.clone(),
+            admin.clone(),
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationAssigned,
+            Some(project_id),
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
+    /// Get the admin assigned to review a verification request.
+    pub fn get_assigned_admin(
+        env: &Env,
+        project_id: u64,
+    ) -> Result<Option<Address>, ContractError> {
+        let record = Self::get_verification(env, project_id)?;
+        Ok(record.assigned_admin)
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {

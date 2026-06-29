@@ -41,9 +41,25 @@ pub const MAX_CATEGORY_LEN: usize = 64;
 #[allow(dead_code)]
 pub const MAX_WEBSITE_LEN: usize = 256;
 
+/// Maximum length for a project's license description.
+pub const MAX_LICENSE_LEN: usize = 64;
+
+/// Maximum length for a project's published security contact.
+pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
+
 /// Maximum length for any CID (logo, metadata, comment, evidence).
 #[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
+
+/// Project metadata fields whose changes invalidate an existing verification.
+pub const MAJOR_METADATA_FIELD_NAME: &str = "name";
+pub const MAJOR_METADATA_FIELD_WEBSITE: &str = "website";
+pub const MAJOR_METADATA_FIELD_METADATA_CID: &str = "metadata_cid";
+pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
+    MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE,
+    MAJOR_METADATA_FIELD_METADATA_CID,
+];
 
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
@@ -132,3 +148,7 @@ pub const TIMELOCK_MIN_DELAY: u64 = 86400;
 /// After this window, the payment record is considered expired and the
 /// verification request is rejected until the owner re-pays.
 pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
+/// Configurable by changing this constant.
+pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;

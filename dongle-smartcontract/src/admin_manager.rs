@@ -12,7 +12,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
-use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Env, String, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -21,6 +21,21 @@ impl AdminManager {
         // Check if already initialized
         if env.storage().persistent().has(&StorageKey::AdminList) {
             panic!("Contract already initialized");
+        }
+
+        let zero_account = Address::from_string(&String::from_str(
+            env,
+            "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+        ));
+        let zero_contract = Address::from_string(&String::from_str(
+            env,
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        ));
+        if admin == zero_account {
+            panic!("admin cannot be zero address");
+        }
+        if admin == zero_contract {
+            panic!("admin cannot be zero address");
         }
 
         // Don't require auth during initialization - this is typically called once during contract deployment
@@ -448,7 +463,12 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_approved_event(env, project_id, caller.clone(), now);
+                crate::events::publish_verification_approved_event(
+                    env,
+                    project_id,
+                    caller.clone(),
+                    now,
+                );
             }
             ProposalPayload::RejectVerification(project_id) => {
                 let mut project =
@@ -477,7 +497,12 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Project(project_id), &project);
-                crate::events::publish_verification_rejected_event(env, project_id, caller.clone(), now);
+                crate::events::publish_verification_rejected_event(
+                    env,
+                    project_id,
+                    caller.clone(),
+                    now,
+                );
             }
             ProposalPayload::RevokeVerification(project_id, reason) => {
                 let mut project =
