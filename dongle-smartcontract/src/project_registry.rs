@@ -83,13 +83,23 @@ impl ProjectRegistry {
 
         Self::ensure_owner_capacity(env, &params.owner)?;
 
-        // Check if project name already exists
+        // Check if project name already exists (exact match)
         if env
             .storage()
             .persistent()
             .has(&StorageKey::ProjectByName(params.name.clone()))
         {
             return Err(ContractError::ProjectAlreadyExists);
+        }
+
+        // Check normalized name for case/whitespace/punctuation duplicate
+        let normalized_name = Utils::normalize_project_name(env, &params.name);
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectByNormalizedName(normalized_name.clone()))
+        {
+            return Err(ContractError::DuplicateProjectName);
         }
 
         // Check if project slug already exists
@@ -157,6 +167,10 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
+        // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectByNormalizedName(normalized_name), &count);
 
         owner_projects.push_back(count);
         env.storage().persistent().set(
@@ -178,8 +192,7 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
-        StorageManager::extend_project_count_ttl(env);
-        StorageManager::extend_owner_projects_ttl(env, &params.owner);
+        StorageManager::extend_project_count_ttl(env);        StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Store tags and social links separately if provided
@@ -321,6 +334,23 @@ impl ProjectRegistry {
                     // If the name exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
                         return Err(ContractError::ProjectAlreadyExists);
+                    }
+                }
+
+                // Check normalized name for case/whitespace/punctuation duplicate
+                let new_normalized = Utils::normalize_project_name(env, &value);
+                let old_normalized = Utils::normalize_project_name(env, &old_name);
+                if new_normalized != old_normalized {
+                    if let Some(existing_id) = env
+                        .storage()
+                        .persistent()
+                        .get::<StorageKey, u64>(&StorageKey::ProjectByNormalizedName(
+                            new_normalized.clone(),
+                        ))
+                    {
+                        if existing_id != params.project_id {
+                            return Err(ContractError::DuplicateProjectName);
+                        }
                     }
                 }
 
@@ -487,16 +517,29 @@ impl ProjectRegistry {
             project.bounty_url = value;
         }
 
-        // If name was updated, update the ProjectByName mappings
+        // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
         if name_updated {
             // Remove old name mapping
             env.storage()
                 .persistent()
-                .remove(&StorageKey::ProjectByName(old_name));
+                .remove(&StorageKey::ProjectByName(old_name.clone()));
 
-            // Create new name mapping
+            // Remove old normalized name mapping
+            let old_normalized = Utils::normalize_project_name(env, &old_name);
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectByNormalizedName(old_normalized));
+
+            // Create new exact name mapping
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
+                &params.project_id,
+            );
+
+            // Create new normalized name mapping
+            let new_normalized = Utils::normalize_project_name(env, &project.name);
+            env.storage().persistent().set(
+                &StorageKey::ProjectByNormalizedName(new_normalized),
                 &params.project_id,
             );
         }
