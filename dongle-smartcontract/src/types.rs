@@ -1,7 +1,7 @@
-use soroban_sdk::{contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracttype, Address, String, Vec};
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectRegistrationParams {
     pub owner: Address,
     pub name: String,
@@ -9,105 +9,32 @@ pub struct ProjectRegistrationParams {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
-    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
     pub tags: Option<Vec<String>>,
-    pub social_links: Option<Map<String, String>>,
+    pub social_links: Option<Vec<String>>,
     pub launch_timestamp: Option<u64>,
+    pub license: Option<String>,
     pub bounty_url: Option<String>,
+    pub bounty_cid: Option<String>,
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectUpdateParams {
-    pub project_id: u64,
-    pub caller: Address,
     pub name: Option<String>,
     pub slug: Option<String>,
     pub description: Option<String>,
     pub category: Option<String>,
     pub website: Option<Option<String>>,
-    pub license: Option<Option<String>>,
     pub logo_cid: Option<Option<String>>,
     pub metadata_cid: Option<Option<String>>,
     pub tags: Option<Option<Vec<String>>>,
-    pub social_links: Option<Option<Map<String, String>>>,
+    pub social_links: Option<Option<Vec<String>>>,
     pub launch_timestamp: Option<Option<u64>>,
+    pub license: Option<Option<String>>,
     pub bounty_url: Option<Option<String>>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectStats {
-    pub rating_sum: u64,
-    pub review_count: u32,
-    pub average_rating: u32,
-    pub rating_distribution: Vec<u32>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Review {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub rating: u32,
-    /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair
-    pub content_cid: Option<String>,
-    pub owner_response: Option<String>,
-
-    /// Unix timestamp (seconds) when the review was first submitted.
-    pub created_at: u64,
-
-    /// Unix timestamp (seconds) of the most recent modification to this review.
-    pub updated_at: u64,
-
-    /// Whether the review is hidden by moderation.
-    pub hidden: bool,
-
-    /// Number of times this review has been reported.
-    pub report_count: u32,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ReviewAction {
-    Submitted,
-    Updated,
-    Deleted,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewEventData {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub action: ReviewAction,
-    pub timestamp: u64,
-    /// Canonical content CID - consolidates the review content
-    pub content_cid: Option<String>,
-    pub owner_response: Option<String>,
-    pub created_at: u64,
-    pub updated_at: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ClaimStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClaimRequest {
-    pub id: u64,
-    pub project_id: u64,
-    pub claimant: Address,
-    pub proof_cid: String,
-    pub status: ClaimStatus,
-    pub created_at: u64,
+    pub bounty_cid: Option<Option<String>>,
 }
 
 #[contracttype]
@@ -140,19 +67,12 @@ pub struct Project {
     pub description: String,
     pub category: String,
     pub website: Option<String>,
-    pub license: Option<String>,
     pub logo_cid: Option<String>,
     pub metadata_cid: Option<String>,
-    pub verification_status: VerificationStatus,
-    pub current_verification_id: Option<u64>,
-    pub archived: bool,
-    pub claimable: bool,
-    pub created_at: u64,
-    pub updated_at: u64,
     pub tags: Option<Vec<String>>,
-    pub social_links: Option<Map<String, String>>,
+    pub social_links: Option<Vec<String>>,
     pub launch_timestamp: Option<u64>,
-    pub maintainers: Option<Vec<Address>>,
+    pub license: Option<String>,
     pub bounty_url: Option<String>,
     pub security_contact: Option<String>,
     pub security_contact_proof_cid: Option<String>,
@@ -334,190 +254,9 @@ pub struct Collection {
     pub description: String,
     pub created_at: u64,
     pub updated_at: u64,
-}
-
-/// Parameters for creating a new collection (admin-only).
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CreateCollectionParams {
-    pub name: String,
-    pub description: String,
-}
-
-/// Types of admin actions recorded in the admin action log.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AdminActionType {
-    AdminAdded,
-    AdminRemoved,
-    VerificationApproved,
-    VerificationRejected,
-    VerificationRevoked,
-    VerificationRenewalApproved,
-    VerificationRenewalRejected,
-    FeeChanged,
-    MinProjectAgeSet,
-    ReviewHidden,
-    ReviewRestored,
-    ReviewDeletedByAdmin,
-    ProjectReportsCleared,
-    VerificationHistoryCleared,
-    RenewalHistoryCleared,
-    CollectionCreated,
-    CollectionUpdated,
-    CollectionDeleted,
-    ProjectAddedToCollection,
-    ProjectRemovedFromCollection,
-    ProjectFeatured,
-    ProjectUnfeatured,
-    DuplicateDisputeResolved,
-    DuplicateDisputeRejected,
-    VerificationDurationSet,
-    ThresholdChanged,
-    FeeRefunded,
-    VerificationAssigned,
-    ReservedNameAdded,
-    ReservedNameRemoved,
-}
-
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DisputeStatus {
-    Pending,
-    Rejected,
-    Resolved,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DuplicateDispute {
-    pub id: u64,
-    pub project_id: u64,
-    pub original_project_id: u64,
-    pub creator: Address,
-    pub evidence_cid: String,
-    pub status: DisputeStatus,
-    pub created_at: u64,
-    pub resolved_at: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DisputeResolutionAction {
-    Reject,
-    ArchiveProject(u64),
-    LinkDuplicates,
-}
-
-/// A single entry in the admin action log.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AdminActionEntry {
-    pub id: u64,
-    pub admin: Address,
-    pub action_type: AdminActionType,
-    pub target_id: Option<u64>,
-    pub target_address: Option<Address>,
-    pub timestamp: u64,
-    pub reason_cid: Option<String>,
-}
-
-// ── Admin Timelock ──────────────────────────────────────────────────────────
-
-/// A scheduled action in the admin timelock.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TimelockAction {
-    pub id: u64,
-    pub admin: Address,
-    pub action_type: AdminActionType,
-    pub execution_timestamp: u64,
-    pub executed: bool,
-    pub cancelled: bool,
-    pub created_at: u64,
-}
-
-/// Parameters for a scheduled fee change via timelock.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TimelockFeeParams {
-    pub token: Option<Address>,
-    pub verification_fee: u128,
-    pub registration_fee: u128,
-    pub treasury: Address,
-}
-
-/// Parameters for a scheduled admin addition via timelock.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TimelockAdminAddParams {
-    pub new_admin: Address,
-}
-
-/// Parameters for a scheduled admin removal via timelock.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TimelockAdminRemoveParams {
-    pub admin_to_remove: Address,
-}
-
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProposalStatus {
-    Pending,
-    Approved,
-    Executed,
-    Rejected,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProposalPayload {
-    AddAdmin(Address),
-    RemoveAdmin(Address),
-    SetFee(Option<Address>, u128, u128, Address),
-    SetThreshold(u32),
-    ApproveVerification(u64),
-    RejectVerification(u64),
-    RevokeVerification(u64, String),
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AdminProposal {
-    pub id: u64,
-    pub proposer: Address,
-    pub action_type: AdminActionType,
-    pub payload_hash: soroban_sdk::BytesN<32>,
-    pub payload: ProposalPayload,
-    pub approvals: Vec<Address>,
-    pub status: ProposalStatus,
-    pub created_at: u64,
-}
-
-/// Tombstone stored when a review is deleted so indexers can distinguish
-/// deleted reviews from reviews that never existed.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReviewTombstone {
-    pub project_id: u64,
-    pub reviewer: Address,
-    pub deleted_at: u64,
-}
-
-/// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
-/// For large projects this increases compute budget usage proportionally to review count.
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ReviewSortMode {
-    /// Newest reviews first (highest created_at).
-    Newest,
-    /// Oldest reviews first (lowest created_at).
-    Oldest,
-    /// Highest rating first.
-    RatingHigh,
-    /// Lowest rating first.
-    RatingLow,
+    pub maintainers: Option<Vec<Address>>,
+    pub verification_status: Option<u32>,
+    // ... other fields
 }
 
 /// Sort order for `list_projects_sorted`. Sorting is performed on-chain in-memory.
