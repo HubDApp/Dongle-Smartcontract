@@ -40,8 +40,14 @@ impl ReviewRegistry {
         reviewer.require_auth();
 
         // Check if project exists
-        if ProjectRegistry::get_project(env, project_id).is_none() {
-            return Err(ContractError::ProjectNotFound);
+        let project = match ProjectRegistry::get_project(env, project_id) {
+            Some(p) => p,
+            None => return Err(ContractError::ProjectNotFound),
+        };
+
+        // Project owners cannot review their own project
+        if project.owner == reviewer {
+            return Err(ContractError::OwnerCannotReview);
         }
 
         // Check if reviews are enabled for this project

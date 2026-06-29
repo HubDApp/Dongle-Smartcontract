@@ -19,7 +19,7 @@ use crate::types::{
     SecurityContactStatus, VerificationStatus, ContractClaimRequest, ContractClaimStatus, ProjectSortMode,
 };
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
@@ -198,6 +198,8 @@ impl ProjectRegistry {
                 .persistent()
                 .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
+
+        Self::store_integrity_hash(env, count, &project.name, &project.slug, &project.category, &project.description);
 
         publish_project_registered_event(
             env,
@@ -562,6 +564,8 @@ impl ProjectRegistry {
         {
             StorageManager::extend_project_stats_ttl(env, params.project_id);
         }
+
+        Self::store_integrity_hash(env, params.project_id, &project.name, &project.slug, &project.category, &project.description);
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
         if major_metadata_changed {
@@ -1754,253 +1758,45 @@ impl ProjectRegistry {
         Self::check_reserved_name(env, name).is_err()
     }
 
-    pub fn claim_contract_address(
+    /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
+    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    pub fn store_integrity_hash(
         env: &Env,
         project_id: u64,
-        caller: Address,
-        contract_address: String,
-        proof_cid: String,
-    ) -> Result<ContractClaimRequest, ContractError> {
-        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        caller.require_auth();
-        let is_owner = project.owner == caller;
-        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
-        if !is_owner && !is_maintainer {
-            return Err(ContractError::Unauthorized);
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) {
+        let sep = b'|';
+        let name_bytes = name.to_string();
+        let slug_bytes = slug.to_string();
+        let cat_bytes = category.to_string();
+        let desc_bytes = description.to_string();
+
+        let total_len = name_bytes.len() + 1 + slug_bytes.len() + 1 + cat_bytes.len() + 1 + desc_bytes.len();
+        let mut buf = Bytes::new(env);
+        for b in name_bytes.as_bytes() {
+            buf.push_back(*b);
         }
-
-        Utils::validate_metadata_cid(&proof_cid)?;
-
-        let req = ContractClaimRequest {
-            project_id,
-            contract_address: contract_address.clone(),
-            claimant: caller.clone(),
-            proof_cid: proof_cid.clone(),
-            status: ContractClaimStatus::Pending,
-            created_at: env.ledger().timestamp(),
-        };
-
+        buf.push_back(sep);
+        for b in slug_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        buf.push_back(sep);
+        for b in cat_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        buf.push_back(sep);
+        for b in desc_bytes.as_bytes() {
+            buf.push_back(*b);
+        }
+        let _ = total_len;
+        let hash = env.crypto().sha256(&buf);
+        let hash_bytes = Bytes::from_array(env, &hash.to_array());
         env.storage()
             .persistent()
-            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
-
-        crate::events::publish_contract_claim_submitted_event(
-            env,
-            project_id,
-            contract_address,
-            caller,
-            proof_cid,
-        );
-        Ok(req)
-    }
-
-    pub fn approve_contract_claim(
-        env: &Env,
-        project_id: u64,
-        contract_address: String,
-        admin: Address,
-    ) -> Result<ContractClaimRequest, ContractError> {
-        AdminManager::require_admin(env, &admin)?;
-        let mut req: ContractClaimRequest = env
-            .storage()
-            .persistent()
-            .get(&ExtensionKey::ContractClaim(project_id, contract_address.clone()))
-            .ok_or(ContractError::InvalidProjectData)?;
-
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Approved;
-        env.storage()
-            .persistent()
-            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
-
-        let mut contracts: Vec<String> = env
-            .storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectContracts(project_id))
-            .unwrap_or_else(|| Vec::new(env));
-        contracts.push_back(contract_address.clone());
-        env.storage()
-            .persistent()
-            .set(&ExtensionKey::ProjectContracts(project_id), &contracts);
-
-        crate::events::publish_contract_claim_approved_event(
-            env,
-            project_id,
-            contract_address,
-            admin,
-        );
-        Ok(req)
-    }
-
-    pub fn reject_contract_claim(
-        env: &Env,
-        project_id: u64,
-        contract_address: String,
-        admin: Address,
-    ) -> Result<ContractClaimRequest, ContractError> {
-        AdminManager::require_admin(env, &admin)?;
-        let mut req: ContractClaimRequest = env
-            .storage()
-            .persistent()
-            .get(&ExtensionKey::ContractClaim(project_id, contract_address.clone()))
-            .ok_or(ContractError::InvalidProjectData)?;
-
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Rejected;
-        env.storage()
-            .persistent()
-            .set(&ExtensionKey::ContractClaim(project_id, contract_address.clone()), &req);
-
-        crate::events::publish_contract_claim_rejected_event(
-            env,
-            project_id,
-            contract_address,
-            admin,
-        );
-        Ok(req)
-    }
-
-    pub fn get_verified_contracts(env: &Env, project_id: u64) -> Vec<String> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectContracts(project_id))
-            .unwrap_or_else(|| Vec::new(env))
-    }
-
-    pub fn list_projects_sorted(
-        env: &Env,
-        sort_mode: ProjectSortMode,
-        start_id: u64,
-        limit: u32,
-    ) -> Vec<Project> {
-        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
-            MAX_PAGE_LIMIT
-        } else {
-            limit
-        };
-
-        let count: u64 = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectCount)
-            .unwrap_or(0);
-
-        let mut all: Vec<Project> = Vec::new(env);
-        for id in 1..=count {
-            if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
-                    all.push_back(project);
-                }
-            }
-        }
-
-        let n = all.len();
-        for i in 0..n {
-            for j in 0..n.saturating_sub(i + 1) {
-                let a = all.get(j).unwrap();
-                let b = all.get(j + 1).unwrap();
-                let mut swap = false;
-                match sort_mode {
-                    ProjectSortMode::Newest => {
-                        if a.created_at < b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::Oldest => {
-                        if a.created_at > b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::HighestRated => {
-                        let stats_a: crate::types::ProjectStats = env
-                            .storage()
-                            .persistent()
-                            .get(&StorageKey::ProjectStats(a.id))
-                            .unwrap_or_else(|| crate::types::ProjectStats {
-                                rating_sum: 0,
-                                review_count: 0,
-                                average_rating: 0,
-                            });
-                        let stats_b: crate::types::ProjectStats = env
-                            .storage()
-                            .persistent()
-                            .get(&StorageKey::ProjectStats(b.id))
-                            .unwrap_or_else(|| crate::types::ProjectStats {
-                                rating_sum: 0,
-                                review_count: 0,
-                                average_rating: 0,
-                            });
-                        if stats_a.average_rating < stats_b.average_rating {
-                            swap = true;
-                        } else if stats_a.average_rating == stats_b.average_rating {
-                            if stats_a.review_count < stats_b.review_count {
-                                swap = true;
-                            } else if stats_a.review_count == stats_b.review_count {
-                                if a.created_at < b.created_at {
-                                    swap = true;
-                                }
-                            }
-                        }
-                    }
-                    ProjectSortMode::MostReviewed => {
-                        let stats_a: crate::types::ProjectStats = env
-                            .storage()
-                            .persistent()
-                            .get(&StorageKey::ProjectStats(a.id))
-                            .unwrap_or_else(|| crate::types::ProjectStats {
-                                rating_sum: 0,
-                                review_count: 0,
-                                average_rating: 0,
-                            });
-                        let stats_b: crate::types::ProjectStats = env
-                            .storage()
-                            .persistent()
-                            .get(&StorageKey::ProjectStats(b.id))
-                            .unwrap_or_else(|| crate::types::ProjectStats {
-                                rating_sum: 0,
-                                review_count: 0,
-                                average_rating: 0,
-                            });
-                        if stats_a.review_count < stats_b.review_count {
-                            swap = true;
-                        } else if stats_a.review_count == stats_b.review_count {
-                            if stats_a.average_rating < stats_b.average_rating {
-                                swap = true;
-                            } else if stats_a.average_rating == stats_b.average_rating {
-                                if a.created_at < b.created_at {
-                                    swap = true;
-                                }
-                            }
-                        }
-                    }
-                }
-                if swap {
-                    all.set(j, b);
-                    all.set(j + 1, a);
-                }
-            }
-        }
-
-        let mut result = Vec::new(env);
-        let start = start_id as u32;
-        if start < n {
-            let mut items_added = 0;
-            for i in start..n {
-                if items_added >= effective_limit {
-                    break;
-                }
-                result.push_back(all.get(i).unwrap());
-                items_added += 1;
-            }
-        }
-
-        result
+            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 }
 
