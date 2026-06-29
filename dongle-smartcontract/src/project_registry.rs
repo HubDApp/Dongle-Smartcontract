@@ -16,7 +16,7 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    SecurityContactStatus, VerificationStatus,
+    SecurityContactStatus, VerificationStatus, ContractClaimRequest, ContractClaimStatus, ProjectSortMode,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
@@ -1799,6 +1799,7 @@ impl ProjectRegistry {
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 }
+
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

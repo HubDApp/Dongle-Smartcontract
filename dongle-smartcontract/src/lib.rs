@@ -47,7 +47,7 @@ use crate::types::{
     ProjectDependency, ProjectRegistrationParams, ProjectReport, ProjectStats, ProjectUpdateParams,
     ProposalPayload, Review, ReviewSortMode, ReviewTombstone, SecurityContactStatus,
     TimelockAction, VerificationRecord,
-    VerificationStatus,
+    VerificationStatus, ContractClaimRequest, ProjectSortMode,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -296,6 +296,47 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+    }
+
+    pub fn list_projects_sorted(
+        env: Env,
+        sort_mode: ProjectSortMode,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_sorted(&env, sort_mode, start_id, limit)
+    }
+
+    pub fn claim_contract_address(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        contract_address: String,
+        proof_cid: String,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        ProjectRegistry::claim_contract_address(&env, project_id, caller, contract_address, proof_cid)
+    }
+
+    pub fn approve_contract_claim(
+        env: Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        ProjectRegistry::approve_contract_claim(&env, project_id, contract_address, admin)
+    }
+
+    pub fn reject_contract_claim(
+        env: Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        ProjectRegistry::reject_contract_claim(&env, project_id, contract_address, admin)
+    }
+
+    pub fn get_verified_contracts(env: Env, project_id: u64) -> Vec<String> {
+        ProjectRegistry::get_verified_contracts(&env, project_id)
     }
 
     pub fn archive_project(
