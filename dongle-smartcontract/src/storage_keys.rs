@@ -97,8 +97,6 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
-    /// Bounty URL for a project.
-    ProjectBountyUrl(u64),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -164,4 +162,12 @@ pub enum ExtensionKey {
     ProjectRegion(u64),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
+    /// Contract address claim request (project_id, contract_address).
+    ContractClaim(u64, String),
+    /// Verified contract addresses for a project.
+    ProjectContracts(u64),
+    /// Review revision count (project_id, reviewer).
+    ReviewRevisionCount(u64, Address),
+    /// Review revision snapshot (project_id, reviewer, revision_index).
+    ReviewRevision(u64, Address, u32),
 }

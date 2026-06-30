@@ -499,15 +499,9 @@ fn snapshot_review_submitted_event_shape() {
         .mock_all_auths()
         .add_review(&project_id, &reviewer, &4, &None);
 
-    let found = env.events().all().iter().any(|(_, topics, _)| {
-        let topics: soroban_sdk::Vec<Val> = topics;
-        topics.len() == 4
-    });
-    assert!(found || true); // Events are emitted; shape verified via has_event below.
-
-    // Verify the event exists and carries expected topic structure.
-    let all_events = env.events().all();
-    assert!(!all_events.is_empty(), "no events emitted for add_review");
+    // Event shape verified via has_event below.
+    let _all_review_events = env.events().all();
+    assert!(!_all_review_events.is_empty(), "no events emitted for add_review");
 }
 
 #[test]
@@ -567,8 +561,7 @@ fn snapshot_verification_requested_and_approved_event_shape() {
     let owner = Address::generate(&env);
     let project_id = register_project(&client, &env, &owner, "Verify-Snapshot");
 
-    let evidence_cid =
-        String::from_str(&env, "QmEvidenceCid1234567890123456789012345678901234");
+    let evidence_cid = String::from_str(&env, "QmEvidenceCid1234567890123456789012345678901234");
 
     client
         .mock_all_auths()
@@ -610,7 +603,7 @@ fn snapshot_review_deleted_by_admin_event_shape() {
 
     client
         .mock_all_auths()
-        .delete_review_admin(&project_id, &reviewer, &admin);
+        .admin_delete_review(&project_id, &reviewer, &admin);
 
     assert!(has_event::<ReviewDeletedByAdminEvent, _, _>(
         &env,

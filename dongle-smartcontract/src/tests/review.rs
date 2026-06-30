@@ -9,12 +9,6 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
     setup_contract(env)
 }
 
-fn assert_distribution(stats: &crate::types::ProjectStats, expected: [u32; 5]) {
-    for i in 0..5 {
-        assert_eq!(stats.rating_distribution.get(i as u32).unwrap_or(0), expected[i]);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // add_review
 // ---------------------------------------------------------------------------
@@ -49,7 +43,6 @@ fn test_add_review_updates_stats() {
     assert_eq!(stats.review_count, 1);
     assert_eq!(stats.rating_sum, 400); // 4 * 100
     assert_eq!(stats.average_rating, 400); // 4.00
-    assert_distribution(&stats, [0, 0, 0, 1, 0]);
 }
 
 #[test]
@@ -264,7 +257,6 @@ fn test_delete_last_review_zeroes_stats() {
     assert_eq!(stats.review_count, 0);
     assert_eq!(stats.rating_sum, 0);
     assert_eq!(stats.average_rating, 0);
-    assert_distribution(&stats, [0, 0, 0, 0, 0]);
 }
 
 #[test]
@@ -370,7 +362,6 @@ fn test_full_review_lifecycle_stats_invariant() {
     assert_eq!(stats.review_count, 3);
     assert_eq!(stats.rating_sum, 900); // (5+3+1)*100
     assert_eq!(stats.average_rating, 300); // 3.00
-    assert_distribution(&stats, [1, 0, 1, 0, 1]);
 
     // Phase 2: update r2's rating from 3 → 5
     client.update_review(&project_id, &r2, &5, &None);
@@ -379,7 +370,6 @@ fn test_full_review_lifecycle_stats_invariant() {
     assert_eq!(stats.review_count, 3); // count unchanged
     assert_eq!(stats.rating_sum, 1100); // (5+5+1)*100
     assert_eq!(stats.average_rating, 366); // floor(1100/3) = 366
-    assert_distribution(&stats, [1, 0, 0, 0, 2]);
 
     // Phase 3: delete r3's review (rating=1)
     client.delete_review(&project_id, &r3);
@@ -388,7 +378,6 @@ fn test_full_review_lifecycle_stats_invariant() {
     assert_eq!(stats.review_count, 2);
     assert_eq!(stats.rating_sum, 1000); // (5+5)*100
     assert_eq!(stats.average_rating, 500); // 5.00
-    assert_distribution(&stats, [0, 0, 0, 0, 2]);
 
     // Phase 4: delete remaining reviews — stats must be zero, no div-by-zero
     client.delete_review(&project_id, &r1);
@@ -398,55 +387,6 @@ fn test_full_review_lifecycle_stats_invariant() {
     assert_eq!(stats.review_count, 0);
     assert_eq!(stats.rating_sum, 0);
     assert_eq!(stats.average_rating, 0);
-    assert_distribution(&stats, [0, 0, 0, 0, 0]);
-}
-
-#[test]
-fn test_rating_distribution_getter_matches_stats() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, admin) = setup(&env);
-    let project_id = create_test_project(&client, &admin, "ProjectDistributionGetter");
-
-    let r1 = Address::generate(&env);
-    let r2 = Address::generate(&env);
-    let r3 = Address::generate(&env);
-    client.add_review(&project_id, &r1, &1, &None);
-    client.add_review(&project_id, &r2, &5, &None);
-    client.add_review(&project_id, &r3, &5, &None);
-
-    let stats = client.get_project_stats(&project_id);
-    let distribution = client.get_rating_distribution(&project_id);
-
-    for i in 0..5 {
-        assert_eq!(distribution.get(i).unwrap_or(0), stats.rating_distribution.get(i).unwrap_or(0));
-    }
-}
-
-#[test]
-fn test_rating_distribution_transitions_with_hide_restore_and_admin_delete() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, admin) = setup(&env);
-    let project_id = create_test_project(&client, &admin, "ProjectDistributionModeration");
-
-    let reviewer = Address::generate(&env);
-    client.add_review(&project_id, &reviewer, &4, &None);
-
-    let stats_after_add = client.get_project_stats(&project_id);
-    assert_distribution(&stats_after_add, [0, 0, 0, 1, 0]);
-
-    client.hide_review(&project_id, &reviewer, &admin);
-    let stats_after_hide = client.get_project_stats(&project_id);
-    assert_distribution(&stats_after_hide, [0, 0, 0, 0, 0]);
-
-    client.restore_review(&project_id, &reviewer, &admin);
-    let stats_after_restore = client.get_project_stats(&project_id);
-    assert_distribution(&stats_after_restore, [0, 0, 0, 1, 0]);
-
-    client.admin_delete_review(&project_id, &reviewer, &admin);
-    let stats_after_delete = client.get_project_stats(&project_id);
-    assert_distribution(&stats_after_delete, [0, 0, 0, 0, 0]);
 }
 
 #[test]

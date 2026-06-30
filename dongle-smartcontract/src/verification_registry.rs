@@ -6,10 +6,9 @@ use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT};
 use crate::errors::ContractError;
 use crate::events::{
     publish_verification_approved_event, publish_verification_evidence_updated_event,
-    publish_verification_rejected_event,
-    publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
-    publish_verification_renewal_requested_event, publish_verification_requested_event,
-    publish_verification_revoked_event,
+    publish_verification_rejected_event, publish_verification_renewal_approved_event,
+    publish_verification_renewal_rejected_event, publish_verification_renewal_requested_event,
+    publish_verification_requested_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -274,8 +273,8 @@ impl VerificationRegistry {
         new_evidence_cid: String,
     ) -> Result<(), ContractError> {
         // 1. Validate project existence and ownership
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         require_owner_auth(&caller, &project.owner)?;
 
@@ -284,7 +283,7 @@ impl VerificationRegistry {
 
         // 3. Reject if not Pending
         if record.status != VerificationStatus::Pending {
-            return Err(ContractError::VerificationNotPend);
+            return Err(ContractError::InvalidStatus);
         }
 
         // 4. Validate CID before state mutation
@@ -511,7 +510,7 @@ impl VerificationRegistry {
 
         let mut record = Self::get_verification(env, project_id)?;
         if record.status != VerificationStatus::Pending {
-            return Err(ContractError::VerificationNotPend);
+            return Err(ContractError::InvalidStatus);
         }
 
         record.assigned_admin = Some(assignee.clone());

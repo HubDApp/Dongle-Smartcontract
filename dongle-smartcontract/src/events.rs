@@ -321,11 +321,41 @@ pub fn publish_review_event(
     let action_sym = match action {
         ReviewAction::Submitted => symbol_short!("SUBMITTED"),
         ReviewAction::Updated => symbol_short!("UPDATED"),
+        ReviewAction::Revised => symbol_short!("REVISED"),
         ReviewAction::Deleted => symbol_short!("DELETED"),
     };
 
     env.events()
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
+}
+
+pub fn publish_review_revision_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    revision_index: u32,
+    previous_rating: u32,
+    previous_content_cid: Option<String>,
+    new_rating: u32,
+    new_content_cid: Option<String>,
+) {
+    use crate::types::ReviewRevisionEvent;
+
+    let event_data = ReviewRevisionEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        revision_index,
+        previous_rating,
+        previous_content_cid,
+        new_rating,
+        new_content_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+
+    env.events().publish(
+        (REVIEW, symbol_short!("REVISED"), project_id, reviewer),
+        event_data,
+    );
 }
 
 pub fn publish_project_registered_event(
@@ -713,11 +743,7 @@ pub fn publish_verification_evidence_updated_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("VERIFY"),
-            symbol_short!("EV_UPD"),
-            project_id,
-        ),
+        (symbol_short!("VERIFY"), symbol_short!("EV_UPD"), project_id),
         event_data,
     );
 }
@@ -982,7 +1008,6 @@ pub struct ContractClaimRejectedEvent {
     pub timestamp: u64,
 }
 
-
 pub fn publish_project_claimable_set_event(
     env: &Env,
     project_id: u64,
@@ -1147,7 +1172,6 @@ pub fn publish_contract_claim_rejected_event(
         event_data,
     );
 }
-
 
 pub fn publish_min_project_age_set_event(
     env: &Env,
@@ -1823,7 +1847,11 @@ pub fn publish_verification_assigned_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("ASSIGNED"), project_id),
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ASSIGNED"),
+            project_id,
+        ),
         event_data,
     );
 }
