@@ -2,17 +2,121 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dongle.example/schemas/project-metadata.schema.json",
   "title": "Dongle Project Metadata",
+  "description": "Off-chain JSON document referenced by a project's metadata_cid on the Dongle contract. Documents using only legacy fields (for example security_contact) remain valid.",
   "type": "object",
+  "required": ["version", "projectName"],
   "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version of this document (semver recommended).",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "projectName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Human-readable project display name."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Extended markdown or plain-text description beyond the on-chain summary."
+    },
+    "website": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical project website URL."
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri",
+      "description": "Source repository URL (GitHub, GitLab, etc.)."
+    },
+    "documentation": {
+      "type": "string",
+      "format": "uri",
+      "description": "Primary documentation site URL."
+    },
+    "logo": {
+      "type": "string",
+      "minLength": 46,
+      "maxLength": 128,
+      "description": "IPFS CID for the project logo asset."
+    },
+    "banner": {
+      "type": "string",
+      "minLength": 46,
+      "maxLength": 128,
+      "description": "IPFS CID for a wide banner or cover image."
+    },
+    "categories": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "maxItems": 10,
+      "description": "Discovery categories beyond the on-chain category field."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 },
+      "maxItems": 20,
+      "description": "Free-form discovery tags."
+    },
+    "socials": {
+      "type": "object",
+      "description": "Named social or community links.",
+      "additionalProperties": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "licenses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "url": { "type": "string", "format": "uri" }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 5
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "email": { "type": "string", "format": "email" },
+          "url": { "type": "string", "format": "uri" },
+          "role": { "type": "string", "maxLength": 64 }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when this metadata document was first published."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the latest metadata revision."
+    },
     "security_contact": {
       "type": "object",
-      "description": "Public security contact details and on-chain ownership proof status.",
+      "description": "Legacy field preserved for backward compatibility with earlier metadata documents.",
       "properties": {
         "contact": {
           "type": "string",
           "minLength": 1,
           "maxLength": 256,
-          "description": "Email address, security.txt URL, web page, or other contact route published by the project."
+          "description": "Email address, security.txt URL, or other published contact route."
         },
         "proof_cid": {
           "type": "string",
@@ -29,5 +133,5 @@
       "additionalProperties": false
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
