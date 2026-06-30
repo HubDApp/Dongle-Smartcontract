@@ -200,6 +200,10 @@ Dongle Smart Contract (Soroban)
 - `create_collection` – Create curated project collections
 - And many more - see [full API documentation](dongle-smartcontract/README.md)
 
+### Administrator Key Rotation
+
+Operational guidance for secure admin key rotation, incident response, and testnet validation is documented in [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md).
+
 ### Validation
 
 - Prevent duplicate registrations
