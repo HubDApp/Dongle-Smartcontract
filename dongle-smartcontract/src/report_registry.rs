@@ -119,7 +119,7 @@ impl ReportRegistry {
 
         let count = Self::get_project_report_count(env, project_id);
         if count == 0 {
-            return Err(ContractError::ReportsCleared);
+            return Err(ContractError::InvalidStatus);
         }
 
         // Gather existing reports to remove individual UserReport dedup keys

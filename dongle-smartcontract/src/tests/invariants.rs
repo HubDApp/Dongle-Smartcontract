@@ -27,7 +27,7 @@ fn invariant_stats_sum_and_count_match_submitted_reviews() {
         client
             .mock_all_auths()
             .add_review(&project_id, &reviewer, &r, &None);
-        expected_sum += r as u64;
+        expected_sum += (r as u64) * 100;
     }
 
     let stats = client.get_project_stats(&project_id);
@@ -38,7 +38,7 @@ fn invariant_stats_sum_and_count_match_submitted_reviews() {
     );
     assert_eq!(
         stats.rating_sum, expected_sum,
-        "rating_sum must equal the sum of all submitted ratings"
+        "rating_sum must equal the sum of all submitted ratings (scaled by 100)"
     );
     let expected_avg = (expected_sum / ratings.len() as u64) as u32;
     assert_eq!(
@@ -74,12 +74,12 @@ fn invariant_stats_remain_consistent_after_review_deletion() {
         "review_count must decrement after a review is deleted"
     );
     assert_eq!(
-        stats.rating_sum, 3,
-        "rating_sum must decrease by the deleted review's rating"
+        stats.rating_sum, 300,
+        "rating_sum must decrease by the deleted review's rating (scaled by 100)"
     );
     assert_eq!(
-        stats.average_rating, 3,
-        "average_rating must reflect only the remaining reviews"
+        stats.average_rating, 300,
+        "average_rating must reflect only the remaining reviews (scaled by 100)"
     );
 }
 
@@ -154,8 +154,16 @@ fn invariant_owner_indexes_are_isolated_per_owner() {
     let projects1 = client.get_projects_by_owner(&owner1);
     let projects2 = client.get_projects_by_owner(&owner2);
 
-    assert_eq!(projects1.len(), 1, "owner1 index must contain exactly 1 project");
-    assert_eq!(projects2.len(), 1, "owner2 index must contain exactly 1 project");
+    assert_eq!(
+        projects1.len(),
+        1,
+        "owner1 index must contain exactly 1 project"
+    );
+    assert_eq!(
+        projects2.len(),
+        1,
+        "owner2 index must contain exactly 1 project"
+    );
 
     assert_eq!(
         projects1.get(0).unwrap().id,
@@ -201,9 +209,7 @@ fn invariant_verification_status_is_pending_after_request() {
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "VerifyPendingInvariant");
 
-    client
-        .mock_all_auths()
-        .set_min_project_age(&admin, &0);
+    client.mock_all_auths().set_min_project_age(&admin, &0);
 
     let evidence = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
     client
@@ -217,8 +223,7 @@ fn invariant_verification_status_is_pending_after_request() {
         "verification_status must be Pending immediately after request"
     );
 
-    let record = client
-        .get_verification(&project_id);
+    let record = client.get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Pending,
@@ -237,9 +242,7 @@ fn invariant_verification_status_is_verified_after_approval() {
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "VerifyApprovedInvariant");
 
-    client
-        .mock_all_auths()
-        .set_min_project_age(&admin, &0);
+    client.mock_all_auths().set_min_project_age(&admin, &0);
 
     let evidence = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
     client
@@ -256,8 +259,7 @@ fn invariant_verification_status_is_verified_after_approval() {
         "verification_status must be Verified after admin approval"
     );
 
-    let record = client
-        .get_verification(&project_id);
+    let record = client.get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Verified,
@@ -272,9 +274,7 @@ fn invariant_verification_status_is_rejected_after_rejection() {
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "VerifyRejectedInvariant");
 
-    client
-        .mock_all_auths()
-        .set_min_project_age(&admin, &0);
+    client.mock_all_auths().set_min_project_age(&admin, &0);
 
     let evidence = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
     client
@@ -291,8 +291,7 @@ fn invariant_verification_status_is_rejected_after_rejection() {
         "verification_status must be Rejected after admin rejection"
     );
 
-    let record = client
-        .get_verification(&project_id);
+    let record = client.get_verification(&project_id);
     assert_eq!(
         record.status,
         VerificationStatus::Rejected,
@@ -326,9 +325,7 @@ fn invariant_admin_count_stays_in_sync_after_add() {
     let (client, admin) = setup_contract(&env);
     let new_admin = Address::generate(&env);
 
-    client
-        .mock_all_auths()
-        .add_admin(&admin, &new_admin);
+    client.mock_all_auths().add_admin(&admin, &new_admin);
 
     let list = client.get_admin_list();
     let count = client.get_admin_count();
@@ -346,12 +343,8 @@ fn invariant_admin_count_stays_in_sync_after_removal() {
     let (client, admin) = setup_contract(&env);
     let new_admin = Address::generate(&env);
 
-    client
-        .mock_all_auths()
-        .add_admin(&admin, &new_admin);
-    client
-        .mock_all_auths()
-        .remove_admin(&admin, &new_admin);
+    client.mock_all_auths().add_admin(&admin, &new_admin);
+    client.mock_all_auths().remove_admin(&admin, &new_admin);
 
     let list = client.get_admin_list();
     let count = client.get_admin_count();
@@ -368,9 +361,7 @@ fn invariant_cannot_remove_last_admin() {
     let env = Env::default();
     let (client, admin) = setup_contract(&env);
 
-    let result = client
-        .mock_all_auths()
-        .try_remove_admin(&admin, &admin);
+    let result = client.mock_all_auths().try_remove_admin(&admin, &admin);
 
     assert!(
         result.is_err(),

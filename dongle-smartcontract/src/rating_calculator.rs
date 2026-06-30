@@ -83,6 +83,7 @@ impl RatingCalculator {
         let new_average = Self::calculate_average(new_sum, new_count);
         (new_sum, new_count, new_average)
     }
+
 }
 
 #[cfg(test)]

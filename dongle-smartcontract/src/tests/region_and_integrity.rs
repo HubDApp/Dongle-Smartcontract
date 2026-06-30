@@ -79,9 +79,11 @@ fn test_owner_can_clear_region() {
     let owner = Address::generate(&env);
     let project_id = register_project(&client, &env, &owner);
 
-    client
-        .mock_all_auths()
-        .set_project_region(&project_id, &owner, &Some(String::from_str(&env, "EU")));
+    client.mock_all_auths().set_project_region(
+        &project_id,
+        &owner,
+        &Some(String::from_str(&env, "EU")),
+    );
 
     client
         .mock_all_auths()
@@ -99,11 +101,16 @@ fn test_non_owner_cannot_set_region() {
     let non_owner = Address::generate(&env);
     let project_id = register_project(&client, &env, &owner);
 
-    let result = client
-        .mock_all_auths()
-        .try_set_project_region(&project_id, &non_owner, &Some(String::from_str(&env, "ASIA")));
+    let result = client.mock_all_auths().try_set_project_region(
+        &project_id,
+        &non_owner,
+        &Some(String::from_str(&env, "ASIA")),
+    );
 
-    assert!(result.is_err(), "Non-owner should not be able to set region");
+    assert!(
+        result.is_err(),
+        "Non-owner should not be able to set region"
+    );
 }
 
 #[test]
@@ -114,7 +121,10 @@ fn test_integrity_hash_set_on_registration() {
     let project_id = register_project(&client, &env, &owner);
 
     let hash = client.get_project_integrity_hash(&project_id);
-    assert!(hash.is_some(), "Integrity hash should be set after registration");
+    assert!(
+        hash.is_some(),
+        "Integrity hash should be set after registration"
+    );
     assert_eq!(hash.unwrap().len(), 32, "SHA-256 hash must be 32 bytes");
 }
 
@@ -128,19 +138,31 @@ fn test_integrity_hash_changes_on_update() {
     let hash_before = client.get_project_integrity_hash(&project_id).unwrap();
 
     use crate::types::ProjectUpdateParams;
-    client.mock_all_auths().update_project(&ProjectUpdateParams {
-        project_id,
-        caller: owner.clone(),
-        name: None,
-        description: Some(String::from_str(&env, "Updated description changes the hash")),
-        website: None,
-        license: None,
-        logo_cid: None,
-        metadata_cid: None,
-        security_contact: None,
-        security_contact_proof_cid: None,
-    }).unwrap();
+    client
+        .mock_all_auths()
+        .update_project(&ProjectUpdateParams {
+            project_id,
+            caller: owner.clone(),
+            name: None,
+            description: Some(String::from_str(
+                &env,
+                "Updated description changes the hash",
+            )),
+            website: None,
+            license: None,
+            logo_cid: None,
+            metadata_cid: None,
+            slug: None,
+            category: None,
+            tags: None,
+            social_links: None,
+            launch_timestamp: None,
+            bounty_url: None,
+        });
 
     let hash_after = client.get_project_integrity_hash(&project_id).unwrap();
-    assert_ne!(hash_before, hash_after, "Hash must change when metadata changes");
+    assert_ne!(
+        hash_before, hash_after,
+        "Hash must change when metadata changes"
+    );
 }

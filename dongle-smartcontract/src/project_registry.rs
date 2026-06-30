@@ -15,8 +15,9 @@ use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimRequest, ClaimStatus, Project, ProjectRegistrationParams, ProjectUpdateParams,
-    SecurityContactStatus, VerificationStatus, ContractClaimRequest, ContractClaimStatus, ProjectSortMode,
+    ClaimRequest, ClaimStatus, ContractClaimRequest, ContractClaimStatus, Project,
+    ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
+    VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
@@ -199,7 +200,14 @@ impl ProjectRegistry {
                 .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
         }
 
-        Self::store_integrity_hash(env, count, &project.name, &project.slug, &project.category, &project.description);
+        Self::store_integrity_hash(
+            env,
+            count,
+            &project.name,
+            &project.slug,
+            &project.category,
+            &project.description,
+        );
 
         publish_project_registered_event(
             env,
@@ -565,7 +573,14 @@ impl ProjectRegistry {
             StorageManager::extend_project_stats_ttl(env, params.project_id);
         }
 
-        Self::store_integrity_hash(env, params.project_id, &project.name, &project.slug, &project.category, &project.description);
+        Self::store_integrity_hash(
+            env,
+            params.project_id,
+            &project.name,
+            &project.slug,
+            &project.category,
+            &project.description,
+        );
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
         if major_metadata_changed {
@@ -1653,11 +1668,7 @@ impl ProjectRegistry {
     }
 
     /// Admin: add a name to the reserved list.
-    pub fn add_reserved_name(
-        env: &Env,
-        admin: Address,
-        name: String,
-    ) -> Result<(), ContractError> {
+    pub fn add_reserved_name(env: &Env, admin: Address, name: String) -> Result<(), ContractError> {
         crate::auth::require_admin_auth(env, &admin)?;
 
         let mut reserved: Vec<String> = env
@@ -1758,6 +1769,230 @@ impl ProjectRegistry {
         Self::check_reserved_name(env, name).is_err()
     }
 
+    pub fn claim_contract_address(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        contract_address: String,
+        proof_cid: String,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        caller.require_auth();
+        let is_owner = project.owner == caller;
+        let is_maintainer = Self::is_maintainer(env, project_id, &caller);
+        if !is_owner && !is_maintainer {
+            return Err(ContractError::Unauthorized);
+        }
+
+        Utils::validate_metadata_cid(&proof_cid)?;
+
+        let req = ContractClaimRequest {
+            project_id,
+            contract_address: contract_address.clone(),
+            claimant: caller.clone(),
+            proof_cid: proof_cid.clone(),
+            status: ContractClaimStatus::Pending,
+            created_at: env.ledger().timestamp(),
+        };
+
+        env.storage().persistent().set(
+            &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
+            &req,
+        );
+
+        crate::events::publish_contract_claim_submitted_event(
+            env,
+            project_id,
+            contract_address,
+            caller,
+            proof_cid,
+        );
+        Ok(req)
+    }
+
+    pub fn approve_contract_claim(
+        env: &Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        AdminManager::require_admin(env, &admin)?;
+        let mut req: ContractClaimRequest = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ContractClaim(
+                project_id,
+                contract_address.clone(),
+            ))
+            .ok_or(ContractError::InvalidProjectData)?;
+
+        if req.status != ContractClaimStatus::Pending {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        req.status = ContractClaimStatus::Approved;
+        env.storage().persistent().set(
+            &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
+            &req,
+        );
+
+        let mut contracts: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectContracts(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        contracts.push_back(contract_address.clone());
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectContracts(project_id), &contracts);
+
+        crate::events::publish_contract_claim_approved_event(
+            env,
+            project_id,
+            contract_address,
+            admin,
+        );
+        Ok(req)
+    }
+
+    pub fn reject_contract_claim(
+        env: &Env,
+        project_id: u64,
+        contract_address: String,
+        admin: Address,
+    ) -> Result<ContractClaimRequest, ContractError> {
+        AdminManager::require_admin(env, &admin)?;
+        let mut req: ContractClaimRequest = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ContractClaim(
+                project_id,
+                contract_address.clone(),
+            ))
+            .ok_or(ContractError::InvalidProjectData)?;
+
+        if req.status != ContractClaimStatus::Pending {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        req.status = ContractClaimStatus::Rejected;
+        env.storage().persistent().set(
+            &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
+            &req,
+        );
+
+        crate::events::publish_contract_claim_rejected_event(
+            env,
+            project_id,
+            contract_address,
+            admin,
+        );
+        Ok(req)
+    }
+
+    pub fn get_verified_contracts(env: &Env, project_id: u64) -> Vec<String> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectContracts(project_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn list_projects_sorted(
+        env: &Env,
+        sort_mode: ProjectSortMode,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut all: Vec<Project> = Vec::new(env);
+        for id in 1..=count {
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived {
+                    all.push_back(project);
+                }
+            }
+        }
+
+        let n = all.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                let a = all.get(j).unwrap();
+                let b = all.get(j + 1).unwrap();
+                let mut swap = false;
+                match sort_mode {
+                    ProjectSortMode::Newest => {
+                        if a.created_at < b.created_at {
+                            swap = true;
+                        }
+                    }
+                    ProjectSortMode::Oldest => {
+                        if a.created_at > b.created_at {
+                            swap = true;
+                        }
+                    }
+                    ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                        let stats_a =
+                            crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
+                        let stats_b =
+                            crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
+                        if sort_mode == ProjectSortMode::HighestRated {
+                            if stats_a.average_rating < stats_b.average_rating {
+                                swap = true;
+                            } else if stats_a.average_rating == stats_b.average_rating
+                                && stats_a.review_count < stats_b.review_count
+                            {
+                                swap = true;
+                            }
+                        } else if stats_a.review_count < stats_b.review_count {
+                            swap = true;
+                        } else if stats_a.review_count == stats_b.review_count
+                            && stats_a.average_rating < stats_b.average_rating
+                        {
+                            swap = true;
+                        }
+                    }
+                }
+                if swap {
+                    all.set(j, b);
+                    all.set(j + 1, a);
+                }
+            }
+        }
+
+        let mut result = Vec::new(env);
+        let start = start_id as u32;
+        if start < n {
+            let end = core::cmp::min(start.saturating_add(effective_limit), n);
+            for i in start..end {
+                if let Some(project) = all.get(i) {
+                    result.push_back(project);
+                }
+            }
+        }
+
+        result
+    }
+
+    fn append_string_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, s: &String) {
+        let len = s.len() as usize;
+        let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
+        s.copy_into_slice(&mut scratch[..len]);
+        for i in 0..len {
+            buf.push_back(scratch[i]);
+        }
+    }
+
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
     /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
     pub fn store_integrity_hash(
@@ -1769,37 +2004,21 @@ impl ProjectRegistry {
         description: &String,
     ) {
         let sep = b'|';
-        let name_bytes = name.to_string();
-        let slug_bytes = slug.to_string();
-        let cat_bytes = category.to_string();
-        let desc_bytes = description.to_string();
-
-        let total_len = name_bytes.len() + 1 + slug_bytes.len() + 1 + cat_bytes.len() + 1 + desc_bytes.len();
-        let mut buf = Bytes::new(env);
-        for b in name_bytes.as_bytes() {
-            buf.push_back(*b);
-        }
+        let mut buf = soroban_sdk::Bytes::new(env);
+        Self::append_string_bytes(env, &mut buf, name);
         buf.push_back(sep);
-        for b in slug_bytes.as_bytes() {
-            buf.push_back(*b);
-        }
+        Self::append_string_bytes(env, &mut buf, slug);
         buf.push_back(sep);
-        for b in cat_bytes.as_bytes() {
-            buf.push_back(*b);
-        }
+        Self::append_string_bytes(env, &mut buf, category);
         buf.push_back(sep);
-        for b in desc_bytes.as_bytes() {
-            buf.push_back(*b);
-        }
-        let _ = total_len;
+        Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
-        let hash_bytes = Bytes::from_array(env, &hash.to_array());
+        let hash_bytes = soroban_sdk::Bytes::from_array(env, &hash.to_array());
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 }
-
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

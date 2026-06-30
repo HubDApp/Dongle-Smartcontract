@@ -51,6 +51,13 @@ pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
 #[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
 
+/// Maximum stored edit revisions per review (oldest dropped when exceeded).
+pub const MAX_REVIEW_REVISIONS: u32 = 50;
+
+/// Bayesian prior review count for weighted rating (see RatingCalculator::calculate_weighted).
+
+/// Bayesian prior mean rating scaled by 100 (350 = 3.50 stars).
+
 /// Project metadata fields whose changes invalidate an existing verification.
 pub const MAJOR_METADATA_FIELD_NAME: &str = "name";
 pub const MAJOR_METADATA_FIELD_WEBSITE: &str = "website";
