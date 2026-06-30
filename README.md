@@ -203,6 +203,30 @@ Dongle Smart Contract (Soroban)
 ### Administrator Key Rotation
 
 Operational guidance for secure admin key rotation, incident response, and testnet validation is documented in [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md).
+### Project Metadata CID Schema
+
+Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Documents should follow the JSON schema in [`project-metadata.schema.json`](./project-metadata.schema.json).
+
+| | |
+|---|---|
+| **Schema** | [`project-metadata.schema.json`](./project-metadata.schema.json) |
+| **Example** | [`project-metadata.example.json`](./project-metadata.example.json) |
+| **Review CID schema** | [`review-cid.schema.json`](./review-cid.schema.json) |
+
+**Required fields:** `version` (semver), `projectName`
+
+**Recommended optional fields:** `description`, `website`, `repository`, `documentation`, `logo`, `banner`, `categories`, `tags`, `socials`, `licenses`, `maintainers`, `createdAt`, `updatedAt`
+
+**Backward compatibility:** Legacy documents that only include `security_contact` (see schema) remain valid. Indexers should treat unknown fields as opaque when validating against older versions.
+
+**Best practices:**
+
+- Pin metadata on IPFS and verify the CID matches on-chain `metadata_cid`
+- Bump `version` when making breaking schema changes; use semver
+- Keep on-chain fields (`name`, `description`, `website`) consistent with off-chain metadata
+- See [LOGO_ASSET_GUIDELINES.md](./docs/LOGO_ASSET_GUIDELINES.md) for logo CIDs
+
+**Admin rotation:** See [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md) for secure administrator key rotation procedures.
 
 ### Validation
 
