@@ -365,6 +365,11 @@ impl ReviewRegistry {
         history
     }
 
+    /// Bayesian weighted rating for a project (scaled by 100). Uses O(1) aggregate stats.
+    pub fn get_weighted_rating(env: &Env, project_id: u64) -> u32 {
+        let stats = Self::get_project_stats(env, project_id);
+        RatingCalculator::calculate_weighted(stats.rating_sum, stats.review_count)
+    }
 
     pub fn delete_review(
         env: &Env,

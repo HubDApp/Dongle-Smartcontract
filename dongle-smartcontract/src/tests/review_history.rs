@@ -99,3 +99,45 @@ fn test_review_revision_event_emitted() {
         "ReviewRevisionEvent must be emitted on edit"
     );
 }
+
+#[test]
+fn test_weighted_rating_boundary_and_average_compatibility() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Weighted-Rating");
+
+    // Zero reviews → prior mean (3.50 = 350)
+    assert_eq!(client.get_weighted_rating(&project_id), 350);
+    let stats_empty = client.get_project_stats(&project_id);
+    assert_eq!(stats_empty.average_rating, 0);
+
+    let reviewer = Address::generate(&env);
+    client.submit_review(&project_id, &reviewer, &5, &String::from_str(&env, CID_W1));
+
+    let stats_one = client.get_project_stats(&project_id);
+    assert_eq!(stats_one.average_rating, 500);
+    assert_eq!(client.get_weighted_rating(&project_id), 375); // (5*350 + 500) / 6
+
+    for cid in [CID_W2, CID_W3, CID_W4, CID_W5] {
+        let r = Address::generate(&env);
+        client.submit_review(&project_id, &r, &4, &String::from_str(&env, cid));
+    }
+
+    let stats_many = client.get_project_stats(&project_id);
+    assert_eq!(stats_many.review_count, 5);
+    assert_eq!(stats_many.average_rating, 420); // (5 + 4*4)/5 = 4.20
+    let weighted = client.get_weighted_rating(&project_id);
+    assert!(weighted >= 350 && weighted <= 500);
+}
+
+#[test]
+fn test_weighted_rating_formula_validation() {
+    use crate::rating_calculator::RatingCalculator;
+
+    assert_eq!(RatingCalculator::calculate_weighted(0, 0), 350);
+    assert_eq!(RatingCalculator::calculate_weighted(500, 1), 375);
+    assert_eq!(RatingCalculator::calculate_weighted(2000, 4), 416);
+    assert_eq!(RatingCalculator::calculate_average(2000, 4), 500);
+    assert_eq!(RatingCalculator::calculate_weighted(2000, 4), 416);
+}

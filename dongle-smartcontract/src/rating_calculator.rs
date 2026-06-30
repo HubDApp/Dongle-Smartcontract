@@ -84,6 +84,30 @@ impl RatingCalculator {
         (new_sum, new_count, new_average)
     }
 
+    /// Calculate Bayesian weighted rating using stored aggregates.
+    ///
+    /// Formula (result scaled by 100, same as `average_rating`):
+    /// ```text
+    /// weighted = (C * m + rating_sum) / (C + review_count)
+    /// ```
+    /// Where `C` = `WEIGHTED_RATING_PRIOR_COUNT`, `m` = `WEIGHTED_RATING_PRIOR_MEAN`,
+    /// and `rating_sum` is the sum of individual ratings each scaled by 100.
+    ///
+    /// Edge cases:
+    /// - `review_count == 0` → returns prior mean `m`
+    /// - `review_count == 1` → blends prior with the single review
+    /// - large `review_count` → converges toward the arithmetic mean
+    pub fn calculate_weighted(rating_sum: u64, review_count: u32) -> u32 {
+        use crate::constants::{WEIGHTED_RATING_PRIOR_COUNT, WEIGHTED_RATING_PRIOR_MEAN};
+        let c = WEIGHTED_RATING_PRIOR_COUNT as u64;
+        let m = WEIGHTED_RATING_PRIOR_MEAN as u64;
+        let numerator = c.saturating_mul(m).saturating_add(rating_sum);
+        let denominator = c.saturating_add(review_count as u64);
+        if denominator == 0 {
+            return WEIGHTED_RATING_PRIOR_MEAN;
+        }
+        (numerator / denominator) as u32
+    }
 }
 
 #[cfg(test)]

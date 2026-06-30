@@ -476,6 +476,11 @@ impl DongleContract {
         ReviewRegistry::get_project_stats(&env, project_id)
     }
 
+    /// Bayesian weighted rating (scaled by 100). See `RatingCalculator::calculate_weighted`.
+    pub fn get_weighted_rating(env: Env, project_id: u64) -> u32 {
+        ReviewRegistry::get_weighted_rating(&env, project_id)
+    }
+
     pub fn get_review_revision_count(env: Env, project_id: u64, reviewer: Address) -> u32 {
         ReviewRegistry::get_review_revision_count(&env, project_id, reviewer)
     }
