@@ -35,4 +35,53 @@ pub enum ContractError {
     CantRemoveSelf = 29,
     IndexOutOfBounds = 30,
     NotInIndex = 31,
+
+    // Project registration and updates
+    ProjectAlreadyExists = 32,
+    InvalidProjectName = 33,
+    ProjectNameTooLong = 34,
+    InvalidProjectDesc = 35,
+    ProjectDescTooLong = 36,
+    InvalidProjectData = 37,
+    InvalidProjectSlug = 38,
+    InvalidProjectSlugLen = 39,
+    InvalidInput = 40,
+
+    // CID-specific
+    InvalidLogoCid = 41,
+    InvalidMetaCid = 42,
+
+    // Authorization / access control
+    Unauthorized = 43,
+    AdminOnly = 44,
+    AdminNotFound = 45,
+
+    // Verification workflow
+    VerificationNotFound = 46,
+    VerificationNotPend = 47,
+    InvalidStatus = 48,
+    ProjectTooYoung = 49,
+    VerifiedFieldFrozen = 50,
+
+    // Archive / reactivation
+    AlreadyArchived = 51,
+    ProjectNotArchived = 52,
+
+    // Ownership transfer
+    TransferNotFound = 53,
+    NotTransferRecip = 54,
+
+    // Reserved names
+    ReservedName = 55,
+
+    // Fee
+    FeeMissing = 56,
+    FeeInvalid = 57,
+    FeeAlreadyPaid = 58,
+
+    // Security contact
+    SecurityContactInvalid = 59,
+
+    // Normalized name duplicate
+    DuplicateProjectName = 60,
 }
