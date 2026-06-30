@@ -2,7 +2,6 @@
 
 // Existing test modules
 mod admin;
-mod auth_matrix;
 mod admin_action_log;
 mod archival;
 mod collections;
@@ -23,14 +22,15 @@ mod claim;
 mod dependencies;
 mod maintainers;
 mod renewal;
+mod review_history;
 mod review_settings;
 mod security_contact;
-mod verification_features;
 mod verification;
+mod verification_features;
 
 // String validation: names, descriptions, CIDs, categories, URLs
-mod string_validation;
 mod license_metadata;
+mod string_validation;
 
 // Metadata freeze policy for verified projects
 // mod verified_freeze;

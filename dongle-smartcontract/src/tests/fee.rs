@@ -192,11 +192,11 @@ fn test_native_fee_rejected_at_config() {
 
     // verification_fee non-zero, no token → must fail
     let result = client.try_set_fee(&admin, &None, &100u128, &0u128, &admin);
-    assert_eq!(result, Err(Ok(ContractError::NativeFeeNotSupported)));
+    assert_eq!(result, Err(Ok(ContractError::FeeConfigNotSet)));
 
     // registration_fee non-zero, no token → must also fail
     let result = client.try_set_fee(&admin, &None, &0u128, &50u128, &admin);
-    assert_eq!(result, Err(Ok(ContractError::NativeFeeNotSupported)));
+    assert_eq!(result, Err(Ok(ContractError::FeeConfigNotSet)));
 }
 
 // --- Fee consumed after verification request ---

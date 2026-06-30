@@ -97,7 +97,7 @@ impl FeeManager {
             }
             // set_fee enforces that token is Some when fees are non-zero, so this
             // ok_or branch is a defensive guard against corrupted storage state.
-            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             // Transfer must succeed before we set the payment flag.
             // If transfer fails, this function returns early without setting the flag.
@@ -230,7 +230,7 @@ impl FeeManager {
                 return Err(ContractError::InvalidProjectData);
             }
             // Defensive guard — set_fee already rejects None token with non-zero fees.
-            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             // Transfer must succeed before we set the payment flag.
             // If transfer fails, this function returns early without setting the flag.
@@ -238,9 +238,10 @@ impl FeeManager {
         }
 
         // Only set payment flag after successful token transfer
-        env.storage()
-            .persistent()
-            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
+        env.storage().persistent().set(
+            &StorageKey::RegistrationFeePaidForAddress(payer.clone()),
+            &true,
+        );
 
         // Store full payment details for getter
         let payment_record = FeePaymentRecord {
@@ -273,7 +274,9 @@ impl FeeManager {
     ) -> Option<FeePaymentRecord> {
         env.storage()
             .persistent()
-            .get(&ExtensionKey::RegistrationFeePaymentDetails(address.clone()))
+            .get(&ExtensionKey::RegistrationFeePaymentDetails(
+                address.clone(),
+            ))
     }
 
     /// Check if the registration fee has been paid for an address

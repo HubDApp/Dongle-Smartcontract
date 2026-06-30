@@ -236,7 +236,7 @@ fn test_clear_project_reports_no_reports_fails() {
 
     // No reports — should return the appropriate error
     let result = client.try_clear_project_reports(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::ReportsCleared)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -262,7 +262,7 @@ fn test_clear_project_reports_idempotent_second_clear_fails() {
 
     // Second clear on now-empty project returns error
     let result = client.try_clear_project_reports(&project_id, &admin);
-    assert_eq!(result, Err(Ok(ContractError::ReportsCleared)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

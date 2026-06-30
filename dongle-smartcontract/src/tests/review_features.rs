@@ -4,7 +4,10 @@ use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::ReviewSortMode;
 use crate::DongleContractClient;
-use soroban_sdk::{testutils::{Address as _, Ledger as _}, Address, Env};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger as _},
+    Address, Env,
+};
 
 fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
     setup_contract(env)
@@ -80,7 +83,9 @@ fn test_delete_review_leaves_tombstone() {
 
     // Review exists; no tombstone yet.
     assert!(client.get_review(&project_id, &reviewer).is_some());
-    assert!(client.get_review_tombstone(&project_id, &reviewer).is_none());
+    assert!(client
+        .get_review_tombstone(&project_id, &reviewer)
+        .is_none());
 
     client.delete_review(&project_id, &reviewer);
 
@@ -103,7 +108,9 @@ fn test_admin_delete_review_leaves_tombstone() {
     client.admin_delete_review(&project_id, &reviewer, &admin);
 
     assert!(client.get_review(&project_id, &reviewer).is_none());
-    assert!(client.get_review_tombstone(&project_id, &reviewer).is_some());
+    assert!(client
+        .get_review_tombstone(&project_id, &reviewer)
+        .is_some());
 }
 
 #[test]
@@ -116,7 +123,9 @@ fn test_tombstone_not_present_for_never_reviewed() {
 
     // Neither a review nor a tombstone should exist.
     assert!(client.get_review(&project_id, &stranger).is_none());
-    assert!(client.get_review_tombstone(&project_id, &stranger).is_none());
+    assert!(client
+        .get_review_tombstone(&project_id, &stranger)
+        .is_none());
 }
 
 // ─── Sorting (#241) ──────────────────────────────────────────────────────────

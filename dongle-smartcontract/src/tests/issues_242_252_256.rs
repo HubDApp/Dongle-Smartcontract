@@ -9,11 +9,14 @@ fn test_contract_address_claims() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
-    
-    let owner = Address::generate(&env);
-    let project_id = create_test_project(&client, &owner, "Project A");
 
-    let contract_addr = String::from_str(&env, "CDLZFC3SYJYDZT7K67VZ75HPJVIEWBE6YAAH2PBNU6K4R457OT7KMBM4");
+    let owner = Address::generate(&env);
+    let project_id = create_test_project(&client, &owner, "Project-A");
+
+    let contract_addr = String::from_str(
+        &env,
+        "CDLZFC3SYJYDZT7K67VZ75HPJVIEWBE6YAAH2PBNU6K4R457OT7KMBM4",
+    );
     let proof_cid = String::from_str(&env, "QmProofCID1234567890123456789012345678901234567");
 
     // 1. Claim contract
@@ -24,7 +27,7 @@ fn test_contract_address_claims() {
     // 2. Reject claim
     client.reject_contract_claim(&project_id, &contract_addr, &admin);
     // Can't easily fetch request directly without getter, but let's re-claim and approve
-    
+
     // We expect the next claim over the same address to just overwrite the rejected one
     let req2 = client.claim_contract_address(&project_id, &owner, &contract_addr, &proof_cid);
     assert_eq!(req2.status, ContractClaimStatus::Pending);
@@ -43,17 +46,14 @@ fn test_project_sorting_options() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _) = setup_contract(&env);
-    
+
     let owner1 = Address::generate(&env);
     let owner2 = Address::generate(&env);
-    
+
     // Create projects in order
-    let p1 = create_test_project(&client, &owner1, "First Project");
-    
-    // Simulate time passing by doing some dummy ledger advancement if possible, but actually `created_at` will be the same
-    // Let's just rely on ID order if created_at is identical (ID is used for tiebreaker maybe? actually the stable sort bubble sort preserves creation order)
-    
-    let p2 = create_test_project(&client, &owner2, "Second Project");
+    let p1 = create_test_project(&client, &owner1, "First-Project");
+
+    let p2 = create_test_project(&client, &owner2, "Second-Project");
 
     // Submit reviews to affect rating and review count
     let reviewer = Address::generate(&env);
@@ -63,25 +63,23 @@ fn test_project_sorting_options() {
         &5, // Rating 5
         &String::from_str(&env, "QmReview2........................................"),
     );
-    
+
     // Sorting by MostReviewed -> p2 should be first
-    let most_reviewed = client.list_projects_sorted(&ProjectSortMode::MostReviewed, &1, &10);
+    let most_reviewed = client.list_projects_sorted(&ProjectSortMode::MostReviewed, &0, &10);
     assert_eq!(most_reviewed.get(0).unwrap().id, p2);
     assert_eq!(most_reviewed.get(1).unwrap().id, p1);
-    
+
     // Sorting by HighestRated -> p2 should be first
-    let highest_rated = client.list_projects_sorted(&ProjectSortMode::HighestRated, &1, &10);
+    let highest_rated = client.list_projects_sorted(&ProjectSortMode::HighestRated, &0, &10);
     assert_eq!(highest_rated.get(0).unwrap().id, p2);
     assert_eq!(highest_rated.get(1).unwrap().id, p1);
-    
+
     // Sorting by Oldest -> p1 should be first
-    let oldest = client.list_projects_sorted(&ProjectSortMode::Oldest, &1, &10);
+    let oldest = client.list_projects_sorted(&ProjectSortMode::Oldest, &0, &10);
     assert_eq!(oldest.get(0).unwrap().id, p1);
-    
+
     // Sorting by Newest
-    // Since bubble sort is stable and created_at might be equal, p1 might remain first if it doesn't swap on equal
-    // Let's just ensure no panic occurs and it returns all items.
-    let newest = client.list_projects_sorted(&ProjectSortMode::Newest, &1, &10);
+    let newest = client.list_projects_sorted(&ProjectSortMode::Newest, &0, &10);
     assert_eq!(newest.len(), 2);
 }
 
@@ -94,10 +92,10 @@ fn test_bounty_url_validation() {
 
     // Valid bounty URL
     let valid_bounty = String::from_str(&env, "https://immunefi.com/bounty/project");
-    
+
     let params_valid = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: String::from_str(&env, "Bounty Project"),
+        name: String::from_str(&env, "Bounty-Project"),
         slug: String::from_str(&env, "bounty-project"),
         description: String::from_str(&env, "A project with a valid bug bounty URL..........."),
         category: String::from_str(&env, "DeFi"),
@@ -110,7 +108,7 @@ fn test_bounty_url_validation() {
         launch_timestamp: None,
         bounty_url: Some(valid_bounty.clone()),
     };
-    
+
     let proj_id = client.register_project(&params_valid);
     let proj = client.get_project(&proj_id).unwrap();
     assert_eq!(proj.bounty_url, Some(valid_bounty));
@@ -119,7 +117,7 @@ fn test_bounty_url_validation() {
     let invalid_bounty = String::from_str(&env, "invalid-url-without-http");
     let params_invalid = ProjectRegistrationParams {
         owner: owner.clone(),
-        name: String::from_str(&env, "Bounty Project 2"),
+        name: String::from_str(&env, "Bounty-Project-2"),
         slug: String::from_str(&env, "bounty-project-2"),
         description: String::from_str(&env, "A project with an invalid bug bounty URL........"),
         category: String::from_str(&env, "DeFi"),
@@ -132,7 +130,7 @@ fn test_bounty_url_validation() {
         launch_timestamp: None,
         bounty_url: Some(invalid_bounty),
     };
-    
+
     let res = client.try_register_project(&params_invalid);
     assert!(res.is_err(), "Should reject invalid bounty url");
 }
