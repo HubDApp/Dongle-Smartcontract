@@ -23,6 +23,23 @@
       "maxLength": 4096,
       "description": "Extended markdown or plain-text description beyond the on-chain summary."
     },
+    "language": {
+      "type": "string",
+      "description": "Primary language for project metadata text, using an ISO 639 language code or BCP 47 language tag.",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "examples": ["en", "fr", "pt-BR", "zh-Hant"]
+    },
+    "supportedLanguages": {
+      "type": "array",
+      "description": "Languages the project supports in its UI, documentation, or community materials.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+      },
+      "uniqueItems": true,
+      "maxItems": 25,
+      "examples": [["en", "es", "fr", "pt-BR"]]
+    },
     "website": {
       "type": "string",
       "format": "uri",

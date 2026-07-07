@@ -22,8 +22,9 @@
     },
     "language": {
       "type": "string",
-      "description": "The ISO 639-1 language code or BCP 47 tag of the review text",
-      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+      "description": "The ISO 639 language code or BCP 47 language tag of the review text",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "examples": ["en", "fr", "pt-BR", "zh-Hant"]
     },
     "attachments": {
       "type": "array",
