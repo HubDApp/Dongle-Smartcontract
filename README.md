@@ -212,6 +212,8 @@ Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Docum
 | **Schema** | [`project-metadata.schema.json`](./project-metadata.schema.json) |
 | **Example** | [`project-metadata.example.json`](./project-metadata.example.json) |
 | **Review CID schema** | [`review-cid.schema.json`](./review-cid.schema.json) |
+| **Verification evidence schema** | [`verification-evidence.schema.json`](./verification-evidence.schema.json) |
+| **Verification evidence example** | [`verification-evidence.example.json`](./verification-evidence.example.json) |
 
 **Required fields:** `version` (semver), `projectName`
 
@@ -227,6 +229,13 @@ Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Docum
 - See [LOGO_ASSET_GUIDELINES.md](./docs/LOGO_ASSET_GUIDELINES.md) for logo CIDs
 
 **Admin rotation:** See [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md) for secure administrator key rotation procedures.
+
+### Verification Evidence CID Schema
+
+Verification evidence CIDs should point to structured JSON documents with proof
+links, screenshots, signatures, attestations, and privacy notes. See
+[`docs/VERIFICATION_EVIDENCE.md`](./docs/VERIFICATION_EVIDENCE.md) for the
+schema, example document, and safety expectations.
 
 ### Validation
 
@@ -376,6 +385,9 @@ Dongle promotes:
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
 - [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
 - [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [verification-evidence.schema.json](verification-evidence.schema.json) - Off-chain JSON schema for verification evidence CIDs
+- [verification-evidence.example.json](verification-evidence.example.json) - Valid verification evidence example
+- [Verification Evidence Guide](docs/VERIFICATION_EVIDENCE.md) - Privacy, safety, proof-link, attestation, and signature guidance
 - [Storage Schema Reference](docs/STORAGE_SCHEMA.md) — canonical storage keys, read/write mapping, index consistency rules, and migration guidance.
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
