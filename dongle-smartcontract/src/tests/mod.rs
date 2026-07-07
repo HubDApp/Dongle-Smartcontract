@@ -65,6 +65,7 @@ mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;
 mod timelock;
+mod ttl_batch;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;

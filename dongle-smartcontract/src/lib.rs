@@ -821,9 +821,51 @@ impl DongleContract {
         }
     }
 
+    /// Extend TTL for many project IDs. Missing projects are skipped.
+    pub fn extend_projects_ttl(env: Env, project_ids: Vec<u64>) -> Result<u32, ContractError> {
+        if project_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut refreshed = 0u32;
+        for i in 0..project_ids.len() {
+            if let Some(project_id) = project_ids.get(i) {
+                if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
+                    StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
+                    refreshed = refreshed.saturating_add(1);
+                }
+            }
+        }
+        Ok(refreshed)
+    }
+
     /// Extend TTL for a specific review
     pub fn extend_review_ttl(env: Env, project_id: u64, reviewer: Address) {
         StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+    }
+
+    /// Extend TTL for many review records. Missing reviews are skipped.
+    pub fn extend_reviews_ttl(
+        env: Env,
+        review_ids: Vec<(u64, Address)>,
+    ) -> Result<u32, ContractError> {
+        if review_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut refreshed = 0u32;
+        for i in 0..review_ids.len() {
+            if let Some((project_id, reviewer)) = review_ids.get(i) {
+                if ReviewRegistry::get_review(&env, project_id, reviewer.clone()).is_some() {
+                    StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+                    StorageManager::extend_project_reviews_ttl(&env, project_id);
+                    StorageManager::extend_project_stats_ttl(&env, project_id);
+                    StorageManager::extend_user_reviews_ttl(&env, &reviewer);
+                    refreshed = refreshed.saturating_add(1);
+                }
+            }
+        }
+        Ok(refreshed)
     }
 
     /// Extend TTL for all admin-related data
