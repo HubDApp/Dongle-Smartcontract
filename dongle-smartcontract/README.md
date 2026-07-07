@@ -1573,6 +1573,20 @@ soroban contract invoke \
   -- get_admin_count
 ```
 
+#### Get Public Contract Configuration
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --network testnet \
+  -- get_config
+```
+
+Returns a stable configuration snapshot for frontends and indexers, including
+fee settings, treasury, admin count, pause state, version, and public limits.
+`paused` is currently `false` because the contract does not yet include a pause
+feature.
+
 #### Get Admin List
 
 ```bash

@@ -179,6 +179,34 @@ let admin_count = get_admin_count(env);
 
 ---
 
+### `get_config`
+
+**Purpose**: Return a stable public contract configuration snapshot for frontends and indexers.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `ContractConfig`
+- `fee_config`: current fee configuration when set
+- `treasury`: current treasury address when set
+- `admin_count`: current admin count
+- `paused`: current pause state; currently `false` because no pause feature is implemented
+- `version`: contract config version string
+- public limits for projects, reviews, pagination, tags, social links, verification validity, fee payment expiry, and review update cooldown
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let config = get_config(env);
+```
+
+---
+
 ## Project Registry
 
 ### `register_project`

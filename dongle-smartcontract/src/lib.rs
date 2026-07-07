@@ -43,11 +43,11 @@ use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig,
-    FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    ContractConfig, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
+    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
+    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
+    VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -89,6 +89,25 @@ impl DongleContract {
 
     pub fn get_admin_approval_threshold(env: Env) -> u32 {
         AdminManager::get_admin_approval_threshold(&env)
+    }
+
+    pub fn get_config(env: Env) -> ContractConfig {
+        ContractConfig {
+            fee_config: FeeManager::get_fee_config(&env).ok(),
+            treasury: FeeManager::get_treasury(&env).ok(),
+            admin_count: AdminManager::get_admin_count(&env),
+            paused: false,
+            version: String::from_str(&env, "1.0.0"),
+            max_projects_per_user: crate::constants::MAX_PROJECTS_PER_USER,
+            max_reviews_per_project: crate::constants::MAX_REVIEWS_PER_PROJECT,
+            max_reviews_per_user: crate::constants::MAX_REVIEWS_PER_USER,
+            max_page_limit: crate::constants::MAX_PAGE_LIMIT,
+            max_tags_per_project: crate::constants::MAX_TAGS_PER_PROJECT,
+            max_social_links: crate::constants::MAX_SOCIAL_LINKS,
+            verification_validity_period: crate::constants::VERIFICATION_VALIDITY_PERIOD,
+            fee_payment_expiry_seconds: crate::constants::FEE_PAYMENT_EXPIRY_SECONDS,
+            review_update_cooldown_seconds: crate::constants::REVIEW_UPDATE_COOLDOWN_SECONDS,
+        }
     }
 
     pub fn set_admin_approval_threshold(
