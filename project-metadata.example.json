@@ -2,6 +2,8 @@
   "version": "1.0.0",
   "projectName": "Dongle DeFi Explorer",
   "description": "A discovery layer and analytics dashboard for Stellar DeFi protocols. This extended description complements the on-chain summary stored in the contract.",
+  "language": "en",
+  "supportedLanguages": ["en", "es", "fr", "pt-BR"],
   "website": "https://dongle.example",
   "repository": "https://github.com/HubDApp/Dongle-Smartcontract",
   "documentation": "https://github.com/HubDApp/Dongle-Smartcontract/blob/main/README.md",

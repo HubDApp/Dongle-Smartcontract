@@ -217,6 +217,11 @@ Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Docum
 
 **Recommended optional fields:** `description`, `website`, `repository`, `documentation`, `logo`, `banner`, `categories`, `tags`, `socials`, `licenses`, `maintainers`, `createdAt`, `updatedAt`
 
+**Language metadata:** Use `language` for the primary metadata language and
+`supportedLanguages` for localized UI, documentation, or community materials.
+Review CID documents also support `language`; see
+[`docs/LANGUAGE_METADATA.md`](./docs/LANGUAGE_METADATA.md).
+
 **Backward compatibility:** Legacy documents that only include `security_contact` (see schema) remain valid. Indexers should treat unknown fields as opaque when validating against older versions.
 
 **Best practices:**
@@ -376,6 +381,7 @@ Dongle promotes:
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
 - [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
 - [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [Language Metadata Guide](docs/LANGUAGE_METADATA.md) - Project and review language-code format guidance
 - [Storage Schema Reference](docs/STORAGE_SCHEMA.md) — canonical storage keys, read/write mapping, index consistency rules, and migration guidance.
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)
