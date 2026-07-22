@@ -251,7 +251,7 @@ Once all tests pass, clippy is clean, and code is formatted:
 
 - `FIXES_APPLIED.md` - Summary of fixes applied
 - `TEST_FAILURE_TROUBLESHOOTING.md` - Common issues and solutions
-- `FINAL_PROJECT_SUMMARY.md` - Complete project overview
+- `PROJECT_STATUS.md` - Living project status
 
 ---
 

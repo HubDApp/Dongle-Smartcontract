@@ -499,5 +499,5 @@ cargo test archive -- --nocapture
 
 - `ARCHIVE_REACTIVATE_IMPLEMENTATION.md` - Detailed implementation guide
 - `ARCHIVE_QUICK_REFERENCE.md` - Quick reference guide
-- `IMPLEMENTATION_SUMMARY.md` - High-level summary
+- `PROJECT_STATUS.md` - Living project status
 - `CODE_CHANGES_REFERENCE.md` - This file

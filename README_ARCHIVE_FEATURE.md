@@ -82,7 +82,7 @@ Successfully implemented a complete project archive and reactivate feature for t
 
 1. **ARCHIVE_REACTIVATE_IMPLEMENTATION.md** - Detailed implementation guide
 2. **ARCHIVE_QUICK_REFERENCE.md** - Quick reference guide
-3. **IMPLEMENTATION_SUMMARY.md** - High-level summary
+3. **PROJECT_STATUS.md** - Living project status
 4. **CODE_CHANGES_REFERENCE.md** - Code location reference
 5. **VERIFICATION_CHECKLIST.md** - Verification checklist
 
@@ -323,7 +323,7 @@ All listing methods now exclude archived projects:
 
 ### Detailed Documentation
 - **ARCHIVE_REACTIVATE_IMPLEMENTATION.md** - Full implementation guide
-- **IMPLEMENTATION_SUMMARY.md** - High-level summary
+- **PROJECT_STATUS.md** - Living project status
 - **CODE_CHANGES_REFERENCE.md** - Code location reference
 - **VERIFICATION_CHECKLIST.md** - Verification checklist
 

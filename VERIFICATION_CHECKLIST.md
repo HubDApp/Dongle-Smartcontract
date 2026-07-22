@@ -206,7 +206,7 @@ All listing methods filter archived projects:
 | src/tests/archive.rs | ✓ | Test suite (20 tests) |
 | ARCHIVE_REACTIVATE_IMPLEMENTATION.md | ✓ | Detailed documentation |
 | ARCHIVE_QUICK_REFERENCE.md | ✓ | Quick reference |
-| IMPLEMENTATION_SUMMARY.md | ✓ | High-level summary |
+| PROJECT_STATUS.md | ✓ | Living project status |
 | CODE_CHANGES_REFERENCE.md | ✓ | Code location reference |
 | VERIFICATION_CHECKLIST.md | ✓ | This file |
 

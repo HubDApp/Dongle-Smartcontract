@@ -9,7 +9,7 @@
 ### For Implementation Details
 3. **ARCHIVE_REACTIVATE_IMPLEMENTATION.md** ← Full implementation guide
 4. **CODE_CHANGES_REFERENCE.md** ← Exact code locations
-5. **IMPLEMENTATION_SUMMARY.md** ← High-level summary
+5. **PROJECT_STATUS.md** ← Living project status
 
 ### For Verification
 6. **VERIFICATION_CHECKLIST.md** ← Verification status
@@ -25,7 +25,7 @@ Dongle-Smartcontract-1/
 ├── README_ARCHIVE_FEATURE.md                    ← Executive summary
 ├── ARCHIVE_QUICK_REFERENCE.md                   ← Quick reference
 ├── ARCHIVE_REACTIVATE_IMPLEMENTATION.md         ← Detailed guide
-├── IMPLEMENTATION_SUMMARY.md                    ← High-level summary
+├── PROJECT_STATUS.md                            ← Living project status
 ├── CODE_CHANGES_REFERENCE.md                    ← Code locations
 ├── VERIFICATION_CHECKLIST.md                    ← Verification status
 └── ARCHIVE_FEATURE_INDEX.md                     ← This file
@@ -113,16 +113,13 @@ dongle-smartcontract/src/
 - Future enhancements
 - Summary
 
-### IMPLEMENTATION_SUMMARY.md
-**Purpose**: High-level summary of changes
-**Length**: ~400 lines
-**Best For**: Code review, understanding architecture
+### PROJECT_STATUS.md
+**Purpose**: Living project status and build health
 **Contains**:
 - Overview
-- Acceptance criteria details
-- Implementation details (code snippets)
-- Files modified table
-- Files created table
+- Build & Verification Matrix
+- Implemented Feature Modules
+- Next Steps to Deployment Readiness
 - Test coverage summary
 - Key features
 - Behavior specification
@@ -191,8 +188,8 @@ dongle-smartcontract/src/
 ### I need to verify the implementation
 → Review **VERIFICATION_CHECKLIST.md**
 
-### I need a high-level summary
-→ See **IMPLEMENTATION_SUMMARY.md**
+### I need current project status
+→ See **PROJECT_STATUS.md**
 
 ---
 
@@ -243,7 +240,7 @@ dongle-smartcontract/src/
 3. Check **CODE_CHANGES_REFERENCE.md** for specific code (5 min)
 
 ### For Code Reviewers
-1. Read **IMPLEMENTATION_SUMMARY.md** (10 min)
+1. Read **PROJECT_STATUS.md** (5 min)
 2. Review **CODE_CHANGES_REFERENCE.md** (10 min)
 3. Check **VERIFICATION_CHECKLIST.md** (5 min)
 
@@ -253,7 +250,7 @@ dongle-smartcontract/src/
 3. Run tests: `cargo test archive`
 
 ### For Deployment
-1. Review **IMPLEMENTATION_SUMMARY.md** (10 min)
+1. Review **PROJECT_STATUS.md** (5 min)
 2. Check **VERIFICATION_CHECKLIST.md** (5 min)
 3. Follow deployment checklist
 
@@ -351,7 +348,7 @@ cargo test archive
 
 ### Understanding Code Changes
 1. **CODE_CHANGES_REFERENCE.md** - Exact locations
-2. **IMPLEMENTATION_SUMMARY.md** - Code snippets
+2. **PROJECT_STATUS.md** - Project status and architecture
 3. Source files - Actual implementation
 
 ### Understanding Testing
@@ -380,8 +377,8 @@ cargo test archive
 **Is it verified?**
 → VERIFICATION_CHECKLIST.md
 
-**High-level overview?**
-→ IMPLEMENTATION_SUMMARY.md
+**Project status overview?**
+→ PROJECT_STATUS.md
 
 ---
 
@@ -415,7 +412,7 @@ README_ARCHIVE_FEATURE.md (Start here)
     ↓
     ├→ ARCHIVE_QUICK_REFERENCE.md (Quick lookup)
     ├→ ARCHIVE_REACTIVATE_IMPLEMENTATION.md (Deep dive)
-    ├→ IMPLEMENTATION_SUMMARY.md (High-level)
+    ├→ PROJECT_STATUS.md (Status & overview)
     ├→ CODE_CHANGES_REFERENCE.md (Code locations)
     └→ VERIFICATION_CHECKLIST.md (Verification)
 ```
