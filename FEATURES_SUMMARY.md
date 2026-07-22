@@ -65,7 +65,7 @@ Allows project owners to:
 
 - ARCHIVE_REACTIVATE_IMPLEMENTATION.md
 - ARCHIVE_QUICK_REFERENCE.md
-- IMPLEMENTATION_SUMMARY.md
+- PROJECT_STATUS.md
 - CODE_CHANGES_REFERENCE.md
 - VERIFICATION_CHECKLIST.md
 - README_ARCHIVE_FEATURE.md
@@ -283,7 +283,7 @@ cargo test
 1. **README_ARCHIVE_FEATURE.md** - Executive summary
 2. **ARCHIVE_QUICK_REFERENCE.md** - Quick reference
 3. **ARCHIVE_REACTIVATE_IMPLEMENTATION.md** - Detailed guide
-4. **IMPLEMENTATION_SUMMARY.md** - High-level summary
+4. **PROJECT_STATUS.md** - Living project status
 5. **CODE_CHANGES_REFERENCE.md** - Code locations
 6. **VERIFICATION_CHECKLIST.md** - Verification status
 7. **ARCHIVE_FEATURE_INDEX.md** - Navigation guide

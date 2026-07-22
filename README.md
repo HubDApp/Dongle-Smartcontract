@@ -9,6 +9,8 @@ Dongle aims to serve as a foundational protocol that frontend applications and i
 
 This repository focuses **only on the smart contract logic**. Frontend interfaces and off-chain indexing are handled separately.
 
+For the current development and build health status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
 ## Quick Start
 
 The smart contract is located in the `dongle-smartcontract/` directory. For comprehensive documentation, usage examples, and API reference, please see the [dongle-smartcontract README](dongle-smartcontract/README.md).
