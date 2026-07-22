@@ -31,7 +31,7 @@ fn test_historical_verification_records() {
     assert_eq!(project.verification_status, VerificationStatus::Verified);
     let v_id1 = project.current_verification_id.unwrap();
 
-    let record1 = client.get_verification_record(&v_id1);
+    let record1 = client.get_verification_record(&v_id1).unwrap();
     assert_eq!(record1.status, VerificationStatus::Verified);
     assert_eq!(record1.evidence_cid, evidence1);
 
@@ -54,7 +54,7 @@ fn test_historical_verification_records() {
     let v_id2 = project.current_verification_id.unwrap();
     assert!(v_id2 != v_id1);
 
-    let record2 = client.get_verification_record(&v_id2);
+    let record2 = client.get_verification_record(&v_id2).unwrap();
     assert_eq!(record2.status, VerificationStatus::Rejected);
     assert_eq!(record2.evidence_cid, evidence2);
 
@@ -76,7 +76,7 @@ fn test_historical_verification_records() {
     assert_eq!(history.get(2).unwrap().request_id, v_id3);
 
     // Fetch current and historical verification records
-    let current_record = client.get_verification(&project_id);
+    let current_record = client.get_verification(&project_id).unwrap();
     assert_eq!(current_record.request_id, v_id3);
 }
 

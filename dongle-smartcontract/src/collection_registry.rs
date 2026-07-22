@@ -275,11 +275,10 @@ impl CollectionRegistry {
         Ok(())
     }
 
-    pub fn get_collection(env: &Env, collection_id: u64) -> Result<Collection, ContractError> {
+    pub fn get_collection(env: &Env, collection_id: u64) -> Option<Collection> {
         env.storage()
             .persistent()
             .get(&StorageKey::Collection(collection_id))
-            .ok_or(ContractError::CollectionNotFound)
     }
 
     pub fn list_collections(env: &Env, start: u32, limit: u32) -> Vec<Collection> {

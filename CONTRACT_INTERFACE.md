@@ -8,6 +8,13 @@ This document provides comprehensive documentation of all public contract functi
 **Network**: Stellar  
 **Language**: Rust  
 
+### Single-Entity Getter Convention
+
+All single-entity lookup functions (such as `get_project`, `get_collection`, `get_verification`, `get_verification_record`, `get_renewal_request`, `get_assigned_admin`, `get_review`, `get_duplicate_dispute`, `get_proposal`, `get_action`, etc.) return `Option<T>`.
+- Returns `Some(entity)` when the record exists.
+- Returns `None` when no entity is found for the given ID/key (without raising a contract error).
+- Multi-entity/list functions return `Vec<T>` (empty when no entries match).
+
 ---
 
 ## Table of Contents
@@ -1736,7 +1743,8 @@ revoke_verification(env, project_id, admin_address, String::from_slice(&env, "Co
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
 
-**Return Value**: `Result<VerificationRecord, ContractError>`
+**Return Value**: `Option<VerificationRecord>`
+- `Some(VerificationRecord)` if found, `None` if not found.
 - Contains:
   - `request_id` (u64): ID of the verification request
   - `project_id` (u64): Project ID
@@ -1753,12 +1761,11 @@ revoke_verification(env, project_id, admin_address, String::from_slice(&env, "Co
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `ProjectNotFound` - Project ID does not exist
-- `VerificationNotFound` - No verification record for this project
+- None (returns `None` if verification record does not exist)
 
 **Example**:
 ```rust
-let verification = get_verification(env, project_id)?;
+let verification = get_verification(env, project_id);
 ```
 
 ---
@@ -1923,18 +1930,19 @@ reject_renewal(env, project_id, admin_address)?;
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
 
-**Return Value**: `Result<VerificationRenewalRecord, ContractError>`
+**Return Value**: `Option<VerificationRenewalRecord>`
+- `Some(VerificationRenewalRecord)` if found, `None` if not found.
 - Contains renewal request details
 
 **Authorization**: 
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `ProjectNotFound` - Project ID does not exist
+- None (returns `None` if renewal request does not exist)
 
 **Example**:
 ```rust
-let renewal = get_renewal_request(env, project_id)?;
+let renewal = get_renewal_request(env, project_id);
 ```
 
 ---
@@ -2329,7 +2337,8 @@ remove_project_from_collection(env, admin_address, collection_id, project_id)?;
 - `env` (Env): The contract environment
 - `collection_id` (u64): The collection ID
 
-**Return Value**: `Result<Collection, ContractError>`
+**Return Value**: `Option<Collection>`
+- `Some(Collection)` if found, `None` if not found.
 - Contains:
   - `id` (u64): Collection ID
   - `name` (String): Collection name
@@ -2341,11 +2350,11 @@ remove_project_from_collection(env, admin_address, collection_id, project_id)?;
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `CollectionNotFound` - Collection ID does not exist
+- None (returns `None` if collection ID does not exist)
 
 **Example**:
 ```rust
-let collection = get_collection(env, collection_id)?;
+let collection = get_collection(env, collection_id);
 ```
 
 ---

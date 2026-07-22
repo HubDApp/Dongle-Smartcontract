@@ -423,7 +423,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Verified,
@@ -462,7 +463,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Rejected,
@@ -499,7 +501,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Unverified;
                 record.revoke_reason = Some(reason.clone());

@@ -632,14 +632,14 @@ impl DongleContract {
     pub fn get_verification(
         env: Env,
         project_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
     pub fn get_verification_record(
         env: Env,
         request_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
@@ -671,7 +671,7 @@ impl DongleContract {
     pub fn get_renewal_request(
         env: Env,
         project_id: u64,
-    ) -> Result<crate::types::VerificationRenewalRecord, ContractError> {
+    ) -> Option<crate::types::VerificationRenewalRecord> {
         VerificationRegistry::get_renewal_request(&env, project_id)
     }
 
@@ -722,7 +722,7 @@ impl DongleContract {
     }
 
     /// Get the admin assigned to review a verification request.
-    pub fn get_assigned_admin(env: Env, project_id: u64) -> Result<Option<Address>, ContractError> {
+    pub fn get_assigned_admin(env: Env, project_id: u64) -> Option<Address> {
         VerificationRegistry::get_assigned_admin(&env, project_id)
     }
 
@@ -965,7 +965,7 @@ impl DongleContract {
     }
 
     /// Get a collection by ID.
-    pub fn get_collection(env: Env, collection_id: u64) -> Result<Collection, ContractError> {
+    pub fn get_collection(env: Env, collection_id: u64) -> Option<Collection> {
         CollectionRegistry::get_collection(&env, collection_id)
     }
 

@@ -730,7 +730,7 @@ fn test_verification_request_invalid_status_atomicity() {
 
     // Capture state before duplicate attempt
     let project_before = client.get_project(&project_id).unwrap();
-    let verification_before = client.get_verification(&project_id);
+    let verification_before = client.get_verification(&project_id).unwrap();
     let storage_before = verification_request_storage_snapshot(&env, &client.address, project_id);
 
     // Try to request again while already pending - should fail
@@ -743,7 +743,7 @@ fn test_verification_request_invalid_status_atomicity() {
 
     // Verify project and verification unchanged
     let project_after = client.get_project(&project_id).unwrap();
-    let verification_after = client.get_verification(&project_id);
+    let verification_after = client.get_verification(&project_id).unwrap();
     let storage_after = verification_request_storage_snapshot(&env, &client.address, project_id);
 
     assert_eq!(

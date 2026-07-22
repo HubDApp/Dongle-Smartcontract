@@ -481,7 +481,7 @@ fn test_revoke_verification_success() {
     let project = client.get_project(&project_id).unwrap();
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
 
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(record.status, VerificationStatus::Unverified);
     assert_eq!(
         record.revoke_reason,
@@ -735,7 +735,7 @@ fn test_verification_history_ordering() {
     );
 
     // Assert current verification lookup gets the latest record
-    let current = client.get_verification(&project_id);
+    let current = client.get_verification(&project_id).unwrap();
     assert_eq!(current.request_id, 3);
     assert_eq!(current.status, VerificationStatus::Pending);
 }
@@ -805,7 +805,7 @@ fn test_update_verification_evidence_scenarios() {
     // Request verification (enters Pending state)
     client.request_verification(&project_id, &owner, &initial_cid);
 
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(record.evidence_cid, initial_cid);
     assert_eq!(record.status, VerificationStatus::Pending);
 
@@ -837,7 +837,7 @@ fn test_update_verification_evidence_scenarios() {
 
     // 3. Successful update while pending
     client.update_verification_evidence(&project_id, &owner, &new_cid);
-    let record_updated = client.get_verification(&project_id);
+    let record_updated = client.get_verification(&project_id).unwrap();
     assert_eq!(record_updated.evidence_cid, new_cid);
     assert_eq!(record_updated.status, VerificationStatus::Pending);
 
@@ -845,7 +845,7 @@ fn test_update_verification_evidence_scenarios() {
 
     // 4. Approved requests cannot be modified (finalized state immutable)
     client.approve_verification(&project_id, &admin);
-    let record_approved = client.get_verification(&project_id);
+    let record_approved = client.get_verification(&project_id).unwrap();
     assert_eq!(record_approved.status, VerificationStatus::Verified);
 
     let next_cid = String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa3");
@@ -858,7 +858,7 @@ fn test_update_verification_evidence_scenarios() {
     client.request_verification(&project_id_rej, &owner, &initial_cid);
     client.reject_verification(&project_id_rej, &admin);
 
-    let record_rejected = client.get_verification(&project_id_rej);
+    let record_rejected = client.get_verification(&project_id_rej).unwrap();
     assert_eq!(record_rejected.status, VerificationStatus::Rejected);
 
     let result = client.try_update_verification_evidence(&project_id_rej, &owner, &next_cid);
