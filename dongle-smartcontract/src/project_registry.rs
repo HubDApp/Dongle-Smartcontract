@@ -98,7 +98,9 @@ impl ProjectRegistry {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(normalized_name.clone()))
+            .has(&StorageKey::ProjectByNormalizedName(
+                normalized_name.clone(),
+            ))
         {
             return Err(ContractError::DuplicateProjectName);
         }
@@ -169,9 +171,10 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
-        env.storage()
-            .persistent()
-            .set(&StorageKey::ProjectByNormalizedName(normalized_name), &count);
+        env.storage().persistent().set(
+            &StorageKey::ProjectByNormalizedName(normalized_name),
+            &count,
+        );
 
         owner_projects.push_back(count);
         env.storage().persistent().set(
@@ -193,7 +196,8 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
-        StorageManager::extend_project_count_ttl(env);        StorageManager::extend_owner_projects_ttl(env, &params.owner);
+        StorageManager::extend_project_count_ttl(env);
+        StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Store tags and social links separately if provided
@@ -349,13 +353,9 @@ impl ProjectRegistry {
                 let new_normalized = Utils::normalize_project_name(env, &value);
                 let old_normalized = Utils::normalize_project_name(env, &old_name);
                 if new_normalized != old_normalized {
-                    if let Some(existing_id) = env
-                        .storage()
-                        .persistent()
-                        .get::<StorageKey, u64>(&StorageKey::ProjectByNormalizedName(
-                            new_normalized.clone(),
-                        ))
-                    {
+                    if let Some(existing_id) = env.storage().persistent().get::<StorageKey, u64>(
+                        &StorageKey::ProjectByNormalizedName(new_normalized.clone()),
+                    ) {
                         if existing_id != params.project_id {
                             return Err(ContractError::DuplicateProjectName);
                         }
@@ -1029,7 +1029,7 @@ impl ProjectRegistry {
 
         caller.require_auth();
         if caller != pending_new_owner {
-            return Err(ContractError::NotTransferRecip);
+            return Err(ContractError::Unauthorized);
         }
 
         let old_owner = project.owner.clone();
@@ -2089,7 +2089,7 @@ mod tests {
         // 2. Validate max length using the CONSTANT
         let max_len = crate::constants::MAX_NAME_LEN;
         if name_str.len() > max_len {
-            return Err(ContractError::ProjectNameTooLong);
+            return Err(ContractError::InvalidProjectName);
         }
 
         // 3. Validate alphanumeric, underscore, hyphen
@@ -2152,7 +2152,7 @@ mod tests {
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "Cat"),
         );
-        assert_eq!(result, Err(ContractError::ProjectNameTooLong));
+        assert_eq!(result, Err(ContractError::InvalidProjectName));
     }
 
     #[test]
@@ -2173,7 +2173,7 @@ mod tests {
         let description = String::from_str(&env, "");
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::InvalidProjectDesc));
+        assert_eq!(result, Err(ContractError::InvalidProjectData));
     }
 
     #[test]
@@ -2195,7 +2195,7 @@ mod tests {
         let description = String::from_str(&env, &long_desc);
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::ProjectDescTooLong));
+        assert_eq!(result, Err(ContractError::InvalidProjectData));
     }
 
     #[test]

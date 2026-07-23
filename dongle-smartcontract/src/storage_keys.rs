@@ -97,6 +97,9 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -162,7 +165,12 @@ pub enum ExtensionKey {
     ProjectRegion(u64),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
+    /// Contract claim request by (project_id, contract_address).
+    ContractClaim(u64, String),
+    /// List of contract addresses for a project.
+    ProjectContracts(u64),
+    /// Review revision count for (project_id, reviewer).
+    ReviewRevisionCount(u64, Address),
+    /// Review revision by (project_id, reviewer, revision_index).
+    ReviewRevision(u64, Address, u32),
 }

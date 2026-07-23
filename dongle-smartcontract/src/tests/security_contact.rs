@@ -108,7 +108,7 @@ fn proof_submission_requires_contact_and_valid_cid() {
         client
             .mock_all_auths()
             .try_submit_security_contact_proof(&project_id, &owner, &bad_cid);
-    assert_eq!(result, Err(Ok(ContractError::InvalidMetaCid)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid)));
 }
 
 #[test]

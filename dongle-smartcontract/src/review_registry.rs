@@ -833,7 +833,7 @@ impl ReviewRegistry {
         // Check if reporter has already reported this review
         let report_key = StorageKey::ReviewReport(project_id, reviewer.clone(), reporter.clone());
         if env.storage().persistent().has(&report_key) {
-            return Err(ContractError::ReviewAlreadyReported);
+            return Err(ContractError::AlreadyReported);
         }
 
         // Mutation phase
