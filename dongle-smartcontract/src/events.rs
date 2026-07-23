@@ -63,6 +63,25 @@ pub struct VerificationRevokedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a Verified project's expiry is checked and found to be expired.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiredEvent {
+    pub project_id: u64,
+    pub expired_at: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when an admin renews (resets the expiry of) a verified project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub new_expires_at: u64,
+    pub timestamp: u64,
+}
+
 /// Emitted when project ownership is transferred.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -269,6 +288,37 @@ pub fn publish_verification_revoked_event(
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REVOKED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_expired_event(env: &Env, project_id: u64, expired_at: u64) {
+    let now = env.ledger().timestamp();
+    let event_data = VerificationExpiredEvent {
+        project_id,
+        expired_at,
+        timestamp: now,
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("EXPRD"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_renewed_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    new_expires_at: u64,
+) {
+    let event_data = VerificationRenewedEvent {
+        project_id,
+        admin,
+        new_expires_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEWD"), project_id),
         event_data,
     );
 }

@@ -68,3 +68,10 @@ pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
 pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;
 pub const LEDGER_BUMP_VERIFICATION: u32 = LEDGER_THRESHOLD_VERIFICATION;
 pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
+
+// ── Verification Expiry Constants ─────────────────────────────────────────
+
+/// Default duration (in seconds) that a verified status remains active.
+/// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
+/// Admins can override this via set_verification_duration.
+pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;

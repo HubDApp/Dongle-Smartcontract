@@ -123,6 +123,9 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp (seconds) after which the Verified status is considered expired.
+    /// Set when the verification is approved; None for non-approved records.
+    pub expires_at: Option<u64>,
 }
 
 /// Fee configuration for contract operations

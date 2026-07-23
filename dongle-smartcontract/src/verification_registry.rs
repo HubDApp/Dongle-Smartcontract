@@ -1,10 +1,12 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
+use crate::admin_manager::AdminManager;
 use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_verification_approved_event, publish_verification_rejected_event,
+    publish_verification_approved_event, publish_verification_expired_event,
+    publish_verification_rejected_event, publish_verification_renewed_event,
     publish_verification_requested_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
@@ -185,6 +187,7 @@ impl VerificationRegistry {
             timestamp: now,
             fee_amount: config.verification_fee,
             revoke_reason: None,
+            expires_at: None,
         };
 
         env.storage()
@@ -224,8 +227,10 @@ impl VerificationRegistry {
 
         let now = env.ledger().timestamp();
 
-        // Update record
+        // Update record – stamp the expiry timestamp
+        let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
+        record.expires_at = Some(now.saturating_add(duration));
         env.storage()
             .persistent()
             .set(&StorageKey::Verification(project_id), &record);
@@ -290,6 +295,44 @@ impl VerificationRegistry {
             .ok_or(ContractError::VerificationNotFound)
     }
 
+    /// Returns `true` if the project has a Verified record that has **not** yet expired.
+    ///
+    /// A record is considered active when:
+    ///   1. `status == Verified`, **and**
+    ///   2. `expires_at` is either `None` (legacy records without an expiry) **or**
+    ///      `Some(t)` where `t > current_ledger_timestamp`.
+    ///
+    /// If the record is expired this also emits a `VerificationExpiredEvent` so that
+    /// indexers can pick it up without needing a dedicated "check expiry" transaction.
+    pub fn is_verification_active(env: &Env, project_id: u64) -> bool {
+        let record: VerificationRecord = match env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id))
+        {
+            Some(r) => r,
+            None => return false,
+        };
+
+        if record.status != VerificationStatus::Verified {
+            return false;
+        }
+
+        match record.expires_at {
+            None => true, // legacy / no-expiry record
+            Some(expires_at) => {
+                let now = env.ledger().timestamp();
+                if now >= expires_at {
+                    // Emit expiry event so indexers can react
+                    publish_verification_expired_event(env, project_id, expires_at);
+                    false
+                } else {
+                    true
+                }
+            }
+        }
+    }
+
     /// Batch-fetch verification records for multiple project IDs.
     /// Silently skips IDs with no record. Clamped to 100 entries.
     pub fn get_verifications_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
@@ -308,6 +351,45 @@ impl VerificationRegistry {
             }
         }
         out
+    }
+
+    /// Renew the expiry of an already-Verified project (admin only).
+    ///
+    /// Resets `expires_at` to `now + configured_duration`.  Useful when a project
+    /// periodically renews its verified badge without going through the full
+    /// request/approve cycle.
+    ///
+    /// Returns `Err(VerificationNotFound)` if no record exists, and
+    /// `Err(InvalidStatusTransition)` if the current status is not `Verified`.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        // Project must exist
+        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Record must exist
+        let mut record = Self::get_verification(env, project_id)?;
+
+        // Can only renew an already-Verified record (not Pending / Rejected / Unverified)
+        if record.status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        let now = env.ledger().timestamp();
+        let duration = AdminManager::get_verification_duration(env);
+        let new_expires_at = now.saturating_add(duration);
+
+        record.expires_at = Some(new_expires_at);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record);
+
+        publish_verification_renewed_event(env, project_id, admin, new_expires_at);
+        Ok(())
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {

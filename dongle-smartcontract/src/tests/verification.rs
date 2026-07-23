@@ -37,7 +37,7 @@ fn setup_project_with_fee(
     let token_address = env
         .register_stellar_asset_contract_v2(token_admin)
         .address();
-    client.set_fee(admin, &Some(token_address.clone()), &100, admin);
+    client.set_fee(admin, &Some(token_address.clone()), &100, &0, admin);
 
     // Mint tokens and pay fee
     let token_client = soroban_sdk::token::StellarAssetClient::new(env, &token_address);

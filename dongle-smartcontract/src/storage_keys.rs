@@ -44,4 +44,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
 }

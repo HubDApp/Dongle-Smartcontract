@@ -66,6 +66,18 @@ impl DongleContract {
         AdminManager::get_admin_count(&env)
     }
 
+    pub fn set_verification_duration(
+        env: Env,
+        caller: Address,
+        duration_secs: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_verification_duration(&env, caller, duration_secs)
+    }
+
+    pub fn get_verification_duration(env: Env) -> u64 {
+        AdminManager::get_verification_duration(&env)
+    }
+
     // --- Project Registry ---
 
     pub fn register_project(
@@ -276,6 +288,18 @@ impl DongleContract {
         ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn is_verification_active(env: Env, project_id: u64) -> bool {
+        VerificationRegistry::is_verification_active(&env, project_id)
+    }
+
+    pub fn renew_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::renew_verification(&env, project_id, admin)
     }
 
     // --- Fee Manager ---
