@@ -37,6 +37,16 @@
           "description": "Hexadecimal hash of the built contract WASM (64 characters)",
           "pattern": "^[a-fA-F0-9]{64}$"
         },
+        "git_commit": {
+          "type": "string",
+          "description": "Git commit hash (SHA-1, 40 characters) or short commit hash (7+ characters) that produced this WASM",
+          "pattern": "^[a-f0-9]{7,40}$"
+        },
+        "git_tag": {
+          "type": "string",
+          "description": "Optional Git tag (e.g., v0.1.0) for release tracking",
+          "pattern": "^[a-zA-Z0-9._-]+$"
+        },
         "deployer": {
           "type": "string",
           "description": "Stellar account public key or contract address that executed the deployment (starts with 'G' or 'C', 56 characters)",
@@ -48,7 +58,7 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})$"
         }
       },
-      "required": ["contract_id", "wasm_hash", "deployer", "timestamp"],
+      "required": ["contract_id", "wasm_hash", "git_commit", "deployer", "timestamp"],
       "additionalProperties": false
     }
   }
