@@ -501,7 +501,10 @@ fn snapshot_review_submitted_event_shape() {
 
     // Event shape verified via has_event below.
     let _all_review_events = env.events().all();
-    assert!(!_all_review_events.is_empty(), "no events emitted for add_review");
+    assert!(
+        !_all_review_events.is_empty(),
+        "no events emitted for add_review"
+    );
 }
 
 #[test]

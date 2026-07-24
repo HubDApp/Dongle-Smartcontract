@@ -31,6 +31,7 @@ impl Utils {
         }
         String::from_str(env, core::str::from_utf8(&buf[..actual_len]).unwrap_or(""))
     }
+}
 
 /// Check if address is a maintainer of the project (free function).
 pub fn is_maintainer(env: &Env, project: &Project, address: &Address) -> bool {
@@ -40,9 +41,6 @@ pub fn is_maintainer(env: &Env, project: &Project, address: &Address) -> bool {
         false
     }
 }
-
-/// Utility struct — all methods are associated functions (no instance needed).
-pub struct Utils;
 
 impl Utils {
     // ────────────────────────────────────────────────────────────────────
