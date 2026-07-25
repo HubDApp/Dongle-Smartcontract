@@ -6,6 +6,7 @@ mod admin_manager;
 pub mod auth;
 mod bookmark_registry;
 mod collection_registry;
+mod config_registry;
 pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
@@ -32,6 +33,7 @@ mod tests;
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
+use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
@@ -43,11 +45,11 @@ use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig,
-    FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    ContractConfigView, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
+    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
+    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
+    VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1325,5 +1327,33 @@ impl DongleContract {
 
     pub fn get_scheduled_action_count(env: Env) -> u64 {
         TimelockManager::get_scheduled_action_count(&env)
+    }
+
+    // --- Contract Configuration View ---
+
+    /// Returns the aggregated `ContractConfigView` snapshot (fees, treasury,
+    /// admin count, pause state, limits, and version) in a single read.
+    ///
+    /// Returns `ContractError::FeeConfigNotSet` until `set_fee` has been
+    /// called at least once. Frontends can use the presence of a fee
+    /// config as a readiness signal for production traffic.
+    pub fn get_config(env: Env) -> Result<ContractConfigView, ContractError> {
+        ConfigRegistry::get_config(&env)
+    }
+
+    /// Admin: toggle the global pause flag surfaced by `get_config`.
+    ///
+    /// **Returns** the pause state *before* the call (so callers can
+    /// detect transitions without an extra `get_config` round-trip).
+    /// Records an `AdminActionLog` entry (`ContractPaused` or
+    /// `ContractResumed`) for audit parity with every other admin
+    /// mutation in this contract.
+    ///
+    /// **Scope:** this method only writes the flag. Enforcement across
+    /// mutating entry points (`register_project`, `pay_fee`, …) is
+    /// intentionally out of scope for the config-view feature — see the
+    /// future pause-enforcement ticket.
+    pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<bool, ContractError> {
+        ConfigRegistry::set_pause(&env, admin, paused)
     }
 }

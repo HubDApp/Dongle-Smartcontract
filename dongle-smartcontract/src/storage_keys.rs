@@ -165,4 +165,8 @@ pub enum ExtensionKey {
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
     ProjectByNormalizedName(String),
+    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
+    /// pause state across mutating entry points is intentionally out of scope for the
+    /// config-view feature; see `set_pause` for the toggle.
+    Paused,
 }

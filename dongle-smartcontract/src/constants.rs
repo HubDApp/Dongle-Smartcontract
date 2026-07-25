@@ -161,3 +161,10 @@ pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+// ── Contract metadata (read by `get_config`) ────────────────────────────────
+
+/// Semantic version of the contract, surfaced verbatim through `get_config`.
+/// Bump when a non-backwards-compatible change to the public contract surface
+/// is released (storage layout, argument shape, new required fields, etc.).
+pub const CONTRACT_VERSION: &str = "1.0.0";
