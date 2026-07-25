@@ -198,23 +198,7 @@ pub struct ProjectReport {
     pub timestamp: u64,
 }
 
-#[contracttype]
-pub enum DataKey {
-    Project(u64),
-    ProjectCount,
-    OwnerProjects(Address),
-    Review(u64, Address),
-    UserReviews(Address),
-    Verification(u64),
-    NextProjectId,
-    Admin(Address),
-    FeeConfig,
-    Treasury,
-    ProjectStats(u64),
-    FeePaidForProject(u64),
-    ContractClaim(u64, String),
-    ProjectContracts(u64),
-}
+
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
