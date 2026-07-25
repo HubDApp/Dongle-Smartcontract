@@ -15,7 +15,7 @@ use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimRequest, ClaimStatus, ContractClaimRequest, ContractClaimStatus, Project,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project,
     ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
     VerificationStatus,
 };
@@ -25,6 +25,19 @@ use soroban_sdk::{Address, Bytes, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    /// Shared status-transition helper for both ownership and contract-address claims.
+    fn apply_claim_decision(
+        status: &mut ClaimStatus,
+        _kind: ClaimKind,
+        approve: bool,
+    ) -> Result<(), ContractError> {
+        if approve {
+            status.transition_to_approved()
+        } else {
+            status.transition_to_rejected()
+        }
+    }
+
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
@@ -1336,9 +1349,8 @@ impl ProjectRegistry {
             return Err(ContractError::AdminOnly);
         }
 
-        if claim_request.status != ClaimStatus::Pending {
-            return Err(ContractError::InvalidStatus);
-        }
+        // Shared pending→approved transition (ClaimKind::Ownership)
+        Self::apply_claim_decision(&mut claim_request.status, ClaimKind::Ownership, true)?;
 
         // Get the project
         let mut project = Self::get_project(env, claim_request.project_id)
@@ -1387,8 +1399,6 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(claim_request.project_id), &project);
 
-        // Update claim request status
-        claim_request.status = ClaimStatus::Approved;
         env.storage().persistent().set(
             &ExtensionKey::ClaimRequest(claim_request_id),
             &claim_request,
@@ -1437,11 +1447,8 @@ impl ProjectRegistry {
             return Err(ContractError::AdminOnly);
         }
 
-        if claim_request.status != ClaimStatus::Pending {
-            return Err(ContractError::InvalidStatus);
-        }
-
-        claim_request.status = ClaimStatus::Rejected;
+        // Shared pending→rejected transition (ClaimKind::Ownership)
+        Self::apply_claim_decision(&mut claim_request.status, ClaimKind::Ownership, false)?;
         env.storage().persistent().set(
             &ExtensionKey::ClaimRequest(claim_request_id),
             &claim_request,
@@ -1834,7 +1841,7 @@ impl ProjectRegistry {
             contract_address: contract_address.clone(),
             claimant: caller.clone(),
             proof_cid: proof_cid.clone(),
-            status: ContractClaimStatus::Pending,
+            status: ClaimStatus::Pending,
             created_at: env.ledger().timestamp(),
         };
 
@@ -1869,11 +1876,8 @@ impl ProjectRegistry {
             ))
             .ok_or(ContractError::InvalidProjectData)?;
 
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Approved;
+        // Shared pending→approved transition (ClaimKind::ContractAddress)
+        Self::apply_claim_decision(&mut req.status, ClaimKind::ContractAddress, true)?;
         env.storage().persistent().set(
             &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
             &req,
@@ -1914,11 +1918,8 @@ impl ProjectRegistry {
             ))
             .ok_or(ContractError::InvalidProjectData)?;
 
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Rejected;
+        // Shared pending→rejected transition (ClaimKind::ContractAddress)
+        Self::apply_claim_decision(&mut req.status, ClaimKind::ContractAddress, false)?;
         env.storage().persistent().set(
             &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
             &req,
