@@ -84,6 +84,46 @@ pub enum ContractError {
 
     // Normalized name duplicate
     DuplicateProjectName = 60,
+
+    // Admin management
+    CannotRemoveLastAdmin = 61,
+
+    // Name validation
+    InvalidNameFormat = 62,
+
+    // Project linking / dependencies
+    AlreadyLinked = 63,
+    CannotLinkToSelf = 64,
+
+    // Collections
+    CollectionNotFound = 65,
+    CollectionExists = 66,
+    AlreadyInCollection = 67,
+    TooManyTags = 68,
+
+    // Reviews
+    DuplicateReview = 69,
+    InvalidRating = 70,
+    OwnerCannotReview = 71,
+    ReviewsDisabled = 72,
+    NotReviewOwner = 73,
+
+    // Review moderation
+    ReviewAlreadyHidden = 74,
+    ReviewNotHidden = 75,
+    ReviewAlreadyReported = 76,
+
+    // Reports
+    AlreadyReported = 77,
+
+    // Subscriptions / following
+    AlreadyFollowing = 78,
+    NotFollowing = 79,
+
+    // Fee configuration and payment
+    FeeConfigNotSet = 80,
+    InsufficientFee = 81,
+    TreasuryNotSet = 82,
 }
 
 pub type Error = ContractError;
