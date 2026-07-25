@@ -97,7 +97,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 24];
             buf[0..4].copy_from_slice(b"PID:");
             buf[4..4 + num_len].copy_from_slice(&num_buf[idx..20]);
-            let key_str = core::str::from_utf8(&buf[..4 + num_len]).unwrap();
+            let key_str = core::str::from_utf8(&buf[..4 + num_len])
+                .map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         if let Some(cid) = &dep.external_cid {
@@ -108,7 +109,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 128]; // "CID:" (4) + max cid (128)
             buf[0..4].copy_from_slice(b"CID:");
             cid.copy_into_slice(&mut buf[4..4 + cid_len as usize]);
-            let key_str = core::str::from_utf8(&buf[..4 + cid_len as usize]).unwrap();
+            let key_str = core::str::from_utf8(&buf[..4 + cid_len as usize])
+                .map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         if let Some(url) = &dep.external_url {
@@ -119,7 +121,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 256]; // "URL:" (4) + max url (256)
             buf[0..4].copy_from_slice(b"URL:");
             url.copy_into_slice(&mut buf[4..4 + url_len as usize]);
-            let key_str = core::str::from_utf8(&buf[..4 + url_len as usize]).unwrap();
+            let key_str = core::str::from_utf8(&buf[..4 + url_len as usize])
+                .map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         if let Some(contract) = &dep.external_contract {
@@ -127,7 +130,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 56];
             buf[0..4].copy_from_slice(b"CTR:");
             contract.copy_into_slice(&mut buf[4..60]);
-            let key_str = core::str::from_utf8(&buf[..60]).unwrap();
+            let key_str = core::str::from_utf8(&buf[..60])
+                .map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)
