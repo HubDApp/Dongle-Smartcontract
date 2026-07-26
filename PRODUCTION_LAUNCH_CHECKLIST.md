@@ -75,7 +75,7 @@ This checklist must be completed before deploying the Dongle smart contract to S
 ## 6. Data Schema & Events
 
 - [ ] Event schema (`EVENTS_SCHEMA.md`) matches emitted events in production code
-- [ ] Review CID schema (`review-cid.schema.json`) validated against example (`review-cid.example.json`)
+- [ ] Review CID schema (`docs/review-cid.schema.json`) validated against example (`docs/review-cid.example.json`)
 - [ ] Data export guide (`DATA_EXPORT_GUIDE.md`) tested against Testnet data
 - [ ] Indexers confirmed to be handling all event types in `EVENTS_SCHEMA.md`
 

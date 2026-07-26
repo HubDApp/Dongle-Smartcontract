@@ -24,6 +24,17 @@ A project is stored under the key `Project(u64)` and contains the following fiel
 | `created_at` | `u64` | Timestamp of project creation | No |
 | `updated_at` | `u64` | Timestamp of last update | No |
 
+## Off-Chain JSON Schemas
+
+The following JSON schema and example files are co-located here in `docs/`:
+
+| File | Purpose |
+|------|---------|
+| [`project-metadata.schema.json`](./project-metadata.schema.json) | Project metadata JSON schema |
+| [`project-metadata.example.json`](./project-metadata.example.json) | Example valid project metadata document |
+| [`review-cid.schema.json`](./review-cid.schema.json) | Review content JSON schema |
+| [`review-cid.example.json`](./review-cid.example.json) | Example valid review document |
+
 ## Validation Rules
 
 - `bounty_url`: If provided, must be a valid HTTP/HTTPS URL (starts with `http://` or `https://`).
