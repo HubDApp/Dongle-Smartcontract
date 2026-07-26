@@ -165,4 +165,8 @@ pub enum ExtensionKey {
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
     ProjectByNormalizedName(String),
+    /// Anti-sybil: global review eligibility configuration.
+    ReviewEligibilityConfig,
+    /// Anti-sybil: tracks the first-interaction timestamp for an address.
+    FirstInteraction(Address),
 }

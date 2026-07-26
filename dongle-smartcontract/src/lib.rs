@@ -45,9 +45,9 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
     DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig,
     FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewEligibilityConfig, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -568,6 +568,24 @@ impl DongleContract {
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
         ReviewRegistry::list_reviews_sorted(&env, project_id, start_id, limit, sort_mode)
+    }
+
+    /// Get the current anti-sybil review eligibility configuration.
+    /// Defaults to permissive (no constraints) if never configured by an admin.
+    pub fn get_review_eligibility_config(env: Env) -> ReviewEligibilityConfig {
+        ReviewRegistry::get_review_eligibility_config(&env)
+    }
+
+    /// Admin-only: set anti-sybil review eligibility constraints.
+    ///
+    /// Passing a config with all fields set to zero/false restores the default
+    /// permissive behaviour (any address can review any project).
+    pub fn set_review_eligibility_config(
+        env: Env,
+        admin: Address,
+        config: ReviewEligibilityConfig,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::set_review_eligibility_config(&env, admin, config)
     }
 
     // --- Verification Registry ---
