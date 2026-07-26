@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -8,46 +8,55 @@ use crate::constants::{
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, Map, String, Vec};
-
-#[allow(dead_code)]
-pub struct Utils;
-
-#[allow(dead_code)]
-impl Utils {
-    /// Convert a Soroban String to lowercase for case-insensitive comparison.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let len = s.len() as usize;
-        if len == 0 {
-            return s.clone();
-        }
-        let mut buf = [0u8; 256]; // MAX_NAME_LEN is 50, so 256 is more than enough
-        let actual_len = core::cmp::min(len, buf.len());
-        s.copy_into_slice(&mut buf[..actual_len]);
-        for b in buf[..actual_len].iter_mut() {
-            if *b >= b'A' && *b <= b'Z' {
-                *b += 32;
-            }
-        }
-        String::from_str(env, core::str::from_utf8(&buf[..actual_len]).unwrap_or(""))
-    }
-
-/// Check if address is a maintainer of the project (free function).
-pub fn is_maintainer(env: &Env, project: &Project, address: &Address) -> bool {
-    if let Some(ref maintainers) = project.maintainers {
-        maintainers.contains(address)
-    } else {
-        false
-    }
-}
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
 
 impl Utils {
     // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    ///
+    /// This is a generic replacement for the hand-rolled "filter and rebuild"
+    /// pattern that was duplicated across multiple registries.
+    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
+
+    /// Convert a Soroban String to lowercase for case-insensitive comparison.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let bytes = s.as_bytes();
+        let len = bytes.len();
+        let mut buf = [0u8; 256];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        for i in 0..cap {
+            buf[i] = if bytes[i].is_ascii_uppercase() {
+                bytes[i] + 32
+            } else {
+                bytes[i]
+            };
+        }
+        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, s)
+    }
 
     /// Normalize a project name for duplicate-detection purposes.
     ///
@@ -116,24 +125,6 @@ impl Utils {
         // Convert back to a Soroban String
         // SAFETY: all bytes are valid ASCII (subset of UTF-8).
         let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
-        String::from_str(env, s)
-    }
-
-    /// Convert a Soroban `String` to lowercase (ASCII only).
-    /// Used by the reserved-name checker and other case-insensitive comparisons.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let bytes = s.as_bytes();
-        let len = bytes.len();
-        let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
-        for i in 0..cap {
-            buf[i] = if bytes[i].is_ascii_uppercase() {
-                bytes[i] + 32
-            } else {
-                bytes[i]
-            };
-        }
-        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
         String::from_str(env, s)
     }
 
