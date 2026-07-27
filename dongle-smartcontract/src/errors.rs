@@ -92,6 +92,9 @@ pub enum ContractError {
     AlreadyInCollection = 64,
     CollectionFull = 65,
     MaxProjectsPerCollectionExceeded = 66,
+    // Anti-sybil review eligibility
+    ReviewerNotEligible = 61,
+    ReviewFeeRequired = 62,
 }
 
 pub type Error = ContractError;

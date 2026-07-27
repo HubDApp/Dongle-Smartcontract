@@ -11,6 +11,10 @@ use crate::types::Project;
 
 /// Check if address is a maintainer of the project (free function).
 pub fn is_maintainer(_env: &Env, project: &Project, address: &Address) -> bool {
+use soroban_sdk::{Address, Env, Map, String, Vec};
+
+/// Check if address is a maintainer of the project (free function).
+pub fn is_maintainer(project: &Project, address: &Address) -> bool {
     if let Some(ref maintainers) = project.maintainers {
         maintainers.contains(address)
     } else {
@@ -18,7 +22,7 @@ pub fn is_maintainer(_env: &Env, project: &Project, address: &Address) -> bool {
     }
 }
 
-/// Utility struct — all methods are associated functions (no instance needed).
+#[allow(dead_code)]
 pub struct Utils;
 
 impl Utils {
@@ -318,6 +322,18 @@ impl Utils {
         } else {
             false
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Report reason CID validation
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Validate a report reason CID.
+    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
     }
 
     // ────────────────────────────────────────────────────────────────────
