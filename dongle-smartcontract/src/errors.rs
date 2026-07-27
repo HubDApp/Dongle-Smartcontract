@@ -1,6 +1,6 @@
 use soroban_sdk::contracterror;
 
-#[contracterror]
+#[contracterror(export = false)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
@@ -85,6 +85,46 @@ pub enum ContractError {
     // Normalized name duplicate
     DuplicateProjectName = 60,
 
+    // Anti-sybil review eligibility
+    ReviewerNotEligible = 61,
+    ReviewFeeRequired = 62,
+
+    // Admin governance
+    CannotRemoveLastAdmin = 63,
+
+    // Collection management
+    AlreadyInCollection = 64,
+    CollectionNotFound = 65,
+    CollectionExists = 66,
+
+    // Project linking
+    AlreadyLinked = 67,
+    CannotLinkToSelf = 68,
+
+    // Fee / treasury
+    TreasuryNotSet = 69,
+    FeeConfigNotSet = 70,
+    InsufficientFee = 71,
+
+    // Reporting
+    AlreadyReported = 72,
+
+    // Review-specific
+    OwnerCannotReview = 73,
+    ReviewsDisabled = 74,
+    InvalidRating = 75,
+    DuplicateReview = 76,
+    NotReviewOwner = 77,
+    ReviewAlreadyReported = 78,
+    ReviewAlreadyHidden = 79,
+    ReviewNotHidden = 80,
+
+    // Subscription / follow
+    AlreadyFollowing = 81,
+    NotFollowing = 82,
+
+    // Tags
+    TooManyTags = 83,
     // Contract pause / emergency stop
     ContractPaused = 61,
 }

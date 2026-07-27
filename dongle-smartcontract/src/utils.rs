@@ -1,5 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
+use soroban_sdk::{Env, Map, String};
 use soroban_sdk::{Address, Env, Map, String, Vec};
 
 use crate::constants::{
@@ -7,9 +8,14 @@ use crate::constants::{
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
-use crate::types::Project;
-use soroban_sdk::{Address, Env, Map, String, Vec};
 
+/// Helper: copy a soroban `String` into a fixed-size stack buffer and return
+/// the number of bytes written.  The buffer must be at least `s.len()` bytes.
+fn copy_str(s: &String, buf: &mut [u8]) -> usize {
+    let len = s.len() as usize;
+    let cap = if len < buf.len() { len } else { buf.len() };
+    s.copy_into_slice(&mut buf[..cap]);
+    cap
 #[allow(dead_code)]
 pub struct Utils;
 
@@ -100,6 +106,18 @@ impl Utils {
     /// duplicates regardless of their original casing, spacing, or punctuation.
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
+
+        // Allocate a buffer of the same size (normalization can only shrink or
+        // preserve length when working on ASCII bytes).
+        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
+        let cap = copy_str(name, &mut raw);
+
+        let mut buf = [0u8; 64];
+        let mut out_len: usize = 0;
+        let mut last_was_space = true; // treat start as "space" to strip leading
+
+        for i in 0..cap {
+            let b = raw[i];
         if len == 0 {
             return String::from_str(env, "");
         }
@@ -125,6 +143,8 @@ impl Utils {
             };
 
             if normalized == b' ' {
+                if !last_was_space && out_len < len {
+                    buf[out_len] = b' ';
                 if !last_was_space && out_len < out_buf.len() {
                     out_buf[out_len] = b' ';
                     out_len += 1;
@@ -144,6 +164,24 @@ impl Utils {
             out_len -= 1;
         }
 
+        // Convert back to a Soroban String
+        // SAFETY: all bytes are valid ASCII (subset of UTF-8).
+        let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
+        String::from_str(env, s)
+    }
+
+    /// Convert a Soroban `String` to lowercase (ASCII only).
+    /// Used by the reserved-name checker and other case-insensitive comparisons.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let mut buf = [0u8; 256];
+        let cap = copy_str(s, &mut buf);
+        for i in 0..cap {
+            if buf[i].is_ascii_uppercase() {
+                buf[i] += 32;
+            }
+        }
+        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, lower)
         let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
@@ -167,6 +205,10 @@ impl Utils {
         if len > MAX_NAME_LEN {
             return Err(ContractError::ProjectNameTooLong);
         }
+        let mut buf = [0u8; MAX_NAME_LEN + 1];
+        let cap = copy_str(name, &mut buf);
+        let mut all_ws = true;
+        for &b in buf[..cap].iter() {
         let mut buf = [0u8; MAX_NAME_LEN];
         name.copy_into_slice(&mut buf[..len]);
         let mut all_ws = true;
@@ -198,6 +240,13 @@ impl Utils {
         if len > MAX_SLUG_LEN {
             return Err(ContractError::InvalidProjectSlugLen);
         }
+        let mut buf = [0u8; MAX_SLUG_LEN + 1];
+        let cap = copy_str(slug, &mut buf);
+        for (i, &b) in buf[..cap].iter().enumerate() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidProjectSlug);
+            }
+            if b == b'-' && (i == 0 || i == cap - 1) {
         let mut buf = [0u8; MAX_SLUG_LEN];
         slug.copy_into_slice(&mut buf[..len]);
         let bytes = &buf[..len];
@@ -221,6 +270,10 @@ impl Utils {
         if len > MAX_DESCRIPTION_LEN {
             return Err(ContractError::ProjectDescTooLong);
         }
+        let mut buf = [0u8; MAX_DESCRIPTION_LEN + 1];
+        let cap = copy_str(desc, &mut buf);
+        // Reject whitespace-only descriptions
+        let all_ws = buf[..cap].iter().all(|b| b.is_ascii_whitespace());
         let mut buf = [0u8; 2048];
         let actual_len = core::cmp::min(len, buf.len());
         desc.copy_into_slice(&mut buf[..actual_len]);
@@ -240,6 +293,9 @@ impl Utils {
         if len > MAX_CATEGORY_LEN {
             return Err(ContractError::InvalidCategory);
         }
+        let mut buf = [0u8; MAX_CATEGORY_LEN + 1];
+        let cap = copy_str(cat, &mut buf);
+        let all_ws = buf[..cap].iter().all(|b| b.is_ascii_whitespace());
         let mut buf = [0u8; MAX_CATEGORY_LEN];
         cat.copy_into_slice(&mut buf[..len]);
         let all_ws = buf[..len].iter().all(|b| b.is_ascii_whitespace());
@@ -252,6 +308,20 @@ impl Utils {
     /// Validate a website URL (must start with `http://` or `https://`, within byte limit).
     pub fn validate_website(url: &String) -> Result<(), ContractError> {
         let len = url.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidWebsite);
+        }
+        if len > MAX_WEBSITE_LEN {
+            return Err(ContractError::InvalidWebsite);
+        }
+        let mut buf = [0u8; MAX_WEBSITE_LEN + 1];
+        let cap = copy_str(url, &mut buf);
+        // Check prefix: http:// (7 bytes) or https:// (8 bytes)
+        let starts_http = cap >= 7
+            && &buf[..7] == b"http://";
+        let starts_https = cap >= 8
+            && &buf[..8] == b"https://";
+        if !starts_http && !starts_https {
         if len == 0 || len > MAX_WEBSITE_LEN {
             return Err(ContractError::InvalidWebsite);
         }
@@ -269,6 +339,15 @@ impl Utils {
     /// Validate a license identifier (SPDX-style: alphanumeric, `-`, `.`, `+`).
     pub fn validate_license(license: &String) -> Result<(), ContractError> {
         let len = license.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidProjectData);
+        }
+        if len > MAX_LICENSE_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+        let mut buf = [0u8; MAX_LICENSE_LEN + 1];
+        let cap = copy_str(license, &mut buf);
+        for &b in buf[..cap].iter() {
         if len == 0 || len > MAX_LICENSE_LEN {
             return Err(ContractError::InvalidProjectData);
         }
@@ -311,6 +390,13 @@ impl Utils {
     pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
         for i in 0..tags.len() {
             if let Some(tag) = tags.get(i) {
+                let tag_len = tag.len() as usize;
+                if tag_len == 0 {
+                    return Err(ContractError::InvalidTags);
+                }
+                let mut buf = [0u8; 128];
+                let cap = copy_str(&tag, &mut buf);
+                for &b in buf[..cap].iter() {
                 let len = tag.len() as usize;
                 if len == 0 || len > 64 {
                     return Err(ContractError::InvalidTags);
@@ -327,6 +413,11 @@ impl Utils {
         Ok(())
     }
 
+    /// Validate the social links map (each value must be a valid URL).
+    pub fn validate_social_links(links: &Map<String, String>) -> Result<(), ContractError> {
+        for key in links.keys().iter() {
+            if let Some(url) = links.get(key) {
+                Self::validate_website(&url)?;
     /// Validate the social links list (each link must be a valid URL).
     pub fn validate_social_links(links: &Vec<String>) -> Result<(), ContractError> {
         for i in 0..links.len() {
@@ -350,6 +441,12 @@ impl Utils {
         if len < 46 || len > MAX_CID_LEN {
             return false;
         }
+        let mut buf = [0u8; MAX_CID_LEN + 1];
+        let cap = copy_str(cid, &mut buf);
+        if cap >= 2 && buf[0] == b'Q' && buf[1] == b'm' {
+            // CIDv0
+            cap == 46
+        } else if cap >= 1 && buf[0] == b'b' {
         let mut buf = [0u8; MAX_CID_LEN];
         cid.copy_into_slice(&mut buf[..len]);
         if buf[0] == b'Q' && buf[1] == b'm' {
