@@ -3,6 +3,7 @@
 
 mod admin_action_log;
 mod admin_manager;
+pub mod pagination;
 pub mod auth;
 mod bookmark_registry;
 mod collection_registry;
@@ -10,6 +11,7 @@ mod config_registry;
 pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
+mod emergency_pause;
 mod endorsement_registry;
 pub mod errors;
 pub mod events;
@@ -61,8 +63,8 @@ pub struct DongleContract;
 impl DongleContract {
     // --- Initialization & Admin Management ---
 
-    pub fn initialize(env: Env, admin: Address) {
-        AdminManager::initialize(&env, admin);
+    pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
+        AdminManager::initialize(&env, admin)
     }
 
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
@@ -129,16 +131,35 @@ impl DongleContract {
         AdminManager::get_proposal(&env, proposal_id)
     }
 
+    // --- Contract Pause / Emergency Stop ---
+
+    /// Pause the contract (admin-only). All non-admin mutating operations will fail.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::pause(&env, &admin)
+    }
+
+    /// Unpause the contract (admin-only). Restores normal operation.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::unpause(&env, &admin)
+    }
+
+    /// Returns true if the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        EmergencyPause::is_paused(&env)
+    }
+
     // --- Project Registry ---
 
     pub fn register_project(
         env: Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::register_project(&env, params)
     }
 
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -148,6 +169,7 @@ impl DongleContract {
         caller: Address,
         contact: Option<String>,
     ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
     }
 
@@ -157,6 +179,7 @@ impl DongleContract {
         caller: Address,
         proof_cid: String,
     ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::submit_security_contact_proof(&env, project_id, caller, proof_cid)
     }
 
@@ -173,6 +196,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -182,6 +206,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::unlink_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -203,6 +228,7 @@ impl DongleContract {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
     }
 
@@ -211,6 +237,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::cancel_transfer(&env, project_id, caller)
     }
 

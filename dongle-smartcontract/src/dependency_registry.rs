@@ -11,13 +11,13 @@ impl DependencyRegistry {
     fn normalize_url(url: &String) -> Result<(), ContractError> {
         let len = url.len();
         if len == 0 || len > crate::constants::MAX_SOCIAL_LINK_URL_LEN as u32 {
-            return Err(ContractError::InvalidWebsite);
+            return Err(ContractError::InvalidInput);
         }
         let mut buf = [0u8; crate::constants::MAX_SOCIAL_LINK_URL_LEN];
         let slice = &mut buf[..len as usize];
         url.copy_into_slice(slice);
         if !slice.starts_with(b"http://") && !slice.starts_with(b"https://") {
-            return Err(ContractError::InvalidWebsite);
+            return Err(ContractError::InvalidInput);
         }
         Ok(())
     }
@@ -54,7 +54,7 @@ impl DependencyRegistry {
         }
 
         if let Some(cid) = &dep.external_cid {
-            Utils::validate_metadata_cid(cid).map_err(|_| ContractError::InvalidLogoCid)?;
+            Utils::validate_metadata_cid(cid).map_err(|_| ContractError::InvalidCid)?;
         }
 
         if let Some(url) = &dep.external_url {
@@ -251,15 +251,7 @@ impl DependencyRegistry {
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
-        let mut new_keys: Vec<String> = Vec::new(env);
-        for i in 0..keys.len() {
-            if let Some(k) = keys.get(i) {
-                if k != key {
-                    new_keys.push_back(k);
-                }
-            }
-        }
-
+        let new_keys = Utils::remove_item_from_vec(env, &keys, &key);
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &new_keys);

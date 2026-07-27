@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "title": "Excellent DEX user experience!",
+  "text": "I tried registering and updating my project via the CLI and then submitting a few reviews. The smart contract transitions and events are extremely fast and gas-efficient on Stellar. The interface is clean and works flawlessly.",
+  "language": "en",
+  "attachments": [
+    {
+      "cid": "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+      "mime_type": "image/png",
+      "name": "screenshot_success.png"
+    }
+  ],
+  "device_info": {
+    "client_name": "DongleApp",
+    "client_version": "1.2.0",
+    "platform": "WebBrowser"
+  }
+}

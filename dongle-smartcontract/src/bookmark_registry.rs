@@ -2,6 +2,7 @@ use crate::events::{publish_project_bookmarked_event, publish_project_unbookmark
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
+use crate::utils::Utils;
 use soroban_sdk::{contracterror, Address, Env, Vec};
 
 pub const MAX_PAGE_LIMIT: u32 = 100;
@@ -66,14 +67,7 @@ impl BookmarkRegistry {
             .get(&ExtensionKey::UserBookmarks(user.clone()))
             .unwrap_or_else(|| Vec::new(env));
 
-        let mut new_bookmarks: Vec<u64> = Vec::new(env);
-        for i in 0..bookmarks.len() {
-            if let Some(pid) = bookmarks.get(i) {
-                if pid != project_id {
-                    new_bookmarks.push_back(pid);
-                }
-            }
-        }
+        let new_bookmarks = Utils::remove_item_from_vec(env, &bookmarks, &project_id);
         env.storage()
             .persistent()
             .set(&ExtensionKey::UserBookmarks(user.clone()), &new_bookmarks);

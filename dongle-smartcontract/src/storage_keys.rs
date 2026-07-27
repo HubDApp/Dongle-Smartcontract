@@ -20,6 +20,9 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -97,6 +100,9 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -142,8 +148,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
     /// Fee config history entry count.
     FeeConfigHistoryCount,
     /// Fee config history entry by index (oldest = 0).
