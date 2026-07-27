@@ -85,48 +85,45 @@ pub enum ContractError {
     // Normalized name duplicate
     DuplicateProjectName = 60,
 
-    // Anti-sybil review eligibility
-    ReviewerNotEligible = 61,
-    ReviewFeeRequired = 62,
+    // Admin management
+    CannotRemoveLastAdmin = 61,
 
-    // Admin governance
-    CannotRemoveLastAdmin = 63,
+    // Name validation
+    InvalidNameFormat = 62,
 
-    // Collection management
-    AlreadyInCollection = 64,
+    // Project linking / dependencies
+    AlreadyLinked = 63,
+    CannotLinkToSelf = 64,
+
+    // Collections
     CollectionNotFound = 65,
     CollectionExists = 66,
+    AlreadyInCollection = 67,
+    TooManyTags = 68,
 
-    // Project linking
-    AlreadyLinked = 67,
-    CannotLinkToSelf = 68,
+    // Reviews
+    DuplicateReview = 69,
+    InvalidRating = 70,
+    OwnerCannotReview = 71,
+    ReviewsDisabled = 72,
+    NotReviewOwner = 73,
 
-    // Fee / treasury
-    TreasuryNotSet = 69,
-    FeeConfigNotSet = 70,
-    InsufficientFee = 71,
+    // Review moderation
+    ReviewAlreadyHidden = 74,
+    ReviewNotHidden = 75,
+    ReviewAlreadyReported = 76,
 
-    // Reporting
-    AlreadyReported = 72,
+    // Reports
+    AlreadyReported = 77,
 
-    // Review-specific
-    OwnerCannotReview = 73,
-    ReviewsDisabled = 74,
-    InvalidRating = 75,
-    DuplicateReview = 76,
-    NotReviewOwner = 77,
-    ReviewAlreadyReported = 78,
-    ReviewAlreadyHidden = 79,
-    ReviewNotHidden = 80,
+    // Subscriptions / following
+    AlreadyFollowing = 78,
+    NotFollowing = 79,
 
-    // Subscription / follow
-    AlreadyFollowing = 81,
-    NotFollowing = 82,
-
-    // Tags
-    TooManyTags = 83,
-    // Contract pause / emergency stop
-    ContractPaused = 61,
+    // Fee configuration and payment
+    FeeConfigNotSet = 80,
+    InsufficientFee = 81,
+    TreasuryNotSet = 82,
 }
 
 pub type Error = ContractError;
