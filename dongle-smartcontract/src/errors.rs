@@ -6,124 +6,51 @@ use soroban_sdk::contracterror;
 pub enum ContractError {
     AlreadyInitialized = 1,
     NotInitialized = 2,
-    OnlyAdmin = 3,
-    ProjectNotFound = 4,
-    NotProjectOwner = 5,
-    SlugAlreadyExists = 6,
-    InvalidSlug = 7,
-    MaxProjectsExceeded = 8,
-    MaxReviewsPerUser = 9,
-    MaxReviewsPerProject = 10,
-    ReviewNotFound = 11,
-    AlreadyReviewed = 12,
-    InvalidCategory = 13,
-    InvalidUrl = 14,
-    InvalidCid = 15,
-    InvalidBountyUrl = 16,
-    InvalidBountyCid = 17,
-    InvalidWebsite = 18,
-    InvalidLogo = 19,
-    InvalidMetadata = 20,
-    InvalidTags = 21,
-    InvalidSocialLinks = 22,
-    InvalidLauchTimestamp = 23,
-    InvalidLicense = 24,
-    AlreadyMaintainer = 25,
-    NotMaintainer = 26,
-    OnlyMaintainerOrOwner = 27,
-    InvalidMaintainer = 28,
-    CantRemoveSelf = 29,
-    IndexOutOfBounds = 30,
-    NotInIndex = 31,
-
-    // Project registration and updates
-    ProjectAlreadyExists = 32,
-    InvalidProjectName = 33,
-    ProjectNameTooLong = 34,
-    InvalidProjectDesc = 35,
-    ProjectDescTooLong = 36,
-    InvalidProjectData = 37,
-    InvalidProjectSlug = 38,
-    InvalidProjectSlugLen = 39,
-    InvalidInput = 40,
-
-    // CID-specific
-    InvalidLogoCid = 41,
-    InvalidMetaCid = 42,
-
-    // Authorization / access control
-    Unauthorized = 43,
-    AdminOnly = 44,
-    AdminNotFound = 45,
-
-    // Verification workflow
-    VerificationNotFound = 46,
-    VerificationNotPend = 47,
-    InvalidStatus = 48,
-    ProjectTooYoung = 49,
-    VerifiedFieldFrozen = 50,
-
-    // Archive / reactivation
-    AlreadyArchived = 51,
-    ProjectNotArchived = 52,
-
-    // Ownership transfer
-    TransferNotFound = 53,
-    NotTransferRecip = 54,
-
-    // Reserved names
-    ReservedName = 55,
-
-    // Fee
-    FeeMissing = 56,
-    FeeInvalid = 57,
-    FeeAlreadyPaid = 58,
-
-    // Security contact
-    SecurityContactInvalid = 59,
-
-    // Normalized name duplicate
-    DuplicateProjectName = 60,
-
-    // Admin management
-    CannotRemoveLastAdmin = 61,
-
-    // Name validation
-    InvalidNameFormat = 62,
-
-    // Project linking / dependencies
-    AlreadyLinked = 63,
-    CannotLinkToSelf = 64,
-
-    // Collections
-    CollectionNotFound = 65,
-    CollectionExists = 66,
-    AlreadyInCollection = 67,
-    TooManyTags = 68,
-
-    // Reviews
-    DuplicateReview = 69,
-    InvalidRating = 70,
-    OwnerCannotReview = 71,
-    ReviewsDisabled = 72,
-    NotReviewOwner = 73,
-
-    // Review moderation
-    ReviewAlreadyHidden = 74,
-    ReviewNotHidden = 75,
-    ReviewAlreadyReported = 76,
-
-    // Reports
-    AlreadyReported = 77,
-
-    // Subscriptions / following
-    AlreadyFollowing = 78,
-    NotFollowing = 79,
-
-    // Fee configuration and payment
-    FeeConfigNotSet = 80,
-    InsufficientFee = 81,
-    TreasuryNotSet = 82,
+    ProjectNotFound = 3,
+    SlugAlreadyExists = 4,
+    MaxProjectsExceeded = 5,
+    ReviewNotFound = 6,
+    InvalidCid = 7,
+    InvalidInput = 8,
+    InvalidProjectName = 9,
+    InvalidProjectData = 10,
+    InvalidProjectSlug = 11,
+    InvalidStatus = 12,
+    ProjectAlreadyExists = 13,
+    AlreadyArchived = 14,
+    ProjectNotArchived = 15,
+    ProjectTooYoung = 16,
+    VerificationNotFound = 17,
+    VerifiedFieldFrozen = 18,
+    Unauthorized = 19,
+    AdminOnly = 20,
+    AdminNotFound = 21,
+    TransferNotFound = 22,
+    ReservedName = 23,
+    FeeAlreadyPaid = 24,
+    InsufficientFee = 25,
+    DuplicateProjectName = 26,
+    IndexOutOfBounds = 27,
+    CannotLinkToSelf = 28,
+    AlreadyLinked = 29,
+    AlreadyFollowing = 30,
+    NotFollowing = 31,
+    DuplicateReview = 32,
+    InvalidRating = 33,
+    AlreadyReported = 34,
+    ReviewAlreadyHidden = 35,
+    ReviewNotHidden = 36,
+    CollectionNotFound = 37,
+    CollectionExists = 38,
+    AlreadyInCollection = 39,
+    CannotRemoveLastAdmin = 40,
+    ReviewsDisabled = 41,
+    NotReviewOwner = 42,
+    TreasuryNotSet = 43,
+    FeeConfigNotSet = 44,
+    TooManyTags = 45,
+    OwnerCannotReview = 46,
+    InvalidNameFormat = 47,
 }
 
 pub type Error = ContractError;

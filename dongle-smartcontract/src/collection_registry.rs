@@ -334,7 +334,7 @@ impl CollectionRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         if len as usize > MAX_COLLECTION_NAME_LEN {
-            return Err(ContractError::ProjectNameTooLong);
+            return Err(ContractError::InvalidProjectName);
         }
         Ok(())
     }
@@ -345,7 +345,7 @@ impl CollectionRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         if len as usize > MAX_COLLECTION_DESCRIPTION_LEN {
-            return Err(ContractError::ProjectDescTooLong);
+            return Err(ContractError::InvalidProjectData);
         }
         Ok(())
     }

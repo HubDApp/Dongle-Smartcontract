@@ -101,12 +101,19 @@ impl StorageManager {
 
     /// Extend TTL for project by normalized name mapping.
     pub fn extend_project_by_normalized_name_ttl(env: &Env, normalized_name: &String) {
-        Self::extend_if_exists(
-            env,
-            &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
-            LEDGER_THRESHOLD_PROJECT,
-            LEDGER_BUMP_PROJECT,
-        );
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectByNormalizedName(
+                normalized_name.clone(),
+            ))
+        {
+            env.storage().persistent().extend_ttl(
+                &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
+                LEDGER_THRESHOLD_PROJECT,
+                LEDGER_BUMP_PROJECT,
+            );
+        }
     }
 
     /// Extend TTL for category projects index

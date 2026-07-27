@@ -100,8 +100,9 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
-    /// Contract pause / emergency stop flag.
-    ContractPaused,
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
