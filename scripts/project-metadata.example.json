@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "projectName": "Dongle DeFi Explorer",
+  "description": "A discovery layer and analytics dashboard for Stellar DeFi protocols. This extended description complements the on-chain summary stored in the contract.",
+  "website": "https://dongle.example",
+  "repository": "https://github.com/HubDApp/Dongle-Smartcontract",
+  "documentation": "https://github.com/HubDApp/Dongle-Smartcontract/blob/main/README.md",
+  "logo": "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+  "banner": "QmBannerExample00000000000000000000000000000001",
+  "categories": ["DeFi", "Analytics"],
+  "tags": ["stellar", "soroban", "discovery"],
+  "socials": {
+    "twitter": "https://twitter.com/dongleexample",
+    "discord": "https://discord.gg/example",
+    "telegram": "https://t.me/dongleexample"
+  },
+  "licenses": [
+    {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  ],
+  "maintainers": [
+    {
+      "name": "Core Team",
+      "email": "team@dongle.example",
+      "url": "https://dongle.example/team",
+      "role": "owner"
+    }
+  ],
+  "createdAt": "2026-01-15T10:00:00Z",
+  "updatedAt": "2026-06-01T14:30:00Z",
+  "security_contact": {
+    "contact": "security@dongle.example",
+    "proof_cid": "QmSecurityProof000000000000000000000000000001",
+    "verified": true
+  }
+}

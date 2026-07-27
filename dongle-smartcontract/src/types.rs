@@ -114,12 +114,48 @@ pub struct ReviewRevisionEvent {
     pub timestamp: u64,
 }
 
+/// Shared three-state status for all claim workflows (ownership + contract-address).
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
     Pending,
     Approved,
     Rejected,
+}
+
+/// Distinguishes claim workflow kinds that share [`ClaimStatus`] transitions.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimKind {
+    /// Claim ownership of a claimable project.
+    Ownership,
+    /// Claim a contract address for a project.
+    ContractAddress,
+}
+
+impl ClaimStatus {
+    /// Shared pending→approved / pending→rejected guard used by every claim kind.
+    pub fn require_pending(self) -> Result<(), crate::errors::ContractError> {
+        if self != Self::Pending {
+            Err(crate::errors::ContractError::InvalidStatus)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Transition Pending → Approved.
+    pub fn transition_to_approved(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Approved;
+        Ok(())
+    }
+
+    /// Transition Pending → Rejected.
+    pub fn transition_to_rejected(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Rejected;
+        Ok(())
+    }
 }
 
 #[contracttype]
@@ -134,21 +170,13 @@ pub struct ClaimRequest {
 }
 
 #[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ContractClaimStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
-
-#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractClaimRequest {
     pub project_id: u64,
     pub contract_address: String,
     pub claimant: Address,
     pub proof_cid: String,
-    pub status: ContractClaimStatus,
+    pub status: ClaimStatus,
     pub created_at: u64,
 }
 
@@ -198,23 +226,7 @@ pub struct ProjectReport {
     pub timestamp: u64,
 }
 
-#[contracttype]
-pub enum DataKey {
-    Project(u64),
-    ProjectCount,
-    OwnerProjects(Address),
-    Review(u64, Address),
-    UserReviews(Address),
-    Verification(u64),
-    NextProjectId,
-    Admin(Address),
-    FeeConfig,
-    Treasury,
-    ProjectStats(u64),
-    FeePaidForProject(u64),
-    ContractClaim(u64, String),
-    ProjectContracts(u64),
-}
+
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -276,16 +288,6 @@ pub struct FeePaymentRecord {
     pub token: Option<Address>,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeeRefundRecord {
-    pub request_id: u64,
-    pub project_id: u64,
-    pub payer: Address,
-    pub token: Option<Address>,
-    pub amount: u128,
-    pub refunded: bool,
-}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -356,14 +358,6 @@ pub struct Collection {
     pub description: String,
     pub created_at: u64,
     pub updated_at: u64,
-}
-
-/// Parameters for creating a new collection (admin-only).
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CreateCollectionParams {
-    pub name: String,
-    pub description: String,
 }
 
 /// Types of admin actions recorded in the admin action log.
@@ -444,7 +438,7 @@ pub struct AdminActionEntry {
     pub reason_cid: Option<String>,
 }
 
-// ── Admin Timelock ──────────────────────────────────────────────────────────
+// ── Admin Timelock ───────────────────────────────────────────────────────────
 
 /// A scheduled action in the admin timelock.
 #[contracttype]
@@ -525,6 +519,28 @@ pub struct ReviewTombstone {
     pub project_id: u64,
     pub reviewer: Address,
     pub deleted_at: u64,
+}
+
+/// Optional anti-sybil review eligibility constraints.
+///
+/// When all constraints are zero/false (default), any address may review
+/// any project without restriction — preserving full backward compatibility.
+///
+/// Admins may relax or tighten these knobs via `set_review_eligibility_config`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewEligibilityConfig {
+    /// Minimum seconds that must have elapsed since the reviewer's first
+    /// interaction with the contract (e.g. first review, project registration,
+    /// endorsement, follow, or bookmark). Zero = no age check.
+    pub min_reviewer_age_seconds: u64,
+    /// If true, the reviewer must have previously endorsed the project
+    /// (`EndorsementRegistry::has_endorsed`) before submitting a review.
+    pub require_endorsement: bool,
+    /// Fee amount (in the configured fee token) required to submit a review.
+    /// Zero = no fee required. When non-zero, the caller must have paid this
+    /// amount to the treasury before submitting the review.
+    pub review_fee: u128,
 }
 
 /// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.

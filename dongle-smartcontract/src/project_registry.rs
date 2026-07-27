@@ -15,7 +15,7 @@ use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimRequest, ClaimStatus, ContractClaimRequest, ContractClaimStatus, Project,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project,
     ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
     VerificationStatus,
 };
@@ -25,6 +25,19 @@ use soroban_sdk::{Address, Bytes, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    /// Shared status-transition helper for both ownership and contract-address claims.
+    fn apply_claim_decision(
+        status: &mut ClaimStatus,
+        _kind: ClaimKind,
+        approve: bool,
+    ) -> Result<(), ContractError> {
+        if approve {
+            status.transition_to_approved()
+        } else {
+            status.transition_to_rejected()
+        }
+    }
+
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
@@ -98,7 +111,9 @@ impl ProjectRegistry {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(normalized_name.clone()))
+            .has(&StorageKey::ProjectByNormalizedName(
+                normalized_name.clone(),
+            ))
         {
             return Err(ContractError::DuplicateProjectName);
         }
@@ -169,9 +184,10 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
-        env.storage()
-            .persistent()
-            .set(&StorageKey::ProjectByNormalizedName(normalized_name), &count);
+        env.storage().persistent().set(
+            &StorageKey::ProjectByNormalizedName(normalized_name),
+            &count,
+        );
 
         owner_projects.push_back(count);
         env.storage().persistent().set(
@@ -193,7 +209,8 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
-        StorageManager::extend_project_count_ttl(env);        StorageManager::extend_owner_projects_ttl(env, &params.owner);
+        StorageManager::extend_project_count_ttl(env);
+        StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Store tags and social links separately if provided
@@ -349,13 +366,9 @@ impl ProjectRegistry {
                 let new_normalized = Utils::normalize_project_name(env, &value);
                 let old_normalized = Utils::normalize_project_name(env, &old_name);
                 if new_normalized != old_normalized {
-                    if let Some(existing_id) = env
-                        .storage()
-                        .persistent()
-                        .get::<StorageKey, u64>(&StorageKey::ProjectByNormalizedName(
-                            new_normalized.clone(),
-                        ))
-                    {
+                    if let Some(existing_id) = env.storage().persistent().get::<StorageKey, u64>(
+                        &StorageKey::ProjectByNormalizedName(new_normalized.clone()),
+                    ) {
                         if existing_id != params.project_id {
                             return Err(ContractError::DuplicateProjectName);
                         }
@@ -1336,9 +1349,8 @@ impl ProjectRegistry {
             return Err(ContractError::AdminOnly);
         }
 
-        if claim_request.status != ClaimStatus::Pending {
-            return Err(ContractError::InvalidStatus);
-        }
+        // Shared pending→approved transition (ClaimKind::Ownership)
+        Self::apply_claim_decision(&mut claim_request.status, ClaimKind::Ownership, true)?;
 
         // Get the project
         let mut project = Self::get_project(env, claim_request.project_id)
@@ -1387,8 +1399,6 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(claim_request.project_id), &project);
 
-        // Update claim request status
-        claim_request.status = ClaimStatus::Approved;
         env.storage().persistent().set(
             &ExtensionKey::ClaimRequest(claim_request_id),
             &claim_request,
@@ -1437,11 +1447,8 @@ impl ProjectRegistry {
             return Err(ContractError::AdminOnly);
         }
 
-        if claim_request.status != ClaimStatus::Pending {
-            return Err(ContractError::InvalidStatus);
-        }
-
-        claim_request.status = ClaimStatus::Rejected;
+        // Shared pending→rejected transition (ClaimKind::Ownership)
+        Self::apply_claim_decision(&mut claim_request.status, ClaimKind::Ownership, false)?;
         env.storage().persistent().set(
             &ExtensionKey::ClaimRequest(claim_request_id),
             &claim_request,
@@ -1834,7 +1841,7 @@ impl ProjectRegistry {
             contract_address: contract_address.clone(),
             claimant: caller.clone(),
             proof_cid: proof_cid.clone(),
-            status: ContractClaimStatus::Pending,
+            status: ClaimStatus::Pending,
             created_at: env.ledger().timestamp(),
         };
 
@@ -1869,11 +1876,8 @@ impl ProjectRegistry {
             ))
             .ok_or(ContractError::InvalidProjectData)?;
 
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Approved;
+        // Shared pending→approved transition (ClaimKind::ContractAddress)
+        Self::apply_claim_decision(&mut req.status, ClaimKind::ContractAddress, true)?;
         env.storage().persistent().set(
             &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
             &req,
@@ -1914,11 +1918,8 @@ impl ProjectRegistry {
             ))
             .ok_or(ContractError::InvalidProjectData)?;
 
-        if req.status != ContractClaimStatus::Pending {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        req.status = ContractClaimStatus::Rejected;
+        // Shared pending→rejected transition (ClaimKind::ContractAddress)
+        Self::apply_claim_decision(&mut req.status, ClaimKind::ContractAddress, false)?;
         env.storage().persistent().set(
             &ExtensionKey::ContractClaim(project_id, contract_address.clone()),
             &req,
@@ -1967,51 +1968,24 @@ impl ProjectRegistry {
             }
         }
 
-        let n = all.len();
-        for i in 0..n {
-            for j in 0..n.saturating_sub(i + 1) {
-                let a = all.get(j).unwrap();
-                let b = all.get(j + 1).unwrap();
-                let mut swap = false;
-                match sort_mode {
-                    ProjectSortMode::Newest => {
-                        if a.created_at < b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::Oldest => {
-                        if a.created_at > b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                        let stats_a =
-                            crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                        let stats_b =
-                            crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                        if sort_mode == ProjectSortMode::HighestRated {
-                            if stats_a.average_rating < stats_b.average_rating {
-                                swap = true;
-                            } else if stats_a.average_rating == stats_b.average_rating
-                                && stats_a.review_count < stats_b.review_count
-                            {
-                                swap = true;
-                            }
-                        } else if stats_a.review_count < stats_b.review_count {
-                            swap = true;
-                        } else if stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating
-                        {
-                            swap = true;
-                        }
-                    }
-                }
-                if swap {
-                    all.set(j, b);
-                    all.set(j + 1, a);
+        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
+            ProjectSortMode::Newest => a.created_at < b.created_at,
+            ProjectSortMode::Oldest => a.created_at > b.created_at,
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
+                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
+                if sort_mode == ProjectSortMode::HighestRated {
+                    stats_a.average_rating < stats_b.average_rating
+                        || (stats_a.average_rating == stats_b.average_rating
+                            && stats_a.review_count < stats_b.review_count)
+                } else {
+                    stats_a.review_count < stats_b.review_count
+                        || (stats_a.review_count == stats_b.review_count
+                            && stats_a.average_rating < stats_b.average_rating)
                 }
             }
-        }
+        });
+        let n = all.len();
 
         let mut result = Vec::new(env);
         let start = start_id as u32;

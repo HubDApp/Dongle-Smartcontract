@@ -100,6 +100,8 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Contract pause / emergency stop flag.
+    ContractPaused,
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -145,8 +147,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
     /// Fee config history entry count.
     FeeConfigHistoryCount,
     /// Fee config history entry by index (oldest = 0).
