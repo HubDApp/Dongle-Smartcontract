@@ -7,7 +7,7 @@ use crate::constants::{
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
+use crate::types::Project;
 use soroban_sdk::{Address, Env, Map, String, Vec};
 
 #[allow(dead_code)]
@@ -34,7 +34,7 @@ impl Utils {
 }
 
 /// Check if address is a maintainer of the project (free function).
-pub fn is_maintainer(env: &Env, project: &Project, address: &Address) -> bool {
+pub fn is_maintainer(project: &Project, address: &Address) -> bool {
     if let Some(ref maintainers) = project.maintainers {
         maintainers.contains(address)
     } else {
@@ -336,6 +336,18 @@ impl Utils {
         } else {
             false
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Report reason CID validation
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Validate a report reason CID.
+    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
     }
 
     // ────────────────────────────────────────────────────────────────────

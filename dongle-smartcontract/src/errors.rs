@@ -84,6 +84,10 @@ pub enum ContractError {
 
     // Normalized name duplicate
     DuplicateProjectName = 60,
+
+    // Anti-sybil review eligibility
+    ReviewerNotEligible = 61,
+    ReviewFeeRequired = 62,
 }
 
 pub type Error = ContractError;

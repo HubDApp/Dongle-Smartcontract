@@ -2,6 +2,9 @@
 
 This checklist must be completed before deploying the Dongle smart contract to Stellar Mainnet. Sign off each item with the reviewer's initials and date.
 
+> NOTE (auto-audit): I ran a workspace build and the `dongle-smartcontract` crate currently fails to compile (unclosed delimiter in `src/utils.rs`). CI has also been failing for 3+ weeks. Any checklist items that claim "build passes", "tests pass", or "CI green" must be re-verified and re-checked after the build/CI failures are resolved.
+
+
 ---
 
 ## 1. Code Quality & Testing
