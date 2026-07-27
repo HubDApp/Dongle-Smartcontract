@@ -166,12 +166,16 @@ pub enum ExtensionKey {
     ProjectRegion(u64),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
-    /// Contract claim request by (project_id, contract_address).
-    ContractClaim(u64, String),
-    /// List of contract addresses for a project.
-    ProjectContracts(u64),
-    /// Review revision count for (project_id, reviewer).
+    /// Review eligibility configuration (global singleton).
+    ReviewEligibilityConfig,
+    /// Timestamp of the first on-chain interaction for an address (account-age tracking).
+    FirstInteraction(Address),
+    /// Number of archived revisions for a review (project_id, reviewer).
     ReviewRevisionCount(u64, Address),
-    /// Review revision by (project_id, reviewer, revision_index).
+    /// An individual archived revision of a review (project_id, reviewer, revision_index).
     ReviewRevision(u64, Address, u32),
+    /// Registered external smart contract for a project (project_id, contract_address).
+    ContractClaim(u64, String),
+    /// List of external contract addresses registered for a project.
+    ProjectContracts(u64),
 }
