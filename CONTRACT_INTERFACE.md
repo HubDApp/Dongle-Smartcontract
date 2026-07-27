@@ -20,18 +20,13 @@ This document provides comprehensive documentation of all public contract functi
 6. [Review Registry](#review-registry)
 7. [Verification Registry](#verification-registry)
 8. [Verification Renewal](#verification-renewal)
-9. [Verification Assignment](#verification-assignment)
-10. [Fee Manager](#fee-manager)
-11. [Reporting & Moderation](#reporting--moderation)
-12. [Collections](#collections)
-13. [Admin Action Log](#admin-action-log)
-14. [Dispute Resolution](#dispute-resolution)
-15. [TTL Management](#ttl-management)
-16. [Subscription / Follow](#subscription--follow)
-17. [Bookmarks](#bookmarks)
-18. [Endorsements](#endorsements)
-19. [Admin Timelock](#admin-timelock)
-20. [Configuration Functions](#configuration-functions)
+9. [Fee Manager](#fee-manager)
+10. [Reporting & Moderation](#reporting--moderation)
+11. [Collections](#collections)
+12. [Admin Action Log](#admin-action-log)
+13. [Dispute Resolution](#dispute-resolution)
+14. [TTL Management](#ttl-management)
+15. [Contract Configuration](#contract-configuration)
 
 ---
 
@@ -4713,4 +4708,71 @@ if let Some(dispute) = get_duplicate_dispute(env, dispute_id) {
 
 ---
 
-*This documentation matches the current implementation as of July 2026. For updates, refer to the contract source code in the repository.*
+*This documentation matches the current implementation as of June 2024. For updates, refer to the contract source code in the repository.*
+
+---
+
+## Contract Configuration
+
+Frontends and indexers need a single, stable read of the contract's current configuration. `get_config` returns fees, treasury, admin count, approval threshold, pause state, version, and user-facing limits in one round-trip.
+
+### `get_config`
+
+**Purpose**: Return the aggregated, read-only contract configuration snapshot. Replaces the need to fan out calls to `get_fee_config`, `get_admin_count`, `get_admin_approval_threshold`, etc.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `Result<ContractConfigView, ContractError>`
+- A fully-populated `ContractConfigView` struct:
+  - `version` (`String`): Semantic version of the contract (`CONTRACT_VERSION`).
+  - `admin_count` (`u32`): Number of registered admins.
+  - `admin_approval_threshold` (`u32`): Approval threshold for multi-admin proposals.
+  - `paused` (`bool`): Global pause flag toggled via `set_pause`.
+  - `treasury` (`Option<Address>`): Treasury address that receives fees. `None` until `set_fee` is invoked.
+  - `fees` (`FeeConfig`): Token + verification + registration fee amounts. Defaults to `None`/`0`/`0` until `set_fee` is invoked.
+  - `limits` (`ContractLimits`): User-facing limits surfaced for client validation (max page limit, max projects per user, max reviews per project, max name/description length, verification validity period).
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**: None in normal operation; returns `Ok` even before `set_fee` is called (zero-fee defaults). The "never configured" state is distinguishable from "configured-with-zero-fees" via `treasury: Option<Address>` — only `set_fee` populates it.
+
+**Stability**: The shape of `ContractConfigView` / `ContractLimits` is part of the public contract surface. Only **append** new fields at the end; never reorder, rename, or remove existing fields without bumping `CONTRACT_VERSION`.
+
+**Example**:
+```rust
+let cfg = get_config(env)?;
+println!("contract version {}", cfg.version);
+println!("paused = {}", cfg.paused);
+```
+
+### `set_pause`
+
+**Purpose**: Admin-only toggle of the global pause flag surfaced by `get_config`. Records an audit-log entry on every transition.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin toggling the flag (must be a current admin)
+- `paused` (bool): `true` to pause, `false` to resume
+
+**Return Value**: `Result<bool, ContractError>`
+- Returns the pause state **before** the call (so callers can detect transitions without an extra read).
+- Other admin entry points in this contract return `()`; the previous-value return is intentional for this method.
+
+**Authorization**:
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Audit logging**:
+- Records `AdminActionType::ContractPaused` when toggling `true`.
+- Records `AdminActionType::ContractResumed` when toggling `false`.
+
+**Scope**: This method only writes the flag. Enforcement across mutating entry points (`register_project`, `pay_fee`, …) is intentionally out of scope — see the future pause-enforcement ticket. Frontends should treat the flag as advisory for now.
+
+**Example**:
+```rust
+let _previous = set_pause(env, admin_address, true)?;
+```

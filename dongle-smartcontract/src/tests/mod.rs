@@ -72,5 +72,5 @@ mod timelock;
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
 
-// Contract pause / emergency stop
-mod emergency_pause;
+// Contract-level configuration view (`get_config`, pause toggle)
+mod config;

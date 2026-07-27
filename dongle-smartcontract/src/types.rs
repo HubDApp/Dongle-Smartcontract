@@ -394,6 +394,10 @@ pub enum AdminActionType {
     VerificationAssigned,
     ReservedNameAdded,
     ReservedNameRemoved,
+    /// Admin toggled the global pause flag on (`true` was the new value).
+    ContractPaused,
+    /// Admin toggled the global pause flag off (`false` was the new value).
+    ContractResumed,
 }
 
 #[contracttype]
@@ -571,4 +575,61 @@ pub enum ProjectSortMode {
     HighestRated,
     /// Most reviewed first.
     MostReviewed,
+}
+
+// ── Contract configuration view (returned by `get_config`) ──────────────────
+
+/// User-facing limits surfaced through `get_config`. Only the most relevant
+/// limits for frontend validation are exposed — internal string-length
+/// bounds (e.g. `MAX_WEBSITE_LEN`) are intentionally omitted to keep the
+/// response shape stable.
+///
+/// **Stability:** Adding fields here is backwards-compatible. Removing or
+/// renaming a field is a breaking change and requires a `CONTRACT_VERSION`
+/// bump in `constants.rs`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractLimits {
+    /// Maximum items per paginated list call (`MAX_PAGE_LIMIT`).
+    pub max_page_limit: u32,
+    /// Maximum projects a single owner may register (`MAX_PROJECTS_PER_USER`).
+    pub max_projects_per_user: u32,
+    /// Maximum reviewers indexed per project (`MAX_REVIEWS_PER_PROJECT`).
+    pub max_reviews_per_project: u32,
+    /// Maximum project name length in bytes (`MAX_NAME_LEN`).
+    pub max_name_len: u32,
+    /// Maximum project description length in bytes (`MAX_DESCRIPTION_LEN`).
+    pub max_description_len: u32,
+    /// Verification validity period in seconds (`VERIFICATION_VALIDITY_PERIOD`).
+    pub verification_validity_period: u64,
+}
+
+/// Aggregated, read-only contract configuration snapshot. Frontends and
+/// indexers call `get_config` to read this in one round-trip instead of
+/// walking the individual getters (`get_fee_config`, `get_admin_count`,
+/// …).
+///
+/// **Stability:** The shape of this struct is part of the public contract
+/// interface. New fields may be appended at the end; never reorder,
+/// rename, or remove existing fields without bumping `CONTRACT_VERSION`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractConfigView {
+    /// Semantic version of the contract (`CONTRACT_VERSION`).
+    pub version: String,
+    /// Number of admin addresses currently registered.
+    pub admin_count: u32,
+    /// Approval threshold for multi-admin proposal workflows
+    /// (`get_admin_approval_threshold`).
+    pub admin_approval_threshold: u32,
+    /// Global pause flag. Read by frontends to disable mutating UX. Set
+    /// by admins via `set_pause`.
+    pub paused: bool,
+    /// Treasury address that receives fees. `None` until `set_fee` is
+    /// called for the first time.
+    pub treasury: Option<Address>,
+    /// Current fee configuration (token + verification + registration fee).
+    pub fees: FeeConfig,
+    /// User-facing limits (see `ContractLimits` doc for stability rules).
+    pub limits: ContractLimits,
 }

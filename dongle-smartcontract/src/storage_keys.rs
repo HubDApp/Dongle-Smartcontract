@@ -166,16 +166,11 @@ pub enum ExtensionKey {
     ProjectRegion(u64),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
-    /// Review eligibility configuration (global singleton).
-    ReviewEligibilityConfig,
-    /// Timestamp of the first on-chain interaction for an address (account-age tracking).
-    FirstInteraction(Address),
-    /// Number of archived revisions for a review (project_id, reviewer).
-    ReviewRevisionCount(u64, Address),
-    /// An individual archived revision of a review (project_id, reviewer, revision_index).
-    ReviewRevision(u64, Address, u32),
-    /// Registered external smart contract for a project (project_id, contract_address).
-    ContractClaim(u64, String),
-    /// List of external contract addresses registered for a project.
-    ProjectContracts(u64),
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
+    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
+    /// pause state across mutating entry points is intentionally out of scope for the
+    /// config-view feature; see `set_pause` for the toggle.
+    Paused,
 }
