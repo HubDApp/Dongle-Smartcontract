@@ -1,0 +1,288 @@
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   /home/izk/Documents/DRIPS/Dongle-Smartcontract/dongle-smartcontract/Cargo.toml
+workspace: /home/izk/Documents/DRIPS/Dongle-Smartcontract/Cargo.toml
+    Checking dongle-contract v0.1.0 (/home/izk/Documents/DRIPS/Dongle-Smartcontract/dongle-smartcontract)
+error: custom attribute panicked
+ --> dongle-smartcontract/src/errors.rs:3:1
+  |
+3 | #[contracterror]
+  | ^^^^^^^^^^^^^^^^
+  |
+  = help: message: called `Result::unwrap()` on an `Err` value: LengthExceedsMax
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/admin_manager.rs:8:5
+  |
+8 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/auth.rs:8:5
+  |
+8 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/collection_registry.rs:7:5
+  |
+7 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/dependency_registry.rs:1:5
+  |
+1 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/dispute_registry.rs:3:5
+  |
+3 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/featured_registry.rs:5:5
+  |
+5 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/fee_manager.rs:5:5
+  |
+5 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/project_registry.rs:3:5
+  |
+3 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/report_registry.rs:4:5
+  |
+4 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/review_registry.rs:5:5
+  |
+5 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/subscription_registry.rs:1:5
+  |
+1 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/timelock_manager.rs:4:5
+  |
+4 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/utils.rs:1:5
+  |
+1 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+ --> dongle-smartcontract/src/verification_registry.rs:6:5
+  |
+6 | use crate::errors::ContractError;
+  |     ^^^^^^^^^^^^^^^-------------
+  |     |              |
+  |     |              help: a similar name exists in the module: `contracterror`
+  |     no `ContractError` in `errors`
+
+error[E0432]: unresolved import `crate::errors::ContractError`
+  --> dongle-smartcontract/src/lib.rs:35:5
+   |
+35 | use crate::errors::ContractError;
+   |     ^^^^^^^^^^^^^^^-------------
+   |     |              |
+   |     |              help: a similar name exists in the module: `contracterror`
+   |     no `ContractError` in `errors`
+
+error[E0412]: cannot find type `ContractError` in this scope
+  --> dongle-smartcontract/src/errors.rs:62:18
+   |
+62 | pub type Error = ContractError;
+   |                  ^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:36:33
+    |
+ 36 |             .get(&ExtensionKey::ProjectEndorsements(project_id))
+    |                                 ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:40:28
+    |
+ 40 |             &ExtensionKey::ProjectEndorsements(project_id),
+    |                            ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `EndorsementCount` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:47:33
+    |
+ 47 |             .set(&ExtensionKey::EndorsementCount(project_id), &count);
+    |                                 ^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `EndorsementCount` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:70:33
+    |
+ 70 |             .get(&ExtensionKey::ProjectEndorsements(project_id))
+    |                                 ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:82:28
+    |
+ 82 |             &ExtensionKey::ProjectEndorsements(project_id),
+    |                            ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `EndorsementCount` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:89:33
+    |
+ 89 |             .set(&ExtensionKey::EndorsementCount(project_id), &count);
+    |                                 ^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `EndorsementCount` not found for this enum
+
+error[E0599]: no variant or associated item named `EndorsementCount` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:101:33
+    |
+101 |             .get(&ExtensionKey::EndorsementCount(project_id))
+    |                                 ^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `EndorsementCount` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/endorsement_registry.rs:109:33
+    |
+109 |             .get(&ExtensionKey::ProjectEndorsements(project_id))
+    |                                 ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/storage_manager.rs:367:33
+    |
+367 |             .has(&ExtensionKey::ProjectEndorsements(project_id))
+    |                                 ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `ProjectEndorsements` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/storage_manager.rs:370:32
+    |
+370 |                 &ExtensionKey::ProjectEndorsements(project_id),
+    |                                ^^^^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `ProjectEndorsements` not found for this enum
+
+error[E0599]: no variant or associated item named `EndorsementCount` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/storage_manager.rs:378:33
+    |
+378 |             .has(&ExtensionKey::EndorsementCount(project_id))
+    |                                 ^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `EndorsementCount` not found for this enum
+
+error[E0599]: no variant or associated item named `EndorsementCount` found for enum `ExtensionKey` in the current scope
+   --> dongle-smartcontract/src/storage_manager.rs:381:32
+    |
+381 |                 &ExtensionKey::EndorsementCount(project_id),
+    |                                ^^^^^^^^^^^^^^^^ variant or associated item not found in `ExtensionKey`
+    |
+   ::: dongle-smartcontract/src/storage_keys.rs:103:1
+    |
+103 | pub enum ExtensionKey {
+    | --------------------- variant or associated item `EndorsementCount` not found for this enum
+
+Some errors have detailed explanations: E0412, E0432, E0599.
+For more information about an error, try `rustc --explain E0412`.
+error: could not compile `dongle-contract` (lib) due to 29 previous errors
