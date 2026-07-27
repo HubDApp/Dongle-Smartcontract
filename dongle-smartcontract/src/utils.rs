@@ -18,26 +18,6 @@ fn copy_str(s: &String, buf: &mut [u8]) -> usize {
 #[allow(dead_code)]
 pub struct Utils;
 
-#[allow(dead_code)]
-impl Utils {
-    /// Convert a Soroban String to lowercase for case-insensitive comparison.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let len = s.len() as usize;
-        if len == 0 {
-            return s.clone();
-        }
-        let mut buf = [0u8; 256]; // MAX_NAME_LEN is 50, so 256 is more than enough
-        let actual_len = core::cmp::min(len, buf.len());
-        s.copy_into_slice(&mut buf[..actual_len]);
-        for b in buf[..actual_len].iter_mut() {
-            if *b >= b'A' && *b <= b'Z' {
-                *b += 32;
-            }
-        }
-        String::from_str(env, core::str::from_utf8(&buf[..actual_len]).unwrap_or(""))
-    }
-}
-
 /// Check if address is a maintainer of the project (free function).
 pub fn is_maintainer(project: &Project, address: &Address) -> bool {
     if let Some(ref maintainers) = project.maintainers {
