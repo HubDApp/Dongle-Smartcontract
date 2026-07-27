@@ -442,7 +442,7 @@ fn matrix_request_verification_owner_succeeds_stranger_fails() {
     assert_eq!(err, Err(Ok(ContractError::Unauthorized)));
 
     client.request_verification(&pid, &owner, &String::from_str(&env, "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"));
-    assert_eq!(client.get_verification(&pid).status, crate::types::VerificationStatus::Pending);
+    assert_eq!(client.get_verification(&pid).unwrap().status, crate::types::VerificationStatus::Pending);
 }
 
 #[test]
@@ -461,7 +461,7 @@ fn matrix_approve_verification_admin_succeeds_stranger_fails() {
     client.approve_verification(&pid, &admin);
     use crate::types::VerificationStatus;
     assert_eq!(
-        client.get_verification(&pid).status,
+        client.get_verification(&pid).unwrap().status,
         VerificationStatus::Verified
     );
 }
@@ -482,7 +482,7 @@ fn matrix_reject_verification_admin_succeeds_stranger_fails() {
     client.reject_verification(&pid, &admin);
     use crate::types::VerificationStatus;
     assert_eq!(
-        client.get_verification(&pid).status,
+        client.get_verification(&pid).unwrap().status,
         VerificationStatus::Rejected
     );
 }
@@ -505,7 +505,7 @@ fn matrix_revoke_verification_admin_succeeds_stranger_fails() {
     client.revoke_verification(&pid, &admin, &reason);
     use crate::types::VerificationStatus;
     assert_eq!(
-        client.get_verification(&pid).status,
+        client.get_verification(&pid).unwrap().status,
         VerificationStatus::Unverified
     );
 }

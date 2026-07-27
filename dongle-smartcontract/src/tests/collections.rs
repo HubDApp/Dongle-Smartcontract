@@ -127,7 +127,7 @@ fn test_create_and_get_collection() {
 
     assert_eq!(id, 1);
 
-    let collection = client.get_collection(&id);
+    let collection = client.get_collection(&id).unwrap();
     assert_eq!(collection.id, 1);
     assert_eq!(collection.name, String::from_str(&env, "DeFi"));
     assert_eq!(
@@ -143,8 +143,8 @@ fn test_get_collection_not_found() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
 
-    let result = client.try_get_collection(&999u64);
-    assert_eq!(result, Err(Ok(ContractError::CollectionNotFound)));
+    let result = client.get_collection(&999u64);
+    assert_eq!(result, None);
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn test_update_collection() {
         &String::from_str(&env, "Updated description"),
     );
 
-    let collection = client.get_collection(&id);
+    let collection = client.get_collection(&id).unwrap();
     assert_eq!(collection.name, String::from_str(&env, "DeFi 2.0"));
     assert_eq!(
         collection.description,
@@ -221,8 +221,8 @@ fn test_delete_collection() {
 
     client.mock_all_auths().delete_collection(&admin, &id);
 
-    let result = client.try_get_collection(&id);
-    assert_eq!(result, Err(Ok(ContractError::CollectionNotFound)));
+    let result = client.get_collection(&id);
+    assert_eq!(result, None);
 
     let collections = client.list_collections(&0, &10);
     assert_eq!(collections.len(), 0);
@@ -666,8 +666,8 @@ fn test_delete_collection_removes_project_associations() {
         .mock_all_auths()
         .delete_collection(&admin, &collection_id);
 
-    let result = client.try_get_collection(&collection_id);
-    assert_eq!(result, Err(Ok(ContractError::CollectionNotFound)));
+    let result = client.get_collection(&collection_id);
+    assert_eq!(result, None);
 
     let project = client.get_project(&project_id);
     assert_eq!(project.unwrap().id, project_id);
