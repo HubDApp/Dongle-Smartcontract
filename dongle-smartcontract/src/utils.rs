@@ -1,6 +1,7 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
 use soroban_sdk::{Env, Map, String};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -15,15 +16,83 @@ fn copy_str(s: &String, buf: &mut [u8]) -> usize {
     let cap = if len < buf.len() { len } else { buf.len() };
     s.copy_into_slice(&mut buf[..cap]);
     cap
-}
-
 #[allow(dead_code)]
 pub struct Utils;
 
+#[allow(dead_code)]
 impl Utils {
+    /// Convert a Soroban String to lowercase for case-insensitive comparison.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let len = s.len() as usize;
+        if len == 0 {
+            return s.clone();
+        }
+        let mut buf = [0u8; 256]; // MAX_NAME_LEN is 50, so 256 is more than enough
+        let actual_len = core::cmp::min(len, buf.len());
+        s.copy_into_slice(&mut buf[..actual_len]);
+        for b in buf[..actual_len].iter_mut() {
+            if *b >= b'A' && *b <= b'Z' {
+                *b += 32;
+            }
+        }
+        String::from_str(env, core::str::from_utf8(&buf[..actual_len]).unwrap_or(""))
+    }
+}
+
+/// Check if address is a maintainer of the project (free function).
+pub fn is_maintainer(project: &Project, address: &Address) -> bool {
+    if let Some(ref maintainers) = project.maintainers {
+        maintainers.contains(address)
+    } else {
+        false
+    }
+}
+
+impl Utils {
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    ///
+    /// This is a generic replacement for the hand-rolled "filter and rebuild"
+    /// pattern that was duplicated across multiple registries.
+    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
+
+    /// Convert a Soroban String to lowercase for case-insensitive comparison.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let bytes = s.as_bytes();
+        let len = bytes.len();
+        let mut buf = [0u8; 256];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        for i in 0..cap {
+            buf[i] = if bytes[i].is_ascii_uppercase() {
+                bytes[i] + 32
+            } else {
+                bytes[i]
+            };
+        }
+        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, s)
+    }
 
     /// Normalize a project name for duplicate-detection purposes.
     ///
@@ -35,13 +104,6 @@ impl Utils {
     ///
     /// Two names that produce the same normalized form are considered
     /// duplicates regardless of their original casing, spacing, or punctuation.
-    ///
-    /// Examples:
-    ///   "MyProject"   → "myproject"
-    ///   "MY PROJECT"  → "my project"
-    ///   "my-project"  → "my-project"
-    ///   "My.Project!" → "my project"   (dots and ! removed)
-    ///   "  My  Project  " → "my project"
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
 
@@ -56,36 +118,49 @@ impl Utils {
 
         for i in 0..cap {
             let b = raw[i];
+        if len == 0 {
+            return String::from_str(env, "");
+        }
+
+        let mut raw_buf = [0u8; 128];
+        let actual_len = core::cmp::min(len, raw_buf.len());
+        name.copy_into_slice(&mut raw_buf[..actual_len]);
+
+        let mut out_buf = [0u8; 128];
+        let mut out_len: usize = 0;
+        let mut last_was_space = true; // treat start as "space" to strip leading
+
+        for i in 0..actual_len {
+            let b = raw_buf[i];
             let normalized = if b.is_ascii_uppercase() {
-                // lowercase
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
-                // whitespace → single space (collapsed)
                 b' '
             } else if b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' {
-                // keep as-is
                 b
             } else {
-                // punctuation / special chars → strip (replace with space to
-                // avoid merging adjacent words: "foo.bar" → "foo bar")
                 b' '
             };
 
             if normalized == b' ' {
                 if !last_was_space && out_len < len {
                     buf[out_len] = b' ';
+                if !last_was_space && out_len < out_buf.len() {
+                    out_buf[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                buf[out_len] = normalized;
-                out_len += 1;
+                if out_len < out_buf.len() {
+                    out_buf[out_len] = normalized;
+                    out_len += 1;
+                }
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && buf[out_len - 1] == b' ' {
+        while out_len > 0 && out_buf[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
@@ -107,6 +182,8 @@ impl Utils {
         }
         let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
         String::from_str(env, lower)
+        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
+        String::from_str(env, s)
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -132,6 +209,10 @@ impl Utils {
         let cap = copy_str(name, &mut buf);
         let mut all_ws = true;
         for &b in buf[..cap].iter() {
+        let mut buf = [0u8; MAX_NAME_LEN];
+        name.copy_into_slice(&mut buf[..len]);
+        let mut all_ws = true;
+        for &b in &buf[..len] {
             if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
                 return Err(ContractError::InvalidProjectName);
             }
@@ -166,6 +247,14 @@ impl Utils {
                 return Err(ContractError::InvalidProjectSlug);
             }
             if b == b'-' && (i == 0 || i == cap - 1) {
+        let mut buf = [0u8; MAX_SLUG_LEN];
+        slug.copy_into_slice(&mut buf[..len]);
+        let bytes = &buf[..len];
+        for (i, &b) in bytes.iter().enumerate() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidProjectSlug);
+            }
+            if b == b'-' && (i == 0 || i == len - 1) {
                 return Err(ContractError::InvalidProjectSlug);
             }
         }
@@ -185,6 +274,10 @@ impl Utils {
         let cap = copy_str(desc, &mut buf);
         // Reject whitespace-only descriptions
         let all_ws = buf[..cap].iter().all(|b| b.is_ascii_whitespace());
+        let mut buf = [0u8; 2048];
+        let actual_len = core::cmp::min(len, buf.len());
+        desc.copy_into_slice(&mut buf[..actual_len]);
+        let all_ws = buf[..actual_len].iter().all(|b| b.is_ascii_whitespace());
         if all_ws {
             return Err(ContractError::InvalidProjectDesc);
         }
@@ -203,6 +296,9 @@ impl Utils {
         let mut buf = [0u8; MAX_CATEGORY_LEN + 1];
         let cap = copy_str(cat, &mut buf);
         let all_ws = buf[..cap].iter().all(|b| b.is_ascii_whitespace());
+        let mut buf = [0u8; MAX_CATEGORY_LEN];
+        cat.copy_into_slice(&mut buf[..len]);
+        let all_ws = buf[..len].iter().all(|b| b.is_ascii_whitespace());
         if all_ws {
             return Err(ContractError::InvalidCategory);
         }
@@ -226,6 +322,15 @@ impl Utils {
         let starts_https = cap >= 8
             && &buf[..8] == b"https://";
         if !starts_http && !starts_https {
+        if len == 0 || len > MAX_WEBSITE_LEN {
+            return Err(ContractError::InvalidWebsite);
+        }
+        let mut buf = [0u8; MAX_WEBSITE_LEN];
+        url.copy_into_slice(&mut buf[..len]);
+        let bytes = &buf[..len];
+        let starts_with_http = bytes.starts_with(b"http://");
+        let starts_with_https = bytes.starts_with(b"https://");
+        if !starts_with_http && !starts_with_https {
             return Err(ContractError::InvalidWebsite);
         }
         Ok(())
@@ -243,6 +348,12 @@ impl Utils {
         let mut buf = [0u8; MAX_LICENSE_LEN + 1];
         let cap = copy_str(license, &mut buf);
         for &b in buf[..cap].iter() {
+        if len == 0 || len > MAX_LICENSE_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+        let mut buf = [0u8; MAX_LICENSE_LEN];
+        license.copy_into_slice(&mut buf[..len]);
+        for &b in &buf[..len] {
             if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' {
                 return Err(ContractError::InvalidProjectData);
             }
@@ -276,7 +387,7 @@ impl Utils {
     }
 
     /// Validate the tags list (each tag must be non-empty ASCII alphanumeric/hyphen/underscore).
-    pub fn validate_tags(tags: &soroban_sdk::Vec<String>) -> Result<(), ContractError> {
+    pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
         for i in 0..tags.len() {
             if let Some(tag) = tags.get(i) {
                 let tag_len = tag.len() as usize;
@@ -286,6 +397,13 @@ impl Utils {
                 let mut buf = [0u8; 128];
                 let cap = copy_str(&tag, &mut buf);
                 for &b in buf[..cap].iter() {
+                let len = tag.len() as usize;
+                if len == 0 || len > 64 {
+                    return Err(ContractError::InvalidTags);
+                }
+                let mut buf = [0u8; 64];
+                tag.copy_into_slice(&mut buf[..len]);
+                for &b in &buf[..len] {
                     if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
                         return Err(ContractError::InvalidTags);
                     }
@@ -300,6 +418,11 @@ impl Utils {
         for key in links.keys().iter() {
             if let Some(url) = links.get(key) {
                 Self::validate_website(&url)?;
+    /// Validate the social links list (each link must be a valid URL).
+    pub fn validate_social_links(links: &Vec<String>) -> Result<(), ContractError> {
+        for i in 0..links.len() {
+            if let Some(link) = links.get(i) {
+                Self::validate_website(&link)?;
             }
         }
         Ok(())
@@ -324,6 +447,12 @@ impl Utils {
             // CIDv0
             cap == 46
         } else if cap >= 1 && buf[0] == b'b' {
+        let mut buf = [0u8; MAX_CID_LEN];
+        cid.copy_into_slice(&mut buf[..len]);
+        if buf[0] == b'Q' && buf[1] == b'm' {
+            // CIDv0
+            len == 46
+        } else if buf[0] == b'b' {
             // CIDv1
             true
         } else {
@@ -348,10 +477,6 @@ impl Utils {
     // ────────────────────────────────────────────────────────────────────
 
     /// For verified projects, certain identity-critical fields are frozen.
-    ///
-    /// Frozen fields: `slug`, `category`, `logo_cid`.
-    /// `name` is NOT frozen (rename triggers verification reset instead).
-    /// `metadata_cid` is NOT frozen.
     pub fn check_frozen_fields(
         is_verified: bool,
         _name_differs: bool,

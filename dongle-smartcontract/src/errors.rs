@@ -125,6 +125,8 @@ pub enum ContractError {
 
     // Tags
     TooManyTags = 83,
+    // Contract pause / emergency stop
+    ContractPaused = 61,
 }
 
 pub type Error = ContractError;
