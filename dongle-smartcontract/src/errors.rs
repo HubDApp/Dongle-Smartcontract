@@ -85,6 +85,13 @@ pub enum ContractError {
     // Normalized name duplicate
     DuplicateProjectName = 60,
 
+    // Tags & Collections
+    TooManyTags = 61,
+    CollectionNotFound = 62,
+    CollectionExists = 63,
+    AlreadyInCollection = 64,
+    CollectionFull = 65,
+    MaxProjectsPerCollectionExceeded = 66,
     // Anti-sybil review eligibility
     ReviewerNotEligible = 61,
     ReviewFeeRequired = 62,
