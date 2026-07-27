@@ -12,6 +12,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
+use crate::utils::Utils;
 use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
 
 pub struct AdminManager;
@@ -116,12 +117,7 @@ impl AdminManager {
             .remove(&StorageKey::Admin(admin_to_remove.clone()));
 
         // Remove from admin list
-        let mut new_admins = Vec::new(env);
-        for admin in admins.iter() {
-            if admin != admin_to_remove {
-                new_admins.push_back(admin);
-            }
-        }
+        let new_admins = Utils::remove_item_from_vec(env, &admins, &admin_to_remove);
         env.storage()
             .persistent()
             .set(&StorageKey::AdminList, &new_admins);
@@ -377,12 +373,7 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::Admin(admin_to_remove.clone()));
-                let mut new_admins = Vec::new(env);
-                for admin in admins.iter() {
-                    if admin != admin_to_remove {
-                        new_admins.push_back(admin);
-                    }
-                }
+                let new_admins = Utils::remove_item_from_vec(env, &admins, &admin_to_remove);
                 env.storage()
                     .persistent()
                     .set(&StorageKey::AdminList, &new_admins);

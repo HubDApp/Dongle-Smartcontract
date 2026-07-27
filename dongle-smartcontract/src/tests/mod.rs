@@ -72,5 +72,5 @@ mod timelock;
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
 
-// Anti-sybil review eligibility constraints
-mod review_eligibility;
+// Contract pause / emergency stop
+mod emergency_pause;

@@ -2,6 +2,7 @@ use crate::events::{publish_project_endorsed_event, publish_project_unendorsed_e
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
+use crate::utils::Utils;
 use soroban_sdk::{contracterror, Address, Env, Vec};
 
 #[contracterror]
@@ -70,14 +71,7 @@ impl EndorsementRegistry {
             .get(&ExtensionKey::ProjectEndorsements(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        let mut new_endorsements: Vec<Address> = Vec::new(env);
-        for i in 0..endorsements.len() {
-            if let Some(e) = endorsements.get(i) {
-                if e != user {
-                    new_endorsements.push_back(e);
-                }
-            }
-        }
+        let new_endorsements = Utils::remove_item_from_vec(env, &endorsements, &user);
         env.storage().persistent().set(
             &ExtensionKey::ProjectEndorsements(project_id),
             &new_endorsements,
