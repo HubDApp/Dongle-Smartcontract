@@ -142,8 +142,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
     /// Fee config history entry count.
     FeeConfigHistoryCount,
     /// Fee config history entry by index (oldest = 0).

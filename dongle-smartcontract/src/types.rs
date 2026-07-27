@@ -276,16 +276,6 @@ pub struct FeePaymentRecord {
     pub token: Option<Address>,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeeRefundRecord {
-    pub request_id: u64,
-    pub project_id: u64,
-    pub payer: Address,
-    pub token: Option<Address>,
-    pub amount: u128,
-    pub refunded: bool,
-}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
