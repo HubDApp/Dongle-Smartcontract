@@ -84,6 +84,14 @@ pub enum ContractError {
 
     // Normalized name duplicate
     DuplicateProjectName = 60,
+
+    // Tags & Collections
+    TooManyTags = 61,
+    CollectionNotFound = 62,
+    CollectionExists = 63,
+    AlreadyInCollection = 64,
+    CollectionFull = 65,
+    MaxProjectsPerCollectionExceeded = 66,
 }
 
 pub type Error = ContractError;

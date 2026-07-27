@@ -204,7 +204,7 @@ impl CollectionRegistry {
         }
 
         if project_ids.len() >= MAX_PROJECTS_PER_COLLECTION {
-            return Err(ContractError::TooManyTags);
+            return Err(ContractError::CollectionFull);
         }
 
         project_ids.push_back(project_id);
