@@ -13,6 +13,7 @@ use crate::events::{
 use crate::pagination::paginate;
 use crate::storage_keys::StorageKey;
 use crate::types::{AdminActionType, Collection};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct CollectionRegistry;
@@ -141,12 +142,7 @@ impl CollectionRegistry {
             .persistent()
             .get(&StorageKey::CollectionList)
             .unwrap_or(Vec::new(env));
-        let mut updated = Vec::new(env);
-        for id in list.iter() {
-            if id != collection_id {
-                updated.push_back(id);
-            }
-        }
+        let updated = Utils::remove_item_from_vec(env, &list, &collection_id);
         env.storage()
             .persistent()
             .set(&StorageKey::CollectionList, &updated);
@@ -204,7 +200,7 @@ impl CollectionRegistry {
         }
 
         if project_ids.len() >= MAX_PROJECTS_PER_COLLECTION {
-            return Err(ContractError::TooManyTags);
+            return Err(ContractError::CollectionFull);
         }
 
         project_ids.push_back(project_id);
@@ -247,12 +243,7 @@ impl CollectionRegistry {
             return Err(ContractError::AlreadyInCollection);
         }
 
-        let mut updated = Vec::new(env);
-        for id in project_ids.iter() {
-            if id != project_id {
-                updated.push_back(id);
-            }
-        }
+        let updated = Utils::remove_item_from_vec(env, &project_ids, &project_id);
         env.storage()
             .persistent()
             .set(&StorageKey::CollectionProjectIds(collection_id), &updated);
