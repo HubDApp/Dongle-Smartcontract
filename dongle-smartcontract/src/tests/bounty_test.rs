@@ -24,7 +24,7 @@ fn test_registration_with_invalid_bounty_url() {
     let mut params = create_test_project_params(&env, &owner, "Test");
     params.bounty_url = Some(String::from_str(&env, "ftp://bounty.com"));
     let res = client.mock_all_auths().register_project(&params);
-    assert_eq!(res.unwrap_err(), ContractError::InvalidBountyUrl);
+    assert_eq!(res.unwrap_err(), ContractError::InvalidInput);
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn test_registration_with_invalid_bounty_cid() {
     let mut params = create_test_project_params(&env, &owner, "Test");
     params.bounty_cid = Some(String::from_str(&env, "invalid-cid"));
     let res = client.mock_all_auths().register_project(&params);
-    assert_eq!(res.unwrap_err(), ContractError::InvalidBountyCid);
+    assert_eq!(res.unwrap_err(), ContractError::InvalidCid);
 }
 
 fn create_test_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationParams {

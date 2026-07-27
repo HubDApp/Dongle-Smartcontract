@@ -512,7 +512,7 @@ fn test_collection_name_too_long() {
         &String::from_str(&env, "desc"),
     );
 
-    assert_eq!(result, Err(Ok(ContractError::ProjectNameTooLong)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectName)));
 }
 
 #[test]
@@ -527,7 +527,7 @@ fn test_collection_description_too_long() {
         &String::from_str(&env, &long_desc),
     );
 
-    assert_eq!(result, Err(Ok(ContractError::ProjectDescTooLong)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 }
 
 #[test]

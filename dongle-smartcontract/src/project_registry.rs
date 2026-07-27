@@ -1042,7 +1042,7 @@ impl ProjectRegistry {
 
         caller.require_auth();
         if caller != pending_new_owner {
-            return Err(ContractError::NotTransferRecip);
+            return Err(ContractError::Unauthorized);
         }
 
         let old_owner = project.owner.clone();
@@ -2063,7 +2063,7 @@ mod tests {
         // 2. Validate max length using the CONSTANT
         let max_len = crate::constants::MAX_NAME_LEN;
         if name_str.len() > max_len {
-            return Err(ContractError::ProjectNameTooLong);
+            return Err(ContractError::InvalidProjectName);
         }
 
         // 3. Validate alphanumeric, underscore, hyphen
@@ -2126,7 +2126,7 @@ mod tests {
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "Cat"),
         );
-        assert_eq!(result, Err(ContractError::ProjectNameTooLong));
+        assert_eq!(result, Err(ContractError::InvalidProjectName));
     }
 
     #[test]
@@ -2147,7 +2147,7 @@ mod tests {
         let description = String::from_str(&env, "");
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::InvalidProjectDesc));
+        assert_eq!(result, Err(ContractError::InvalidProjectData));
     }
 
     #[test]
@@ -2169,7 +2169,7 @@ mod tests {
         let description = String::from_str(&env, &long_desc);
 
         let result = crate::utils::Utils::validate_description(&description);
-        assert_eq!(result, Err(ContractError::ProjectDescTooLong));
+        assert_eq!(result, Err(ContractError::InvalidProjectData));
     }
 
     #[test]
