@@ -20,6 +20,8 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
+    /// Project by normalized name (for case/whitespace/punctuation-insensitive duplicate detection).
+    ProjectByNormalizedName(String),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -160,11 +162,16 @@ pub enum ExtensionKey {
     ProjectRegion(u64),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
     /// Anti-sybil: global review eligibility configuration.
     ReviewEligibilityConfig,
     /// Anti-sybil: tracks the first-interaction timestamp for an address.
     FirstInteraction(Address),
+    /// Contract claim request by (project_id, contract_address).
+    ContractClaim(u64, String),
+    /// List of verified contract addresses for a project.
+    ProjectContracts(u64),
+    /// Number of review revisions for (project_id, reviewer).
+    ReviewRevisionCount(u64, Address),
+    /// Individual review revision snapshot by (project_id, reviewer, revision_index).
+    ReviewRevision(u64, Address, u32),
 }
