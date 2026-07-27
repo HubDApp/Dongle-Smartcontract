@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Env, String};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -351,5 +351,35 @@ impl Utils {
             return Err(ContractError::VerifiedFieldFrozen);
         }
         Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Sorting
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Sort a Soroban `Vec` in place using bubble sort.
+    ///
+    /// `should_swap(a, b)` is called for each adjacent pair and should
+    /// return `true` if `a` and `b` need to be swapped to reach the desired
+    /// order. Bounds are checked with `if let Some(...)` rather than
+    /// `.get(..).unwrap()`, so the loop stays safe even if the index bounds
+    /// are ever changed.
+    pub fn bubble_sort_by<T, F>(items: &mut soroban_sdk::Vec<T>, mut should_swap: F)
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>,
+        F: FnMut(&T, &T) -> bool,
+    {
+        let n = items.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                if let (Some(a), Some(b)) = (items.get(j), items.get(j + 1)) {
+                    if should_swap(&a, &b) {
+                        items.set(j, b);
+                        items.set(j + 1, a);
+                    }
+                }
+            }
+        }
     }
 }

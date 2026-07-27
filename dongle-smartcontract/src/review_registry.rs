@@ -1164,24 +1164,14 @@ impl ReviewRegistry {
             }
         }
 
-        // Bubble-sort in-memory by the requested mode.
+        // Sort in-memory by the requested mode.
+        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
+            ReviewSortMode::Newest => a.created_at < b.created_at,
+            ReviewSortMode::Oldest => a.created_at > b.created_at,
+            ReviewSortMode::RatingHigh => a.rating < b.rating,
+            ReviewSortMode::RatingLow => a.rating > b.rating,
+        });
         let n = all.len();
-        for i in 0..n {
-            for j in 0..n.saturating_sub(i + 1) {
-                let a = all.get(j).unwrap();
-                let b = all.get(j + 1).unwrap();
-                let swap = match sort_mode {
-                    ReviewSortMode::Newest => a.created_at < b.created_at,
-                    ReviewSortMode::Oldest => a.created_at > b.created_at,
-                    ReviewSortMode::RatingHigh => a.rating < b.rating,
-                    ReviewSortMode::RatingLow => a.rating > b.rating,
-                };
-                if swap {
-                    all.set(j, b);
-                    all.set(j + 1, a);
-                }
-            }
-        }
 
         // Apply pagination.
         let mut out = Vec::new(env);

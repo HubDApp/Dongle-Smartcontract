@@ -1967,51 +1967,24 @@ impl ProjectRegistry {
             }
         }
 
-        let n = all.len();
-        for i in 0..n {
-            for j in 0..n.saturating_sub(i + 1) {
-                let a = all.get(j).unwrap();
-                let b = all.get(j + 1).unwrap();
-                let mut swap = false;
-                match sort_mode {
-                    ProjectSortMode::Newest => {
-                        if a.created_at < b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::Oldest => {
-                        if a.created_at > b.created_at {
-                            swap = true;
-                        }
-                    }
-                    ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                        let stats_a =
-                            crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                        let stats_b =
-                            crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                        if sort_mode == ProjectSortMode::HighestRated {
-                            if stats_a.average_rating < stats_b.average_rating {
-                                swap = true;
-                            } else if stats_a.average_rating == stats_b.average_rating
-                                && stats_a.review_count < stats_b.review_count
-                            {
-                                swap = true;
-                            }
-                        } else if stats_a.review_count < stats_b.review_count {
-                            swap = true;
-                        } else if stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating
-                        {
-                            swap = true;
-                        }
-                    }
-                }
-                if swap {
-                    all.set(j, b);
-                    all.set(j + 1, a);
+        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
+            ProjectSortMode::Newest => a.created_at < b.created_at,
+            ProjectSortMode::Oldest => a.created_at > b.created_at,
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
+                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
+                if sort_mode == ProjectSortMode::HighestRated {
+                    stats_a.average_rating < stats_b.average_rating
+                        || (stats_a.average_rating == stats_b.average_rating
+                            && stats_a.review_count < stats_b.review_count)
+                } else {
+                    stats_a.review_count < stats_b.review_count
+                        || (stats_a.review_count == stats_b.review_count
+                            && stats_a.average_rating < stats_b.average_rating)
                 }
             }
-        }
+        });
+        let n = all.len();
 
         let mut result = Vec::new(env);
         let start = start_id as u32;

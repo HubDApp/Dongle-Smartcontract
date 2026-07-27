@@ -60,8 +60,8 @@ pub struct DongleContract;
 impl DongleContract {
     // --- Initialization & Admin Management ---
 
-    pub fn initialize(env: Env, admin: Address) {
-        AdminManager::initialize(&env, admin);
+    pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
+        AdminManager::initialize(&env, admin)
     }
 
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
