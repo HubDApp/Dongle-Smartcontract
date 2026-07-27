@@ -360,14 +360,6 @@ pub struct Collection {
     pub updated_at: u64,
 }
 
-/// Parameters for creating a new collection (admin-only).
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CreateCollectionParams {
-    pub name: String,
-    pub description: String,
-}
-
 /// Types of admin actions recorded in the admin action log.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -446,7 +438,7 @@ pub struct AdminActionEntry {
     pub reason_cid: Option<String>,
 }
 
-// ── Admin Timelock ──────────────────────────────────────────────────────────
+// ── Admin Timelock ───────────────────────────────────────────────────────────
 
 /// A scheduled action in the admin timelock.
 #[contracttype]
