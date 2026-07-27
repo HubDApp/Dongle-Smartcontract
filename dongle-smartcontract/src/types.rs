@@ -517,6 +517,28 @@ pub struct ReviewTombstone {
     pub deleted_at: u64,
 }
 
+/// Optional anti-sybil review eligibility constraints.
+///
+/// When all constraints are zero/false (default), any address may review
+/// any project without restriction — preserving full backward compatibility.
+///
+/// Admins may relax or tighten these knobs via `set_review_eligibility_config`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewEligibilityConfig {
+    /// Minimum seconds that must have elapsed since the reviewer's first
+    /// interaction with the contract (e.g. first review, project registration,
+    /// endorsement, follow, or bookmark). Zero = no age check.
+    pub min_reviewer_age_seconds: u64,
+    /// If true, the reviewer must have previously endorsed the project
+    /// (`EndorsementRegistry::has_endorsed`) before submitting a review.
+    pub require_endorsement: bool,
+    /// Fee amount (in the configured fee token) required to submit a review.
+    /// Zero = no fee required. When non-zero, the caller must have paid this
+    /// amount to the treasury before submitting the review.
+    pub review_fee: u128,
+}
+
 /// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
 /// For large projects this increases compute budget usage proportionally to review count.
 #[contracttype]

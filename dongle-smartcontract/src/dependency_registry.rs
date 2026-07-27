@@ -251,15 +251,7 @@ impl DependencyRegistry {
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
-        let mut new_keys: Vec<String> = Vec::new(env);
-        for i in 0..keys.len() {
-            if let Some(k) = keys.get(i) {
-                if k != key {
-                    new_keys.push_back(k);
-                }
-            }
-        }
-
+        let new_keys = Utils::remove_item_from_vec(env, &keys, &key);
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &new_keys);

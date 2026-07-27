@@ -47,6 +47,8 @@ def main():
     # Regex definitions matching the JSON schema
     contract_id_pattern = re.compile(r"^C[A-Z2-7]{55}$")
     wasm_hash_pattern = re.compile(r"^[a-fA-F0-9]{64}$")
+    git_commit_pattern = re.compile(r"^[a-f0-9]{7,40}$")
+    git_tag_pattern = re.compile(r"^[a-zA-Z0-9._-]+$")
     deployer_pattern = re.compile(r"^[GC][A-Z2-7]{55}$")
     # ISO 8601 format regex
     timestamp_pattern = re.compile(
@@ -69,13 +71,14 @@ def main():
 
             # Check for required properties
             entry_keys = set(entry.keys())
-            req_fields = {"contract_id", "wasm_hash", "deployer", "timestamp"}
+            req_fields = {"contract_id", "wasm_hash", "git_commit", "deployer", "timestamp"}
+            opt_fields = {"git_tag"}
             
             missing_fields = req_fields - entry_keys
             if missing_fields:
                 errors.append(f"Entry {loc} is missing required fields: {missing_fields}")
                 
-            extra_fields = entry_keys - req_fields
+            extra_fields = entry_keys - req_fields - opt_fields
             if extra_fields:
                 errors.append(f"Entry {loc} has unexpected fields: {extra_fields}")
 
@@ -94,6 +97,22 @@ def main():
                     errors.append(
                         f"Entry {loc}.wasm_hash ('{whash}') is invalid. "
                         f"Must be a 64-character hex string."
+                    )
+
+            if "git_commit" in entry:
+                gc = entry["git_commit"]
+                if not isinstance(gc, str) or not git_commit_pattern.match(gc):
+                    errors.append(
+                        f"Entry {loc}.git_commit ('{gc}') is invalid. "
+                        f"Must be a git commit hash (7-40 hex characters)."
+                    )
+
+            if "git_tag" in entry:
+                gt = entry["git_tag"]
+                if not isinstance(gt, str) or not git_tag_pattern.match(gt):
+                    errors.append(
+                        f"Entry {loc}.git_tag ('{gt}') is invalid. "
+                        f"Must be a valid git tag (alphanumeric, dots, underscores, hyphens)."
                     )
 
             if "deployer" in entry:
