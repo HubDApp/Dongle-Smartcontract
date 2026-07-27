@@ -10,8 +10,10 @@ use crate::events::{
     publish_collection_updated_event, publish_project_added_to_collection_event,
     publish_project_removed_from_collection_event,
 };
+use crate::pagination::paginate;
 use crate::storage_keys::StorageKey;
 use crate::types::{AdminActionType, Collection};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct CollectionRegistry;
@@ -140,12 +142,7 @@ impl CollectionRegistry {
             .persistent()
             .get(&StorageKey::CollectionList)
             .unwrap_or(Vec::new(env));
-        let mut updated = Vec::new(env);
-        for id in list.iter() {
-            if id != collection_id {
-                updated.push_back(id);
-            }
-        }
+        let updated = Utils::remove_item_from_vec(env, &list, &collection_id);
         env.storage()
             .persistent()
             .set(&StorageKey::CollectionList, &updated);
@@ -203,7 +200,7 @@ impl CollectionRegistry {
         }
 
         if project_ids.len() >= MAX_PROJECTS_PER_COLLECTION {
-            return Err(ContractError::TooManyTags);
+            return Err(ContractError::CollectionFull);
         }
 
         project_ids.push_back(project_id);
@@ -246,12 +243,7 @@ impl CollectionRegistry {
             return Err(ContractError::AlreadyInCollection);
         }
 
-        let mut updated = Vec::new(env);
-        for id in project_ids.iter() {
-            if id != project_id {
-                updated.push_back(id);
-            }
-        }
+        let updated = Utils::remove_item_from_vec(env, &project_ids, &project_id);
         env.storage()
             .persistent()
             .set(&StorageKey::CollectionProjectIds(collection_id), &updated);
@@ -288,28 +280,17 @@ impl CollectionRegistry {
             .persistent()
             .get(&StorageKey::CollectionList)
             .unwrap_or(Vec::new(env));
-
-        let limit = limit.min(100);
+        let page_ids = paginate(env, &ids, start, limit);
         let mut result = Vec::new(env);
-        let mut count = 0u32;
-
-        for (i, collection_id) in ids.iter().enumerate() {
-            if (i as u32) < start {
-                continue;
-            }
-            if count >= limit {
-                break;
-            }
+        for collection_id in page_ids.iter() {
             if let Some(collection) = env
                 .storage()
                 .persistent()
                 .get::<_, Collection>(&StorageKey::Collection(collection_id))
             {
                 result.push_back(collection);
-                count += 1;
             }
         }
-
         result
     }
 
@@ -324,23 +305,7 @@ impl CollectionRegistry {
             .persistent()
             .get(&StorageKey::CollectionProjectIds(collection_id))
             .unwrap_or(Vec::new(env));
-
-        let limit = limit.min(100);
-        let mut result = Vec::new(env);
-        let mut count = 0u32;
-
-        for (i, project_id) in ids.iter().enumerate() {
-            if (i as u32) < start {
-                continue;
-            }
-            if count >= limit {
-                break;
-            }
-            result.push_back(project_id);
-            count += 1;
-        }
-
-        result
+        paginate(env, &ids, start, limit)
     }
 
     pub fn get_collection_project_count(env: &Env, collection_id: u64) -> u32 {

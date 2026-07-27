@@ -54,7 +54,130 @@ graph TD
 
 ---
 
-## 4. Unresolved Risks & Trust Assumptions
+## 4. Panic-as-Denial-of-Service (DoS) Risk
+
+### Threat Description
+
+A panic condition in Soroban contracts terminates execution and can be exploited by an attacker to trigger contract halts. If panic call sites are reachable from external entry points via untrusted inputs (e.g., malformed data, adversarial registry state, or out-of-bounds operations), an attacker can cause a denial of service by crafting inputs that trigger the panic.
+
+### Affected Components
+
+The following modules contain panic/unwrap/expect call sites reachable from external entry points:
+
+#### 1. **Timelock Manager** (`src/timelock_manager.rs`)
+- **Lines 49, 52:** Panic on invalid execution timestamp (future timestamp and minimum delay validation)
+  ```rust
+  panic!("Timelock: execution timestamp must be in the future");
+  panic!("Timelock: minimum delay not met");
+  ```
+- **Line 60:** `unwrap_or_else(|| panic!(...))` when action not found
+  ```rust
+  .unwrap_or_else(|| panic!("Timelock: action not found"))
+  ```
+- **Lines 74, 77, 85:** Panic on invalid action state (already executed, already cancelled, timelock not expired)
+  ```rust
+  panic!("Timelock: action already executed");
+  panic!("Timelock: action already cancelled");
+  panic!("Timelock: action cannot execute before timelock expires");
+  ```
+- **Lines 268, 300, 325:** `.expect()` calls on storage retrieval that may fail if data is corrupted or missing
+  ```rust
+  .expect("Timelock: fee params not found");
+  .expect("Timelock: admin add params not found");
+  .expect("Timelock: admin remove params not found");
+  ```
+
+**Entry Point:** `execute_timelock_action()` (publicly callable)
+
+#### 2. **Endorsement Registry** (`src/endorsement_registry.rs`)
+- **Line 26:** Panic when project not found
+  ```rust
+  panic!("project not found");
+  ```
+
+**Entry Point:** Endorsement operations reachable from external users
+
+#### 3. **Bookmark Registry** (`src/bookmark_registry.rs`)
+- **Line 28:** Panic when project not found
+  ```rust
+  panic!("project not found");
+  ```
+
+**Entry Point:** Bookmark operations reachable from external users
+
+#### 4. **Dependency Registry** (`src/dependency_registry.rs`)
+- **Lines 100, 111, 122, 130:** `.unwrap()` on UTF-8 string conversion
+  ```rust
+  let key_str = core::str::from_utf8(&buf[..4 + num_len]).unwrap();
+  let key_str = core::str::from_utf8(&buf[..4 + cid_len as usize]).unwrap();
+  let key_str = core::str::from_utf8(&buf[..4 + url_len as usize]).unwrap();
+  let key_str = core::str::from_utf8(&buf[..60]).unwrap();
+  ```
+
+**Risk:** If buffer slicing logic is incorrect, UTF-8 parsing can fail and trigger panic.
+
+#### 5. **Review Registry** (`src/review_registry.rs`)
+- **Lines 1074, 1075:** `.unwrap()` on Vec access without bounds checking
+  ```rust
+  let a = all.get(j).unwrap();
+  let b = all.get(j + 1).unwrap();
+  ```
+
+**Risk:** Out-of-bounds access if vector size assumptions are violated.
+
+#### 6. **Project Registry** (`src/project_registry.rs`)
+- **Lines 1973, 1974:** `.unwrap()` on Vec access without bounds checking
+  ```rust
+  let a = all.get(j).unwrap();
+  let b = all.get(j + 1).unwrap();
+  ```
+
+**Risk:** Out-of-bounds access if vector size assumptions are violated.
+
+#### 7. **Admin Manager** (`src/admin_manager.rs`)
+- **Line 23:** Panic on re-initialization
+  ```rust
+  panic!("Contract already initialized");
+  ```
+
+**Risk:** If initialization state is corrupted, attacker may trigger panic.
+
+### Mitigation Strategy
+
+1. **Replace panic/unwrap with error returns:**
+   - Convert all `panic!()`, `unwrap()`, and `expect()` calls to use `Result<T, ContractError>` returns
+   - Handle errors gracefully with appropriate error variants in `src/errors.rs`
+
+2. **Bounds checking:**
+   - Verify vector/array indices before access using `.get()` instead of direct indexing
+   - Add length assertions with error returns, not panics
+
+3. **UTF-8 validation:**
+   - Use `.unwrap_or_else()` with fallback logic, or validate buffer contents before UTF-8 conversion
+   - Return `ContractError` on malformed UTF-8, do not panic
+
+4. **Storage invariants:**
+   - Use `.ok_or(ContractError::...)` instead of `.expect()` for storage retrievals
+   - Add assertions to validate storage consistency at entry points
+
+5. **Verification and testing:**
+   - Add property-based tests (proptest) to fuzz inputs and verify no panic conditions are reachable
+   - Use fuzzing tools to systematically test entry points with malformed data
+   - Add doc tests with panic-triggering inputs to catch regressions
+
+### Related Issues
+
+- **Issue #XXX:** Replace panics in timelock_manager.rs with error returns
+- **Issue #XXX:** Replace panics in endorsement_registry.rs with error returns
+- **Issue #XXX:** Replace panics in bookmark_registry.rs with error returns
+- **Issue #XXX:** Fix UTF-8 unwraps in dependency_registry.rs
+- **Issue #XXX:** Fix vector bounds panics in review_registry.rs
+- **Issue #XXX:** Fix vector bounds panics in project_registry.rs
+- **Issue #XXX:** Harden admin_manager initialization checks
+
+---
+
+## 5. Unresolved Risks & Trust Assumptions
 
 1. **IPFS / Off-Chain Data Availability:** 
    - *Risk:* Review contents, descriptions, and verification evidence are stored as CIDs (IPFS hashes). The contract cannot guarantee that the off-chain content behind these CIDs is pinned, accessible, or matches the schema.

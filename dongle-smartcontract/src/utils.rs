@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Env, String};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -15,8 +15,49 @@ pub struct Utils;
 #[allow(dead_code)]
 impl Utils {
     // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    ///
+    /// This is a generic replacement for the hand-rolled "filter and rebuild"
+    /// pattern that was duplicated across multiple registries.
+    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
+
+    /// Convert a Soroban String to lowercase for case-insensitive comparison.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let bytes = s.as_bytes();
+        let len = bytes.len();
+        let mut buf = [0u8; 256];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        for i in 0..cap {
+            buf[i] = if bytes[i].is_ascii_uppercase() {
+                bytes[i] + 32
+            } else {
+                bytes[i]
+            };
+        }
+        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, s)
+    }
 
     /// Normalize a project name for duplicate-detection purposes.
     ///
@@ -28,20 +69,13 @@ impl Utils {
     ///
     /// Two names that produce the same normalized form are considered
     /// duplicates regardless of their original casing, spacing, or punctuation.
-    ///
-    /// Examples:
-    ///   "MyProject"   → "myproject"
-    ///   "MY PROJECT"  → "my project"
-    ///   "my-project"  → "my-project"
-    ///   "My.Project!" → "my project"   (dots and ! removed)
-    ///   "  My  Project  " → "my project"
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
 
         // Allocate a buffer of the same size (normalization can only shrink or
         // preserve length when working on ASCII bytes).
-        let mut buf = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = if len < buf.len() { len } else { buf.len() };
+        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
+        let cap = copy_str(name, &mut raw);
 
         name.copy_into_slice(&mut buf[..cap]);
 
@@ -51,35 +85,34 @@ impl Utils {
         for i in 0..cap {
             let b = buf[i];
             let normalized = if b.is_ascii_uppercase() {
-                // lowercase
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
-                // whitespace → single space (collapsed)
                 b' '
             } else if b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' {
-                // keep as-is
                 b
             } else {
-                // punctuation / special chars → strip (replace with space to
-                // avoid merging adjacent words: "foo.bar" → "foo bar")
                 b' '
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < cap {
+                if !last_was_space && out_len < len {
                     buf[out_len] = b' ';
+                if !last_was_space && out_len < out_buf.len() {
+                    out_buf[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                buf[out_len] = normalized;
-                out_len += 1;
+                if out_len < out_buf.len() {
+                    out_buf[out_len] = normalized;
+                    out_len += 1;
+                }
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && buf[out_len - 1] == b' ' {
+        while out_len > 0 && out_buf[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
@@ -104,7 +137,9 @@ impl Utils {
                 *b += 32;
             }
         }
-        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, lower)
+        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
 
@@ -291,7 +326,7 @@ impl Utils {
     }
 
     /// Validate the tags list (each tag must be non-empty ASCII alphanumeric/hyphen/underscore).
-    pub fn validate_tags(tags: &soroban_sdk::Vec<String>) -> Result<(), ContractError> {
+    pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
         for i in 0..tags.len() {
             if let Some(tag) = tags.get(i) {
                 let len = tag.len() as usize;
@@ -356,14 +391,22 @@ impl Utils {
     }
 
     // ────────────────────────────────────────────────────────────────────
+    // Report reason CID validation
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Validate a report reason CID.
+    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Verified-project field freeze guard
     // ────────────────────────────────────────────────────────────────────
 
     /// For verified projects, certain identity-critical fields are frozen.
-    ///
-    /// Frozen fields: `slug`, `category`, `logo_cid`.
-    /// `name` is NOT frozen (rename triggers verification reset instead).
-    /// `metadata_cid` is NOT frozen.
     pub fn check_frozen_fields(
         is_verified: bool,
         _name_differs: bool,
@@ -376,5 +419,35 @@ impl Utils {
             return Err(ContractError::VerifiedFieldFrozen);
         }
         Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Sorting
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Sort a Soroban `Vec` in place using bubble sort.
+    ///
+    /// `should_swap(a, b)` is called for each adjacent pair and should
+    /// return `true` if `a` and `b` need to be swapped to reach the desired
+    /// order. Bounds are checked with `if let Some(...)` rather than
+    /// `.get(..).unwrap()`, so the loop stays safe even if the index bounds
+    /// are ever changed.
+    pub fn bubble_sort_by<T, F>(items: &mut soroban_sdk::Vec<T>, mut should_swap: F)
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>,
+        F: FnMut(&T, &T) -> bool,
+    {
+        let n = items.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                if let (Some(a), Some(b)) = (items.get(j), items.get(j + 1)) {
+                    if should_swap(&a, &b) {
+                        items.set(j, b);
+                        items.set(j + 1, a);
+                    }
+                }
+            }
+        }
     }
 }
