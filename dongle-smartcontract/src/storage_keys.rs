@@ -144,8 +144,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
     /// Fee config history entry count.
     FeeConfigHistoryCount,
     /// Fee config history entry by index (oldest = 0).
@@ -167,4 +165,8 @@ pub enum ExtensionKey {
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
     ProjectByNormalizedName(String),
+    /// Anti-sybil: global review eligibility configuration.
+    ReviewEligibilityConfig,
+    /// Anti-sybil: tracks the first-interaction timestamp for an address.
+    FirstInteraction(Address),
 }

@@ -161,3 +161,16 @@ pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+// ── Anti-Sybil Review Eligibility Defaults ──────────────────────────────────
+// All default to zero/false so that existing contracts remain fully backward
+// compatible. Admins can opt-in via `set_review_eligibility_config`.
+
+/// Default minimum account age before a reviewer can submit a review (0 = no check).
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+
+/// Default: endorsement is NOT required to submit a review.
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+
+/// Default review fee amount (0 = no fee).
+pub const DEFAULT_REVIEW_FEE: u128 = 0;

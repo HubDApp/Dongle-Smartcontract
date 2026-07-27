@@ -3,6 +3,7 @@
 
 mod admin_action_log;
 mod admin_manager;
+pub mod pagination;
 pub mod auth;
 mod bookmark_registry;
 mod collection_registry;
@@ -47,9 +48,9 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
     DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig,
     FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewEligibilityConfig, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
