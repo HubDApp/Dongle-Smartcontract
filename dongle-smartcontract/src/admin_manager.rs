@@ -18,10 +18,10 @@ use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
 pub struct AdminManager;
 impl AdminManager {
     /// Initialize the contract with the first admin
-    pub fn initialize(env: &Env, admin: Address) {
+    pub fn initialize(env: &Env, admin: Address) -> Result<(), ContractError> {
         // Check if already initialized
         if env.storage().persistent().has(&StorageKey::AdminList) {
-            panic!("Contract already initialized");
+            return Err(ContractError::AlreadyInitialized);
         }
 
         // Don't require auth during initialization - this is typically called once during contract deployment
@@ -42,6 +42,8 @@ impl AdminManager {
         StorageManager::extend_all_admin_ttl(env, &admin);
 
         publish_admin_added_event(env, admin);
+
+        Ok(())
     }
 
     /// Add a new admin (only callable by existing admins)
