@@ -105,10 +105,10 @@ Projects can attach extended metadata via IPFS CIDs. Follow the JSON schema:
 
 | Schema | Purpose |
 |--------|---------|
-| [`project-metadata.schema.json`](./project-metadata.schema.json) | Project metadata structure |
-| [`project-metadata.example.json`](./project-metadata.example.json) | Example valid document |
-| [`review-cid.schema.json`](./review-cid.schema.json) | Review content structure |
-| [`review-cid.example.json`](./review-cid.example.json) | Example review document |
+| [`project-metadata.schema.json`](./docs/project-metadata.schema.json) | Project metadata structure |
+| [`project-metadata.example.json`](./docs/project-metadata.example.json) | Example valid document |
+| [`review-cid.schema.json`](./docs/review-cid.schema.json) | Review content structure |
+| [`review-cid.example.json`](./docs/review-cid.example.json) | Example review document |
 
 **Key guidelines:**
 - Pin metadata on IPFS and verify the CID matches on-chain `metadata_cid`

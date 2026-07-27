@@ -1898,6 +1898,44 @@ pub fn publish_reserved_name_removed_event(env: &Env, name: String, admin: Addre
     );
 }
 
+// ── Contract Pause / Emergency Stop Events ─────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractPausedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractUnpausedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_contract_paused_event(env: &Env, admin: Address) {
+    let event_data = ContractPausedEvent {
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("PAUSED")),
+        event_data,
+    );
+}
+
+pub fn publish_contract_unpaused_event(env: &Env, admin: Address) {
+    let event_data = ContractUnpausedEvent {
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("UNPAUSED")),
+        event_data,
+    );
+}
+
 pub fn publish_fee_payment_cleared_event(
     env: &Env,
     project_id: u64,

@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dongle Smart Contract Deployment Manifest",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "testnet": {
+      "type": "array",
+      "description": "List of deployments on Stellar Testnet",
+      "items": {
+        "$ref": "#/definitions/deploymentEntry"
+      }
+    },
+    "mainnet": {
+      "type": "array",
+      "description": "List of deployments on Stellar Mainnet",
+      "items": {
+        "$ref": "#/definitions/deploymentEntry"
+      }
+    }
+  },
+  "required": ["testnet", "mainnet"],
+  "additionalProperties": false,
+  "definitions": {
+    "deploymentEntry": {
+      "type": "object",
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "description": "Stellar Contract ID (starts with 'C', 56 characters)",
+          "pattern": "^C[A-Z2-7]{55}$"
+        },
+        "wasm_hash": {
+          "type": "string",
+          "description": "Hexadecimal hash of the built contract WASM (64 characters)",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "deployer": {
+          "type": "string",
+          "description": "Stellar account public key or contract address that executed the deployment (starts with 'G' or 'C', 56 characters)",
+          "pattern": "^[GC][A-Z2-7]{55}$"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Deployment ISO 8601 / RFC 3339 timestamp",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})$"
+        }
+      },
+      "required": ["contract_id", "wasm_hash", "deployer", "timestamp"],
+      "additionalProperties": false
+    }
+  }
+}

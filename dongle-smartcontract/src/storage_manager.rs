@@ -109,7 +109,9 @@ impl StorageManager {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(normalized_name.clone()))
+            .has(&StorageKey::ProjectByNormalizedName(
+                normalized_name.clone(),
+            ))
         {
             env.storage().persistent().extend_ttl(
                 &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
