@@ -3,6 +3,7 @@
 
 mod admin_action_log;
 mod admin_manager;
+pub mod pagination;
 pub mod auth;
 mod bookmark_registry;
 mod collection_registry;
