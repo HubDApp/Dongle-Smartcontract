@@ -114,12 +114,48 @@ pub struct ReviewRevisionEvent {
     pub timestamp: u64,
 }
 
+/// Shared three-state status for all claim workflows (ownership + contract-address).
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
     Pending,
     Approved,
     Rejected,
+}
+
+/// Distinguishes claim workflow kinds that share [`ClaimStatus`] transitions.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimKind {
+    /// Claim ownership of a claimable project.
+    Ownership,
+    /// Claim a contract address for a project.
+    ContractAddress,
+}
+
+impl ClaimStatus {
+    /// Shared pending→approved / pending→rejected guard used by every claim kind.
+    pub fn require_pending(self) -> Result<(), crate::errors::ContractError> {
+        if self != Self::Pending {
+            Err(crate::errors::ContractError::InvalidStatus)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Transition Pending → Approved.
+    pub fn transition_to_approved(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Approved;
+        Ok(())
+    }
+
+    /// Transition Pending → Rejected.
+    pub fn transition_to_rejected(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Rejected;
+        Ok(())
+    }
 }
 
 #[contracttype]
@@ -134,21 +170,13 @@ pub struct ClaimRequest {
 }
 
 #[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ContractClaimStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
-
-#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractClaimRequest {
     pub project_id: u64,
     pub contract_address: String,
     pub claimant: Address,
     pub proof_cid: String,
-    pub status: ContractClaimStatus,
+    pub status: ClaimStatus,
     pub created_at: u64,
 }
 

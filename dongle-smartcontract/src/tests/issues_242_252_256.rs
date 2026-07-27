@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use crate::types::{ContractClaimStatus, ProjectRegistrationParams, ProjectSortMode};
+use crate::types::{ClaimStatus, ProjectRegistrationParams, ProjectSortMode};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
 #[test]
@@ -21,7 +21,7 @@ fn test_contract_address_claims() {
 
     // 1. Claim contract
     let req = client.claim_contract_address(&project_id, &owner, &contract_addr, &proof_cid);
-    assert_eq!(req.status, ContractClaimStatus::Pending);
+    assert_eq!(req.status, ClaimStatus::Pending);
     assert_eq!(req.contract_address, contract_addr);
 
     // 2. Reject claim
@@ -30,7 +30,7 @@ fn test_contract_address_claims() {
 
     // We expect the next claim over the same address to just overwrite the rejected one
     let req2 = client.claim_contract_address(&project_id, &owner, &contract_addr, &proof_cid);
-    assert_eq!(req2.status, ContractClaimStatus::Pending);
+    assert_eq!(req2.status, ClaimStatus::Pending);
 
     // 3. Approve claim
     client.approve_contract_claim(&project_id, &contract_addr, &admin);
