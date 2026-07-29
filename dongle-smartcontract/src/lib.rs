@@ -36,6 +36,7 @@ use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
+use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
@@ -813,6 +814,17 @@ impl DongleContract {
         token: Option<Address>,
     ) -> Result<(), ContractError> {
         FeeManager::pay_fee(&env, payer, project_id, token)
+    }
+
+    pub fn cancel_fee_payment(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        if !AdminManager::is_admin(&env, &caller) {
+            EmergencyPause::require_not_paused(&env)?;
+        }
+        FeeManager::cancel_fee_payment(&env, caller, project_id)
     }
 
     pub fn is_fee_paid(env: Env, project_id: u64) -> bool {

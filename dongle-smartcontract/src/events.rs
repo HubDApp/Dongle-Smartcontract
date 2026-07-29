@@ -294,6 +294,17 @@ pub struct FeeConsumedEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeCancelledEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub payer: Address,
+    pub operation: FeeOperation,
+    pub amount: u128,
+    pub timestamp: u64,
+}
+
 // ── Publish helpers ───────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
@@ -886,6 +897,28 @@ pub fn publish_fee_consumed_event(
     };
     env.events().publish(
         (symbol_short!("FEE"), symbol_short!("CONSUMED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_cancelled_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    payer: Address,
+    operation: FeeOperation,
+    amount: u128,
+) {
+    let event_data = FeeCancelledEvent {
+        project_id,
+        caller,
+        payer,
+        operation,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("CANCEL"), project_id),
         event_data,
     );
 }

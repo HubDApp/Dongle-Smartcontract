@@ -140,7 +140,7 @@ fn reg_slug_over_max_rejected() {
     let mut p = base_params(&e, &owner, "Short2");
     p.slug = ss_rep(&e, 'a', MAX_SLUG_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectSlug.into())));
     let _ = admin;
 }
 

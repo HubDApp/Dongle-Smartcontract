@@ -51,6 +51,10 @@ pub enum ContractError {
     TooManyTags = 45,
     OwnerCannotReview = 46,
     InvalidNameFormat = 47,
+    ReviewerNotEligible = 48,
+    ReviewFeeRequired = 49,
+    CollectionFull = 50,
+    ContractPaused = 51,
 }
 
 pub type Error = ContractError;

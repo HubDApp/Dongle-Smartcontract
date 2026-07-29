@@ -100,9 +100,7 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
+    ContractPaused,
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -173,4 +171,10 @@ pub enum ExtensionKey {
     /// pause state across mutating entry points is intentionally out of scope for the
     /// config-view feature; see `set_pause` for the toggle.
     Paused,
+    ContractClaim(u64, String),
+    ProjectContracts(u64),
+    ReviewEligibilityConfig,
+    FirstInteraction(Address),
+    ReviewRevisionCount(u64, Address),
+    ReviewRevision(u64, Address, u32),
 }
