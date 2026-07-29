@@ -1,188 +1,453 @@
-use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
-use soroban_sdk::{Address, Env, String};
+//! Utility functions and the `Utils` struct used throughout the contract.
 
+use soroban_sdk::{Env, String};
+
+use crate::constants::{
+    MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
+    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
+};
+use crate::errors::ContractError;
+
+/// Utility struct — all methods are associated functions (no instance needed).
 #[allow(dead_code)]
 pub struct Utils;
 
 #[allow(dead_code)]
 impl Utils {
-    pub fn get_current_timestamp(env: &Env) -> u64 {
-        env.ledger().timestamp()
-    }
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
 
-    pub fn is_admin(env: &Env, address: &Address) -> bool {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Admin(address.clone()))
-            .unwrap_or(false)
-    }
-
-    pub fn require_admin(env: &Env, address: &Address) -> Result<(), ContractError> {
-        if !Self::is_admin(env, address) {
-            return Err(ContractError::Unauthorized);
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    ///
+    /// This is a generic replacement for the hand-rolled "filter and rebuild"
+    /// pattern that was duplicated across multiple registries.
+    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
         }
-        Ok(())
+        result
     }
 
-    pub fn validate_string_length(
-        value: &String,
-        min_length: u32,
-        max_length: u32,
-        _field_name: &str,
-    ) -> Result<(), ContractError> {
-        let length = value.len();
+    // ────────────────────────────────────────────────────────────────────
+    // Name normalization
+    // ────────────────────────────────────────────────────────────────────
 
-        if length < min_length || length > max_length {
-            Err(ContractError::InvalidProjectData)
-        } else {
-            Ok(())
+    /// Convert a Soroban String to lowercase for case-insensitive comparison.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let bytes = s.as_bytes();
+        let len = bytes.len();
+        let mut buf = [0u8; 256];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        for i in 0..cap {
+            buf[i] = if bytes[i].is_ascii_uppercase() {
+                bytes[i] + 32
+            } else {
+                bytes[i]
+            };
         }
+        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, s)
     }
 
-    pub fn is_valid_ipfs_cid(cid: &String) -> bool {
-        let len = cid.len();
-        if !(46..=128).contains(&len) {
-            return false;
-        }
+    /// Normalize a project name for duplicate-detection purposes.
+    ///
+    /// Rules applied (in order):
+    /// 1. ASCII-lowercase all letters.
+    /// 2. Collapse all whitespace sequences to a single space.
+    /// 3. Strip leading and trailing whitespace.
+    /// 4. Remove all punctuation characters (retaining only `[a-z0-9 _-]`).
+    ///
+    /// Two names that produce the same normalized form are considered
+    /// duplicates regardless of their original casing, spacing, or punctuation.
+    pub fn normalize_project_name(env: &Env, name: &String) -> String {
+        let len = name.len() as usize;
 
-        extern crate alloc;
-        use alloc::vec;
-        let mut bytes = vec![0u8; len as usize];
-        cid.copy_into_slice(bytes.as_mut_slice());
+        // Allocate a buffer of the same size (normalization can only shrink or
+        // preserve length when working on ASCII bytes).
+        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
+        let cap = copy_str(name, &mut raw);
 
-        // CIDv0: starts with "Qm"
-        if bytes.len() >= 2 {
-            let first = bytes[0];
-            let second = bytes[1];
-            if first == b'Q' && second == b'm' {
-                return true;
+        name.copy_into_slice(&mut buf[..cap]);
+
+        let mut out_len: usize = 0;
+        let mut last_was_space = true; // treat start as "space" to strip leading
+
+        for i in 0..cap {
+            let b = buf[i];
+            let normalized = if b.is_ascii_uppercase() {
+                b + 32
+            } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
+                b' '
+            } else if b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' {
+                b
+            } else {
+                b' '
+            };
+
+            if normalized == b' ' {
+                if !last_was_space && out_len < len {
+                    buf[out_len] = b' ';
+                if !last_was_space && out_len < out_buf.len() {
+                    out_buf[out_len] = b' ';
+                    out_len += 1;
+                }
+                last_was_space = true;
+            } else {
+                if out_len < out_buf.len() {
+                    out_buf[out_len] = normalized;
+                    out_len += 1;
+                }
+                last_was_space = false;
             }
         }
 
-        // CIDv1 base32 typically starts with 'b' (e.g. bafy...)
-        bytes[0] == b'b'
+        // Trim trailing space
+        while out_len > 0 && out_buf[out_len - 1] == b' ' {
+            out_len -= 1;
+        }
+
+        // Convert back to a Soroban String
+        // SAFETY: all bytes are valid ASCII (subset of UTF-8).
+        let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
+        String::from_str(env, s)
     }
 
-    pub fn validate_website(website: &String) -> Result<(), ContractError> {
-        let len = website.len();
+    /// Convert a Soroban `String` to lowercase (ASCII only).
+    /// Used by the reserved-name checker and other case-insensitive comparisons.
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let len = s.len() as usize;
         if len == 0 {
-            return Err(ContractError::InvalidProjectWebsite);
+            return s.clone();
         }
-        if len > crate::constants::MAX_WEBSITE_LEN as u32 {
-            return Err(ContractError::ProjectWebsiteTooLong);
+        let mut buf = [0u8; 256];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        s.copy_into_slice(&mut buf[..cap]);
+        for b in buf[..cap].iter_mut() {
+            if *b >= b'A' && *b <= b'Z' {
+                *b += 32;
+            }
         }
-        
-        extern crate alloc;
-        use alloc::string::ToString;
-        let web_str = website.to_string();
-        
-        if !web_str.starts_with("http://") && !web_str.starts_with("https://") {
-            return Err(ContractError::InvalidProjectWebsite);
-        }
-        Ok(())
+        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, lower)
+        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
+        String::from_str(env, s)
     }
 
-    pub fn sanitize_string(input: &String) -> String {
-        input.clone()
-    }
+    // ────────────────────────────────────────────────────────────────────
+    // Name / slug / field validation
+    // ────────────────────────────────────────────────────────────────────
 
-    pub fn validate_category_field(category: &String) -> Result<(), ContractError> {
-        let len = category.len();
-        if len == 0 {
-            return Err(ContractError::InvalidProjectCategory);
-        }
-        if len > crate::constants::MAX_CATEGORY_LEN as u32 {
-            return Err(ContractError::ProjectCategoryTooLong);
-        }
-        
-        extern crate alloc;
-        use alloc::string::ToString;
-        let cat_str = category.to_string();
-        if cat_str.trim().is_empty() {
-            return Err(ContractError::InvalidProjectCategory);
-        }
-        
-        Ok(())
-    }
-
-    pub fn validate_logo_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidProjectLogoCid);
-        }
-        Ok(())
-    }
-
-    pub fn validate_metadata_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.len() == 0 || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidProjectMetadataCid);
-        }
-        Ok(())
-    }
-
-    pub fn validate_pagination(_start_id: u64, limit: u32) -> Result<(), ContractError> {
-        const MAX_LIMIT: u32 = 100;
-
-        if limit == 0 || limit > MAX_LIMIT {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        Ok(())
-    }
-
-    /// Validates a description field with comprehensive checks:
-    /// - Not empty or whitespace-only
-    /// - Within maximum length constraint (MAX_DESCRIPTION_LEN)
-    /// - No invalid special characters (allows alphanumeric, spaces, common punctuation)
-    pub fn validate_description(description: &String) -> Result<(), ContractError> {
-        let len = description.len();
-
-        // 1. Check for empty strings
-        if len == 0 {
-            return Err(ContractError::InvalidProjectDescription);
-        }
-
-        // 2. Check maximum length constraint
-        if len > crate::constants::MAX_DESCRIPTION_LEN as u32 {
-            return Err(ContractError::ProjectDescriptionTooLong);
-        }
-
-        // 3. For non-empty strings, we accept them as valid
-        // Note: Soroban String is UTF-8 and we trust the input at this level
-        // More sophisticated validation would require converting to bytes
-        // which is not efficient in the contract environment
-
-        Ok(())
-    }
-
-    /// Validates project name with comprehensive checks:
-    /// - Not empty or whitespace-only
-    /// - Within maximum length constraint (MAX_NAME_LEN)
-    /// - Alphanumeric, underscore, and hyphen only
+    /// Validate a project name.
+    ///
+    /// Rules:
+    /// - Non-empty.
+    /// - At most `MAX_NAME_LEN` bytes.
+    /// - Only ASCII alphanumeric, `-`, or `_` characters (no spaces, no punctuation).
+    /// - Not purely whitespace.
     pub fn validate_project_name(name: &String) -> Result<(), ContractError> {
-        extern crate alloc;
-        use alloc::string::ToString;
-
-        let name_str = name.to_string();
-
-        // 1. Validate non-empty and not only whitespace
-        if name_str.trim().is_empty() {
+        let len = name.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidProjectName);
+        }
+        if len > MAX_NAME_LEN {
             return Err(ContractError::InvalidProjectName);
         }
 
-        // 2. Validate max length
-        let max_len = crate::constants::MAX_NAME_LEN;
-        if name_str.len() > max_len {
-            return Err(ContractError::ProjectNameTooLong);
-        }
+        let mut buf = [0u8; 128];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        name.copy_into_slice(&mut buf[..cap]);
 
-        // 3. Validate alphanumeric, underscore, hyphen
-        for c in name_str.chars() {
-            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidProjectNameFormat);
+        let mut all_ws = true;
+        for &b in buf[..cap].iter() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidProjectName);
+            }
+            if !b.is_ascii_whitespace() {
+                all_ws = false;
             }
         }
-
+        if all_ws {
+            return Err(ContractError::InvalidProjectName);
+        }
         Ok(())
+    }
+
+    /// Validate a project slug.
+    ///
+    /// Rules:
+    /// - Non-empty, at most `MAX_SLUG_LEN` bytes.
+    /// - Lowercase alphanumeric plus `-` or `_`.
+    /// - No leading or trailing `-`.
+    pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+        let len = slug.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidProjectSlug);
+        }
+        if len > MAX_SLUG_LEN {
+            return Err(ContractError::InvalidProjectSlug);
+        }
+
+        let mut buf = [0u8; 128];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        slug.copy_into_slice(&mut buf[..cap]);
+
+        for (i, &b) in buf[..cap].iter().enumerate() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidProjectSlug);
+            }
+            if b == b'-' && (i == 0 || i == cap - 1) {
+                return Err(ContractError::InvalidProjectSlug);
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate a project description (non-empty, within byte limit).
+    pub fn validate_description(desc: &String) -> Result<(), ContractError> {
+        let len = desc.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidProjectData);
+        }
+        if len > MAX_DESCRIPTION_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; MAX_DESCRIPTION_LEN];
+        desc.copy_into_slice(&mut buf[..len]);
+
+        // Reject whitespace-only descriptions
+        let all_ws = buf[..len].iter().all(|b| b.is_ascii_whitespace());
+        if all_ws {
+            return Err(ContractError::InvalidProjectData);
+        }
+        Ok(())
+    }
+
+    /// Validate a category field (non-empty, within byte limit, non-whitespace-only).
+    pub fn validate_category_field(cat: &String) -> Result<(), ContractError> {
+        let len = cat.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+        if len > MAX_CATEGORY_LEN {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut buf = [0u8; 64];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        cat.copy_into_slice(&mut buf[..cap]);
+
+        let all_ws = buf[..cap].iter().all(|b| b.is_ascii_whitespace());
+        if all_ws {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    /// Validate a website URL (must start with `http://` or `https://`, within byte limit).
+    pub fn validate_website(url: &String) -> Result<(), ContractError> {
+        let len = url.len() as usize;
+        if len == 0 || len > MAX_WEBSITE_LEN {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut buf = [0u8; MAX_WEBSITE_LEN];
+        url.copy_into_slice(&mut buf[..len]);
+
+        if !buf[..len].starts_with(b"http://") && !buf[..len].starts_with(b"https://") {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    /// Validate a license identifier (SPDX-style: alphanumeric, `-`, `.`, `+`).
+    pub fn validate_license(license: &String) -> Result<(), ContractError> {
+        let len = license.len() as usize;
+        if len == 0 {
+            return Err(ContractError::InvalidProjectData);
+        }
+        if len > MAX_LICENSE_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        let mut buf = [0u8; 128];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        license.copy_into_slice(&mut buf[..cap]);
+
+        for &b in buf[..cap].iter() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate a logo CID.
+    pub fn validate_logo_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
+    }
+
+    /// Validate a metadata CID.
+    pub fn validate_metadata_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
+    }
+
+    /// Validate a report reason CID.
+    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
+    }
+
+    /// Validate a security contact value (non-empty, within byte limit).
+    pub fn validate_security_contact(contact: &String) -> Result<(), ContractError> {
+        let len = contact.len() as usize;
+        if len == 0 || len > MAX_SECURITY_CONTACT_LEN {
+            return Err(ContractError::InvalidProjectData);
+        }
+        Ok(())
+    }
+
+    /// Validate the tags list (each tag must be non-empty ASCII alphanumeric/hyphen/underscore).
+    pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
+        for i in 0..tags.len() {
+            if let Some(tag) = tags.get(i) {
+                let len = tag.len() as usize;
+                if len == 0 {
+                    return Err(ContractError::InvalidInput);
+                }
+                let mut buf = [0u8; 64];
+                let cap = if len < buf.len() { len } else { buf.len() };
+                tag.copy_into_slice(&mut buf[..cap]);
+                for &b in buf[..cap].iter() {
+                    if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                        return Err(ContractError::InvalidInput);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate the social links map (each value must be a valid URL).
+    pub fn validate_social_links(
+        links: &soroban_sdk::Map<String, String>,
+    ) -> Result<(), ContractError> {
+        let keys = links.keys();
+        for i in 0..keys.len() {
+            if let Some(key) = keys.get(i) {
+                if let Some(url) = links.get(key) {
+                    Self::validate_website(&url)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // CID helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Returns `true` if the string is a plausible IPFS CID (v0 or v1).
+    ///
+    /// - CIDv0: starts with `Qm`, total length 46.
+    /// - CIDv1: starts with `b`, length 46–128.
+    pub fn is_valid_ipfs_cid(cid: &String) -> bool {
+        let len = cid.len() as usize;
+        if len < 46 || len > MAX_CID_LEN {
+            return false;
+        }
+
+        // Read first two bytes
+        let mut first_two = [0u8; 2];
+        cid.copy_into_slice(&mut first_two[..2]);
+
+        if first_two[0] == b'Q' && first_two[1] == b'm' {
+            // CIDv0
+            len == 46
+        } else if first_two[0] == b'b' {
+            // CIDv1
+            true
+        } else {
+            false
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Report reason CID validation
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Validate a report reason CID.
+    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+            return Err(ContractError::InvalidCid);
+        }
+        Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Verified-project field freeze guard
+    // ────────────────────────────────────────────────────────────────────
+
+    /// For verified projects, certain identity-critical fields are frozen.
+    pub fn check_frozen_fields(
+        is_verified: bool,
+        _name_differs: bool,
+        slug_differs: bool,
+        category_differs: bool,
+        logo_differs: bool,
+        _meta_differs: bool,
+    ) -> Result<(), ContractError> {
+        if is_verified && (slug_differs || category_differs || logo_differs) {
+            return Err(ContractError::VerifiedFieldFrozen);
+        }
+        Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Sorting
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Sort a Soroban `Vec` in place using bubble sort.
+    ///
+    /// `should_swap(a, b)` is called for each adjacent pair and should
+    /// return `true` if `a` and `b` need to be swapped to reach the desired
+    /// order. Bounds are checked with `if let Some(...)` rather than
+    /// `.get(..).unwrap()`, so the loop stays safe even if the index bounds
+    /// are ever changed.
+    pub fn bubble_sort_by<T, F>(items: &mut soroban_sdk::Vec<T>, mut should_swap: F)
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>,
+        F: FnMut(&T, &T) -> bool,
+    {
+        let n = items.len();
+        for i in 0..n {
+            for j in 0..n.saturating_sub(i + 1) {
+                if let (Some(a), Some(b)) = (items.get(j), items.get(j + 1)) {
+                    if should_swap(&a, &b) {
+                        items.set(j, b);
+                        items.set(j + 1, a);
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,7 +1,6 @@
 use soroban_sdk::contracterror;
 
-/// Error types for the Dongle smart contract
-#[contracterror]
+#[contracterror(export = false)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
@@ -70,7 +69,53 @@ pub enum ContractError {
     NotPendingTransferRecipient = 32,
     /// Verification has expired and is no longer active
     VerificationExpired = 33,
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    ProjectNotFound = 3,
+    SlugAlreadyExists = 4,
+    MaxProjectsExceeded = 5,
+    ReviewNotFound = 6,
+    InvalidCid = 7,
+    InvalidInput = 8,
+    InvalidProjectName = 9,
+    InvalidProjectData = 10,
+    InvalidProjectSlug = 11,
+    InvalidStatus = 12,
+    ProjectAlreadyExists = 13,
+    AlreadyArchived = 14,
+    ProjectNotArchived = 15,
+    ProjectTooYoung = 16,
+    VerificationNotFound = 17,
+    VerifiedFieldFrozen = 18,
+    Unauthorized = 19,
+    AdminOnly = 20,
+    AdminNotFound = 21,
+    TransferNotFound = 22,
+    ReservedName = 23,
+    FeeAlreadyPaid = 24,
+    InsufficientFee = 25,
+    DuplicateProjectName = 26,
+    IndexOutOfBounds = 27,
+    CannotLinkToSelf = 28,
+    AlreadyLinked = 29,
+    AlreadyFollowing = 30,
+    NotFollowing = 31,
+    DuplicateReview = 32,
+    InvalidRating = 33,
+    AlreadyReported = 34,
+    ReviewAlreadyHidden = 35,
+    ReviewNotHidden = 36,
+    CollectionNotFound = 37,
+    CollectionExists = 38,
+    AlreadyInCollection = 39,
+    CannotRemoveLastAdmin = 40,
+    ReviewsDisabled = 41,
+    NotReviewOwner = 42,
+    TreasuryNotSet = 43,
+    FeeConfigNotSet = 44,
+    TooManyTags = 45,
+    OwnerCannotReview = 46,
+    InvalidNameFormat = 47,
 }
 
-// Legacy alias to avoid breaking any code that uses `Error` directly
 pub type Error = ContractError;

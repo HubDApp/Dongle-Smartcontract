@@ -1,11 +1,14 @@
 //! Fee configuration and payment with validation and events.
 
+use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
 use crate::errors::ContractError;
-use crate::events::{publish_fee_paid_event, publish_fee_set_event};
+use crate::events::{
+    publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
+};
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::StorageKey;
-use crate::types::FeeConfig;
+use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::types::{AdminActionType, FeeConfig, FeePaymentRecord};
 use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
@@ -22,6 +25,10 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -34,12 +41,86 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
 
-        publish_fee_set_event(env, verification_fee, registration_fee);
+        publish_fee_set_event(
+            env,
+            admin.clone(),
+            config.token.clone(),
+            verification_fee,
+            registration_fee,
+            treasury,
+        );
+
+        AdminActionLog::record_action(env, admin, AdminActionType::FeeChanged, None, None, None);
+
+        Ok(())
+    }
+
+    /// Shared payment path for verification and registration fees.
+    ///
+    /// Validates fee config/treasury, transfers tokens (when amount > 0), sets the
+    /// paid flag, stores a [`FeePaymentRecord`], and emits a fee-paid event.
+    fn execute_fee_payment(
+        env: &Env,
+        payer: Address,
+        amount: u128,
+        token: Option<Address>,
+        paid_flag_key: StorageKey,
+        details_key: ExtensionKey,
+        event_project_id: u64,
+        operation: FeeOperation,
+    ) -> Result<(), ContractError> {
+        let config = Self::get_fee_config(env)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
+
+        if config.token != token {
+            return Err(ContractError::InvalidProjectData);
+        }
+
+        if amount > 0 {
+            // Safety: fee amounts are stored as u128 but the token interface requires i128.
+            // Reject any value that exceeds i128::MAX to prevent a silent truncating cast.
+            if amount > i128::MAX as u128 {
+                return Err(ContractError::InvalidProjectData);
+            }
+            // set_fee enforces that token is Some when fees are non-zero, so this
+            // ok_or branch is a defensive guard against corrupted storage state.
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
+            let client = soroban_sdk::token::Client::new(env, &token_address);
+            // Transfer must succeed before we set the payment flag.
+            // If transfer fails, this function returns early without setting the flag.
+            client.transfer(&payer, &treasury, &(amount as i128));
+        }
+
+        // Only set payment flag after successful token transfer
+        env.storage().persistent().set(&paid_flag_key, &true);
+
+        // Store full payment details for getter
+        let payment_record = FeePaymentRecord {
+            paid_at: env.ledger().timestamp(),
+            payer: payer.clone(),
+            amount,
+            token: token.clone(),
+        };
+        env.storage()
+            .persistent()
+            .set(&details_key, &payment_record);
+
+        // Only emit event after successful payment
+        publish_fee_paid_event(env, event_project_id, payer, token, operation, amount);
         Ok(())
     }
 
     /// Pay the verification fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
+    ///
+    /// # Behavior on Token Transfer Failure
+    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
+    /// - The fee paid event is NOT emitted
+    /// - The caller receives an error and can retry after acquiring sufficient tokens
     pub fn pay_fee(
         env: &Env,
         payer: Address,
@@ -55,30 +136,17 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
-        let config = Self::get_fee_config(env)?;
-        let treasury: Address = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)?;
-
-        if config.token != token {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        let amount = config.verification_fee;
-        if amount > 0 {
-            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
-            let client = soroban_sdk::token::Client::new(env, &token_address);
-            client.transfer(&payer, &treasury, &(amount as i128));
-        }
-
-        env.storage()
-            .persistent()
-            .set(&StorageKey::FeePaidForProject(project_id), &true);
-
-        publish_fee_paid_event(env, project_id, payer, amount);
-        Ok(())
+        let amount = Self::get_fee_config(env)?.verification_fee;
+        Self::execute_fee_payment(
+            env,
+            payer,
+            amount,
+            token,
+            StorageKey::FeePaidForProject(project_id),
+            ExtensionKey::FeePaymentDetails(project_id),
+            project_id,
+            FeeOperation::Verification,
+        )
     }
 
     /// Check if the fee has been paid for a project
@@ -90,13 +158,19 @@ impl FeeManager {
     }
 
     /// Consume the fee payment (used during verification request)
-    pub fn consume_fee_payment(env: &Env, project_id: u64) -> Result<(), ContractError> {
+    pub fn consume_fee_payment(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        amount: u128,
+    ) -> Result<(), ContractError> {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
         env.storage()
             .persistent()
             .remove(&StorageKey::FeePaidForProject(project_id));
+        publish_fee_consumed_event(env, project_id, caller, FeeOperation::Verification, amount);
         Ok(())
     }
 
@@ -141,6 +215,11 @@ impl FeeManager {
 
     /// Pay the registration fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
+    ///
+    /// # Behavior on Token Transfer Failure
+    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
+    /// - The fee paid event is NOT emitted
+    /// - The caller receives an error and can retry after acquiring sufficient tokens
     pub fn pay_registration_fee(
         env: &Env,
         payer: Address,
@@ -148,30 +227,36 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_self_auth(&payer);
 
-        let config = Self::get_fee_config(env)?;
-        let treasury: Address = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)?;
+        let amount = Self::get_fee_config(env)?.registration_fee;
+        Self::execute_fee_payment(
+            env,
+            payer.clone(),
+            amount,
+            token,
+            StorageKey::RegistrationFeePaidForAddress(payer.clone()),
+            ExtensionKey::RegistrationFeePaymentDetails(payer),
+            0,
+            FeeOperation::Registration,
+        )
+    }
 
-        if config.token != token {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        let amount = config.registration_fee;
-        if amount > 0 {
-            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
-            let client = soroban_sdk::token::Client::new(env, &token_address);
-            client.transfer(&payer, &treasury, &(amount as i128));
-        }
-
+    /// Get fee payment details for a project (payer, amount, token, timestamp)
+    pub fn get_fee_payment_details(env: &Env, project_id: u64) -> Option<FeePaymentRecord> {
         env.storage()
             .persistent()
-            .set(&StorageKey::RegistrationFeePaidForAddress(payer.clone()), &true);
+            .get(&ExtensionKey::FeePaymentDetails(project_id))
+    }
 
-        publish_fee_paid_event(env, 0, payer, amount);
-        Ok(())
+    /// Get registration fee payment details for an address
+    pub fn get_registration_fee_payment_details(
+        env: &Env,
+        address: &Address,
+    ) -> Option<FeePaymentRecord> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::RegistrationFeePaymentDetails(
+                address.clone(),
+            ))
     }
 
     /// Check if the registration fee has been paid for an address
@@ -183,13 +268,18 @@ impl FeeManager {
     }
 
     /// Consume the registration fee payment (used during project registration)
-    pub fn consume_registration_fee_payment(env: &Env, address: &Address) -> Result<(), ContractError> {
+    pub fn consume_registration_fee_payment(
+        env: &Env,
+        address: &Address,
+        amount: u128,
+    ) -> Result<(), ContractError> {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }
         env.storage()
             .persistent()
             .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
+        publish_fee_consumed_event(env, 0, address.clone(), FeeOperation::Registration, amount);
         Ok(())
     }
 }
