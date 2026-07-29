@@ -123,7 +123,10 @@ impl DependencyRegistry {
             return Ok(String::from_str(env, key_str));
         }
         if let Some(contract) = &dep.external_contract {
-            // Contract addresses are always 56 chars; "CTR:" prefix ensures no collision.
+            // Contract addresses must be exactly 56 chars; "CTR:" prefix ensures no collision.
+            if contract.len() != 56 {
+                return Err(ContractError::InvalidProjectData);
+            }
             let mut buf = [0u8; 4 + 56];
             buf[0..4].copy_from_slice(b"CTR:");
             contract.copy_into_slice(&mut buf[4..60]);
