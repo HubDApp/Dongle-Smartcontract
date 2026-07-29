@@ -57,6 +57,7 @@ mod review_features;
 
 // Test infrastructure
 mod bookmarks;
+mod changelog;
 mod duplicate_dispute;
 mod endorsements;
 pub mod fixtures;
