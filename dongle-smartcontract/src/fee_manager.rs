@@ -121,6 +121,10 @@ impl FeeManager {
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
     /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_registration_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
     pub fn pay_fee(
         env: &Env,
         payer: Address,
@@ -220,6 +224,10 @@ impl FeeManager {
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
     /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
     pub fn pay_registration_fee(
         env: &Env,
         payer: Address,
