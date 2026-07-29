@@ -13,6 +13,7 @@ pub const MAX_PAGE_LIMIT: u32 = 100;
 pub enum BookmarkError {
     AlreadyBookmarked = 1,
     NotBookmarked = 2,
+    ProjectNotFound = 3,
 }
 
 pub struct BookmarkRegistry;
@@ -26,7 +27,7 @@ impl BookmarkRegistry {
         user.require_auth();
 
         if ProjectRegistry::get_project(env, project_id).is_none() {
-            panic!("project not found");
+            return Err(BookmarkError::ProjectNotFound);
         }
 
         if Self::is_bookmarked(env, project_id, &user) {
