@@ -36,6 +36,7 @@ use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
+use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
@@ -1226,7 +1227,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1234,7 +1235,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::unbookmark_project(&env, project_id, user)
     }
 
@@ -1252,7 +1253,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1260,7 +1261,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::unendorse_project(&env, project_id, user)
     }
 

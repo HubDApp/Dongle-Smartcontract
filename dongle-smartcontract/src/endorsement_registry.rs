@@ -1,17 +1,10 @@
+use crate::errors::ContractError;
 use crate::events::{publish_project_endorsed_event, publish_project_unendorsed_event};
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::utils::Utils;
-use soroban_sdk::{contracterror, Address, Env, Vec};
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum EndorsementError {
-    AlreadyEndorsed = 1,
-    NotEndorsed = 2,
-}
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct EndorsementRegistry;
 
@@ -20,15 +13,15 @@ impl EndorsementRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), EndorsementError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if ProjectRegistry::get_project(env, project_id).is_none() {
-            panic!("project not found");
+            return Err(ContractError::ProjectNotFound);
         }
 
         if Self::has_endorsed(env, project_id, &user) {
-            return Err(EndorsementError::AlreadyEndorsed);
+            return Err(ContractError::AlreadyEndorsed);
         }
 
         let mut endorsements: Vec<Address> = env
@@ -58,11 +51,11 @@ impl EndorsementRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), EndorsementError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if !Self::has_endorsed(env, project_id, &user) {
-            return Err(EndorsementError::NotEndorsed);
+            return Err(ContractError::NotEndorsed);
         }
 
         let endorsements: Vec<Address> = env

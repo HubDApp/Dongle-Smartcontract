@@ -558,13 +558,6 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn verification_exists(env: &Env, project_id: u64) -> bool {
-        env.storage()
-            .persistent()
-            .has(&StorageKey::ProjectVerificationHistory(project_id))
-    }
-
     pub fn revoke_verification(
         env: &Env,
         project_id: u64,
