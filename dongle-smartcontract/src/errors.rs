@@ -5,9 +5,7 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum ContractError {
     AlreadyInitialized = 1,
-    NotInitialized = 2,
     ProjectNotFound = 3,
-    SlugAlreadyExists = 4,
     MaxProjectsExceeded = 5,
     ReviewNotFound = 6,
     InvalidCid = 7,
@@ -27,10 +25,8 @@ pub enum ContractError {
     AdminNotFound = 21,
     TransferNotFound = 22,
     ReservedName = 23,
-    FeeAlreadyPaid = 24,
     InsufficientFee = 25,
     DuplicateProjectName = 26,
-    IndexOutOfBounds = 27,
     CannotLinkToSelf = 28,
     AlreadyLinked = 29,
     AlreadyFollowing = 30,
@@ -48,9 +44,12 @@ pub enum ContractError {
     NotReviewOwner = 42,
     TreasuryNotSet = 43,
     FeeConfigNotSet = 44,
-    TooManyTags = 45,
     OwnerCannotReview = 46,
     InvalidNameFormat = 47,
+    ContractPaused = 48,
+    CollectionFull = 49,
+    ReviewFeeRequired = 50,
+    ReviewerNotEligible = 51,
 }
 
 pub type Error = ContractError;
