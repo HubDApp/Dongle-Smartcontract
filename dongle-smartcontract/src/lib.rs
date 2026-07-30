@@ -1252,7 +1252,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1260,7 +1260,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::unendorse_project(&env, project_id, user)
     }
 
