@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String};
+use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -71,19 +71,22 @@ impl Utils {
     /// duplicates regardless of their original casing, spacing, or punctuation.
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
+        if len == 0 {
+            return String::from_str(env, "");
+        }
 
-        // Allocate a buffer of the same size (normalization can only shrink or
-        // preserve length when working on ASCII bytes).
-        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = copy_str(name, &mut raw);
-
-        name.copy_into_slice(&mut buf[..cap]);
+        // Allocate a source buffer and an output buffer of the same size
+        // (normalization can only shrink or preserve length).
+        let max = if len > 64 { 64 } else { len }; // MAX_NAME_LEN is 50, safe upper bound
+        let mut src = [0u8; 64];
+        let mut out = [0u8; 64];
+        name.copy_into_slice(&mut src[..max]);
 
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
-        for i in 0..cap {
-            let b = buf[i];
+        for i in 0..max {
+            let b = src[i];
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -95,16 +98,14 @@ impl Utils {
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < len {
-                    buf[out_len] = b' ';
-                if !last_was_space && out_len < out_buf.len() {
-                    out_buf[out_len] = b' ';
+                if !last_was_space && out_len < max {
+                    out[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                if out_len < out_buf.len() {
-                    out_buf[out_len] = normalized;
+                if out_len < max {
+                    out[out_len] = normalized;
                     out_len += 1;
                 }
                 last_was_space = false;
@@ -112,34 +113,13 @@ impl Utils {
         }
 
         // Trim trailing space
-        while out_len > 0 && out_buf[out_len - 1] == b' ' {
+        while out_len > 0 && out[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
         // Convert back to a Soroban String
         // SAFETY: all bytes are valid ASCII (subset of UTF-8).
-        let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
-        String::from_str(env, s)
-    }
-
-    /// Convert a Soroban `String` to lowercase (ASCII only).
-    /// Used by the reserved-name checker and other case-insensitive comparisons.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let len = s.len() as usize;
-        if len == 0 {
-            return s.clone();
-        }
-        let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
-        s.copy_into_slice(&mut buf[..cap]);
-        for b in buf[..cap].iter_mut() {
-            if *b >= b'A' && *b <= b'Z' {
-                *b += 32;
-            }
-        }
-        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
-        String::from_str(env, lower)
-        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
+        let s = core::str::from_utf8(&out[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
 
@@ -388,18 +368,6 @@ impl Utils {
         } else {
             false
         }
-    }
-
-    // ────────────────────────────────────────────────────────────────────
-    // Report reason CID validation
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Validate a report reason CID.
-    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidCid);
-        }
-        Ok(())
     }
 
     // ────────────────────────────────────────────────────────────────────
