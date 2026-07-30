@@ -223,10 +223,12 @@ impl ChangelogRegistry {
         // Sort entries based on sort_mode
         match sort_mode {
             crate::types::ChangelogSortMode::Newest => {
-                Utils::bubble_sort_by(&mut entries, |a, b| a.created_at > b.created_at);
+                // For newest first (descending), swap when a.created_at < b.created_at
+                Utils::bubble_sort_by(&mut entries, |a, b| a.created_at < b.created_at);
             }
             crate::types::ChangelogSortMode::Oldest => {
-                Utils::bubble_sort_by(&mut entries, |a, b| a.created_at < b.created_at);
+                // For oldest first (ascending), swap when a.created_at > b.created_at  
+                Utils::bubble_sort_by(&mut entries, |a, b| a.created_at > b.created_at);
             }
         }
 

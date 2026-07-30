@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String};
+use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,

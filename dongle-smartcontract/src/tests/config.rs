@@ -49,9 +49,7 @@ fn test_get_config_initial_state_after_initialize() {
     let env = Env::default();
     let (client, _admin) = setup_contract(&env);
 
-    let cfg = client
-        .get_config()
-        .expect("config available immediately after initialize");
+    let cfg = client.get_config();
 
     assert_eq!(cfg, expected_initial(&env));
 }
@@ -76,7 +74,7 @@ fn test_get_config_reflects_fee_update() {
         &treasury,
     );
 
-    let cfg = client.get_config().unwrap();
+    let cfg = client.get_config();
     assert_eq!(cfg.treasury, Some(treasury.clone()));
     assert_eq!(cfg.fees.verification_fee, 1_000);
     assert_eq!(cfg.fees.registration_fee, 500);
@@ -94,7 +92,7 @@ fn test_get_config_reflects_fee_update() {
         &treasury2,
     );
 
-    let cfg2 = client.get_config().unwrap();
+    let cfg2 = client.get_config();
     assert_eq!(cfg2.treasury, Some(treasury2));
     assert_eq!(cfg2.fees.verification_fee, 2_500);
     assert_eq!(cfg2.fees.registration_fee, 1_250);
@@ -124,13 +122,13 @@ fn test_get_config_reflects_admin_count_change() {
         &Address::generate(&env),
     );
 
-    assert_eq!(client.get_config().unwrap().admin_count, 1);
+    assert_eq!(client.get_config().admin_count, 1);
 
     client.mock_all_auths().add_admin(&admin, &new_admin);
-    assert_eq!(client.get_config().unwrap().admin_count, 2);
+    assert_eq!(client.get_config().admin_count, 2);
 
     client.mock_all_auths().remove_admin(&admin, &new_admin);
-    assert_eq!(client.get_config().unwrap().admin_count, 1);
+    assert_eq!(client.get_config().admin_count, 1);
 }
 
 #[test]
@@ -148,13 +146,13 @@ fn test_set_pause_admin_only() {
     // the *pause* change rather than the presence of an error.
     let prev = client.mock_all_auths().set_pause(&admin, &true);
     assert_eq!(prev, false);
-    assert!(client.get_config().unwrap().paused);
+    assert!(client.get_config().paused);
     assert_eq!(
         client.mock_all_auths().set_pause(&admin, &false),
         true,
         "previous flag should now report paused=true"
     );
-    assert!(!client.get_config().unwrap().paused);
+    assert!(!client.get_config().paused);
 
     // Audit parity: set_pause records an AdminActionLog entry on every
     // transition with the matching ContractPaused/ContractResumed
@@ -199,14 +197,14 @@ fn test_get_config_reflects_pause_toggle() {
         &Address::generate(&env),
     );
 
-    let cfg = client.get_config().unwrap();
+    let cfg = client.get_config();
     assert_eq!(cfg.paused, false);
 
     assert_eq!(client.mock_all_auths().set_pause(&admin, &true), false);
-    assert_eq!(client.get_config().unwrap().paused, true);
+    assert_eq!(client.get_config().paused, true);
 
     assert_eq!(client.mock_all_auths().set_pause(&admin, &false), true);
-    assert_eq!(client.get_config().unwrap().paused, false);
+    assert_eq!(client.get_config().paused, false);
 }
 
 #[test]
@@ -230,15 +228,15 @@ fn test_get_config_reflects_threshold_change() {
     );
 
     // Default threshold is 1.
-    assert_eq!(client.get_config().unwrap().admin_approval_threshold, 1);
+    assert_eq!(client.get_config().admin_approval_threshold, 1);
 
     // Bump to 2 and verify the new value is reflected.
     client.mock_all_auths().set_admin_approval_threshold(&admin, &2u32);
-    assert_eq!(client.get_config().unwrap().admin_approval_threshold, 2);
+    assert_eq!(client.get_config().admin_approval_threshold, 2);
 
     // And back down to 1.
     client.mock_all_auths().set_admin_approval_threshold(&admin, &1u32);
-    assert_eq!(client.get_config().unwrap().admin_approval_threshold, 1);
+    assert_eq!(client.get_config().admin_approval_threshold, 1);
 }
 
 /// Stable-shape guard: enumerates every field of `ContractConfigView`
@@ -263,7 +261,7 @@ fn test_get_config_shape_is_stable() {
         &7u128,
         &treasury,
     );
-    let cfg = client.get_config().unwrap();
+    let cfg = client.get_config();
 
     // Each scalar is non-default after population — guards against
     // accidental field removal (which would still produce a "valid"
