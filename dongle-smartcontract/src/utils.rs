@@ -7,76 +7,16 @@ use crate::constants::{
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
+use crate::storage_keys::StorageKey;
+use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
-#[allow(dead_code)]
 pub struct Utils;
 
-#[allow(dead_code)]
 impl Utils {
-    // ────────────────────────────────────────────────────────────────────
-    // Vec helpers
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Append `item` to a `Vec` if it is not already present. Returns `true`
-    /// if the item was added, `false` if it was already in the list.
-    ///
-    /// This serves as the shared "toggle on" primitive for both
-    /// `BookmarkRegistry` and `EndorsementRegistry`, replacing their
-    /// hand-rolled duplicate patterns.
-    pub fn add_unique_to_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
-        vec: &mut Vec<T>,
-        item: &T,
-    ) -> bool {
-        if vec.contains(item) {
-            return false;
-        }
-        vec.push_back(item.clone());
-        true
-    }
-
-    /// Return a new Vec containing all items from `vec` except those equal to `item`.
-    ///
-    /// This is a generic replacement for the hand-rolled "filter and rebuild"
-    /// pattern that was duplicated across multiple registries (bookmarks,
-    /// endorsements, maintainers, etc.).
-    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
-        env: &Env,
-        vec: &Vec<T>,
-        item: &T,
-    ) -> Vec<T> {
-        let mut result = Vec::new(env);
-        for i in 0..vec.len() {
-            if let Some(v) = vec.get(i) {
-                if &v != item {
-                    result.push_back(v);
-                }
-            }
-        }
-        result
-    }
-
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
-
-    /// Convert a Soroban String to lowercase for case-insensitive comparison.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let len = s.len() as usize;
-        if len == 0 {
-            return s.clone();
-        }
-        let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
-        s.copy_into_slice(&mut buf[..cap]);
-        for b in buf[..cap].iter_mut() {
-            if *b >= b'A' && *b <= b'Z' {
-                *b += 32;
-            }
-        }
-        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
-        String::from_str(env, s)
-    }
 
     /// Normalize a project name for duplicate-detection purposes.
     ///

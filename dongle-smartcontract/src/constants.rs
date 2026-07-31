@@ -18,6 +18,13 @@ pub const MAX_REVIEWS_PER_USER: u32 = 200;
 /// Maximum items returned per paginated read query across list endpoints.
 pub const MAX_PAGE_LIMIT: u32 = 100;
 
+/// Maximum records that can be refreshed by one batch TTL extension call.
+pub const MAX_TTL_BATCH_SIZE: u32 = 100;
+
+/// Minimum length for name, description, category (must be non-empty after trim in validation).
+#[allow(dead_code)]
+pub const MIN_STRING_LEN: usize = 1;
+
 /// Maximum length for project name.
 pub const MAX_NAME_LEN: usize = 50;
 
