@@ -56,14 +56,14 @@ All project-related events start with the topic `PROJECT` (Symbol).
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Project Reactivated
-* **Topic:** `(Symbol("PROJECT"), Symbol("ACTIVE"), project_id: u64)`
+* **Topic:** `(Symbol("PROJECT"), Symbol("RESTORED"), project_id: u64)`
 * **Payload (`ProjectReactivatedEvent`):**
   * `project_id` (`u64`): The ID of the reactivated project.
   * `caller` (`Address`): Address of the admin or owner who reactivated the project.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Project Ownership Transferred
-* **Topic:** `(Symbol("PROJECT"), Symbol("OWNER_TR"), project_id: u64)`
+* **Topic:** `(Symbol("PROJECT"), Symbol("TRANSFER"), project_id: u64)`
 * **Payload (`ProjectOwnershipTransferredEvent`):**
   * `project_id` (`u64`): The ID of the project.
   * `caller` (`Address`): Address that executed the transfer.
@@ -114,7 +114,7 @@ All review-related events start with the topic `REVIEW` (Symbol).
 All fee-related events start with the topic `FEE` (Symbol).
 
 ### Fee Set
-* **Topic:** `(Symbol("FEE"), Symbol("SET"))`
+* **Topic:** `(Symbol("CONFIG"), Symbol("FEE"))`
 * **Payload (`FeeSetEvent`):**
   * `admin` (`Address`): The admin who updated the fee configuration.
   * `token` (`Option<Address>`): Address of the SAC token contract used for payment (`None` = native/no token required).
@@ -156,7 +156,7 @@ All fee-related events start with the topic `FEE` (Symbol).
 All verification-related events start with the topic `VERIFY` (Symbol).
 
 ### Verification Requested
-* **Topic:** `(Symbol("VERIFY"), Symbol("REQUEST"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("REQ"), project_id: u64)`
 * **Payload (`VerificationRequestedEvent`):**
   * `project_id` (`u64`): The ID of the project requesting verification.
   * `requester` (`Address`): The requester's address.
@@ -166,7 +166,7 @@ All verification-related events start with the topic `VERIFY` (Symbol).
 #### Verification Requested Event Example
 ```json
 {
-  "topics": ["VERIFY", "REQUEST", 1],
+  "topics": ["VERIFY", "REQ", 1],
   "data": {
     "project_id": 1,
     "requester": "GDXX...XXXX",
@@ -177,17 +177,19 @@ All verification-related events start with the topic `VERIFY` (Symbol).
 ```
 
 ### Verification Approved
-* **Topic:** `(Symbol("VERIFY"), Symbol("APPROVED"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("APP"), project_id: u64)`
 * **Payload (`VerificationApprovedEvent`):**
   * `project_id` (`u64`): The ID of the verified project.
   * `admin` (`Address`): Admin address who approved the request.
+  * `decided_at` (`u64`): Timestamp when the decision was made.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Verification Rejected
-* **Topic:** `(Symbol("VERIFY"), Symbol("REJECTED"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("REJ"), project_id: u64)`
 * **Payload (`VerificationRejectedEvent`):**
   * `project_id` (`u64`): The ID of the project.
   * `admin` (`Address`): Admin address.
+  * `decided_at` (`u64`): Timestamp when the decision was made.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Verification Revoked
