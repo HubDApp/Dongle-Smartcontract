@@ -31,7 +31,7 @@ impl BookmarkRegistry {
             .persistent()
             .get(&ExtensionKey::UserBookmarks(user.clone()))
             .unwrap_or_else(|| Vec::new(env));
-        bookmarks.push_back(project_id);
+        let _ = Utils::add_unique_to_vec(&mut bookmarks, &project_id);
         env.storage()
             .persistent()
             .set(&ExtensionKey::UserBookmarks(user.clone()), &bookmarks);

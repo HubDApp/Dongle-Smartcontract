@@ -18,10 +18,28 @@ impl Utils {
     // Vec helpers
     // ────────────────────────────────────────────────────────────────────
 
+    /// Append `item` to a `Vec` if it is not already present. Returns `true`
+    /// if the item was added, `false` if it was already in the list.
+    ///
+    /// This serves as the shared "toggle on" primitive for both
+    /// `BookmarkRegistry` and `EndorsementRegistry`, replacing their
+    /// hand-rolled duplicate patterns.
+    pub fn add_unique_to_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        vec: &mut Vec<T>,
+        item: &T,
+    ) -> bool {
+        if vec.contains(item) {
+            return false;
+        }
+        vec.push_back(item.clone());
+        true
+    }
+
     /// Return a new Vec containing all items from `vec` except those equal to `item`.
     ///
     /// This is a generic replacement for the hand-rolled "filter and rebuild"
-    /// pattern that was duplicated across multiple registries.
+    /// pattern that was duplicated across multiple registries (bookmarks,
+    /// endorsements, maintainers, etc.).
     pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
         env: &Env,
         vec: &Vec<T>,
@@ -76,10 +94,11 @@ impl Utils {
             return name.clone();
         }
 
-        // Copy name into buffer
-        let mut in_buf = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = if len < in_buf.len() { len } else { in_buf.len() };
-        name.copy_into_slice(&mut in_buf[..cap]);
+        // Use a buffer of size MAX_NAME_LEN (50), which is the maximum name length.
+        // Normalization can only shrink the string when working on ASCII bytes.
+        let mut buf = [0u8; MAX_NAME_LEN];
+        let cap = if len < buf.len() { len } else { buf.len() };
+        name.copy_into_slice(&mut buf[..cap]);
 
         // Allocate output buffer (normalization can only shrink or preserve length)
         let mut out_buf = [0u8; 64];
@@ -100,29 +119,50 @@ impl Utils {
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < out_buf.len() {
-                    out_buf[out_len] = b' ';
+                if !last_was_space {
+                    buf[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                if out_len < out_buf.len() {
-                    out_buf[out_len] = normalized;
-                    out_len += 1;
-                }
+                buf[out_len] = normalized;
+                out_len += 1;
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && out_buf[out_len - 1] == b' ' {
+        while out_len > 0 && buf[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
         // Convert back to a Soroban String
         // SAFETY: all bytes are valid ASCII (subset of UTF-8).
-        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
+        let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
         String::from_str(env, s)
+    }
+
+    /// Convert a Soroban `String` to lowercase (ASCII only).
+    /// Used by the reserved-name checker and other case-insensitive comparisons.
+    ///
+    /// The 256-byte buffer covers all name-type fields (MAX_NAME_LEN=50,
+    /// MAX_SECURITY_CONTACT_LEN=256, MAX_DESCRIPTION_LEN=2048 — longer inputs
+    /// are truncated gracefully since the callers already enforce those limits).
+    pub fn to_lowercase(env: &Env, s: &String) -> String {
+        let len = s.len() as usize;
+        if len == 0 {
+            return s.clone();
+        }
+        let cap = if len < 256 { len } else { 256 };
+        let mut buf = [0u8; 256];
+        s.copy_into_slice(&mut buf[..cap]);
+        for b in buf[..cap].iter_mut() {
+            if *b >= b'A' && *b <= b'Z' {
+                *b += 32;
+            }
+        }
+        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
+        String::from_str(env, lower)
     }
 
     // ────────────────────────────────────────────────────────────────────

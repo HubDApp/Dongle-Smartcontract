@@ -271,29 +271,15 @@ impl DongleContract {
     }
 
     /// Sets an optional region tag for a project (owner only).
+    /// Delegates to `ProjectRegistry::set_project_region` for the actual logic.
     pub fn set_project_region(
         env: Env,
         project_id: u64,
         caller: Address,
         region: Option<String>,
     ) -> Result<(), ContractError> {
-        caller.require_auth();
-        let project =
-            ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        if project.owner != caller {
-            return Err(ContractError::Unauthorized);
-        }
-        match region {
-            Some(r) => env
-                .storage()
-                .persistent()
-                .set(&ExtensionKey::ProjectRegion(project_id), &r),
-            None => env
-                .storage()
-                .persistent()
-                .remove(&ExtensionKey::ProjectRegion(project_id)),
-        }
-        Ok(())
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_region(&env, project_id, caller, region)
     }
 
     /// Returns the region tag for a project, if set.

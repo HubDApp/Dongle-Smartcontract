@@ -2009,6 +2009,46 @@ impl ProjectRegistry {
             buf.push_back(scratch[i]);
         }
     }
+    /// Set the optional region tag for a project (owner only).
+    pub fn set_project_region(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        region: Option<String>,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        match region {
+            Some(r) => env
+                .storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectRegion(project_id), &r),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectRegion(project_id)),
+        }
+        Ok(())
+    }
+
+    /// Returns the region tag for a project, if set.
+    pub fn get_project_region(env: &Env, project_id: u64) -> Option<String> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectRegion(project_id))
+    }
+
+    /// Returns the stored integrity hash for a project, if any.
+    pub fn get_project_integrity_hash(env: &Env, project_id: u64) -> Option<soroban_sdk::Bytes> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectIntegrityHash(project_id))
+    }
+
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
     /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
