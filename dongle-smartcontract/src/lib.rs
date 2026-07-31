@@ -13,6 +13,7 @@ mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_registry;
+mod changelog_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -40,6 +41,7 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::changelog_registry::ChangelogRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -47,12 +49,12 @@ use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    ContractConfigView, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
-    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
-    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
-    VerificationRecord, VerificationStatus,
+    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
+    Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
+    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus,
+    TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1200,6 +1202,90 @@ impl DongleContract {
 
     pub fn get_disputes_for_project(env: Env, project_id: u64) -> Vec<DuplicateDispute> {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
+    }
+
+    // --- Project Changelog ---
+
+    /// Add a new changelog entry for a project (owner only).
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID to add changelog for
+    /// - `owner`: The project owner (must be authenticated)
+    /// - `cid`: IPFS CID containing the changelog content
+    /// - `description`: Optional description/title for the changelog entry
+    ///
+    /// # Returns
+    /// - `Ok(u64)` with the new changelog entry ID on success
+    /// - `Err(ContractError)` on failure
+    pub fn add_changelog_entry(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        cid: String,
+        description: Option<String>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description)
+    }
+
+    /// Remove a changelog entry (project owner only).
+    ///
+    /// # Arguments
+    /// - `changelog_id`: The changelog entry ID to remove
+    /// - `owner`: The project owner (must be authenticated)
+    ///
+    /// # Returns
+    /// - `Ok(())` on success
+    /// - `Err(ContractError)` on failure
+    pub fn remove_changelog_entry(
+        env: Env,
+        changelog_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ChangelogRegistry::remove_changelog_entry(&env, changelog_id, owner)
+    }
+
+    /// Get a single changelog entry by ID.
+    ///
+    /// # Arguments
+    /// - `changelog_id`: The changelog entry ID
+    ///
+    /// # Returns
+    /// - `Option<ChangelogEntry>` the changelog entry if found
+    pub fn get_changelog_entry(env: Env, changelog_id: u64) -> Option<ChangelogEntry> {
+        ChangelogRegistry::get_changelog_entry(&env, changelog_id)
+    }
+
+    /// Get paginated changelog entries for a project.
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID to get changelog for
+    /// - `start`: Starting index for pagination
+    /// - `limit`: Maximum number of entries to return (capped at MAX_PAGE_LIMIT)
+    /// - `sort_mode`: Sort order (Newest or Oldest)
+    ///
+    /// # Returns
+    /// - `Vec<ChangelogEntry>` paginated and sorted changelog entries
+    pub fn get_project_changelog(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+        sort_mode: ChangelogSortMode,
+    ) -> Vec<ChangelogEntry> {
+        ChangelogRegistry::get_project_changelog(&env, project_id, start, limit, sort_mode)
+    }
+
+    /// Get changelog entry count for a project.
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID
+    ///
+    /// # Returns
+    /// - `u32` number of changelog entries
+    pub fn get_changelog_count(env: Env, project_id: u64) -> u32 {
+        ChangelogRegistry::get_changelog_count(&env, project_id)
     }
 
     // --- Subscription / Follow ---

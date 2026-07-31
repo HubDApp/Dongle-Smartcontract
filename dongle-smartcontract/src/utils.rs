@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String};
+use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -351,10 +351,23 @@ impl Utils {
                     return false;
                 }
                 
-                // CIDv0 must be base58btc characters: alphanumeric or '1'-'9'
+                // CIDv0 must be base58btc characters: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
                 for &b in &bytes[..len] {
-                    if !b.is_ascii_alphanumeric() && !(b >= b'1' && b <= b'9') {
-                        return false;
+                    match b {
+                        b'1'..=b'9' => (), // Digits 1-9 are valid
+                        b'A'..=b'Z' => {
+                            // Exclude O and I from uppercase letters
+                            if b == b'O' || b == b'I' {
+                                return false;
+                            }
+                        }
+                        b'a'..=b'z' => {
+                            // Exclude l from lowercase letters
+                            if b == b'l' {
+                                return false;
+                            }
+                        }
+                        _ => return false, // Any other character is invalid
                     }
                 }
                 true
