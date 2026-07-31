@@ -807,7 +807,7 @@ if let Some(hash) = get_project_integrity_hash(env, project_id) {
 **Parameters**:
 - `env` (Env): The contract environment
 - `sort_mode` (ProjectSortMode): The sorting mode (e.g., by rating, by name)
-- `start_id` (u64): The starting project ID for pagination
+- `start_index` (u64): Zero-based index into the sorted result for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -859,7 +859,7 @@ let verified_projects = list_projects_by_status(env, VerificationStatus::Verifie
 **Parameters**:
 - `env` (Env): The contract environment
 - `category` (String): The category to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the category's project ID list for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -885,7 +885,7 @@ let defi_projects = list_projects_by_category(env, String::from_slice(&env, "DeF
 **Parameters**:
 - `env` (Env): The contract environment
 - `tag` (String): The tag to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based offset into the project ID scan space for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -2003,7 +2003,7 @@ let reviews = get_reviews_by_ids(env, vec![&env, (1, reviewer1), (1, reviewer2)]
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the project's review list for pagination
 - `limit` (u32): Maximum number of reviews to return
 
 **Return Value**: `Vec<Review>`
@@ -2185,7 +2185,7 @@ if let Some(tombstone) = get_review_tombstone(env, project_id, reviewer_address)
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start_id` (u32): Starting index for pagination
+- `start_index` (u32): Zero-based index into the project's review list for pagination
 - `limit` (u32): Maximum reviews to return
 - `sort_mode` (ReviewSortMode): The sorting mode
 
@@ -4708,7 +4708,7 @@ if let Some(dispute) = get_duplicate_dispute(env, dispute_id) {
 
 1. **Always check return types**: Functions return `Result` or `Option` - handle both success and failure cases
 2. **Validate project ownership**: For owner-only operations, verify ownership before calling
-3. **Use pagination**: For list operations, use appropriate start_id/limit to avoid timeouts
+3. **Use pagination**: For list operations, use appropriate `start_id` (project ID cursor) or `start_index` (list offset) with `limit` to avoid timeouts
 4. **Cache project data**: Once retrieved, cache project data locally when possible
 5. **Monitor admin actions**: Regularly review admin action logs for compliance
 6. **Handle duplicates gracefully**: Use dispute resolution for duplicate detection

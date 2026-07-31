@@ -23,7 +23,7 @@ impl EndorsementRegistry {
             .persistent()
             .get(&ExtensionKey::ProjectEndorsements(project_id))
             .unwrap_or_else(|| Vec::new(env));
-        endorsements.push_back(user.clone());
+        let _ = Utils::add_unique_to_vec(&mut endorsements, &user);
         env.storage().persistent().set(
             &ExtensionKey::ProjectEndorsements(project_id),
             &endorsements,

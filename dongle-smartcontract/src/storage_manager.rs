@@ -5,7 +5,7 @@
 
 use crate::constants::*;
 use crate::storage_keys::{ExtensionKey, StorageKey};
-use soroban_sdk::{Address, Env, IntoVal, RawVal, String, Vec};
+use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -14,11 +14,11 @@ impl StorageManager {
     // ── Generic TTL Helper ────────────────────────────────────────────────
 
     /// Extend TTL for a storage key if it exists. The generic key type `K`
-    /// works for both `StorageKey` and `ExtensionKey` (both derive `IntoVal<Env, RawVal>`
+    /// works for both `StorageKey` and `ExtensionKey` (both derive `IntoVal<Env, Val>`
     /// via `#[contracttype]`).
     fn extend_if_exists<K>(env: &Env, key: &K, threshold: u32, bump: u32)
     where
-        K: IntoVal<Env, RawVal>,
+        K: IntoVal<Env, Val>,
     {
         if env.storage().persistent().has(key) {
             env.storage().persistent().extend_ttl(key, threshold, bump);
