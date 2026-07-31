@@ -836,7 +836,7 @@ impl ReviewRegistry {
         out
     }
 
-    pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+    pub fn list_reviews(env: &Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
@@ -852,12 +852,12 @@ impl ReviewRegistry {
 
         let mut reviews = Vec::new(env);
         let len = reviewers.len();
-        if start_id >= len {
+        if start_index >= len {
             return reviews;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
 
-        for i in start_id..end {
+        for i in start_index..end {
             if let Some(reviewer) = reviewers.get(i) {
                 if let Some(review) = Self::get_review(env, project_id, reviewer) {
                     // Exclude hidden reviews from default listings
@@ -1136,7 +1136,7 @@ impl ReviewRegistry {
     pub fn list_reviews_sorted(
         env: &Env,
         project_id: u64,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
@@ -1175,11 +1175,11 @@ impl ReviewRegistry {
 
         // Apply pagination.
         let mut out = Vec::new(env);
-        if start_id >= n {
+        if start_index >= n {
             return out;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), n);
-        for i in start_id..end {
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), n);
+        for i in start_index..end {
             if let Some(review) = all.get(i) {
                 out.push_back(review);
             }

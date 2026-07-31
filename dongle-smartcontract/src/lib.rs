@@ -308,19 +308,19 @@ impl DongleContract {
     pub fn list_projects_by_category(
         env: Env,
         category: String,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Project> {
-        ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+        ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
     }
 
     pub fn list_projects_sorted(
         env: Env,
         sort_mode: ProjectSortMode,
-        start_id: u64,
+        start_index: u64,
         limit: u32,
     ) -> Vec<Project> {
-        ProjectRegistry::list_projects_sorted(&env, sort_mode, start_id, limit)
+        ProjectRegistry::list_projects_sorted(&env, sort_mode, start_index, limit)
     }
 
     pub fn claim_contract_address(
@@ -484,8 +484,8 @@ impl DongleContract {
         ReviewRegistry::get_reviews_by_ids(&env, ids)
     }
 
-    pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
-        ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
+        ReviewRegistry::list_reviews(&env, project_id, start_index, limit)
     }
 
     pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {
@@ -579,11 +579,11 @@ impl DongleContract {
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
-        ReviewRegistry::list_reviews_sorted(&env, project_id, start_id, limit, sort_mode)
+        ReviewRegistry::list_reviews_sorted(&env, project_id, start_index, limit, sort_mode)
     }
 
     // --- Verification Registry ---
@@ -971,8 +971,8 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
-        ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
+    pub fn list_projects_by_tag(env: Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_tag(&env, tag, start_index, limit)
     }
 
     // --- Collection Registry ---
