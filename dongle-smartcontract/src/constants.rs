@@ -2,7 +2,6 @@
 //! Contract limits and validation constants. Kept in one place for easy future updates.
 
 /// Maximum number of projects a single user (address) can register. Prevents abuse.
-#[allow(dead_code)]
 pub const MAX_PROJECTS_PER_USER: u32 = 50;
 
 // ── Storage index size limits ───────────────────────────────────────────────
@@ -33,15 +32,12 @@ pub const MAX_NAME_LEN: usize = 50;
 pub const MAX_SLUG_LEN: usize = 64;
 
 /// Maximum length for project description.
-#[allow(dead_code)]
 pub const MAX_DESCRIPTION_LEN: usize = 2048;
 
 /// Maximum length for category.
-#[allow(dead_code)]
 pub const MAX_CATEGORY_LEN: usize = 64;
 
 /// Maximum length for website URL.
-#[allow(dead_code)]
 pub const MAX_WEBSITE_LEN: usize = 256;
 
 /// Maximum length for a project's license description.
@@ -51,7 +47,6 @@ pub const MAX_LICENSE_LEN: usize = 64;
 pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
 
 /// Maximum length for any CID (logo, metadata, comment, evidence).
-#[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
 
 /// Maximum stored edit revisions per review (oldest dropped when exceeded).
@@ -92,14 +87,11 @@ pub const MAX_SOCIAL_LINK_URL_LEN: usize = 256;
 pub const MAX_SOCIAL_LINK_PLATFORM_LEN: usize = 32;
 
 /// Valid rating range (inclusive). Reviews must be in [RATING_MIN, RATING_MAX]. u32 for Soroban Val.
-#[allow(dead_code)]
 pub const RATING_MIN: u32 = 1;
-#[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
 
 /// Verification validity period in seconds (365 days).
 /// After this period, verified projects need to renew their verification.
-#[allow(dead_code)]
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
@@ -164,3 +156,19 @@ pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+/// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+
+/// Default setting for whether endorsements are required for reviews (default: false).
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+
+/// Default review fee amount (default: 0, free).
+pub const DEFAULT_REVIEW_FEE: u128 = 0;
+
+// ── Contract metadata (read by `get_config`) ────────────────────────────────
+
+/// Semantic version of the contract, surfaced verbatim through `get_config`.
+/// Bump when a non-backwards-compatible change to the public contract surface
+/// is released (storage layout, argument shape, new required fields, etc.).
+pub const CONTRACT_VERSION: &str = "1.0.0";

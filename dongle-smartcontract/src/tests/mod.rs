@@ -72,3 +72,6 @@ mod ttl_batch;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+
+// Contract-level configuration view (`get_config`, pause toggle)
+mod config;

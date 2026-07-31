@@ -1,0 +1,8 @@
+{
+  "name": "Dongle Protocol Explorer & Simulator",
+  "description": "On-chain decentralized project discovery, reviews, and verification protocol built on Stellar Soroban.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

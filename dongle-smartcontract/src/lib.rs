@@ -3,12 +3,15 @@
 
 mod admin_action_log;
 mod admin_manager;
+pub mod pagination;
 pub mod auth;
 mod bookmark_registry;
 mod collection_registry;
+mod config_registry;
 pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
+mod emergency_pause;
 mod endorsement_registry;
 pub mod errors;
 pub mod events;
@@ -32,6 +35,8 @@ mod tests;
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
+use crate::config_registry::ConfigRegistry;
+use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
@@ -43,11 +48,11 @@ use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute, FeeConfig,
-    FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    ContractConfigView, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
+    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
+    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
+    VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -59,8 +64,8 @@ pub struct DongleContract;
 impl DongleContract {
     // --- Initialization & Admin Management ---
 
-    pub fn initialize(env: Env, admin: Address) {
-        AdminManager::initialize(&env, admin);
+    pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
+        AdminManager::initialize(&env, admin)
     }
 
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
@@ -127,16 +132,35 @@ impl DongleContract {
         AdminManager::get_proposal(&env, proposal_id)
     }
 
+    // --- Contract Pause / Emergency Stop ---
+
+    /// Pause the contract (admin-only). All non-admin mutating operations will fail.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::pause(&env, &admin)
+    }
+
+    /// Unpause the contract (admin-only). Restores normal operation.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::unpause(&env, &admin)
+    }
+
+    /// Returns true if the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        EmergencyPause::is_paused(&env)
+    }
+
     // --- Project Registry ---
 
     pub fn register_project(
         env: Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::register_project(&env, params)
     }
 
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -146,6 +170,7 @@ impl DongleContract {
         caller: Address,
         contact: Option<String>,
     ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
     }
 
@@ -155,6 +180,7 @@ impl DongleContract {
         caller: Address,
         proof_cid: String,
     ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::submit_security_contact_proof(&env, project_id, caller, proof_cid)
     }
 
@@ -171,6 +197,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -180,6 +207,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::unlink_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -201,6 +229,7 @@ impl DongleContract {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
     }
 
@@ -209,6 +238,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::cancel_transfer(&env, project_id, caller)
     }
 
@@ -241,29 +271,15 @@ impl DongleContract {
     }
 
     /// Sets an optional region tag for a project (owner only).
+    /// Delegates to `ProjectRegistry::set_project_region` for the actual logic.
     pub fn set_project_region(
         env: Env,
         project_id: u64,
         caller: Address,
         region: Option<String>,
     ) -> Result<(), ContractError> {
-        caller.require_auth();
-        let project =
-            ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        if project.owner != caller {
-            return Err(ContractError::Unauthorized);
-        }
-        match region {
-            Some(r) => env
-                .storage()
-                .persistent()
-                .set(&ExtensionKey::ProjectRegion(project_id), &r),
-            None => env
-                .storage()
-                .persistent()
-                .remove(&ExtensionKey::ProjectRegion(project_id)),
-        }
-        Ok(())
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_region(&env, project_id, caller, region)
     }
 
     /// Returns the region tag for a project, if set.
@@ -637,14 +653,14 @@ impl DongleContract {
     pub fn get_verification(
         env: Env,
         project_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
     pub fn get_verification_record(
         env: Env,
         request_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
@@ -676,7 +692,7 @@ impl DongleContract {
     pub fn get_renewal_request(
         env: Env,
         project_id: u64,
-    ) -> Result<crate::types::VerificationRenewalRecord, ContractError> {
+    ) -> Option<crate::types::VerificationRenewalRecord> {
         VerificationRegistry::get_renewal_request(&env, project_id)
     }
 
@@ -727,7 +743,7 @@ impl DongleContract {
     }
 
     /// Get the admin assigned to review a verification request.
-    pub fn get_assigned_admin(env: Env, project_id: u64) -> Result<Option<Address>, ContractError> {
+    pub fn get_assigned_admin(env: Env, project_id: u64) -> Option<Address> {
         VerificationRegistry::get_assigned_admin(&env, project_id)
     }
 
@@ -1012,7 +1028,7 @@ impl DongleContract {
     }
 
     /// Get a collection by ID.
-    pub fn get_collection(env: Env, collection_id: u64) -> Result<Collection, ContractError> {
+    pub fn get_collection(env: Env, collection_id: u64) -> Option<Collection> {
         CollectionRegistry::get_collection(&env, collection_id)
     }
 
@@ -1239,7 +1255,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1247,7 +1263,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::unbookmark_project(&env, project_id, user)
     }
 
@@ -1265,7 +1281,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1273,7 +1289,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::unendorse_project(&env, project_id, user)
     }
 
@@ -1367,5 +1383,33 @@ impl DongleContract {
 
     pub fn get_scheduled_action_count(env: Env) -> u64 {
         TimelockManager::get_scheduled_action_count(&env)
+    }
+
+    // --- Contract Configuration View ---
+
+    /// Returns the aggregated `ContractConfigView` snapshot (fees, treasury,
+    /// admin count, pause state, limits, and version) in a single read.
+    ///
+    /// Returns `ContractError::FeeConfigNotSet` until `set_fee` has been
+    /// called at least once. Frontends can use the presence of a fee
+    /// config as a readiness signal for production traffic.
+    pub fn get_config(env: Env) -> Result<ContractConfigView, ContractError> {
+        ConfigRegistry::get_config(&env)
+    }
+
+    /// Admin: toggle the global pause flag surfaced by `get_config`.
+    ///
+    /// **Returns** the pause state *before* the call (so callers can
+    /// detect transitions without an extra `get_config` round-trip).
+    /// Records an `AdminActionLog` entry (`ContractPaused` or
+    /// `ContractResumed`) for audit parity with every other admin
+    /// mutation in this contract.
+    ///
+    /// **Scope:** this method only writes the flag. Enforcement across
+    /// mutating entry points (`register_project`, `pay_fee`, …) is
+    /// intentionally out of scope for the config-view feature — see the
+    /// future pause-enforcement ticket.
+    pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<bool, ContractError> {
+        ConfigRegistry::set_pause(&env, admin, paused)
     }
 }

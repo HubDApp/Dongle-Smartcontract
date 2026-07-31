@@ -223,7 +223,7 @@ fn invariant_verification_status_is_pending_after_request() {
         "verification_status must be Pending immediately after request"
     );
 
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(
         record.status,
         VerificationStatus::Pending,
@@ -259,7 +259,7 @@ fn invariant_verification_status_is_verified_after_approval() {
         "verification_status must be Verified after admin approval"
     );
 
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(
         record.status,
         VerificationStatus::Verified,
@@ -291,7 +291,7 @@ fn invariant_verification_status_is_rejected_after_rejection() {
         "verification_status must be Rejected after admin rejection"
     );
 
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(
         record.status,
         VerificationStatus::Rejected,

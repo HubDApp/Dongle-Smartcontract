@@ -12,15 +12,16 @@ use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
+use crate::utils::Utils;
 use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
     /// Initialize the contract with the first admin
-    pub fn initialize(env: &Env, admin: Address) {
+    pub fn initialize(env: &Env, admin: Address) -> Result<(), ContractError> {
         // Check if already initialized
         if env.storage().persistent().has(&StorageKey::AdminList) {
-            panic!("Contract already initialized");
+            return Err(ContractError::AlreadyInitialized);
         }
 
         // Don't require auth during initialization - this is typically called once during contract deployment
@@ -41,6 +42,8 @@ impl AdminManager {
         StorageManager::extend_all_admin_ttl(env, &admin);
 
         publish_admin_added_event(env, admin);
+
+        Ok(())
     }
 
     /// Add a new admin (only callable by existing admins)
@@ -114,12 +117,7 @@ impl AdminManager {
             .remove(&StorageKey::Admin(admin_to_remove.clone()));
 
         // Remove from admin list
-        let mut new_admins = Vec::new(env);
-        for admin in admins.iter() {
-            if admin != admin_to_remove {
-                new_admins.push_back(admin);
-            }
-        }
+        let new_admins = Utils::remove_item_from_vec(env, &admins, &admin_to_remove);
         env.storage()
             .persistent()
             .set(&StorageKey::AdminList, &new_admins);
@@ -375,12 +373,7 @@ impl AdminManager {
                 env.storage()
                     .persistent()
                     .remove(&StorageKey::Admin(admin_to_remove.clone()));
-                let mut new_admins = Vec::new(env);
-                for admin in admins.iter() {
-                    if admin != admin_to_remove {
-                        new_admins.push_back(admin);
-                    }
-                }
+                let new_admins = Utils::remove_item_from_vec(env, &admins, &admin_to_remove);
                 env.storage()
                     .persistent()
                     .set(&StorageKey::AdminList, &new_admins);
@@ -423,7 +416,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Verified,
@@ -462,7 +456,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 crate::verification_registry::VerificationStateMachine::validate_transition(
                     project.verification_status,
                     VerificationStatus::Rejected,
@@ -499,7 +494,8 @@ impl AdminManager {
                 let mut record =
                     crate::verification_registry::VerificationRegistry::get_verification(
                         env, project_id,
-                    )?;
+                    )
+                    .ok_or(ContractError::VerificationNotFound)?;
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Unverified;
                 record.revoke_reason = Some(reason.clone());

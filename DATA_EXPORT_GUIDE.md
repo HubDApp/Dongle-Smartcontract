@@ -130,60 +130,69 @@ async function syncLoop() {
 
 ### Event handler
 
-Route each event to the appropriate handler based on its topic symbol:
+The current contract publishes Soroban topics as tuples of symbols rather than a single event-name string. The live implementation uses topic patterns such as `("PROJECT", "CREATED", project_id)`, `("VERIFY", "REQ", project_id)`, `("REVIEW", "SUBMITTED", project_id, reviewer)`, and `("FEE", "PAID", project_id)`.
 
 ```js
 async function handleEvent(event) {
-  const [topic] = event.topic; // first topic is the event name symbol
+  const [namespace, action, projectId] = event.topic;
 
-  switch (topic) {
-    case "ProjectRegistered":
-      await db.upsert("projects", parseProjectRegistered(event));
+  switch (namespace) {
+    case "PROJECT":
+      switch (action) {
+        case "CREATED":
+          await db.upsert("projects", parseProjectRegistered(event));
+          break;
+
+        case "UPDATED": {
+          const { project_id } = parseProjectUpdated(event);
+          const fresh = await contract.get_project({ project_id });
+          await db.upsert("projects", fresh);
+          break;
+        }
+
+        case "ARCHIVED":
+          await db.update("projects", { id: event.data.project_id, status: "archived" });
+          break;
+
+        case "RESTORED":
+          await db.update("projects", { id: event.data.project_id, status: "active" });
+          break;
+
+        case "TRANSFER":
+          await db.update("projects", {
+            id: event.data.project_id,
+            owner: event.data.new_owner,
+          });
+          break;
+
+        default:
+          break;
+      }
       break;
 
-    case "ProjectUpdated": {
-      const { project_id } = parseProjectUpdated(event);
-      const fresh = await contract.get_project({ project_id });
-      await db.upsert("projects", fresh);
-      break;
-    }
-
-    case "ProjectArchived":
-      await db.update("projects", { id: event.data.project_id, status: "archived" });
-      break;
-
-    case "ProjectReactivated":
-      await db.update("projects", { id: event.data.project_id, status: "active" });
+    case "VERIFY":
+      switch (action) {
+        case "REQ":
+        case "APP":
+        case "REJ":
+        case "REVOKED":
+          await handleVerificationEvent(event);
+          break;
+        default:
+          break;
+      }
       break;
 
-    case "OwnershipTransferred":
-      await db.update("projects", {
-        id: event.data.project_id,
-        owner: event.data.new_owner,
-      });
-      break;
-
-    case "VerificationRequested":
-    case "VerificationApproved":
-    case "VerificationRejected":
-    case "VerificationRevoked":
-      await handleVerificationEvent(event);
-      break;
-
-    case "ReviewSubmitted":
-    case "ReviewUpdated":
-    case "ReviewDeleted":
+    case "REVIEW":
       await handleReviewEvent(event);
       break;
 
-    case "DisputeOpened":
-    case "DisputeResolved":
+    case "DISPUTE":
       await handleDisputeEvent(event);
       break;
 
     default:
-      // log unknown events for debugging
-      console.warn("Unhandled event topic:", topic, event);
+      console.warn("Unhandled event topic:", event.topic, event);
   }
 }
 ```
@@ -360,31 +369,34 @@ await db.set("last_synced_ledger", latestLedger); // commit checkpoint last
 
 ## Event Reference
 
-The following events are emitted by the Dongle contract. Each event carries a `timestamp` (Unix seconds) and relevant entity IDs.
+The following event shapes are emitted by the current contract implementation. Topics are published as Soroban topic tuples, and the payload is available on `event.data`. The storage-key enum in [dongle-smartcontract/src/storage_keys.rs](./dongle-smartcontract/src/storage_keys.rs) is an internal implementation detail for persistence and should not be treated as an external event schema.
 
-| Event | Topic Symbol | Key Fields |
+| Event | Topic tuple | Key fields in `event.data` |
 |---|---|---|
-| Project registered | `ProjectRegistered` | `project_id`, `owner`, `name`, `category`, `timestamp` |
-| Project updated | `ProjectUpdated` | `project_id`, `owner`, `timestamp` |
-| Project archived | `ProjectArchived` | `project_id`, `archived_by`, `timestamp` |
-| Project reactivated | `ProjectReactivated` | `project_id`, `caller`, `timestamp` |
-| Ownership transferred | `OwnershipTransferred` | `project_id`, `old_owner`, `new_owner`, `timestamp` |
-| Verification requested | `VerificationRequested` | `project_id`, `requester`, `evidence_cid`, `timestamp` |
-| Verification approved | `VerificationApproved` | `project_id`, `admin`, `timestamp` |
-| Verification rejected | `VerificationRejected` | `project_id`, `admin`, `timestamp` |
-| Verification revoked | `VerificationRevoked` | `project_id`, `admin`, `reason`, `timestamp` |
-| Renewal requested | `VerificationRenewalRequested` | `project_id`, `requester`, `evidence_cid`, `fee_amount`, `timestamp` |
-| Renewal approved | `VerificationRenewalApproved` | `project_id`, `admin`, `expires_at`, `timestamp` |
-| Renewal rejected | `VerificationRenewalRejected` | `project_id`, `admin`, `timestamp` |
-| Review action | `REVIEW` | `project_id`, `reviewer`, `action` (Submitted/Updated/Deleted), `timestamp` |
-| Review reported | `ReviewReported` | `project_id`, `reviewer`, `reporter`, `timestamp` |
-| Review hidden | `ReviewHidden` | `project_id`, `reviewer`, `admin`, `timestamp` |
-| Review restored | `ReviewRestored` | `project_id`, `reviewer`, `admin`, `timestamp` |
-| Dispute opened | `DisputeOpened` | `project_id`, `reporter`, `timestamp` |
-| Dispute resolved | `DisputeResolved` | `project_id`, `admin`, `resolution`, `timestamp` |
-| Project reported | `ProjectReported` | `project_id`, `reporter`, `reason_cid`, `timestamp` |
-| Fee paid | `FeePaid` | `project_id`, `payer`, `token`, `operation`, `amount`, `timestamp` |
-| Admin added | `AdminAdded` | `admin`, `timestamp` |
-| Admin removed | `AdminRemoved` | `admin`, `timestamp` |
+| Project registered | `("PROJECT", "CREATED", project_id)` | `project_id`, `owner`, `name`, `category`, `timestamp` |
+| Project updated | `("PROJECT", "UPDATED", project_id)` | `project_id`, `owner`, `timestamp` |
+| Project archived | `("PROJECT", "ARCHIVED", project_id)` | `project_id`, `archived_by`, `timestamp` |
+| Project reactivated | `("PROJECT", "RESTORED", project_id)` | `project_id`, `caller`, `timestamp` |
+| Ownership transferred | `("PROJECT", "TRANSFER", project_id)` | `project_id`, `caller`, `old_owner`, `new_owner`, `timestamp` |
+| Verification requested | `("VERIFY", "REQ", project_id)` | `project_id`, `requester`, `evidence_cid`, `timestamp` |
+| Verification approved | `("VERIFY", "APP", project_id)` | `project_id`, `admin`, `decided_at`, `timestamp` |
+| Verification rejected | `("VERIFY", "REJ", project_id)` | `project_id`, `admin`, `decided_at`, `timestamp` |
+| Verification revoked | `("VERIFY", "REVOKED", project_id)` | `project_id`, `admin`, `reason`, `timestamp` |
+| Verification evidence updated | `("VERIFY", "EV_UPD", project_id)` | `project_id`, `requester`, `old_evidence_cid`, `new_evidence_cid`, `timestamp` |
+| Verification renewal requested | `("RENEW", "REQUEST", project_id)` | `project_id`, `requester`, `evidence_cid`, `fee_amount`, `timestamp` |
+| Verification renewal approved | `("RENEW", "APPROVED", project_id)` | `project_id`, `admin`, `expires_at`, `timestamp` |
+| Verification renewal rejected | `("RENEW", "REJECTED", project_id)` | `project_id`, `admin`, `timestamp` |
+| Review action | `("REVIEW", "SUBMITTED" \| "UPDATED" \| "REVISED" \| "DELETED", project_id, reviewer)` | `project_id`, `reviewer`, `action`, `timestamp`, `content_cid`, `created_at`, `updated_at`, `owner_response` |
+| Review reported | `("REVIEW", "REPORTED", project_id)` | `project_id`, `reviewer`, `reporter`, `timestamp` |
+| Review hidden | `("REVIEW", "HIDDEN", project_id)` | `project_id`, `reviewer`, `admin`, `timestamp` |
+| Review restored | `("REVIEW", "RESTORED", project_id)` | `project_id`, `reviewer`, `admin`, `timestamp` |
+| Review deleted by admin | `("REVIEW", "ADMINDEL", project_id)` | `project_id`, `reviewer`, `admin`, `timestamp` |
+| Dispute opened | `("DISPUTE", "OPENED", project_id)` | `project_id`, `reporter`, `timestamp` |
+| Dispute resolved | `("DISPUTE", "RESOLVED", project_id)` | `project_id`, `admin`, `resolution`, `timestamp` |
+| Project reported | `("PROJECT", "REPORTED", project_id)` | `project_id`, `reporter`, `reason_cid`, `timestamp` |
+| Fee paid | `("FEE", "PAID", project_id)` | `project_id`, `payer`, `token`, `operation`, `amount`, `timestamp` |
+| Fee consumed | `("FEE", "CONSUMED", project_id)` | `project_id`, `caller`, `operation`, `amount`, `timestamp` |
+| Admin added | `("ADMIN", "ADDED")` | `admin`, `timestamp` |
+| Admin removed | `("ADMIN", "REMOVED")` | `admin`, `timestamp` |
 
 For the complete list of contract functions used in backfill, see [CONTRACT_INTERFACE.md](./CONTRACT_INTERFACE.md).

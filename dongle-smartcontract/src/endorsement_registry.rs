@@ -1,16 +1,10 @@
+use crate::errors::ContractError;
 use crate::events::{publish_project_endorsed_event, publish_project_unendorsed_event};
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
-use soroban_sdk::{contracterror, Address, Env, Vec};
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum EndorsementError {
-    AlreadyEndorsed = 1,
-    NotEndorsed = 2,
-}
+use crate::utils::Utils;
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct EndorsementRegistry;
 
@@ -19,15 +13,15 @@ impl EndorsementRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), EndorsementError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if ProjectRegistry::get_project(env, project_id).is_none() {
-            panic!("project not found");
+            return Err(ContractError::ProjectNotFound);
         }
 
         if Self::has_endorsed(env, project_id, &user) {
-            return Err(EndorsementError::AlreadyEndorsed);
+            return Err(ContractError::AlreadyEndorsed);
         }
 
         let mut endorsements: Vec<Address> = env
@@ -35,7 +29,7 @@ impl EndorsementRegistry {
             .persistent()
             .get(&ExtensionKey::ProjectEndorsements(project_id))
             .unwrap_or_else(|| Vec::new(env));
-        endorsements.push_back(user.clone());
+        let _ = Utils::add_unique_to_vec(&mut endorsements, &user);
         env.storage().persistent().set(
             &ExtensionKey::ProjectEndorsements(project_id),
             &endorsements,
@@ -57,11 +51,11 @@ impl EndorsementRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), EndorsementError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if !Self::has_endorsed(env, project_id, &user) {
-            return Err(EndorsementError::NotEndorsed);
+            return Err(ContractError::NotEndorsed);
         }
 
         let endorsements: Vec<Address> = env
@@ -70,14 +64,7 @@ impl EndorsementRegistry {
             .get(&ExtensionKey::ProjectEndorsements(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        let mut new_endorsements: Vec<Address> = Vec::new(env);
-        for i in 0..endorsements.len() {
-            if let Some(e) = endorsements.get(i) {
-                if e != user {
-                    new_endorsements.push_back(e);
-                }
-            }
-        }
+        let new_endorsements = Utils::remove_item_from_vec(env, &endorsements, &user);
         env.storage().persistent().set(
             &ExtensionKey::ProjectEndorsements(project_id),
             &new_endorsements,
