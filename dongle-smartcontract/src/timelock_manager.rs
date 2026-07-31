@@ -43,47 +43,50 @@ impl TimelockManager {
             .unwrap_or(Vec::new(env))
     }
 
-    fn validate_timelock(env: &Env, execution_timestamp: u64) {
+    fn validate_timelock(env: &Env, execution_timestamp: u64) -> Result<(), ContractError> {
         let now = env.ledger().timestamp();
         if execution_timestamp <= now {
-            panic!("Timelock: execution timestamp must be in the future");
+            return Err(ContractError::TimelockExecutionInPast);
         }
         if execution_timestamp < now + TIMELOCK_MIN_DELAY {
-            panic!("Timelock: minimum delay not met");
+            return Err(ContractError::TimelockMinimumDelayNotMet);
         }
+        Ok(())
     }
 
-    fn get_action_unchecked(env: &Env, action_id: u64) -> TimelockAction {
+    fn get_action_unchecked(env: &Env, action_id: u64) -> Result<TimelockAction, ContractError> {
         env.storage()
             .persistent()
             .get(&ExtensionKey::TimelockAction(action_id))
-            .unwrap_or_else(|| panic!("Timelock: action not found"))
+            .ok_or(ContractError::TimelockActionNotFound)
     }
 
-    fn mark_executed(env: &Env, action_id: u64) {
-        let mut action = Self::get_action_unchecked(env, action_id);
+    fn mark_executed(env: &Env, action_id: u64) -> Result<(), ContractError> {
+        let mut action = Self::get_action_unchecked(env, action_id)?;
         action.executed = true;
         env.storage()
             .persistent()
             .set(&ExtensionKey::TimelockAction(action_id), &action);
+        Ok(())
     }
 
-    fn require_pending(env: &Env, action_id: u64) -> TimelockAction {
-        let action = Self::get_action_unchecked(env, action_id);
+    fn require_pending(env: &Env, action_id: u64) -> Result<TimelockAction, ContractError> {
+        let action = Self::get_action_unchecked(env, action_id)?;
         if action.executed {
-            panic!("Timelock: action already executed");
+            return Err(ContractError::TimelockAlreadyExecuted);
         }
         if action.cancelled {
-            panic!("Timelock: action already cancelled");
+            return Err(ContractError::TimelockAlreadyCancelled);
         }
-        action
+        Ok(action)
     }
 
-    fn require_expired(env: &Env, action: &TimelockAction) {
+    fn require_expired(env: &Env, action: &TimelockAction) -> Result<(), ContractError> {
         let now = env.ledger().timestamp();
         if now < action.execution_timestamp {
-            panic!("Timelock: action cannot execute before timelock expires");
+            return Err(ContractError::TimelockNotYetDue);
         }
+        Ok(())
     }
 
     pub fn schedule_set_fee(
@@ -96,7 +99,7 @@ impl TimelockManager {
         execution_timestamp: u64,
     ) -> Result<u64, ContractError> {
         require_admin_auth(env, &admin)?;
-        Self::validate_timelock(env, execution_timestamp);
+        Self::validate_timelock(env, execution_timestamp)?;
 
         let now = env.ledger().timestamp();
         let id = Self::get_next_id(env);
@@ -148,7 +151,7 @@ impl TimelockManager {
         execution_timestamp: u64,
     ) -> Result<u64, ContractError> {
         require_admin_auth(env, &admin)?;
-        Self::validate_timelock(env, execution_timestamp);
+        Self::validate_timelock(env, execution_timestamp)?;
 
         let now = env.ledger().timestamp();
         let id = Self::get_next_id(env);
@@ -195,7 +198,7 @@ impl TimelockManager {
         execution_timestamp: u64,
     ) -> Result<u64, ContractError> {
         require_admin_auth(env, &admin)?;
-        Self::validate_timelock(env, execution_timestamp);
+        Self::validate_timelock(env, execution_timestamp)?;
 
         let now = env.ledger().timestamp();
         let id = Self::get_next_id(env);
@@ -238,7 +241,7 @@ impl TimelockManager {
     pub fn cancel_action(env: &Env, caller: Address, action_id: u64) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
-        let action = Self::require_pending(env, action_id);
+        let action = Self::require_pending(env, action_id)?;
 
         let mut updated = action.clone();
         updated.cancelled = true;
@@ -258,14 +261,14 @@ impl TimelockManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
-        let action = Self::require_pending(env, action_id);
-        Self::require_expired(env, &action);
+        let action = Self::require_pending(env, action_id)?;
+        Self::require_expired(env, &action)?;
 
         let params: TimelockFeeParams = env
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockFeeParams(action_id))
-            .expect("Timelock: fee params not found");
+            .ok_or(ContractError::TimelockParamsNotFound)?;
 
         FeeManager::set_fee(
             env,
@@ -276,7 +279,7 @@ impl TimelockManager {
             params.treasury,
         )?;
 
-        Self::mark_executed(env, action_id);
+        Self::mark_executed(env, action_id)?;
 
         publish_timelock_action_executed_event(env, action_id, caller, AdminActionType::FeeChanged);
 
@@ -290,18 +293,18 @@ impl TimelockManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
-        let action = Self::require_pending(env, action_id);
-        Self::require_expired(env, &action);
+        let action = Self::require_pending(env, action_id)?;
+        Self::require_expired(env, &action)?;
 
         let params: TimelockAdminAddParams = env
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockAdminAddParams(action_id))
-            .expect("Timelock: admin add params not found");
+            .ok_or(ContractError::TimelockParamsNotFound)?;
 
         AdminManager::add_admin(env, action.admin.clone(), params.new_admin)?;
 
-        Self::mark_executed(env, action_id);
+        Self::mark_executed(env, action_id)?;
 
         publish_timelock_action_executed_event(env, action_id, caller, AdminActionType::AdminAdded);
 
@@ -315,18 +318,18 @@ impl TimelockManager {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
-        let action = Self::require_pending(env, action_id);
-        Self::require_expired(env, &action);
+        let action = Self::require_pending(env, action_id)?;
+        Self::require_expired(env, &action)?;
 
         let params: TimelockAdminRemoveParams = env
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockAdminRemoveParams(action_id))
-            .expect("Timelock: admin remove params not found");
+            .ok_or(ContractError::TimelockParamsNotFound)?;
 
         AdminManager::remove_admin(env, action.admin.clone(), params.admin_to_remove)?;
 
-        Self::mark_executed(env, action_id);
+        Self::mark_executed(env, action_id)?;
 
         publish_timelock_action_executed_event(
             env,

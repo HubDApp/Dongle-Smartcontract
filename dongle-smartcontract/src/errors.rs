@@ -51,6 +51,21 @@ pub enum ContractError {
     TooManyTags = 45,
     OwnerCannotReview = 46,
     InvalidNameFormat = 47,
+    TimelockActionNotFound = 48,
+    TimelockNotYetDue = 49,
+    TimelockAlreadyExecuted = 50,
+    TimelockAlreadyCancelled = 51,
+    TimelockExecutionInPast = 52,
+    TimelockMinimumDelayNotMet = 53,
+    TimelockParamsNotFound = 54,
+    AlreadyBookmarked = 55,
+    NotBookmarked = 56,
+    AlreadyEndorsed = 57,
+    NotEndorsed = 58,
+    CollectionFull = 59,
+    ContractPaused = 60,
+    ReviewerNotEligible = 61,
+    ReviewFeeRequired = 62,
 }
 
 pub type Error = ContractError;

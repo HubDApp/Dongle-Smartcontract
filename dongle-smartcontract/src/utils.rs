@@ -44,16 +44,17 @@ impl Utils {
 
     /// Convert a Soroban String to lowercase for case-insensitive comparison.
     pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let bytes = s.as_bytes();
-        let len = bytes.len();
+        let len = s.len() as usize;
+        if len == 0 {
+            return s.clone();
+        }
         let mut buf = [0u8; 256];
         let cap = if len < buf.len() { len } else { buf.len() };
-        for i in 0..cap {
-            buf[i] = if bytes[i].is_ascii_uppercase() {
-                bytes[i] + 32
-            } else {
-                bytes[i]
-            };
+        s.copy_into_slice(&mut buf[..cap]);
+        for b in buf[..cap].iter_mut() {
+            if *b >= b'A' && *b <= b'Z' {
+                *b += 32;
+            }
         }
         let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
         String::from_str(env, s)
@@ -71,19 +72,23 @@ impl Utils {
     /// duplicates regardless of their original casing, spacing, or punctuation.
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
+        if len == 0 {
+            return name.clone();
+        }
 
-        // Allocate a buffer of the same size (normalization can only shrink or
-        // preserve length when working on ASCII bytes).
-        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = copy_str(name, &mut raw);
+        // Copy name into buffer
+        let mut in_buf = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
+        let cap = if len < in_buf.len() { len } else { in_buf.len() };
+        name.copy_into_slice(&mut in_buf[..cap]);
 
-        name.copy_into_slice(&mut buf[..cap]);
-
+        // Allocate output buffer (normalization can only shrink or preserve length)
+        let mut out_buf = [0u8; 64];
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
+        // Process each byte
         for i in 0..cap {
-            let b = buf[i];
+            let b = in_buf[i];
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -95,8 +100,6 @@ impl Utils {
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < len {
-                    buf[out_len] = b' ';
                 if !last_was_space && out_len < out_buf.len() {
                     out_buf[out_len] = b' ';
                     out_len += 1;
@@ -118,27 +121,6 @@ impl Utils {
 
         // Convert back to a Soroban String
         // SAFETY: all bytes are valid ASCII (subset of UTF-8).
-        let s = core::str::from_utf8(&buf[..out_len]).unwrap_or("");
-        String::from_str(env, s)
-    }
-
-    /// Convert a Soroban `String` to lowercase (ASCII only).
-    /// Used by the reserved-name checker and other case-insensitive comparisons.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let len = s.len() as usize;
-        if len == 0 {
-            return s.clone();
-        }
-        let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
-        s.copy_into_slice(&mut buf[..cap]);
-        for b in buf[..cap].iter_mut() {
-            if *b >= b'A' && *b <= b'Z' {
-                *b += 32;
-            }
-        }
-        let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
-        String::from_str(env, lower)
         let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
@@ -367,39 +349,48 @@ impl Utils {
 
     /// Returns `true` if the string is a plausible IPFS CID (v0 or v1).
     ///
-    /// - CIDv0: starts with `Qm`, total length 46.
-    /// - CIDv1: starts with `b`, length 46–128.
+    /// - CIDv0: starts with `Qm`, total length 46, base58btc characters only.
+    /// - CIDv1: starts with `b`, length 40–128, alphanumeric or dash/underscore characters.
+    ///   Accepts common prefixes: "bafy", "bafk", "ba" or any other "b" prefix.
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 46 || len > MAX_CID_LEN {
+        if len < 40 || len > MAX_CID_LEN {
             return false;
         }
 
-        // Read first two bytes
-        let mut first_two = [0u8; 2];
-        cid.copy_into_slice(&mut first_two[..2]);
+        // Get bytes for character checking
+        let mut bytes = [0u8; 128];
+        let cap = if len < bytes.len() { len } else { bytes.len() };
+        cid.copy_into_slice(&mut bytes[..cap]);
 
-        if first_two[0] == b'Q' && first_two[1] == b'm' {
-            // CIDv0
-            len == 46
-        } else if first_two[0] == b'b' {
-            // CIDv1
-            true
-        } else {
-            false
+        // Check first character to determine CID version
+        match bytes[0] {
+            b'Q' => {
+                // CIDv0: must start with "Qm" and be exactly 46 characters
+                if len != 46 || bytes[1] != b'm' {
+                    return false;
+                }
+                
+                // CIDv0 must be base58btc characters: alphanumeric or '1'-'9'
+                for &b in &bytes[..len] {
+                    if !b.is_ascii_alphanumeric() && !(b >= b'1' && b <= b'9') {
+                        return false;
+                    }
+                }
+                true
+            }
+            b'b' => {
+                // CIDv1: must start with 'b' and have valid characters
+                // Check character validity: alphanumeric, dash, or underscore
+                for &b in &bytes[..len] {
+                    if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
         }
-    }
-
-    // ────────────────────────────────────────────────────────────────────
-    // Report reason CID validation
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Validate a report reason CID.
-    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidCid);
-        }
-        Ok(())
     }
 
     // ────────────────────────────────────────────────────────────────────
