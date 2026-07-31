@@ -11,6 +11,7 @@ use soroban_sdk::{contracterror, Address, Env, Vec};
 pub enum EndorsementError {
     AlreadyEndorsed = 1,
     NotEndorsed = 2,
+    ProjectNotFound = 3,
 }
 
 pub struct EndorsementRegistry;
@@ -24,7 +25,7 @@ impl EndorsementRegistry {
         user.require_auth();
 
         if ProjectRegistry::get_project(env, project_id).is_none() {
-            panic!("project not found");
+            return Err(EndorsementError::ProjectNotFound);
         }
 
         if Self::has_endorsed(env, project_id, &user) {

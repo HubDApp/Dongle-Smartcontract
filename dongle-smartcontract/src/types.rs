@@ -298,9 +298,7 @@ pub struct FeeConfigHistoryEntry {
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}
-
-#[contracttype]
+}#[contracttype]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectAggregate {
     pub total_rating: u64,
