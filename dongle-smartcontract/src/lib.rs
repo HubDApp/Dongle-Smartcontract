@@ -13,6 +13,7 @@ mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_registry;
+mod changelog_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -36,9 +37,11 @@ use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
+use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::changelog_registry::ChangelogRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -46,12 +49,12 @@ use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    ContractConfigView, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
-    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
-    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
-    VerificationRecord, VerificationStatus,
+    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
+    Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
+    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus,
+    TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -270,29 +273,15 @@ impl DongleContract {
     }
 
     /// Sets an optional region tag for a project (owner only).
+    /// Delegates to `ProjectRegistry::set_project_region` for the actual logic.
     pub fn set_project_region(
         env: Env,
         project_id: u64,
         caller: Address,
         region: Option<String>,
     ) -> Result<(), ContractError> {
-        caller.require_auth();
-        let project =
-            ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        if project.owner != caller {
-            return Err(ContractError::Unauthorized);
-        }
-        match region {
-            Some(r) => env
-                .storage()
-                .persistent()
-                .set(&ExtensionKey::ProjectRegion(project_id), &r),
-            None => env
-                .storage()
-                .persistent()
-                .remove(&ExtensionKey::ProjectRegion(project_id)),
-        }
-        Ok(())
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_region(&env, project_id, caller, region)
     }
 
     /// Returns the region tag for a project, if set.
@@ -321,19 +310,19 @@ impl DongleContract {
     pub fn list_projects_by_category(
         env: Env,
         category: String,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Project> {
-        ProjectRegistry::list_projects_by_category(&env, category, start_id, limit)
+        ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
     }
 
     pub fn list_projects_sorted(
         env: Env,
         sort_mode: ProjectSortMode,
-        start_id: u64,
+        start_index: u64,
         limit: u32,
     ) -> Vec<Project> {
-        ProjectRegistry::list_projects_sorted(&env, sort_mode, start_id, limit)
+        ProjectRegistry::list_projects_sorted(&env, sort_mode, start_index, limit)
     }
 
     pub fn claim_contract_address(
@@ -497,8 +486,8 @@ impl DongleContract {
         ReviewRegistry::get_reviews_by_ids(&env, ids)
     }
 
-    pub fn list_reviews(env: Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
-        ReviewRegistry::list_reviews(&env, project_id, start_id, limit)
+    pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
+        ReviewRegistry::list_reviews(&env, project_id, start_index, limit)
     }
 
     pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {
@@ -592,11 +581,11 @@ impl DongleContract {
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
-        ReviewRegistry::list_reviews_sorted(&env, project_id, start_id, limit, sort_mode)
+        ReviewRegistry::list_reviews_sorted(&env, project_id, start_index, limit, sort_mode)
     }
 
     // --- Verification Registry ---
@@ -850,9 +839,51 @@ impl DongleContract {
         }
     }
 
+    /// Extend TTL for many project IDs. Missing projects are skipped.
+    pub fn extend_projects_ttl(env: Env, project_ids: Vec<u64>) -> Result<u32, ContractError> {
+        if project_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut refreshed = 0u32;
+        for i in 0..project_ids.len() {
+            if let Some(project_id) = project_ids.get(i) {
+                if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
+                    StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
+                    refreshed = refreshed.saturating_add(1);
+                }
+            }
+        }
+        Ok(refreshed)
+    }
+
     /// Extend TTL for a specific review
     pub fn extend_review_ttl(env: Env, project_id: u64, reviewer: Address) {
         StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+    }
+
+    /// Extend TTL for many review records. Missing reviews are skipped.
+    pub fn extend_reviews_ttl(
+        env: Env,
+        review_ids: Vec<(u64, Address)>,
+    ) -> Result<u32, ContractError> {
+        if review_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut refreshed = 0u32;
+        for i in 0..review_ids.len() {
+            if let Some((project_id, reviewer)) = review_ids.get(i) {
+                if ReviewRegistry::get_review(&env, project_id, reviewer.clone()).is_some() {
+                    StorageManager::extend_review_ttl(&env, project_id, &reviewer);
+                    StorageManager::extend_project_reviews_ttl(&env, project_id);
+                    StorageManager::extend_project_stats_ttl(&env, project_id);
+                    StorageManager::extend_user_reviews_ttl(&env, &reviewer);
+                    refreshed = refreshed.saturating_add(1);
+                }
+            }
+        }
+        Ok(refreshed)
     }
 
     /// Extend TTL for all admin-related data
@@ -942,8 +973,8 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
-        ProjectRegistry::list_projects_by_tag(&env, tag, start_id, limit)
+    pub fn list_projects_by_tag(env: Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_tag(&env, tag, start_index, limit)
     }
 
     // --- Collection Registry ---
@@ -1173,6 +1204,90 @@ impl DongleContract {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 
+    // --- Project Changelog ---
+
+    /// Add a new changelog entry for a project (owner only).
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID to add changelog for
+    /// - `owner`: The project owner (must be authenticated)
+    /// - `cid`: IPFS CID containing the changelog content
+    /// - `description`: Optional description/title for the changelog entry
+    ///
+    /// # Returns
+    /// - `Ok(u64)` with the new changelog entry ID on success
+    /// - `Err(ContractError)` on failure
+    pub fn add_changelog_entry(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        cid: String,
+        description: Option<String>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description)
+    }
+
+    /// Remove a changelog entry (project owner only).
+    ///
+    /// # Arguments
+    /// - `changelog_id`: The changelog entry ID to remove
+    /// - `owner`: The project owner (must be authenticated)
+    ///
+    /// # Returns
+    /// - `Ok(())` on success
+    /// - `Err(ContractError)` on failure
+    pub fn remove_changelog_entry(
+        env: Env,
+        changelog_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ChangelogRegistry::remove_changelog_entry(&env, changelog_id, owner)
+    }
+
+    /// Get a single changelog entry by ID.
+    ///
+    /// # Arguments
+    /// - `changelog_id`: The changelog entry ID
+    ///
+    /// # Returns
+    /// - `Option<ChangelogEntry>` the changelog entry if found
+    pub fn get_changelog_entry(env: Env, changelog_id: u64) -> Option<ChangelogEntry> {
+        ChangelogRegistry::get_changelog_entry(&env, changelog_id)
+    }
+
+    /// Get paginated changelog entries for a project.
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID to get changelog for
+    /// - `start`: Starting index for pagination
+    /// - `limit`: Maximum number of entries to return (capped at MAX_PAGE_LIMIT)
+    /// - `sort_mode`: Sort order (Newest or Oldest)
+    ///
+    /// # Returns
+    /// - `Vec<ChangelogEntry>` paginated and sorted changelog entries
+    pub fn get_project_changelog(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+        sort_mode: ChangelogSortMode,
+    ) -> Vec<ChangelogEntry> {
+        ChangelogRegistry::get_project_changelog(&env, project_id, start, limit, sort_mode)
+    }
+
+    /// Get changelog entry count for a project.
+    ///
+    /// # Arguments
+    /// - `project_id`: The project ID
+    ///
+    /// # Returns
+    /// - `u32` number of changelog entries
+    pub fn get_changelog_count(env: Env, project_id: u64) -> u32 {
+        ChangelogRegistry::get_changelog_count(&env, project_id)
+    }
+
     // --- Subscription / Follow ---
 
     pub fn follow_project(
@@ -1226,7 +1341,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1234,7 +1349,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::bookmark_registry::BookmarkError> {
+    ) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::unbookmark_project(&env, project_id, user)
     }
 
@@ -1252,7 +1367,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1260,7 +1375,7 @@ impl DongleContract {
         env: Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), crate::endorsement_registry::EndorsementError> {
+    ) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::unendorse_project(&env, project_id, user)
     }
 

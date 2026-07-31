@@ -1,63 +1,22 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String};
+use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
+use crate::storage_keys::StorageKey;
+use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
-#[allow(dead_code)]
 pub struct Utils;
 
-#[allow(dead_code)]
 impl Utils {
-    // ────────────────────────────────────────────────────────────────────
-    // Vec helpers
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Return a new Vec containing all items from `vec` except those equal to `item`.
-    ///
-    /// This is a generic replacement for the hand-rolled "filter and rebuild"
-    /// pattern that was duplicated across multiple registries.
-    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
-        env: &Env,
-        vec: &Vec<T>,
-        item: &T,
-    ) -> Vec<T> {
-        let mut result = Vec::new(env);
-        for i in 0..vec.len() {
-            if let Some(v) = vec.get(i) {
-                if &v != item {
-                    result.push_back(v);
-                }
-            }
-        }
-        result
-    }
-
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
-
-    /// Convert a Soroban String to lowercase for case-insensitive comparison.
-    pub fn to_lowercase(env: &Env, s: &String) -> String {
-        let bytes = s.as_bytes();
-        let len = bytes.len();
-        let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
-        for i in 0..cap {
-            buf[i] = if bytes[i].is_ascii_uppercase() {
-                bytes[i] + 32
-            } else {
-                bytes[i]
-            };
-        }
-        let s = core::str::from_utf8(&buf[..cap]).unwrap_or("");
-        String::from_str(env, s)
-    }
 
     /// Normalize a project name for duplicate-detection purposes.
     ///
@@ -71,19 +30,24 @@ impl Utils {
     /// duplicates regardless of their original casing, spacing, or punctuation.
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
+        if len == 0 {
+            return name.clone();
+        }
 
-        // Allocate a buffer of the same size (normalization can only shrink or
-        // preserve length when working on ASCII bytes).
-        let mut raw = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = copy_str(name, &mut raw);
-
+        // Use a buffer of size MAX_NAME_LEN (50), which is the maximum name length.
+        // Normalization can only shrink the string when working on ASCII bytes.
+        let mut buf = [0u8; MAX_NAME_LEN];
+        let cap = if len < buf.len() { len } else { buf.len() };
         name.copy_into_slice(&mut buf[..cap]);
 
+        // Allocate output buffer (normalization can only shrink or preserve length)
+        let mut out_buf = [0u8; 64];
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
+        // Process each byte
         for i in 0..cap {
-            let b = buf[i];
+            let b = in_buf[i];
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -95,24 +59,20 @@ impl Utils {
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < len {
+                if !last_was_space {
                     buf[out_len] = b' ';
-                if !last_was_space && out_len < out_buf.len() {
-                    out_buf[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                if out_len < out_buf.len() {
-                    out_buf[out_len] = normalized;
-                    out_len += 1;
-                }
+                buf[out_len] = normalized;
+                out_len += 1;
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && out_buf[out_len - 1] == b' ' {
+        while out_len > 0 && buf[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
@@ -124,13 +84,17 @@ impl Utils {
 
     /// Convert a Soroban `String` to lowercase (ASCII only).
     /// Used by the reserved-name checker and other case-insensitive comparisons.
+    ///
+    /// The 256-byte buffer covers all name-type fields (MAX_NAME_LEN=50,
+    /// MAX_SECURITY_CONTACT_LEN=256, MAX_DESCRIPTION_LEN=2048 — longer inputs
+    /// are truncated gracefully since the callers already enforce those limits).
     pub fn to_lowercase(env: &Env, s: &String) -> String {
         let len = s.len() as usize;
         if len == 0 {
             return s.clone();
         }
+        let cap = if len < 256 { len } else { 256 };
         let mut buf = [0u8; 256];
-        let cap = if len < buf.len() { len } else { buf.len() };
         s.copy_into_slice(&mut buf[..cap]);
         for b in buf[..cap].iter_mut() {
             if *b >= b'A' && *b <= b'Z' {
@@ -139,8 +103,6 @@ impl Utils {
         }
         let lower = core::str::from_utf8(&buf[..cap]).unwrap_or("");
         String::from_str(env, lower)
-        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
-        String::from_str(env, s)
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -367,39 +329,61 @@ impl Utils {
 
     /// Returns `true` if the string is a plausible IPFS CID (v0 or v1).
     ///
-    /// - CIDv0: starts with `Qm`, total length 46.
-    /// - CIDv1: starts with `b`, length 46–128.
+    /// - CIDv0: starts with `Qm`, total length 46, base58btc characters only.
+    /// - CIDv1: starts with `b`, length 40–128, alphanumeric or dash/underscore characters.
+    ///   Accepts common prefixes: "bafy", "bafk", "ba" or any other "b" prefix.
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 46 || len > MAX_CID_LEN {
+        if len < 40 || len > MAX_CID_LEN {
             return false;
         }
 
-        // Read first two bytes
-        let mut first_two = [0u8; 2];
-        cid.copy_into_slice(&mut first_two[..2]);
+        // Get bytes for character checking
+        let mut bytes = [0u8; 128];
+        let cap = if len < bytes.len() { len } else { bytes.len() };
+        cid.copy_into_slice(&mut bytes[..cap]);
 
-        if first_two[0] == b'Q' && first_two[1] == b'm' {
-            // CIDv0
-            len == 46
-        } else if first_two[0] == b'b' {
-            // CIDv1
-            true
-        } else {
-            false
+        // Check first character to determine CID version
+        match bytes[0] {
+            b'Q' => {
+                // CIDv0: must start with "Qm" and be exactly 46 characters
+                if len != 46 || bytes[1] != b'm' {
+                    return false;
+                }
+                
+                // CIDv0 must be base58btc characters: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+                for &b in &bytes[..len] {
+                    match b {
+                        b'1'..=b'9' => (), // Digits 1-9 are valid
+                        b'A'..=b'Z' => {
+                            // Exclude O and I from uppercase letters
+                            if b == b'O' || b == b'I' {
+                                return false;
+                            }
+                        }
+                        b'a'..=b'z' => {
+                            // Exclude l from lowercase letters
+                            if b == b'l' {
+                                return false;
+                            }
+                        }
+                        _ => return false, // Any other character is invalid
+                    }
+                }
+                true
+            }
+            b'b' => {
+                // CIDv1: must start with 'b' and have valid characters
+                // Check character validity: alphanumeric, dash, or underscore
+                for &b in &bytes[..len] {
+                    if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
         }
-    }
-
-    // ────────────────────────────────────────────────────────────────────
-    // Report reason CID validation
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Validate a report reason CID.
-    pub fn validate_report_reason_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
-            return Err(ContractError::InvalidCid);
-        }
-        Ok(())
     }
 
     // ────────────────────────────────────────────────────────────────────

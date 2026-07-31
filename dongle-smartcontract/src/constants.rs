@@ -18,6 +18,13 @@ pub const MAX_REVIEWS_PER_USER: u32 = 200;
 /// Maximum items returned per paginated read query across list endpoints.
 pub const MAX_PAGE_LIMIT: u32 = 100;
 
+/// Maximum records that can be refreshed by one batch TTL extension call.
+pub const MAX_TTL_BATCH_SIZE: u32 = 100;
+
+/// Minimum length for name, description, category (must be non-empty after trim in validation).
+#[allow(dead_code)]
+pub const MIN_STRING_LEN: usize = 1;
+
 /// Maximum length for project name.
 pub const MAX_NAME_LEN: usize = 50;
 
@@ -149,6 +156,15 @@ pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+/// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+
+/// Default setting for whether endorsements are required for reviews (default: false).
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+
+/// Default review fee amount (default: 0, free).
+pub const DEFAULT_REVIEW_FEE: u128 = 0;
 
 // ── Contract metadata (read by `get_config`) ────────────────────────────────
 

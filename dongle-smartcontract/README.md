@@ -1463,7 +1463,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_category \
   --category "DeFi" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1475,7 +1475,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_tag \
   --tag "nft" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1658,6 +1658,10 @@ The contract implements comprehensive TTL management for Soroban persistent stor
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_project_ttl --project_id 1
 
+# Extend TTL for many projects; missing project IDs are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_projects_ttl --project_ids '[1,2,3]'
+
 # Extend TTL for critical configuration
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_critical_config_ttl
@@ -1670,10 +1674,17 @@ soroban contract invoke --id <CONTRACT_ID> --network testnet \
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_review_ttl --project_id 1 --reviewer <REVIEWER_ADDRESS>
 
+# Extend TTL for many reviews; missing reviews are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_reviews_ttl --review_ids '[[1,"<REVIEWER_ADDRESS>"],[2,"<REVIEWER_ADDRESS>"]]'
+
 # Extend TTL for verification data
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_verification_ttl --project_id 1
 ```
+
+Batch TTL calls accept up to 100 records and return the number of existing
+records refreshed.
 
 ---
 
