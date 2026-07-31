@@ -14,7 +14,8 @@ All paginated list endpoints clamp `limit` to `MAX_PAGE_LIMIT` (**100**). When `
 |-----------|----------|
 | `limit = 0` | Treated as `MAX_PAGE_LIMIT` (100) on most endpoints |
 | `limit > 100` | Clamped to 100 |
-| `start` / `start_id` / `start_index` | Zero-based offset into the index Vec |
+| `start_id` | Project ID cursor (`list_projects`, `list_projects_by_status`) |
+| `start_index` | Zero-based offset into an index Vec or sorted result |
 
 Indexers should page through large indexes using these parameters rather than assuming a single call returns all entries.
 

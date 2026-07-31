@@ -1463,7 +1463,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_category \
   --category "DeFi" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1475,7 +1475,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_tag \
   --tag "nft" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 

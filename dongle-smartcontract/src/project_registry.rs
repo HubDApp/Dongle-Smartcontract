@@ -936,7 +936,7 @@ impl ProjectRegistry {
     pub fn list_projects_by_category(
         env: &Env,
         category: String,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
@@ -953,14 +953,14 @@ impl ProjectRegistry {
 
         let mut projects = Vec::new(env);
         let len = category_projects.len();
-        if start_id >= len {
+        if start_index >= len {
             return projects;
         }
 
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
 
         let mut collected: u32 = 0;
-        for i in start_id..end {
+        for i in start_index..end {
             if collected >= effective_limit {
                 break;
             }
@@ -1173,7 +1173,7 @@ impl ProjectRegistry {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: &Env, tag: String, start_id: u32, limit: u32) -> Vec<Project> {
+    pub fn list_projects_by_tag(env: &Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -1193,8 +1193,8 @@ impl ProjectRegistry {
 
         let mut collected: u32 = 0;
 
-        // Iterate through all projects; start_id is a 0-based offset into the project ID space.
-        for id in (start_id as u64 + 1)..=count {
+        // Iterate through all projects; start_index is a 0-based offset into the project ID space.
+        for id in (start_index as u64 + 1)..=count {
             if collected >= effective_limit {
                 break;
             }
@@ -1944,7 +1944,7 @@ impl ProjectRegistry {
     pub fn list_projects_sorted(
         env: &Env,
         sort_mode: ProjectSortMode,
-        start_id: u64,
+        start_index: u64,
         limit: u32,
     ) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
@@ -1988,7 +1988,7 @@ impl ProjectRegistry {
         let n = all.len();
 
         let mut result = Vec::new(env);
-        let start = start_id as u32;
+        let start = start_index as u32;
         if start < n {
             let end = core::cmp::min(start.saturating_add(effective_limit), n);
             for i in start..end {
