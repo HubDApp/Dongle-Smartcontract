@@ -20,6 +20,9 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ProjectByNormalizedName(String),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -97,6 +100,8 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Contract pause status
+    ContractPaused,
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -142,12 +147,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
-    /// Fee config history entry count.
-    FeeConfigHistoryCount,
-    /// Fee config history entry by index (oldest = 0).
-    FeeConfigHistoryEntry(u32),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
     ReviewTombstone(u64, Address),
     /// Timestamp of the last successful update for a review (project_id, reviewer). Used for cooldown enforcement.
@@ -165,4 +164,20 @@ pub enum ExtensionKey {
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
     ProjectByNormalizedName(String),
+    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
+    /// pause state across mutating entry points is intentionally out of scope for the
+    /// config-view feature; see `set_pause` for the toggle.
+    Paused,
+    /// Contract claim status for a project (project_id, contract_address) -> bool
+    ContractClaim(u64, Address),
+    /// Project contracts list for a project (project_id) -> Vec<Address>
+    ProjectContracts(u64),
+    /// Review eligibility configuration
+    ReviewEligibilityConfig,
+    /// First interaction timestamp for an address
+    FirstInteraction(Address),
+    /// Review revision count for (project_id, reviewer)
+    ReviewRevisionCount(u64, Address),
+    /// Review revision data for (project_id, reviewer, revision_index)
+    ReviewRevision(u64, Address, u32),
 }

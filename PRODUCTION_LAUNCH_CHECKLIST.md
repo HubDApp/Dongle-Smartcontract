@@ -2,6 +2,9 @@
 
 This checklist must be completed before deploying the Dongle smart contract to Stellar Mainnet. Sign off each item with the reviewer's initials and date.
 
+> NOTE (auto-audit): I ran a workspace build and the `dongle-smartcontract` crate currently fails to compile (unclosed delimiter in `src/utils.rs`). CI has also been failing for 3+ weeks. Any checklist items that claim "build passes", "tests pass", or "CI green" must be re-verified and re-checked after the build/CI failures are resolved.
+
+
 ---
 
 ## 1. Code Quality & Testing
@@ -75,7 +78,7 @@ This checklist must be completed before deploying the Dongle smart contract to S
 ## 6. Data Schema & Events
 
 - [ ] Event schema (`EVENTS_SCHEMA.md`) matches emitted events in production code
-- [ ] Review CID schema (`review-cid.schema.json`) validated against example (`review-cid.example.json`)
+- [ ] Review CID schema (`docs/review-cid.schema.json`) validated against example (`docs/review-cid.example.json`)
 - [ ] Data export guide (`DATA_EXPORT_GUIDE.md`) tested against Testnet data
 - [ ] Indexers confirmed to be handling all event types in `EVENTS_SCHEMA.md`
 
