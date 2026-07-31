@@ -46,10 +46,9 @@ pub enum ContractError {
     FeeConfigNotSet = 44,
     OwnerCannotReview = 46,
     InvalidNameFormat = 47,
-    ContractPaused = 48,
-    CollectionFull = 49,
-    ReviewFeeRequired = 50,
-    ReviewerNotEligible = 51,
+    AlreadyEndorsed = 48,
+    NotEndorsed = 49,
+    TimelockNotExpired = 50,
 }
 
 pub type Error = ContractError;

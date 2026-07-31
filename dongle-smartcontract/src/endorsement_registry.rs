@@ -9,16 +9,10 @@ use soroban_sdk::{Address, Env, Vec};
 pub struct EndorsementRegistry;
 
 impl EndorsementRegistry {
-    pub fn endorse_project(
-        env: &Env,
-        project_id: u64,
-        user: Address,
-    ) -> Result<(), ContractError> {
+    pub fn endorse_project(env: &Env, project_id: u64, user: Address) -> Result<(), ContractError> {
         user.require_auth();
 
-        if ProjectRegistry::get_project(env, project_id).is_none() {
-            return Err(ContractError::ProjectNotFound);
-        }
+        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         if Self::has_endorsed(env, project_id, &user) {
             return Err(ContractError::AlreadyEndorsed);

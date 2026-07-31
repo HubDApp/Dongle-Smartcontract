@@ -1,4 +1,5 @@
 use crate::constants::TIMELOCK_MIN_DELAY;
+use crate::ContractError;
 use crate::DongleContract;
 use crate::DongleContractClient;
 use soroban_sdk::testutils::{Address as _, Ledger};
@@ -40,6 +41,37 @@ fn test_schedule_set_fee() {
     assert_eq!(action.admin, admin);
 
     assert_eq!(client.get_scheduled_action_count(), 1);
+}
+
+#[test]
+fn test_schedule_with_insufficient_delay_returns_error() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let treasury = Address::generate(&env);
+    let execution_time = env.ledger().timestamp() + TIMELOCK_MIN_DELAY - 1;
+
+    let result = client.mock_all_auths().try_schedule_set_fee(
+        &admin,
+        &None,
+        &1000u128,
+        &500u128,
+        &treasury,
+        &execution_time,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
+}
+
+#[test]
+fn test_cancel_nonexistent_action_returns_error() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+
+    let result = client
+        .mock_all_auths()
+        .try_cancel_scheduled_action(&admin, &999u64);
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
@@ -103,7 +135,6 @@ fn test_cancel_scheduled_action() {
 }
 
 #[test]
-#[should_panic(expected = "Timelock: action already cancelled")]
 fn test_cancel_already_cancelled_fails() {
     let env = Env::default();
     let (client, admin) = setup(&env);
@@ -122,13 +153,13 @@ fn test_cancel_already_cancelled_fails() {
     client
         .mock_all_auths()
         .cancel_scheduled_action(&admin, &action_id);
-    client
+    let result = client
         .mock_all_auths()
-        .cancel_scheduled_action(&admin, &action_id);
+        .try_cancel_scheduled_action(&admin, &action_id);
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]
-#[should_panic(expected = "Timelock: action cannot execute before timelock expires")]
 fn test_early_execute_fails() {
     let env = Env::default();
     let (client, admin) = setup(&env);
@@ -144,13 +175,13 @@ fn test_early_execute_fails() {
         &execution_time,
     );
 
-    client
+    let result = client
         .mock_all_auths()
-        .execute_scheduled_set_fee(&admin, &action_id);
+        .try_execute_scheduled_set_fee(&admin, &action_id);
+    assert_eq!(result, Err(Ok(ContractError::TimelockNotExpired)));
 }
 
 #[test]
-#[should_panic(expected = "Timelock: action already executed")]
 fn test_execute_twice_fails() {
     let env = Env::default();
     let (client, admin) = setup(&env);
@@ -171,10 +202,10 @@ fn test_execute_twice_fails() {
     client
         .mock_all_auths()
         .execute_scheduled_set_fee(&admin, &action_id);
-
-    client
+    let result = client
         .mock_all_auths()
-        .execute_scheduled_set_fee(&admin, &action_id);
+        .try_execute_scheduled_set_fee(&admin, &action_id);
+    assert_eq!(result, Err(Ok(ContractError::InvalidStatus)));
 }
 
 #[test]

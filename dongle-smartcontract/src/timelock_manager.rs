@@ -46,10 +46,10 @@ impl TimelockManager {
     fn validate_timelock(env: &Env, execution_timestamp: u64) -> Result<(), ContractError> {
         let now = env.ledger().timestamp();
         if execution_timestamp <= now {
-            return Err(ContractError::TimelockExecutionInPast);
+            return Err(ContractError::InvalidInput);
         }
-        if execution_timestamp < now + TIMELOCK_MIN_DELAY {
-            return Err(ContractError::TimelockMinimumDelayNotMet);
+        if execution_timestamp < now.saturating_add(TIMELOCK_MIN_DELAY) {
+            return Err(ContractError::InvalidInput);
         }
         Ok(())
     }
@@ -58,7 +58,7 @@ impl TimelockManager {
         env.storage()
             .persistent()
             .get(&ExtensionKey::TimelockAction(action_id))
-            .ok_or(ContractError::TimelockActionNotFound)
+            .ok_or(ContractError::InvalidStatus)
     }
 
     fn mark_executed(env: &Env, action_id: u64) -> Result<(), ContractError> {
@@ -72,11 +72,8 @@ impl TimelockManager {
 
     fn require_pending(env: &Env, action_id: u64) -> Result<TimelockAction, ContractError> {
         let action = Self::get_action_unchecked(env, action_id)?;
-        if action.executed {
-            return Err(ContractError::TimelockAlreadyExecuted);
-        }
-        if action.cancelled {
-            return Err(ContractError::TimelockAlreadyCancelled);
+        if action.executed || action.cancelled {
+            return Err(ContractError::InvalidStatus);
         }
         Ok(action)
     }
@@ -84,7 +81,7 @@ impl TimelockManager {
     fn require_expired(env: &Env, action: &TimelockAction) -> Result<(), ContractError> {
         let now = env.ledger().timestamp();
         if now < action.execution_timestamp {
-            return Err(ContractError::TimelockNotYetDue);
+            return Err(ContractError::TimelockNotExpired);
         }
         Ok(())
     }
@@ -268,7 +265,7 @@ impl TimelockManager {
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockFeeParams(action_id))
-            .ok_or(ContractError::TimelockParamsNotFound)?;
+            .ok_or(ContractError::InvalidStatus)?;
 
         FeeManager::set_fee(
             env,
@@ -300,7 +297,7 @@ impl TimelockManager {
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockAdminAddParams(action_id))
-            .ok_or(ContractError::TimelockParamsNotFound)?;
+            .ok_or(ContractError::InvalidStatus)?;
 
         AdminManager::add_admin(env, action.admin.clone(), params.new_admin)?;
 
@@ -325,7 +322,7 @@ impl TimelockManager {
             .storage()
             .persistent()
             .get(&ExtensionKey::TimelockAdminRemoveParams(action_id))
-            .ok_or(ContractError::TimelockParamsNotFound)?;
+            .ok_or(ContractError::InvalidStatus)?;
 
         AdminManager::remove_admin(env, action.admin.clone(), params.admin_to_remove)?;
 
