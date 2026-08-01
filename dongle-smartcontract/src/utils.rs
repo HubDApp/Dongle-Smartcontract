@@ -49,22 +49,22 @@ impl Utils {
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
         if len == 0 {
-            return name.clone();
+            return String::from_str(env, "");
         }
 
-        // Allocate a buffer of the same size (normalization can only shrink or
-        // preserve length when working on ASCII bytes).
-        let mut buf = [0u8; 64]; // MAX_NAME_LEN is 50, safe upper bound
-        let cap = if len < buf.len() { len } else { buf.len() };
-        name.copy_into_slice(&mut buf[..cap]);
+        // Allocate a source buffer and an output buffer of the same size
+        // (normalization can only shrink or preserve length).
+        let max = if len > 64 { 64 } else { len }; // MAX_NAME_LEN is 50, safe upper bound
+        let mut src = [0u8; 64];
+        let mut out = [0u8; 64];
+        name.copy_into_slice(&mut src[..max]);
 
         let mut out_buf = [0u8; 64];
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
-        // Process each byte
-        for i in 0..cap {
-            let b = in_buf[i];
+        for i in 0..max {
+            let b = src[i];
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -76,26 +76,28 @@ impl Utils {
             };
 
             if normalized == b' ' {
-                if !last_was_space && out_len < out_buf.len() {
-                    out_buf[out_len] = b' ';
+                if !last_was_space && out_len < max {
+                    out[out_len] = b' ';
                     out_len += 1;
                 }
                 last_was_space = true;
             } else {
-                buf[out_len] = normalized;
-                out_len += 1;
+                if out_len < max {
+                    out[out_len] = normalized;
+                    out_len += 1;
+                }
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && buf[out_len - 1] == b' ' {
+        while out_len > 0 && out[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
         // Convert back to a Soroban String
         // SAFETY: all bytes are valid ASCII (subset of UTF-8).
-        let s = core::str::from_utf8(&out_buf[..out_len]).unwrap_or("");
+        let s = core::str::from_utf8(&out[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
 
