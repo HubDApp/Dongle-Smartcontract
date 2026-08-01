@@ -2196,9 +2196,7 @@ mod tests {
         let description = String::from_str(&env, "   \t\n  ");
 
         let result = crate::utils::Utils::validate_description(&description);
-        // Note: In wasm32 environment, whitespace-only detection is limited for efficiency
-        // Frontend/client should validate this before submission
-        assert!(result.is_ok());
+        assert_eq!(result, Err(ContractError::InvalidProjectData));
     }
 
     #[test]

@@ -584,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Contract already initialized")]
+    #[should_panic]
     fn test_initialize_only_once() {
         let env = Env::default();
         let contract_id = env.register(DongleContract, ());

@@ -824,6 +824,17 @@ impl DongleContract {
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
+    pub fn cancel_fee_payment(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        if !AdminManager::is_admin(&env, &caller) {
+            EmergencyPause::require_not_paused(&env)?;
+        }
+        FeeManager::cancel_fee_payment(&env, caller, project_id)
+    }
+
     pub fn is_fee_paid(env: Env, project_id: u64) -> bool {
         FeeManager::is_fee_paid(&env, project_id)
     }

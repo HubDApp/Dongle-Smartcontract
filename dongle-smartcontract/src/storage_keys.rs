@@ -102,7 +102,6 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
-    /// Contract pause status
     ContractPaused,
 }
 
@@ -170,22 +169,10 @@ pub enum ExtensionKey {
     /// pause state across mutating entry points is intentionally out of scope for the
     /// config-view feature; see `set_pause` for the toggle.
     Paused,
-    /// Contract claim status for a project (project_id, contract_address) -> bool
     ContractClaim(u64, String),
-    /// Project contracts list for a project (project_id) -> Vec<Address>
     ProjectContracts(u64),
-    /// Review eligibility configuration
     ReviewEligibilityConfig,
-    /// First interaction timestamp for an address
     FirstInteraction(Address),
-    /// Review revision count for (project_id, reviewer)
     ReviewRevisionCount(u64, Address),
-    /// Review revision data for (project_id, reviewer, revision_index)
     ReviewRevision(u64, Address, u32),
-    /// Project changelog entry by ID
-    ProjectChangelogEntry(u64),
-    /// Next changelog entry ID counter
-    NextChangelogEntryId,
-    /// List of changelog entry IDs for a project (project_id) -> Vec<u64>
-    ProjectChangelogEntries(u64),
 }
