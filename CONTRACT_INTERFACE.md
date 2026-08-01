@@ -187,17 +187,22 @@ let admin_count = get_admin_count(env);
 
 ---
 
-### `get_admin_approval_threshold`
+### `get_config`
 
-**Purpose**: Get the number of approvals required for a proposal to be executed.
+**Purpose**: Return a stable public contract configuration snapshot for frontends and indexers.
 
 **Parameters**:
 - `env` (Env): The contract environment
 
-**Return Value**: `u32`
-- The approval threshold count
+**Return Value**: `ContractConfig`
+- `fee_config`: current fee configuration when set
+- `treasury`: current treasury address when set
+- `admin_count`: current admin count
+- `paused`: current pause state; currently `false` because no pause feature is implemented
+- `version`: contract config version string
+- public limits for projects, reviews, pagination, tags, social links, verification validity, fee payment expiry, and review update cooldown
 
-**Authorization**: 
+**Authorization**:
 - None (read-only, permissionless)
 
 **Possible Errors**:
@@ -205,134 +210,7 @@ let admin_count = get_admin_count(env);
 
 **Example**:
 ```rust
-let threshold = get_admin_approval_threshold(env);
-```
-
----
-
-### `set_admin_approval_threshold`
-
-**Purpose**: Set the number of approvals required for proposals (admin-only).
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `caller` (Address): The admin calling this function
-- `threshold` (u32): The new approval threshold
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-
-**Example**:
-```rust
-set_admin_approval_threshold(env, admin_address, 3)?;
-```
-
----
-
-### `create_proposal`
-
-**Purpose**: Create a new admin proposal for multi-sig governance decisions.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `proposer` (Address): The admin creating the proposal
-- `payload` (ProposalPayload): The proposal payload containing the action to execute
-
-**Return Value**: `Result<u64, ContractError>`
-- Success: `Ok(proposal_id)` - The unique ID of the created proposal
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-
-**Example**:
-```rust
-let proposal_id = create_proposal(env, admin_address, payload)?;
-```
-
----
-
-### `approve_proposal`
-
-**Purpose**: Approve a pending proposal (admin-only). Once the approval threshold is met, the proposal can be executed.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `admin` (Address): The admin approving
-- `proposal_id` (u64): The ID of the proposal to approve
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-- `ProposalNotFound` - Proposal ID does not exist
-
-**Example**:
-```rust
-approve_proposal(env, admin_address, proposal_id)?;
-```
-
----
-
-### `execute_proposal`
-
-**Purpose**: Execute an approved proposal that has met the approval threshold.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `caller` (Address): The address executing the proposal
-- `proposal_id` (u64): The ID of the proposal to execute
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-- `ProposalNotFound` - Proposal ID does not exist
-- `ProposalNotApproved` - Proposal has not met the approval threshold
-
-**Example**:
-```rust
-execute_proposal(env, admin_address, proposal_id)?;
-```
-
----
-
-### `get_proposal`
-
-**Purpose**: Retrieve a proposal by ID.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `proposal_id` (u64): The ID of the proposal
-
-**Return Value**: `Option<AdminProposal>`
-- `Some(proposal)` if found
-- `None` if not found
-
-**Authorization**: 
-- None (read-only, permissionless)
-
-**Possible Errors**:
-- None
-
-**Example**:
-```rust
-if let Some(proposal) = get_proposal(env, proposal_id) {
-    // Use proposal data
-}
+let config = get_config(env);
 ```
 
 ---
