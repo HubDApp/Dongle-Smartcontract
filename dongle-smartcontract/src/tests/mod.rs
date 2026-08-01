@@ -19,7 +19,7 @@ mod events;
 mod moderation;
 // mod pagination;
 mod claim;
-mod claim_status;
+mod config;
 mod dependencies;
 mod maintainers;
 mod renewal;
