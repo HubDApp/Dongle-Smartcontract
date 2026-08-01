@@ -1,6 +1,5 @@
+use crate::constants::MAX_PAGE_LIMIT;
 use soroban_sdk::{Env, Vec};
-
-const MAX_PAGE_LIMIT: u32 = 100;
 
 pub fn paginate<T: Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>>(
     env: &Env,

@@ -74,6 +74,8 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
     /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
     ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
@@ -146,10 +148,6 @@ pub enum ExtensionKey {
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee config history entry count.
-    FeeConfigHistoryCount,
-    /// Fee config history entry by index (oldest = 0).
-    FeeConfigHistoryEntry(u32),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
     ReviewTombstone(u64, Address),
     /// Timestamp of the last successful update for a review (project_id, reviewer). Used for cooldown enforcement.

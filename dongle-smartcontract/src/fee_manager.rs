@@ -121,6 +121,10 @@ impl FeeManager {
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
     /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_registration_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
     pub fn pay_fee(
         env: &Env,
         payer: Address,
@@ -157,6 +161,23 @@ impl FeeManager {
             .unwrap_or(false)
     }
 
+    /// Shared consume helper that removes a paid flag and emits the consumed event.
+    /// Used by both `consume_fee_payment` and `consume_registration_fee_payment`.
+    fn execute_consume_fee_payment(
+        env: &Env,
+        paid_key: StorageKey,
+        event_project_id: u64,
+        caller: Address,
+        operation: FeeOperation,
+        amount: u128,
+    ) -> Result<(), ContractError> {
+        env.storage()
+            .persistent()
+            .remove(&paid_key);
+        publish_fee_consumed_event(env, event_project_id, caller, operation, amount);
+        Ok(())
+    }
+
     /// Consume the fee payment (used during verification request)
     pub fn consume_fee_payment(
         env: &Env,
@@ -167,11 +188,14 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
-        env.storage()
-            .persistent()
-            .remove(&StorageKey::FeePaidForProject(project_id));
-        publish_fee_consumed_event(env, project_id, caller, FeeOperation::Verification, amount);
-        Ok(())
+        Self::execute_consume_fee_payment(
+            env,
+            StorageKey::FeePaidForProject(project_id),
+            project_id,
+            caller,
+            FeeOperation::Verification,
+            amount,
+        )
     }
 
     /// Get current fee configuration
@@ -220,6 +244,10 @@ impl FeeManager {
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
     /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
     pub fn pay_registration_fee(
         env: &Env,
         payer: Address,
@@ -276,11 +304,14 @@ impl FeeManager {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }
-        env.storage()
-            .persistent()
-            .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
-        publish_fee_consumed_event(env, 0, address.clone(), FeeOperation::Registration, amount);
-        Ok(())
+        Self::execute_consume_fee_payment(
+            env,
+            StorageKey::RegistrationFeePaidForAddress(address.clone()),
+            0,
+            address.clone(),
+            FeeOperation::Registration,
+            amount,
+        )
     }
 
     /// Cancel a pending verification fee payment and refund the payer if applicable.

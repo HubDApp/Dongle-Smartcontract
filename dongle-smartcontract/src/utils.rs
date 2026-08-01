@@ -7,37 +7,13 @@ use crate::constants::{
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
+use crate::storage_keys::StorageKey;
+use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
-#[allow(dead_code)]
 pub struct Utils;
 
-#[allow(dead_code)]
 impl Utils {
-    // ────────────────────────────────────────────────────────────────────
-    // Vec helpers
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Return a new Vec containing all items from `vec` except those equal to `item`.
-    ///
-    /// This is a generic replacement for the hand-rolled "filter and rebuild"
-    /// pattern that was duplicated across multiple registries.
-    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
-        env: &Env,
-        vec: &Vec<T>,
-        item: &T,
-    ) -> Vec<T> {
-        let mut result = Vec::new(env);
-        for i in 0..vec.len() {
-            if let Some(v) = vec.get(i) {
-                if &v != item {
-                    result.push_back(v);
-                }
-            }
-        }
-        result
-    }
-
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
@@ -72,6 +48,9 @@ impl Utils {
     /// duplicates regardless of their original casing, spacing, or punctuation.
     pub fn normalize_project_name(env: &Env, name: &String) -> String {
         let len = name.len() as usize;
+        if len == 0 {
+            return name.clone();
+        }
 
         // Allocate a buffer of the same size (normalization can only shrink or
         // preserve length when working on ASCII bytes).
@@ -83,8 +62,9 @@ impl Utils {
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
+        // Process each byte
         for i in 0..cap {
-            let b = buf[i];
+            let b = in_buf[i];
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -102,16 +82,14 @@ impl Utils {
                 }
                 last_was_space = true;
             } else {
-                if out_len < out_buf.len() {
-                    out_buf[out_len] = normalized;
-                    out_len += 1;
-                }
+                buf[out_len] = normalized;
+                out_len += 1;
                 last_was_space = false;
             }
         }
 
         // Trim trailing space
-        while out_len > 0 && out_buf[out_len - 1] == b' ' {
+        while out_len > 0 && buf[out_len - 1] == b' ' {
             out_len -= 1;
         }
 
@@ -346,7 +324,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 46 || len > MAX_CID_LEN {
+        if len < 40 || len > MAX_CID_LEN {
             return false;
         }
 

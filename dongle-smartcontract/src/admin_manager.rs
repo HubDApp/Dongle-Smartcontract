@@ -5,6 +5,7 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
+use crate::constants::DEFAULT_VERIFICATION_DURATION_SECS;
 use crate::errors::ContractError;
 use crate::events::{publish_admin_added_event, publish_admin_removed_event};
 use crate::storage_keys::StorageKey;
@@ -174,6 +175,23 @@ impl AdminManager {
         Self::get_admin_list(env).len()
     }
 
+    /// Set the verification duration (admin only).
+    ///
+    /// `duration_secs` is the number of seconds a Verified status will remain
+    /// active after approval. Pass `0` to revert to the contract default.
+    pub fn set_verification_duration(
+        env: &Env,
+        caller: Address,
+        duration_secs: u64,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &caller)?;
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationDuration, &duration_secs);
+
+        // Keep this config entry alive as long as critical data.
+        StorageManager::extend_critical_config_ttl(env);
     pub fn get_admin_approval_threshold(env: &Env) -> u32 {
         env.storage()
             .persistent()
@@ -529,6 +547,13 @@ impl AdminManager {
         Ok(())
     }
 
+    /// Get the configured verification duration in seconds.
+    /// Returns the admin-configured value if set, otherwise the contract default.
+    pub fn get_verification_duration(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&StorageKey::VerificationDuration)
+            .unwrap_or(DEFAULT_VERIFICATION_DURATION_SECS)
     pub fn get_proposal(env: &Env, proposal_id: u64) -> Option<AdminProposal> {
         env.storage()
             .persistent()

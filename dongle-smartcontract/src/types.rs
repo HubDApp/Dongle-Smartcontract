@@ -249,6 +249,9 @@ pub struct VerificationRecord {
     pub decided_at: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp (seconds) after which the Verified status is considered expired.
+    /// Set when the verification is approved; None for non-approved records.
+    pub expires_at: Option<u64>,
     /// Unix timestamp when verification expires (0 = no expiry)
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
@@ -298,9 +301,7 @@ pub struct FeeConfigHistoryEntry {
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}
-
-#[contracttype]
+}#[contracttype]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectAggregate {
     pub total_rating: u64,
@@ -575,6 +576,32 @@ pub enum ProjectSortMode {
     HighestRated,
     /// Most reviewed first.
     MostReviewed,
+}
+
+/// Project changelog entry for publishing update notes or release history.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogEntry {
+    /// Unique identifier for the changelog entry
+    pub id: u64,
+    /// Project ID this changelog belongs to
+    pub project_id: u64,
+    /// IPFS CID containing the changelog content
+    pub cid: String,
+    /// Timestamp when the changelog was added
+    pub created_at: u64,
+    /// Optional description/title for the changelog entry
+    pub description: Option<String>,
+}
+
+/// Changelog sort order for paginated reads
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChangelogSortMode {
+    /// Newest changelog entries first (highest created_at)
+    Newest,
+    /// Oldest changelog entries first (lowest created_at)
+    Oldest,
 }
 
 // ── Contract configuration view (returned by `get_config`) ──────────────────

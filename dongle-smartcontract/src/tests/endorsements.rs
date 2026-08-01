@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::tests::fixtures::{create_test_project, setup_contract};
+use crate::ContractError;
 use soroban_sdk::{testutils::Address as _, Address, Env};
 
 #[test]
@@ -58,7 +59,7 @@ fn test_duplicate_endorse_returns_error() {
     client.endorse_project(&project_id, &user);
 
     let result = client.try_endorse_project(&project_id, &user);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(ContractError::AlreadyEndorsed)));
 }
 
 #[test]
@@ -70,7 +71,7 @@ fn test_endorse_nonexistent_project_returns_error() {
     let user = Address::generate(&env);
 
     let result = client.try_endorse_project(&999u64, &user);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
 }
 
 #[test]
@@ -85,7 +86,7 @@ fn test_unendorse_without_endorsement_returns_error() {
     let project_id = create_test_project(&client, &owner, "NoEndorseYet");
 
     let result = client.try_unendorse_project(&project_id, &user);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(ContractError::NotEndorsed)));
 }
 
 #[test]

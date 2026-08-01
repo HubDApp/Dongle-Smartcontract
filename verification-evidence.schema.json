@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dongle.example/schemas/verification-evidence.schema.json",
+  "title": "Dongle Verification Evidence",
+  "description": "Off-chain evidence document referenced by a project verification evidence CID.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "project",
+    "submittedAt",
+    "summary",
+    "proofs",
+    "privacy"
+  ],
+  "properties": {
+    "version": {
+      "description": "Schema version using semver.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "description": "On-chain project ID when known.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "submittedAt": {
+      "description": "ISO-8601 timestamp for when the evidence document was prepared.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "description": "Human-readable explanation of what the evidence proves.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "proofs": {
+      "description": "Links, screenshots, attestations, signatures, or other evidence items.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/proof"
+      }
+    },
+    "attestations": {
+      "description": "Optional signed or named statements from maintainers, auditors, or ecosystem partners.",
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "$ref": "#/$defs/attestation"
+      }
+    },
+    "signatures": {
+      "description": "Optional detached signatures over the canonicalized evidence document or linked proof payloads.",
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "$ref": "#/$defs/signature"
+      }
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    }
+  },
+  "$defs": {
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "label", "url"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "repository",
+            "deployment",
+            "transaction",
+            "screenshot",
+            "audit",
+            "attestation",
+            "signature",
+            "documentation",
+            "other"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "url": {
+          "description": "HTTPS, IPFS, or Stellar explorer link for the proof.",
+          "type": "string",
+          "pattern": "^(https://|ipfs://|stellar:).+"
+        },
+        "cid": {
+          "description": "Optional IPFS CID when the proof is content-addressed.",
+          "type": "string",
+          "minLength": 46,
+          "maxLength": 128
+        },
+        "sha256": {
+          "description": "Optional lowercase hex SHA-256 digest for mirrored proof content.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attestor", "statement", "issuedAt"],
+      "properties": {
+        "attestor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "publicKey", "signature"],
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": ["ed25519", "secp256k1", "stellar-account"]
+        },
+        "publicKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "message": {
+          "description": "Description of the signed payload.",
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["containsPersonalData", "redactionNotes"],
+      "properties": {
+        "containsPersonalData": {
+          "type": "boolean"
+        },
+        "redactionNotes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "unsafeContentExcluded": {
+          "description": "Confirms secrets, private keys, access tokens, and private user data were excluded.",
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  }
+}
