@@ -398,7 +398,7 @@ fn test_project_update_failed_social_links_keeps_all_indexes_unchanged() {
         launch_timestamp: None,
         bounty_url: None,
     });
-    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
 
     let after = project_update_storage_snapshot(
         &env,
@@ -730,7 +730,7 @@ fn test_verification_request_invalid_status_atomicity() {
 
     // Capture state before duplicate attempt
     let project_before = client.get_project(&project_id).unwrap();
-    let verification_before = client.get_verification(&project_id);
+    let verification_before = client.get_verification(&project_id).unwrap();
     let storage_before = verification_request_storage_snapshot(&env, &client.address, project_id);
 
     // Try to request again while already pending - should fail
@@ -743,7 +743,7 @@ fn test_verification_request_invalid_status_atomicity() {
 
     // Verify project and verification unchanged
     let project_after = client.get_project(&project_id).unwrap();
-    let verification_after = client.get_verification(&project_id);
+    let verification_after = client.get_verification(&project_id).unwrap();
     let storage_after = verification_request_storage_snapshot(&env, &client.address, project_id);
 
     assert_eq!(
@@ -860,7 +860,7 @@ fn test_project_update_invalid_description_atomicity() {
     };
 
     let result = client.try_update_project(&update_params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectDesc)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 
     // Verify project unchanged
     let project_after = client.get_project(&project_id).unwrap();
@@ -901,7 +901,7 @@ fn test_project_update_invalid_category_atomicity() {
     };
 
     let result = client.try_update_project(&update_params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidCategory)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
 
     // Verify project unchanged
     let project_after = client.get_project(&project_id).unwrap();
@@ -946,7 +946,7 @@ fn test_project_update_invalid_website_atomicity() {
     };
 
     let result = client.try_update_project(&update_params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidWebsite)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
 
     // Verify project unchanged
     let project_after = client.get_project(&project_id).unwrap();
@@ -989,7 +989,7 @@ fn test_project_update_too_long_description_atomicity() {
     };
 
     let result = client.try_update_project(&update_params);
-    assert_eq!(result, Err(Ok(ContractError::ProjectDescTooLong)));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData)));
 
     // Verify project unchanged
     let project_after = client.get_project(&project_id).unwrap();

@@ -1,22 +1,36 @@
-# Dongle-Smartcontract
+# Dongle Smart Contract
+
+**Dongle** is an open-source smart contract built on the **Stellar network** that enables decentralized project discovery and verification on-chain.
 
 ## Overview
 
-**Dongle** is an open-source smart contract built on the **Stellar network**.
-The contract is designed to support a decentralized app discovery and interaction layer, enabling structured registration and management of application metadata on-chain.
+Dongle serves as a foundational protocol for building transparent, on-chain project registries. It enables:
 
-Dongle aims to serve as a foundational protocol that frontend applications and indexers can build on to surface, organize, and interact with Stellar-based projects in a transparent and verifiable way.
+- **Permissionless project registration** with metadata storage
+- **Community reviews** with rating aggregation
+- **Admin-managed verification** for trusted projects
+- **Access control** based on ownership and admin roles
+- **Composable architecture** for indexers and frontend applications
 
-This repository focuses **only on the smart contract logic**. Frontend interfaces and off-chain indexing are handled separately.
+This repository contains the smart contract logic only. Frontend interfaces and off-chain indexing are handled separately.
+
+## Quick Links
+
+For detailed information, refer to:
+
+- **[Smart Contract API & Usage](dongle-smartcontract/README.md)** — Complete API reference, usage examples, and deployment guide
+- **[Contract Interface Specification](CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
+- **[Storage Schema & Keys](docs/STORAGE_SCHEMA.md)** — Storage architecture and persistence management
+- **[Admin Rotation & Security](docs/ADMIN_ROTATION_PLAYBOOK.md)** — Operational security guidelines
+- **[Event Schema](EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
+- **[Threat Model](THREAT_MODEL.md)** — Security analysis and risk mitigation
 
 ## Quick Start
 
-The smart contract is located in the `dongle-smartcontract/` directory. For comprehensive documentation, usage examples, and API reference, please see the [dongle-smartcontract README](dongle-smartcontract/README.md).
-
 ### Prerequisites
 
-- Rust 1.74.0+
-- Soroban CLI
+- Rust 1.74.0 or later
+- Soroban CLI (latest version with `opt` feature)
 - wasm32-unknown-unknown target
 
 ### Install Dependencies
@@ -28,93 +42,41 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Add WASM target
 rustup target add wasm32-unknown-unknown
 
-# Install Soroban CLI
+# Install Soroban CLI with optimization support
 cargo install --locked soroban-cli --features opt
 ```
 
-### Build
+### Build & Test
 
 ```bash
 cd dongle-smartcontract
+
+# Build the contract
 make build
-# or
-cargo build --target wasm32-unknown-unknown --release
-```
+# or: cargo build --target wasm32-unknown-unknown --release
 
-### Optimize WASM
-
-After building, run the optimization step before deploying to reduce on-chain storage costs
-and improve execution performance.
-
-```bash
-# Build first
-cargo build -p dongle-contract --target wasm32-unknown-unknown --release
-
-# Optimize (requires stellar-cli installed with wasm-opt support)
-bash scripts/optimize_wasm.sh
-# or with explicit paths:
-bash scripts/optimize_wasm.sh \
-  target/wasm32-unknown-unknown/release/dongle_contract.wasm \
-  target/wasm32-unknown-unknown/release/dongle_contract.optimized.wasm
-```
-
-Install the Stellar CLI with optimization support:
-
-```bash
-cargo install --locked stellar-cli --features opt
-```
-
-**When to use the optimized artifact:**
-
-- **Testnet / Mainnet deployments** — always use `dongle_contract.optimized.wasm`.
-  It is smaller (lower fees) and faster to execute.
-- **Local development** — the unoptimized `dongle_contract.wasm` is fine; it
-  builds faster and includes debug symbols.
-- **CI** — the `optimize` job in CI builds and uploads the optimized artifact
-  as `dongle_contract_optimized` so every merged commit has a verified,
-  deployment-ready WASM.
-
-The unoptimized file is safe to use for local invocations and snapshot tests.
-Always deploy the `.optimized.wasm` in production environments.
-
-### Test
-
-```bash
-cd dongle-smartcontract
+# Run tests
 make test
-# or
-cargo test
-```
+# or: cargo test
 
-Run a specific test:
-
-```bash
-cargo test test_register_project_success
-```
-
-Run tests with output:
-
-```bash
+# Run tests with output
 make test-verbose
-# or
-cargo test -- --nocapture
+# or: cargo test -- --nocapture
 ```
 
-### Deploy and Invoke via Scripts
-
-Convenient deployment and invocation scripts are available under the `scripts/` directory:
+### Deploy
 
 ```bash
-# Configure deployment variables (or define in a .env file)
+# Set your deployer identity
 export DEPLOYER_IDENTITY=alice
 
-# Deploy to Testnet (saves Contract ID to .contract_id)
+# Deploy to testnet (automatically saves contract ID to .contract_id)
 ./scripts/deploy_testnet.sh
 
-# Initialize contract with default admin
+# Initialize with an admin
 ./scripts/initialize.sh
 
-# Invoke common contract methods (e.g. register a project)
+# Invoke a contract method (e.g., register a project)
 ./scripts/invoke.sh register <owner_address> "My Project" "my-project" "Description" "DeFi"
 ```
 
@@ -212,6 +174,8 @@ Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Docum
 | **Schema** | [`project-metadata.schema.json`](./project-metadata.schema.json) |
 | **Example** | [`project-metadata.example.json`](./project-metadata.example.json) |
 | **Review CID schema** | [`review-cid.schema.json`](./review-cid.schema.json) |
+| **Verification evidence schema** | [`verification-evidence.schema.json`](./verification-evidence.schema.json) |
+| **Verification evidence example** | [`verification-evidence.example.json`](./verification-evidence.example.json) |
 
 **Required fields:** `version` (semver), `projectName`
 
@@ -222,143 +186,76 @@ Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Docum
 **Best practices:**
 
 - Pin metadata on IPFS and verify the CID matches on-chain `metadata_cid`
-- Bump `version` when making breaking schema changes; use semver
-- Keep on-chain fields (`name`, `description`, `website`) consistent with off-chain metadata
-- See [LOGO_ASSET_GUIDELINES.md](./docs/LOGO_ASSET_GUIDELINES.md) for logo CIDs
+- Bump `version` when making breaking schema changes (use semver)
+- Keep on-chain fields (`name`, `description`, `website`) in sync with off-chain metadata
+- Legacy documents with only `security_contact` remain valid
 
-**Admin rotation:** See [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md) for secure administrator key rotation procedures.
+## Contract Functions Overview
+
+### Verification Evidence CID Schema
+
+Verification evidence CIDs should point to structured JSON documents with proof
+links, screenshots, signatures, attestations, and privacy notes. See
+[`docs/VERIFICATION_EVIDENCE.md`](./docs/VERIFICATION_EVIDENCE.md) for the
+schema, example document, and safety expectations.
 
 ### Validation
 
-- Prevent duplicate registrations
-- Enforce ownership checks
-- Validate required fields
-- Rating validation (1-5 scale)
-- Verification status transitions
+- **Admin**: `initialize`, `add_admin`, `remove_admin`, `is_admin`, `get_admin_list`, `get_admin_count`
+- **Projects**: `register_project`, `update_project`, `get_project`, `list_projects`, `archive_project`, `reactivate_project`, and more
+- **Ownership**: `initiate_transfer`, `accept_transfer`, `set_project_claimable`, `submit_claim_request`, and more
+- **Reviews**: `submit_review`, `update_review`, `delete_review`, `report_review`, `hide_review`, and more
+- **Verification**: `request_verification`, `approve_verification`, `reject_verification`, `request_renewal`, and more
+- **Featured**: `set_featured`, `list_featured_projects`
+- **Collections**: `create_collection`, `add_project_to_collection`, `list_collections`, and more
+- **Disputes**: `open_duplicate_dispute`, `resolve_duplicate_dispute`, `get_disputes_for_project`
+- **Statistics**: `get_project_stats`, `get_project_reports`, `get_project_report_count`
 
-## 📚 Comprehensive Contract Interface Documentation
+See [CONTRACT_INTERFACE.md](./CONTRACT_INTERFACE.md) for complete documentation, and [dongle-smartcontract/README.md](dongle-smartcontract/README.md) for usage examples.
 
-For complete documentation of all contract functions, including parameters, return values, authorization requirements, and possible errors, please see **[CONTRACT_INTERFACE.md](./CONTRACT_INTERFACE.md)**.
+## Authorization Model
 
-### Quick Navigation
-
-The contract is organized into logical sections:
-
-#### Core Functions
-
-- **[Initialization & Admin Management](./CONTRACT_INTERFACE.md#initialization--admin-management)** – Contract setup, admin management, and access control
-- **[Project Registry](./CONTRACT_INTERFACE.md#project-registry)** – Project registration, updates, and retrieval
-- **[Project Ownership & Claiming](./CONTRACT_INTERFACE.md#project-ownership--claiming)** – Project transfers, claiming, and ownership
-- **[Project Dependencies](./CONTRACT_INTERFACE.md#project-dependencies)** – Managing project dependencies and relationships
-
-#### Features
-
-- **[Featured Registry](./CONTRACT_INTERFACE.md#featured-registry)** – Curated project features
-- **[Review Registry](./CONTRACT_INTERFACE.md#review-registry)** – Reviews, ratings, and owner responses
-- **[Verification Registry](./CONTRACT_INTERFACE.md#verification-registry)** – Project verification and validation
-- **[Verification Renewal](./CONTRACT_INTERFACE.md#verification-renewal)** – Verification renewal processes
-- **[Collections](./CONTRACT_INTERFACE.md#collections)** – Curated collections of projects (admin-only)
-
-#### Operations
-
-- **[Fee Manager](./CONTRACT_INTERFACE.md#fee-manager)** – Fee configuration and collection
-- **[Reporting & Moderation](./CONTRACT_INTERFACE.md#reporting--moderation)** – Project and review reporting
-- **[Dispute Resolution](./CONTRACT_INTERFACE.md#dispute-resolution)** – Duplicate project dispute handling
-- **[Admin Action Log](./CONTRACT_INTERFACE.md#admin-action-log)** – Audit trail of admin actions
-- **[TTL Management](./CONTRACT_INTERFACE.md#ttl-management)** – Data lifetime management
-
-### All Public Functions
-
-The contract exposes the following public function categories:
-
-| Category     | Functions                                                                                                                                                                                                              |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admin        | `initialize`, `add_admin`, `remove_admin`, `is_admin`, `get_admin_list`, `get_admin_count`                                                                                                                             |
-| Projects     | `register_project`, `update_project`, `get_project`, `get_project_by_slug`, `list_projects`, `get_projects_by_owner`, `archive_project`, `reactivate_project`, `get_linked_projects`, `link_project`, `unlink_project` |
-| Ownership    | `initiate_transfer`, `cancel_transfer`, `accept_transfer`, `set_project_claimable`, `submit_claim_request`, `approve_claim_request`, `reject_claim_request`                                                            |
-| Reviews      | `add_review`, `update_review`, `delete_review`, `submit_review`, `respond_to_review`, `get_review`, `list_reviews`, `report_review`, `hide_review`, `restore_review`, `admin_delete_review`                            |
-| Verification | `request_verification`, `approve_verification`, `reject_verification`, `revoke_verification`, `request_renewal`, `approve_renewal`, `reject_renewal`                                                                   |
-| Featured     | `set_featured`, `list_featured_projects`                                                                                                                                                                               |
-| Collections  | `create_collection`, `update_collection`, `delete_collection`, `add_project_to_collection`, `remove_project_from_collection`, `list_collections`                                                                       |
-| Disputes     | `open_duplicate_dispute`, `resolve_duplicate_dispute`, `get_duplicate_dispute`, `get_disputes_for_project`                                                                                                             |
-| Statistics   | `get_project_stats`, `get_stats_batch`, `get_project_reports`, `get_project_report_count`                                                                                                                              |
-
-### Key Error Types
-
-The contract uses error codes for different failure scenarios. See [Common Error Types](./CONTRACT_INTERFACE.md#common-error-types) for complete error documentation.
-
-### Authorization Model
-
-- **Permissionless**: Project registration, reviews, project queries
-- **Owner-only**: Project updates, ownership transfers, dependency management
-- **Admin-only**: Verification approval, collection management, moderation actions, configuration
+- **Permissionless**: Project registration, reviews, project queries, feature browsing
+- **Owner-only**: Project updates, ownership transfers, dependency management, project archiving
+- **Admin-only**: Verification approval, collection management, moderation actions, fee configuration
 - **None**: All read-only operations are permissionless
-
-### Best Practices for Integration
-
-1. **Always handle Result types** – Functions may fail; check error codes
-2. **Verify ownership** – For sensitive operations, confirm caller authorization
-3. **Use pagination** – Large queries should use start/limit parameters
-4. **Check project status** – Archived projects behave differently
-5. **Monitor verification status** – Use verification checks before trust decisions
-6. **Manage TTLs** – Keep important data alive with TTL extension calls
-
----
 
 ## Example Use Cases
 
-- A frontend dApp listing Stellar ecosystem projects
-- An indexer tracking newly registered applications
-- Open-source contributors building discovery tools
-- DAO or community-driven project registries
-- Project verification and trust systems
+- Frontend dApp listing Stellar ecosystem projects
+- Indexer tracking newly registered and verified projects
+- Open-source project discovery tools
+- DAO/community project registries
+- Trust and verification systems
 - Review aggregation and rating systems
 
 ## Development Status
 
-- Contract structure defined
-- Core storage models implemented
-- Extended features implemented (reviews, verification, collections, etc.)
-- Comprehensive test coverage
-- TTL management for persistent storage
-- Admin action logging
-- Ongoing improvements and testing
+✅ Contract structure defined  
+✅ Core storage models implemented  
+✅ Extended features (reviews, verification, collections, etc.)  
+✅ Comprehensive test coverage  
+✅ TTL management for data persistence  
+✅ Admin action logging  
+✅ Ongoing improvements and testing  
 
 This is an **actively evolving open-source project**.
 
 ## Deployments
 
-Contract deployments on Stellar networks are tracked in [deployments.json](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/deployments.json). For details on the manifest format, how to update it, and how validation works, see the [Deployment Documentation](file:///home/chidubem/ProjectFolder/DripProjects/Dongle-Smartcontract/DEPLOYMENT.md).
-
-## Features
-
-- **Project Registry**: Register and manage project metadata on-chain
-- **Review System**: Submit and manage project reviews with ratings and moderation
-- **Verification**: Request, approve, and renew project verification
-- **Fee Management**: Configurable fees for operations
-- **Access Control**: Owner-based permissions and admin management
-- **TTL Management**: Automatic and manual Time-To-Live extension for persistent storage
-- **Project Linking**: Link related projects together
-- **Featured Projects**: Admin-curated featured project lists
-- **Project Reporting**: Report projects for spam, scams, or abuse
-- **Collections**: Admin-curated collections of projects
-- **Project Claiming**: Claim ownership of unowned projects
-- **Dependencies**: Track project dependencies
-- **Duplicate Disputes**: Report and resolve duplicate projects
+Contract deployments are tracked in [deployments.json](./deployments.json). For deployment manifest details and validation procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Open Source & Contributions
 
-Dongle is open-source and welcomes contributions.
+Dongle is open-source and welcomes contributions. You can help by:
 
-You can contribute by:
-
-- Improving contract structure
-- Adding tests
-- Enhancing validation logic
+- Improving contract logic and security
+- Adding tests and coverage
+- Enhancing validation and error handling
 - Reviewing security assumptions
 - Improving documentation
 
-Please open an issue or pull request for any proposed changes.
+Please open an issue or pull request for proposed changes.
 
 ## Why This Project Matters
 
@@ -376,6 +273,9 @@ Dongle promotes:
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
 - [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
 - [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [verification-evidence.schema.json](verification-evidence.schema.json) - Off-chain JSON schema for verification evidence CIDs
+- [verification-evidence.example.json](verification-evidence.example.json) - Valid verification evidence example
+- [Verification Evidence Guide](docs/VERIFICATION_EVIDENCE.md) - Privacy, safety, proof-link, attestation, and signature guidance
 - [Storage Schema Reference](docs/STORAGE_SCHEMA.md) — canonical storage keys, read/write mapping, index consistency rules, and migration guidance.
 - [Soroban Documentation](https://soroban.stellar.org/docs)
 - [Stellar Developer Portal](https://developers.stellar.org/)

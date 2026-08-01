@@ -90,7 +90,7 @@ fn test_verification_expiry_and_duration() {
     assert_eq!(project.verification_status, VerificationStatus::Verified);
 
     // Check verification record's expires_at is 1100 (100 + 1000)
-    let record = client.get_verification(&project_id);
+    let record = client.get_verification(&project_id).unwrap();
     assert_eq!(record.expires_at, 1100);
     assert_eq!(record.status, VerificationStatus::Verified);
 

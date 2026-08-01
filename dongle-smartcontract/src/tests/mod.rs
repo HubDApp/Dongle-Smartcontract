@@ -58,6 +58,7 @@ mod review_features;
 
 // Test infrastructure
 mod bookmarks;
+mod changelog;
 mod duplicate_dispute;
 mod endorsements;
 pub mod fixtures;
@@ -66,9 +67,13 @@ mod linked_projects;
 mod multisig_and_history;
 mod subscriptions;
 mod timelock;
+mod ttl_batch;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+
+// Contract-level configuration view (`get_config`, pause toggle)
+mod config;

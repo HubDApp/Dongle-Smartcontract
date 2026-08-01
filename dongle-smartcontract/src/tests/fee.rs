@@ -230,3 +230,98 @@ fn test_fee_consumed_after_request_verification() {
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
+
+// --- Fee Cancellation Tests ---
+
+#[test]
+fn test_owner_can_cancel_pending_fee_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner, token) = setup(&env);
+    let project_id = register(&client, &env, &owner, "OwnerCancel");
+    mint(&env, &token, &owner, 100);
+
+    // Pay fee
+    client.pay_fee(&owner, &project_id, &Some(token.clone()));
+    assert!(client.is_fee_paid(&project_id));
+
+    // Verify token balance of treasury (should be 100)
+    let token_client = soroban_sdk::token::Client::new(&env, &token);
+    let treasury = client.get_config().treasury.unwrap();
+    assert_eq!(token_client.balance(&treasury), 100);
+    assert_eq!(token_client.balance(&owner), 0);
+
+    // Cancel fee payment
+    client.cancel_fee_payment(&owner, &project_id);
+
+    // Verify fee is no longer paid and refund is received
+    assert!(!client.is_fee_paid(&project_id));
+    assert_eq!(token_client.balance(&owner), 100);
+    assert_eq!(token_client.balance(&treasury), 0);
+}
+
+#[test]
+fn test_admin_can_cancel_pending_fee_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner, token) = setup(&env);
+    let project_id = register(&client, &env, &owner, "AdminCancel");
+    mint(&env, &token, &owner, 100);
+
+    // Pay fee
+    client.pay_fee(&owner, &project_id, &Some(token.clone()));
+    assert!(client.is_fee_paid(&project_id));
+
+    // Admin cancels
+    client.cancel_fee_payment(&admin, &project_id);
+
+    // Verify fee is cancelled and refunded to owner
+    let token_client = soroban_sdk::token::Client::new(&env, &token);
+    assert!(!client.is_fee_paid(&project_id));
+    assert_eq!(token_client.balance(&owner), 100);
+}
+
+#[test]
+fn test_unauthorized_cancellation_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, owner, token) = setup(&env);
+    let project_id = register(&client, &env, &owner, "UnauthorizedCancel");
+    mint(&env, &token, &owner, 100);
+
+    // Pay fee
+    client.pay_fee(&owner, &project_id, &Some(token.clone()));
+
+    let stranger = Address::generate(&env);
+    let result = client.try_cancel_fee_payment(&stranger, &project_id);
+    assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
+}
+
+#[test]
+fn test_cancel_unpaid_fee_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, owner, _token) = setup(&env);
+    let project_id = register(&client, &env, &owner, "UnpaidCancel");
+
+    let result = client.try_cancel_fee_payment(&owner, &project_id);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
+}
+
+#[test]
+fn test_cancel_consumed_fee_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, owner, token) = setup(&env);
+    let project_id = register(&client, &env, &owner, "ConsumedCancel");
+    mint(&env, &token, &owner, 100);
+
+    // Pay fee
+    client.pay_fee(&owner, &project_id, &Some(token.clone()));
+    // Consume fee by requesting verification
+    client.request_verification(&project_id, &owner, &String::from_str(&env, VALID_EVIDENCE_CID));
+
+    // Attempt cancellation after consumption
+    let result = client.try_cancel_fee_payment(&owner, &project_id);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
+}

@@ -2,6 +2,7 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
+    DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
     MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER,
     MAX_REVIEW_REVISIONS, RATING_MAX, RATING_MIN, REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
@@ -12,8 +13,8 @@ use crate::rating_calculator::RatingCalculator;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewRevision, ReviewSortMode,
-    ReviewTombstone,
+    AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
+    ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -25,6 +26,96 @@ impl ReviewRegistry {
         if !Utils::is_valid_ipfs_cid(cid) || cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidProjectData);
         }
+        Ok(())
+    }
+
+    // ── Anti-Sybil Review Eligibility ───────────────────────────────────
+
+    /// Retrieve the current review eligibility configuration.
+    /// Returns the default (fully permissive) config if never set by an admin.
+    pub fn get_review_eligibility_config(env: &Env) -> ReviewEligibilityConfig {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ReviewEligibilityConfig)
+            .unwrap_or(ReviewEligibilityConfig {
+                min_reviewer_age_seconds: DEFAULT_MIN_REVIEWER_AGE_SECONDS,
+                require_endorsement: DEFAULT_REQUIRE_ENDORSEMENT,
+                review_fee: DEFAULT_REVIEW_FEE,
+            })
+    }
+
+    /// Admin-only: set the review eligibility configuration.
+    ///
+    /// Passing a zero-valued config restores the default (permissive) behaviour.
+    pub fn set_review_eligibility_config(
+        env: &Env,
+        admin: Address,
+        config: ReviewEligibilityConfig,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ReviewEligibilityConfig, &config);
+        Ok(())
+    }
+
+    /// Record the first-interaction timestamp for an address if not yet set.
+    /// Called automatically whenever an address performs an action that should
+    /// count toward the "minimum account age" eligibility check.
+    pub fn record_first_interaction(env: &Env, address: &Address) {
+        let key = ExtensionKey::FirstInteraction(address.clone());
+        if !env.storage().persistent().has(&key) {
+            let now = env.ledger().timestamp();
+            env.storage().persistent().set(&key, &now);
+        }
+    }
+
+    /// Check whether `reviewer` is eligible to review `project_id` according
+    /// to the currently configured eligibility rules.
+    ///
+    /// # Errors
+    /// - `ContractError::ReviewerNotEligible` if any constraint is not satisfied.
+    pub fn check_review_eligibility(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+    ) -> Result<(), ContractError> {
+        let config = Self::get_review_eligibility_config(env);
+
+        // 1. Minimum account age check
+        if config.min_reviewer_age_seconds > 0 {
+            let first_interaction: u64 = env
+                .storage()
+                .persistent()
+                .get(&ExtensionKey::FirstInteraction(reviewer.clone()))
+                .unwrap_or(0);
+            let now = env.ledger().timestamp();
+            if first_interaction == 0 || now.saturating_sub(first_interaction) < config.min_reviewer_age_seconds {
+                return Err(ContractError::ReviewerNotEligible);
+            }
+        }
+
+        // 2. Endorsement requirement check
+        if config.require_endorsement {
+            if !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
+                env,
+                project_id,
+                reviewer,
+            ) {
+                return Err(ContractError::ReviewerNotEligible);
+            }
+        }
+
+        // 3. Review fee check
+        if config.review_fee > 0 {
+            if !crate::fee_manager::FeeManager::is_fee_paid(env, project_id) {
+                return Err(ContractError::ReviewFeeRequired);
+            }
+        }
+
         Ok(())
     }
 
@@ -62,6 +153,9 @@ impl ReviewRegistry {
             return Err(ContractError::InvalidRating);
         }
 
+        // Anti-sybil eligibility check
+        Self::check_review_eligibility(env, project_id, &reviewer)?;
+
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         if env.storage().persistent().has(&review_key) {
             return Err(ContractError::DuplicateReview);
@@ -84,6 +178,9 @@ impl ReviewRegistry {
         if user_reviews.len() >= MAX_REVIEWS_PER_USER {
             return Err(ContractError::MaxProjectsExceeded);
         }
+
+        // Record first interaction for account-age tracking
+        Self::record_first_interaction(env, &reviewer);
 
         // Mutation phase
         let now = env.ledger().timestamp();
@@ -739,7 +836,7 @@ impl ReviewRegistry {
         out
     }
 
-    pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+    pub fn list_reviews(env: &Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
@@ -755,12 +852,12 @@ impl ReviewRegistry {
 
         let mut reviews = Vec::new(env);
         let len = reviewers.len();
-        if start_id >= len {
+        if start_index >= len {
             return reviews;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
 
-        for i in start_id..end {
+        for i in start_index..end {
             if let Some(reviewer) = reviewers.get(i) {
                 if let Some(review) = Self::get_review(env, project_id, reviewer) {
                     // Exclude hidden reviews from default listings
@@ -833,7 +930,7 @@ impl ReviewRegistry {
         // Check if reporter has already reported this review
         let report_key = StorageKey::ReviewReport(project_id, reviewer.clone(), reporter.clone());
         if env.storage().persistent().has(&report_key) {
-            return Err(ContractError::ReviewAlreadyReported);
+            return Err(ContractError::AlreadyReported);
         }
 
         // Mutation phase
@@ -1039,7 +1136,7 @@ impl ReviewRegistry {
     pub fn list_reviews_sorted(
         env: &Env,
         project_id: u64,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
@@ -1067,32 +1164,22 @@ impl ReviewRegistry {
             }
         }
 
-        // Bubble-sort in-memory by the requested mode.
+        // Sort in-memory by the requested mode.
+        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
+            ReviewSortMode::Newest => a.created_at < b.created_at,
+            ReviewSortMode::Oldest => a.created_at > b.created_at,
+            ReviewSortMode::RatingHigh => a.rating < b.rating,
+            ReviewSortMode::RatingLow => a.rating > b.rating,
+        });
         let n = all.len();
-        for i in 0..n {
-            for j in 0..n.saturating_sub(i + 1) {
-                let a = all.get(j).unwrap();
-                let b = all.get(j + 1).unwrap();
-                let swap = match sort_mode {
-                    ReviewSortMode::Newest => a.created_at < b.created_at,
-                    ReviewSortMode::Oldest => a.created_at > b.created_at,
-                    ReviewSortMode::RatingHigh => a.rating < b.rating,
-                    ReviewSortMode::RatingLow => a.rating > b.rating,
-                };
-                if swap {
-                    all.set(j, b);
-                    all.set(j + 1, a);
-                }
-            }
-        }
 
         // Apply pagination.
         let mut out = Vec::new(env);
-        if start_id >= n {
+        if start_index >= n {
             return out;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), n);
-        for i in start_id..end {
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), n);
+        for i in start_index..end {
             if let Some(review) = all.get(i) {
                 out.push_back(review);
             }

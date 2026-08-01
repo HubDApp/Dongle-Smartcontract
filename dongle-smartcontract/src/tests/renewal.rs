@@ -31,7 +31,7 @@ fn test_request_renewal_success() {
     let result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     assert!(result.is_ok());
 
-    let renewal = client.get_renewal_request(&project_id);
+    let renewal = client.get_renewal_request(&project_id).unwrap();
     assert_eq!(renewal.project_id, project_id);
     assert_eq!(renewal.requester, owner);
 }
@@ -119,8 +119,8 @@ fn test_approve_renewal_success() {
     assert!(result.is_ok());
 
     // Renewal should be gone (approved)
-    let result = client.try_get_renewal_request(&project_id);
-    assert!(result.is_err());
+    let result = client.get_renewal_request(&project_id);
+    assert_eq!(result, None);
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn test_approve_renewal_updates_expiry() {
     client.request_verification(&project_id, &owner, &evidence_cid);
     client.approve_verification(&project_id, &admin);
 
-    let before_renewal = client.get_verification(&project_id);
+    let before_renewal = client.get_verification(&project_id).unwrap();
     let before_expires = before_renewal.expires_at;
 
     // Advance ledger timestamp to ensure expiry increases
@@ -147,7 +147,7 @@ fn test_approve_renewal_updates_expiry() {
     let _result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     let _result = client.try_approve_renewal(&project_id, &admin);
 
-    let after_renewal = client.get_verification(&project_id);
+    let after_renewal = client.get_verification(&project_id).unwrap();
     let after_expires = after_renewal.expires_at;
 
     // Expiry should be updated
@@ -222,11 +222,11 @@ fn test_reject_renewal_success() {
     assert!(result.is_ok());
 
     // Renewal should be gone
-    let result = client.try_get_renewal_request(&project_id);
-    assert!(result.is_err());
+    let result = client.get_renewal_request(&project_id);
+    assert_eq!(result, None);
 
     // Verification should still be verified
-    let verification = client.get_verification(&project_id);
+    let verification = client.get_verification(&project_id).unwrap();
     assert_eq!(
         verification.status,
         crate::types::VerificationStatus::Verified
@@ -426,7 +426,7 @@ fn test_renewal_after_rejection() {
     let result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     assert!(result.is_ok());
 
-    let renewal = client.get_renewal_request(&project_id);
+    let renewal = client.get_renewal_request(&project_id).unwrap();
     assert_eq!(renewal.project_id, project_id);
 }
 
@@ -451,12 +451,12 @@ fn test_multiple_projects_independent_renewal() {
     let _result = client.try_request_renewal(&project1, &owner, &evidence_cid);
 
     // Project1 should have renewal
-    let renewal1 = client.get_renewal_request(&project1);
+    let renewal1 = client.get_renewal_request(&project1).unwrap();
     assert_eq!(renewal1.project_id, project1);
 
     // Project2 should not have renewal
-    let result2 = client.try_get_renewal_request(&project2);
-    assert!(result2.is_err());
+    let result2 = client.get_renewal_request(&project2);
+    assert_eq!(result2, None);
 }
 
 #[test]
@@ -473,7 +473,7 @@ fn test_renewal_preserves_verification_status() {
     client.request_verification(&project_id, &owner, &evidence_cid);
     client.approve_verification(&project_id, &admin);
 
-    let before_renewal = client.get_verification(&project_id);
+    let before_renewal = client.get_verification(&project_id).unwrap();
     assert_eq!(
         before_renewal.status,
         crate::types::VerificationStatus::Verified
@@ -483,7 +483,7 @@ fn test_renewal_preserves_verification_status() {
     let _result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     let _result = client.try_approve_renewal(&project_id, &admin);
 
-    let after_renewal = client.get_verification(&project_id);
+    let after_renewal = client.get_verification(&project_id).unwrap();
     assert_eq!(
         after_renewal.status,
         crate::types::VerificationStatus::Verified
@@ -504,7 +504,7 @@ fn test_renewal_updates_last_renewed_at() {
     client.request_verification(&project_id, &owner, &evidence_cid);
     client.approve_verification(&project_id, &admin);
 
-    let before_renewal = client.get_verification(&project_id);
+    let before_renewal = client.get_verification(&project_id).unwrap();
     let before_renewed_at = before_renewal.last_renewed_at;
 
     // Advance ledger timestamp to ensure last_renewed_at increases
@@ -514,7 +514,7 @@ fn test_renewal_updates_last_renewed_at() {
     let _result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     let _result = client.try_approve_renewal(&project_id, &admin);
 
-    let after_renewal = client.get_verification(&project_id);
+    let after_renewal = client.get_verification(&project_id).unwrap();
     let after_renewed_at = after_renewal.last_renewed_at;
 
     // last_renewed_at should be updated
@@ -550,7 +550,7 @@ fn test_request_renewal_after_expiry_success() {
     let result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
     assert!(result.is_ok());
 
-    let renewal = client.get_renewal_request(&project_id);
+    let renewal = client.get_renewal_request(&project_id).unwrap();
     assert_eq!(renewal.project_id, project_id);
     assert_eq!(renewal.requester, owner);
 
@@ -560,7 +560,7 @@ fn test_request_renewal_after_expiry_success() {
     assert!(approve_result.is_ok());
 
     // Expiry should now be 2300 (1300 + 1000)
-    let verification = client.get_verification(&project_id);
+    let verification = client.get_verification(&project_id).unwrap();
     assert_eq!(verification.expires_at, 2300);
     assert_eq!(
         verification.status,

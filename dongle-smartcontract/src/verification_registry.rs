@@ -1,10 +1,13 @@
 //! Verification requests with ownership and fee checks, events, and state machine.
 
+use crate::admin_manager::AdminManager;
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::{MAX_CID_LEN, MAX_PAGE_LIMIT};
 use crate::errors::ContractError;
 use crate::events::{
+    publish_verification_approved_event, publish_verification_expired_event,
+    publish_verification_rejected_event, publish_verification_renewed_event,
     publish_verification_approved_event, publish_verification_evidence_updated_event,
     publish_verification_rejected_event, publish_verification_renewal_approved_event,
     publish_verification_renewal_rejected_event, publish_verification_renewal_requested_event,
@@ -221,6 +224,7 @@ impl VerificationRegistry {
             decided_at: 0,
             fee_amount,
             revoke_reason: None,
+            expires_at: None,
             expires_at: 0,
             last_renewed_at: 0,
             assigned_admin: None,
@@ -279,7 +283,8 @@ impl VerificationRegistry {
         require_owner_auth(&caller, &project.owner)?;
 
         // 2. Retrieve verification record
-        let mut record = Self::get_verification(env, project_id)?;
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
         // 3. Reject if not Pending
         if record.status != VerificationStatus::Pending {
@@ -325,7 +330,8 @@ impl VerificationRegistry {
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         // Get verification record first - returns VerificationNotFound if missing
-        let mut record = Self::get_verification(env, project_id)?;
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
         // Then validate state transition
         VerificationStateMachine::validate_transition(
@@ -335,8 +341,10 @@ impl VerificationRegistry {
 
         let now = env.ledger().timestamp();
 
-        // Update record
+        // Update record – stamp the expiry timestamp
+        let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
+        record.expires_at = Some(now.saturating_add(duration));
         record.expires_at = now.saturating_add(Self::get_verification_duration(env));
         record.decided_at = now;
         env.storage()
@@ -384,7 +392,8 @@ impl VerificationRegistry {
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         // Get verification record first - returns VerificationNotFound if missing
-        let mut record = Self::get_verification(env, project_id)?;
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
         // Then validate state transition
         VerificationStateMachine::validate_transition(
@@ -429,26 +438,61 @@ impl VerificationRegistry {
     pub fn get_verification(
         env: &Env,
         project_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         let request_id = env
             .storage()
             .persistent()
-            .get::<_, u64>(&StorageKey::Verification(project_id))
-            .ok_or(ContractError::VerificationNotFound)?;
+            .get::<_, u64>(&StorageKey::Verification(project_id))?;
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
-            .ok_or(ContractError::VerificationNotFound)
     }
 
     pub fn get_verification_record(
         env: &Env,
         request_id: u64,
-    ) -> Result<VerificationRecord, ContractError> {
+    ) -> Option<VerificationRecord> {
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
-            .ok_or(ContractError::VerificationNotFound)
+    }
+
+    /// Returns `true` if the project has a Verified record that has **not** yet expired.
+    ///
+    /// A record is considered active when:
+    ///   1. `status == Verified`, **and**
+    ///   2. `expires_at` is either `None` (legacy records without an expiry) **or**
+    ///      `Some(t)` where `t > current_ledger_timestamp`.
+    ///
+    /// If the record is expired this also emits a `VerificationExpiredEvent` so that
+    /// indexers can pick it up without needing a dedicated "check expiry" transaction.
+    pub fn is_verification_active(env: &Env, project_id: u64) -> bool {
+        let record: VerificationRecord = match env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Verification(project_id))
+        {
+            Some(r) => r,
+            None => return false,
+        };
+
+        if record.status != VerificationStatus::Verified {
+            return false;
+        }
+
+        match record.expires_at {
+            None => true, // legacy / no-expiry record
+            Some(expires_at) => {
+                let now = env.ledger().timestamp();
+                if now >= expires_at {
+                    // Emit expiry event so indexers can react
+                    publish_verification_expired_event(env, project_id, expires_at);
+                    false
+                } else {
+                    true
+                }
+            }
+        }
     }
 
     /// Batch-fetch verification records for multiple project IDs.
@@ -508,7 +552,8 @@ impl VerificationRegistry {
             return Err(ContractError::AdminNotFound);
         }
 
-        let mut record = Self::get_verification(env, project_id)?;
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
         if record.status != VerificationStatus::Pending {
             return Err(ContractError::InvalidStatus);
         }
@@ -542,9 +587,9 @@ impl VerificationRegistry {
     pub fn get_assigned_admin(
         env: &Env,
         project_id: u64,
-    ) -> Result<Option<Address>, ContractError> {
+    ) -> Option<Address> {
         let record = Self::get_verification(env, project_id)?;
-        Ok(record.assigned_admin)
+        record.assigned_admin
     }
 
     pub fn validate_evidence_cid(evidence_cid: &String) -> Result<(), ContractError> {
@@ -555,13 +600,6 @@ impl VerificationRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn verification_exists(env: &Env, project_id: u64) -> bool {
-        env.storage()
-            .persistent()
-            .has(&StorageKey::ProjectVerificationHistory(project_id))
     }
 
     pub fn revoke_verification(
@@ -583,7 +621,8 @@ impl VerificationRegistry {
             return Err(ContractError::InvalidStatus);
         }
 
-        let mut record = Self::get_verification(env, project_id)?;
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
         let now = env.ledger().timestamp();
 
@@ -765,8 +804,10 @@ impl VerificationRegistry {
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
 
-        let renewal = Self::get_renewal_request(env, project_id)?;
-        let mut verification = Self::get_verification(env, project_id)?;
+        let renewal = Self::get_renewal_request(env, project_id)
+            .ok_or(ContractError::VerificationNotFound)?;
+        let mut verification = Self::get_verification(env, project_id)
+            .ok_or(ContractError::VerificationNotFound)?;
         let mut project =
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
@@ -829,7 +870,8 @@ impl VerificationRegistry {
 
     pub fn reject_renewal(env: &Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
-        let _renewal = Self::get_renewal_request(env, project_id)?;
+        let _renewal = Self::get_renewal_request(env, project_id)
+            .ok_or(ContractError::VerificationNotFound)?;
         env.storage()
             .persistent()
             .remove(&StorageKey::VerificationRenewal(project_id));
@@ -850,11 +892,10 @@ impl VerificationRegistry {
     pub fn get_renewal_request(
         env: &Env,
         project_id: u64,
-    ) -> Result<VerificationRenewalRecord, ContractError> {
+    ) -> Option<VerificationRenewalRecord> {
         env.storage()
             .persistent()
             .get(&StorageKey::VerificationRenewal(project_id))
-            .ok_or(ContractError::VerificationNotFound)
     }
 
     pub fn get_renewal_history(
@@ -890,7 +931,8 @@ impl VerificationRegistry {
     }
 
     pub fn is_verification_expired(env: &Env, project_id: u64) -> Result<bool, ContractError> {
-        let verification = Self::get_verification(env, project_id)?;
+        let verification = Self::get_verification(env, project_id)
+            .ok_or(ContractError::VerificationNotFound)?;
         Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
     }
 

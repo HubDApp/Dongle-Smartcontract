@@ -55,28 +55,20 @@ impl FeeManager {
         Ok(())
     }
 
-    /// Pay the verification fee for a project.
-    /// Only the project owner may pay; third-party payments are rejected.
+    /// Shared payment path for verification and registration fees.
     ///
-    /// # Behavior on Token Transfer Failure
-    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
-    /// - The fee paid event is NOT emitted
-    /// - The caller receives an error and can retry after acquiring sufficient tokens
-    pub fn pay_fee(
+    /// Validates fee config/treasury, transfers tokens (when amount > 0), sets the
+    /// paid flag, stores a [`FeePaymentRecord`], and emits a fee-paid event.
+    fn execute_fee_payment(
         env: &Env,
         payer: Address,
-        project_id: u64,
+        amount: u128,
         token: Option<Address>,
+        paid_flag_key: StorageKey,
+        details_key: ExtensionKey,
+        event_project_id: u64,
+        operation: FeeOperation,
     ) -> Result<(), ContractError> {
-        require_self_auth(&payer);
-
-        // Enforce owner-only payment
-        let project =
-            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        if project.owner != payer {
-            return Err(ContractError::Unauthorized);
-        }
-
         let config = Self::get_fee_config(env)?;
         let treasury: Address = env
             .storage()
@@ -88,7 +80,6 @@ impl FeeManager {
             return Err(ContractError::InvalidProjectData);
         }
 
-        let amount = config.verification_fee;
         if amount > 0 {
             // Safety: fee amounts are stored as u128 but the token interface requires i128.
             // Reject any value that exceeds i128::MAX to prevent a silent truncating cast.
@@ -105,9 +96,7 @@ impl FeeManager {
         }
 
         // Only set payment flag after successful token transfer
-        env.storage()
-            .persistent()
-            .set(&StorageKey::FeePaidForProject(project_id), &true);
+        env.storage().persistent().set(&paid_flag_key, &true);
 
         // Store full payment details for getter
         let payment_record = FeePaymentRecord {
@@ -116,21 +105,52 @@ impl FeeManager {
             amount,
             token: token.clone(),
         };
-        env.storage().persistent().set(
-            &ExtensionKey::FeePaymentDetails(project_id),
-            &payment_record,
-        );
+        env.storage()
+            .persistent()
+            .set(&details_key, &payment_record);
 
         // Only emit event after successful payment
-        publish_fee_paid_event(
-            env,
-            project_id,
-            payer,
-            token,
-            FeeOperation::Verification,
-            amount,
-        );
+        publish_fee_paid_event(env, event_project_id, payer, token, operation, amount);
         Ok(())
+    }
+
+    /// Pay the verification fee for a project.
+    /// Only the project owner may pay; third-party payments are rejected.
+    ///
+    /// # Behavior on Token Transfer Failure
+    /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
+    /// - The fee paid event is NOT emitted
+    /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_registration_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
+    pub fn pay_fee(
+        env: &Env,
+        payer: Address,
+        project_id: u64,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        require_self_auth(&payer);
+
+        // Enforce owner-only payment
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != payer {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let amount = Self::get_fee_config(env)?.verification_fee;
+        Self::execute_fee_payment(
+            env,
+            payer,
+            amount,
+            token,
+            StorageKey::FeePaidForProject(project_id),
+            ExtensionKey::FeePaymentDetails(project_id),
+            project_id,
+            FeeOperation::Verification,
+        )
     }
 
     /// Check if the fee has been paid for a project
@@ -139,6 +159,23 @@ impl FeeManager {
             .persistent()
             .get(&StorageKey::FeePaidForProject(project_id))
             .unwrap_or(false)
+    }
+
+    /// Shared consume helper that removes a paid flag and emits the consumed event.
+    /// Used by both `consume_fee_payment` and `consume_registration_fee_payment`.
+    fn execute_consume_fee_payment(
+        env: &Env,
+        paid_key: StorageKey,
+        event_project_id: u64,
+        caller: Address,
+        operation: FeeOperation,
+        amount: u128,
+    ) -> Result<(), ContractError> {
+        env.storage()
+            .persistent()
+            .remove(&paid_key);
+        publish_fee_consumed_event(env, event_project_id, caller, operation, amount);
+        Ok(())
     }
 
     /// Consume the fee payment (used during verification request)
@@ -151,11 +188,14 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
-        env.storage()
-            .persistent()
-            .remove(&StorageKey::FeePaidForProject(project_id));
-        publish_fee_consumed_event(env, project_id, caller, FeeOperation::Verification, amount);
-        Ok(())
+        Self::execute_consume_fee_payment(
+            env,
+            StorageKey::FeePaidForProject(project_id),
+            project_id,
+            caller,
+            FeeOperation::Verification,
+            amount,
+        )
     }
 
     /// Get current fee configuration
@@ -204,6 +244,10 @@ impl FeeManager {
     /// - If the token transfer fails (e.g., insufficient balance), the payment flag is NOT set
     /// - The fee paid event is NOT emitted
     /// - The caller receives an error and can retry after acquiring sufficient tokens
+    ///
+    /// # Note: Code Duplication
+    /// This function has similar logic to `pay_fee()`. Consider consolidating
+    /// these functions in a future refactor to accept an operation type parameter.
     pub fn pay_registration_fee(
         env: &Env,
         payer: Address,
@@ -211,53 +255,17 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         require_self_auth(&payer);
 
-        let config = Self::get_fee_config(env)?;
-        let treasury: Address = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)?;
-
-        if config.token != token {
-            return Err(ContractError::InvalidProjectData);
-        }
-
-        let amount = config.registration_fee;
-        if amount > 0 {
-            // Safety: fee amounts are stored as u128 but the token interface requires i128.
-            // Reject any value that exceeds i128::MAX to prevent a silent truncating cast.
-            if amount > i128::MAX as u128 {
-                return Err(ContractError::InvalidProjectData);
-            }
-            // Defensive guard — set_fee already rejects None token with non-zero fees.
-            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
-            let client = soroban_sdk::token::Client::new(env, &token_address);
-            // Transfer must succeed before we set the payment flag.
-            // If transfer fails, this function returns early without setting the flag.
-            client.transfer(&payer, &treasury, &(amount as i128));
-        }
-
-        // Only set payment flag after successful token transfer
-        env.storage().persistent().set(
-            &StorageKey::RegistrationFeePaidForAddress(payer.clone()),
-            &true,
-        );
-
-        // Store full payment details for getter
-        let payment_record = FeePaymentRecord {
-            paid_at: env.ledger().timestamp(),
-            payer: payer.clone(),
+        let amount = Self::get_fee_config(env)?.registration_fee;
+        Self::execute_fee_payment(
+            env,
+            payer.clone(),
             amount,
-            token: token.clone(),
-        };
-        env.storage().persistent().set(
-            &ExtensionKey::RegistrationFeePaymentDetails(payer.clone()),
-            &payment_record,
-        );
-
-        // Only emit event after successful payment
-        publish_fee_paid_event(env, 0, payer, token, FeeOperation::Registration, amount);
-        Ok(())
+            token,
+            StorageKey::RegistrationFeePaidForAddress(payer.clone()),
+            ExtensionKey::RegistrationFeePaymentDetails(payer),
+            0,
+            FeeOperation::Registration,
+        )
     }
 
     /// Get fee payment details for a project (payer, amount, token, timestamp)
@@ -296,10 +304,87 @@ impl FeeManager {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }
+        Self::execute_consume_fee_payment(
+            env,
+            StorageKey::RegistrationFeePaidForAddress(address.clone()),
+            0,
+            address.clone(),
+            FeeOperation::Registration,
+            amount,
+        )
+    }
+
+    /// Cancel a pending verification fee payment and refund the payer if applicable.
+    /// Only the payer (project owner) or a contract administrator can cancel.
+    pub fn cancel_fee_payment(
+        env: &Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        // Enforce eligibility: Fee must have been paid
+        if !Self::is_fee_paid(env, project_id) {
+            return Err(ContractError::InsufficientFee);
+        }
+
+        let record = Self::get_fee_payment_details(env, project_id)
+            .ok_or(ContractError::InsufficientFee)?;
+
+        // Authorization: Payer or Admin only
+        let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
+        if caller != record.payer && !is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Cannot cancel if verification is already Pending or Verified
+        if let Some(project) = ProjectRegistry::get_project(env, project_id) {
+            if project.verification_status == crate::types::VerificationStatus::Pending
+                || project.verification_status == crate::types::VerificationStatus::Verified
+            {
+                return Err(ContractError::InvalidStatus);
+            }
+        }
+
+        // Process refund if fee amount > 0 and token is configured
+        if record.amount > 0 {
+            let token_address = record.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
+            let treasury = Self::get_treasury(env)?;
+            
+            // Treasury authorization is required to transfer tokens out of the treasury
+            treasury.require_auth();
+            let token_client = soroban_sdk::token::Client::new(env, &token_address);
+            token_client.transfer(&treasury, &record.payer, &(record.amount as i128));
+        }
+
+        // Remove payment records from storage
         env.storage()
             .persistent()
-            .remove(&StorageKey::RegistrationFeePaidForAddress(address.clone()));
-        publish_fee_consumed_event(env, 0, address.clone(), FeeOperation::Registration, amount);
+            .remove(&StorageKey::FeePaidForProject(project_id));
+        env.storage()
+            .persistent()
+            .remove(&ExtensionKey::FeePaymentDetails(project_id));
+
+        // Publish event
+        crate::events::publish_fee_cancelled_event(
+            env,
+            project_id,
+            caller.clone(),
+            record.payer.clone(),
+            crate::events::FeeOperation::Verification,
+            record.amount,
+        );
+
+        // Record admin action if cancelled by an admin
+        if is_admin {
+            AdminActionLog::record_action(
+                env,
+                caller,
+                AdminActionType::FeeRefunded,
+                Some(project_id),
+                None,
+                None,
+            );
+        }
+
         Ok(())
     }
 }
