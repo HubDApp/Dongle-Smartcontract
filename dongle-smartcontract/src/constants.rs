@@ -18,6 +18,13 @@ pub const MAX_REVIEWS_PER_USER: u32 = 200;
 /// Maximum items returned per paginated read query across list endpoints.
 pub const MAX_PAGE_LIMIT: u32 = 100;
 
+/// Maximum records that can be refreshed by one batch TTL extension call.
+pub const MAX_TTL_BATCH_SIZE: u32 = 100;
+
+/// Minimum length for name, description, category (must be non-empty after trim in validation).
+#[allow(dead_code)]
+pub const MIN_STRING_LEN: usize = 1;
+
 /// Maximum length for project name.
 pub const MAX_NAME_LEN: usize = 50;
 
@@ -137,6 +144,12 @@ pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;
 pub const LEDGER_BUMP_VERIFICATION: u32 = LEDGER_THRESHOLD_VERIFICATION;
 pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 
+// ── Verification Expiry Constants ─────────────────────────────────────────
+
+/// Default duration (in seconds) that a verified status remains active.
+/// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
+/// Admins can override this via set_verification_duration.
+pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
 /// Minimum timelock delay in seconds (1 day).
 /// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
 pub const TIMELOCK_MIN_DELAY: u64 = 86400;
@@ -150,9 +163,22 @@ pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
 
+/// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+
+/// Default setting for whether endorsements are required for reviews (default: false).
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+
+/// Default review fee amount (default: 0, free).
+pub const DEFAULT_REVIEW_FEE: u128 = 0;
+
 // ── Contract metadata (read by `get_config`) ────────────────────────────────
 
 /// Semantic version of the contract, surfaced verbatim through `get_config`.
 /// Bump when a non-backwards-compatible change to the public contract surface
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
+
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+pub const DEFAULT_REVIEW_FEE: u128 = 0;
