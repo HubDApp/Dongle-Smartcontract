@@ -66,14 +66,24 @@ pub struct DongleContract;
 impl DongleContract {
     // --- Initialization & Admin Management ---
 
+    /// Initializes the contract with `admin` as its first administrator.
+    ///
+    /// Fails when initialization has already completed; `admin` must authorize the call.
     pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
         AdminManager::initialize(&env, admin)
     }
 
+    /// Adds `new_admin` to the administrator set.
+    ///
+    /// `caller` must be an existing administrator and both addresses must authorize the change.
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         AdminManager::add_admin(&env, caller, new_admin)
     }
 
+    /// Removes `admin_to_remove` from the administrator set.
+    ///
+    /// `caller` must be an administrator; the operation fails when it would violate the
+    /// configured administration constraints.
     pub fn remove_admin(
         env: Env,
         caller: Address,
@@ -94,6 +104,9 @@ impl DongleContract {
         AdminManager::get_admin_count(&env)
     }
 
+    /// Sets the duration, in seconds, for approved verifications.
+    ///
+    /// `caller` must be an administrator and the supplied duration must be valid.
     pub fn set_verification_duration(
         env: Env,
         caller: Address,
@@ -127,6 +140,9 @@ impl DongleContract {
         }
     }
 
+    /// Sets the number of administrator approvals required for a proposal.
+    ///
+    /// `caller` must be an administrator; `threshold` must be compatible with the admin set.
     pub fn set_admin_approval_threshold(
         env: Env,
         caller: Address,
@@ -135,6 +151,9 @@ impl DongleContract {
         AdminManager::set_admin_approval_threshold(&env, caller, threshold)
     }
 
+    /// Creates an administrative proposal containing the requested `payload`.
+    ///
+    /// `proposer` must be an administrator and must authorize the call.
     pub fn create_proposal(
         env: Env,
         proposer: Address,
@@ -143,6 +162,9 @@ impl DongleContract {
         AdminManager::create_proposal(&env, proposer, payload)
     }
 
+    /// Records an administrator's approval for a pending proposal.
+    ///
+    /// `admin` must authorize the call and may not approve the same proposal twice.
     pub fn approve_proposal(
         env: Env,
         admin: Address,
@@ -151,6 +173,10 @@ impl DongleContract {
         AdminManager::approve_proposal(&env, admin, proposal_id)
     }
 
+    /// Executes a proposal after it has met the approval threshold.
+    ///
+    /// `caller` must be an administrator; execution fails for missing, executed, or
+    /// insufficiently approved proposals.
     pub fn execute_proposal(
         env: Env,
         caller: Address,
@@ -182,6 +208,10 @@ impl DongleContract {
 
     // --- Project Registry ---
 
+    /// Registers a project using the supplied metadata and ownership parameters.
+    ///
+    /// The contract must not be paused. Validation failures, duplicate slugs, and invalid
+    /// registration parameters return an error.
     pub fn register_project(
         env: Env,
         params: ProjectRegistrationParams,
@@ -190,11 +220,18 @@ impl DongleContract {
         ProjectRegistry::register_project(&env, params)
     }
 
+    /// Updates a project's mutable metadata.
+    ///
+    /// The contract must not be paused and the owner or an authorized maintainer encoded in
+    /// `params` must authorize the update.
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_project(&env, params)
     }
 
+    /// Sets or clears a project's security contact.
+    ///
+    /// The contract must not be paused; `caller` must be authorized to manage the project.
     pub fn update_security_contact(
         env: Env,
         project_id: u64,
@@ -205,6 +242,9 @@ impl DongleContract {
         ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
     }
 
+    /// Submits a CID proving control of a project's security contact.
+    ///
+    /// The contract must not be paused; `caller` must be authorized and `proof_cid` must be valid.
     pub fn submit_security_contact_proof(
         env: Env,
         project_id: u64,
@@ -222,6 +262,10 @@ impl DongleContract {
         ProjectRegistry::get_security_contact_status(&env, project_id)
     }
 
+    /// Links two projects under the caller's control.
+    ///
+    /// The contract must not be paused; `caller` must be authorized for `project_id` and both
+    /// project IDs must identify valid, linkable projects.
     pub fn link_project(
         env: Env,
         project_id: u64,
@@ -232,6 +276,9 @@ impl DongleContract {
         ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
     }
 
+    /// Removes an existing link from `project_id` to `linked_project_id`.
+    ///
+    /// The contract must not be paused and `caller` must be authorized for the source project.
     pub fn unlink_project(
         env: Env,
         project_id: u64,
@@ -254,6 +301,9 @@ impl DongleContract {
         ProjectRegistry::get_project_by_slug(&env, slug)
     }
 
+    /// Starts transfer of a project to `new_owner`.
+    ///
+    /// The contract must not be paused and `caller` must be the current owner.
     pub fn initiate_transfer(
         env: Env,
         project_id: u64,
@@ -264,6 +314,9 @@ impl DongleContract {
         ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
     }
 
+    /// Cancels a pending project ownership transfer.
+    ///
+    /// The contract must not be paused and `caller` must be authorized to cancel the transfer.
     pub fn cancel_transfer(
         env: Env,
         project_id: u64,
@@ -273,6 +326,9 @@ impl DongleContract {
         ProjectRegistry::cancel_transfer(&env, project_id, caller)
     }
 
+    /// Accepts a pending project transfer.
+    ///
+    /// `caller` must be the proposed owner and must authorize the acceptance.
     pub fn accept_transfer(
         env: Env,
         project_id: u64,
@@ -354,6 +410,9 @@ impl DongleContract {
         ProjectRegistry::list_projects_sorted(&env, sort_mode, start_index, limit)
     }
 
+    /// Creates a request to associate a contract address with a project.
+    ///
+    /// `caller` must be authorized for the project and `proof_cid` must demonstrate the claim.
     pub fn claim_contract_address(
         env: Env,
         project_id: u64,
@@ -370,6 +429,9 @@ impl DongleContract {
         )
     }
 
+    /// Approves a pending contract-address claim for a project.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn approve_contract_claim(
         env: Env,
         project_id: u64,
@@ -379,6 +441,9 @@ impl DongleContract {
         ProjectRegistry::approve_contract_claim(&env, project_id, contract_address, admin)
     }
 
+    /// Rejects a pending contract-address claim for a project.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn reject_contract_claim(
         env: Env,
         project_id: u64,
@@ -392,6 +457,9 @@ impl DongleContract {
         ProjectRegistry::get_verified_contracts(&env, project_id)
     }
 
+    /// Archives a project, making it inactive without deleting its data.
+    ///
+    /// `caller` must be authorized to manage the project.
     pub fn archive_project(
         env: Env,
         project_id: u64,
@@ -400,6 +468,9 @@ impl DongleContract {
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
+    /// Restores an archived project to active status.
+    ///
+    /// `caller` must be authorized to manage the project.
     pub fn reactivate_project(
         env: Env,
         project_id: u64,
@@ -408,6 +479,9 @@ impl DongleContract {
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
+    /// Grants `maintainer` permission to manage a project.
+    ///
+    /// `caller` must be the project owner or otherwise authorized to manage maintainers.
     pub fn add_maintainer(
         env: Env,
         project_id: u64,
@@ -417,6 +491,9 @@ impl DongleContract {
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
+    /// Revokes a maintainer's project-management permission.
+    ///
+    /// `caller` must be the project owner or otherwise authorized to manage maintainers.
     pub fn remove_maintainer(
         env: Env,
         project_id: u64,
@@ -432,6 +509,9 @@ impl DongleContract {
 
     // --- Featured Registry ---
 
+    /// Marks a project as featured or removes that designation.
+    ///
+    /// `admin` must be an administrator and must authorize the call.
     pub fn set_featured(
         env: Env,
         admin: Address,
@@ -447,6 +527,10 @@ impl DongleContract {
 
     // --- Review Registry ---
 
+    /// Adds a review with an optional CID for its comment content.
+    ///
+    /// `reviewer` must authorize the call; invalid ratings, duplicate reviews, and disabled
+    /// project reviews return an error.
     pub fn add_review(
         env: Env,
         project_id: u64,
@@ -457,6 +541,10 @@ impl DongleContract {
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
+    /// Updates the calling reviewer's existing review.
+    ///
+    /// `reviewer` must authorize the call and the update must satisfy the review cooldown and
+    /// rating validation rules.
     pub fn update_review(
         env: Env,
         project_id: u64,
@@ -467,6 +555,9 @@ impl DongleContract {
         ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
+    /// Deletes the review authored by `reviewer`.
+    ///
+    /// `reviewer` must authorize the call; a missing review returns an error.
     pub fn delete_review(
         env: Env,
         project_id: u64,
@@ -475,6 +566,10 @@ impl DongleContract {
         ReviewRegistry::delete_review(&env, project_id, reviewer)
     }
 
+    /// Submits a review whose content is referenced by `review_cid`.
+    ///
+    /// `reviewer` must authorize the call; the CID, rating, and project review settings are
+    /// validated before the review is stored.
     pub fn submit_review(
         env: Env,
         project_id: u64,
@@ -485,6 +580,9 @@ impl DongleContract {
         ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
     }
 
+    /// Adds or replaces a project representative's response to a review.
+    ///
+    /// `caller` must be authorized to manage `project_id`; the target review must exist.
     pub fn respond_to_review(
         env: Env,
         project_id: u64,
@@ -546,6 +644,9 @@ impl DongleContract {
         ReviewRegistry::get_stats_batch(&env, ids)
     }
 
+    /// Enables or disables new reviews for a project.
+    ///
+    /// `caller` must be authorized to manage the project.
     pub fn set_reviews_enabled(
         env: Env,
         project_id: u64,
@@ -559,6 +660,9 @@ impl DongleContract {
         ReviewRegistry::get_reviews_enabled(&env, project_id)
     }
 
+    /// Reports a review for administrator moderation.
+    ///
+    /// `reporter` must authorize the call and cannot report a missing review.
     pub fn report_review(
         env: Env,
         project_id: u64,
@@ -568,6 +672,9 @@ impl DongleContract {
         ReviewRegistry::report_review(&env, project_id, reviewer, reporter)
     }
 
+    /// Hides a review from normal results.
+    ///
+    /// `admin` must be an administrator and must authorize the moderation action.
     pub fn hide_review(
         env: Env,
         project_id: u64,
@@ -577,6 +684,9 @@ impl DongleContract {
         ReviewRegistry::hide_review(&env, project_id, reviewer, admin)
     }
 
+    /// Restores a review that was previously hidden.
+    ///
+    /// `admin` must be an administrator and must authorize the moderation action.
     pub fn restore_review(
         env: Env,
         project_id: u64,
@@ -619,6 +729,10 @@ impl DongleContract {
 
     // --- Verification Registry ---
 
+    /// Requests verification of a project using evidence stored at `evidence_cid`.
+    ///
+    /// `requester` must be authorized for the project; the evidence CID and project state are
+    /// validated before a pending request is created.
     pub fn request_verification(
         env: Env,
         project_id: u64,
@@ -656,6 +770,9 @@ impl DongleContract {
         )
     }
 
+    /// Approves a pending verification request.
+    ///
+    /// `admin` must be an administrator and must authorize the approval.
     pub fn approve_verification(
         env: Env,
         project_id: u64,
@@ -664,6 +781,9 @@ impl DongleContract {
         VerificationRegistry::approve_verification(&env, project_id, admin)
     }
 
+    /// Rejects a pending verification request.
+    ///
+    /// `admin` must be an administrator and must authorize the rejection.
     pub fn reject_verification(
         env: Env,
         project_id: u64,
@@ -672,6 +792,9 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    /// Revokes a project's active verification and records `reason`.
+    ///
+    /// `admin` must be an administrator and the reason must satisfy validation rules.
     pub fn revoke_verification(
         env: Env,
         project_id: u64,
@@ -703,6 +826,9 @@ impl DongleContract {
         VerificationRegistry::is_verification_active(&env, project_id)
     }
 
+    /// Renews an eligible verification.
+    ///
+    /// `admin` must be an administrator; the project must have a renewable verification.
     pub fn renew_verification(
         env: Env,
         project_id: u64,
@@ -713,6 +839,9 @@ impl DongleContract {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
 
+    /// Requests renewal of a project's verification using updated evidence.
+    ///
+    /// `requester` must be authorized for the project and `evidence_cid` must be valid.
     pub fn request_renewal(
         env: Env,
         project_id: u64,
@@ -722,10 +851,16 @@ impl DongleContract {
         VerificationRegistry::request_renewal(&env, project_id, requester, evidence_cid)
     }
 
+    /// Approves a pending verification-renewal request.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn approve_renewal(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         VerificationRegistry::approve_renewal(&env, project_id, admin)
     }
 
+    /// Rejects a pending verification-renewal request.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn reject_renewal(env: Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         VerificationRegistry::reject_renewal(&env, project_id, admin)
     }
@@ -816,6 +951,10 @@ impl DongleContract {
 
     // --- Fee Manager ---
 
+    /// Configures the token, fee amounts, and treasury used for contract payments.
+    ///
+    /// `admin` must be an administrator and must authorize the change; fee configuration is
+    /// validated before it is stored.
     pub fn set_fee(
         env: Env,
         admin: Address,
@@ -834,6 +973,10 @@ impl DongleContract {
         )
     }
 
+    /// Pays the verification fee for a project.
+    ///
+    /// `payer` must authorize the token transfer; the token must match the configured fee and
+    /// the project must be eligible to pay.
     pub fn pay_fee(
         env: Env,
         payer: Address,
@@ -843,6 +986,10 @@ impl DongleContract {
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
+    /// Cancels a pending project fee payment.
+    ///
+    /// An administrator may cancel while paused; otherwise `caller` must satisfy the fee
+    /// manager's authorization rules and the contract must not be paused.
     pub fn cancel_fee_payment(
         env: Env,
         caller: Address,
@@ -858,6 +1005,9 @@ impl DongleContract {
         FeeManager::is_fee_paid(&env, project_id)
     }
 
+    /// Pays the registration fee for `payer` using the configured token.
+    ///
+    /// `payer` must authorize the token transfer and the selected token must match configuration.
     pub fn pay_registration_fee(
         env: Env,
         payer: Address,
@@ -1128,6 +1278,9 @@ impl DongleContract {
 
     // --- Project Claiming ---
 
+    /// Allows or disallows ownership claims for a project.
+    ///
+    /// `caller` must be authorized to manage the project.
     pub fn set_project_claimable(
         env: Env,
         project_id: u64,
@@ -1137,6 +1290,9 @@ impl DongleContract {
         ProjectRegistry::set_project_claimable(&env, project_id, caller, claimable)
     }
 
+    /// Submits an ownership claim for a claimable project.
+    ///
+    /// `claimant` must authorize the call and provide a valid `proof_cid`.
     pub fn submit_claim_request(
         env: Env,
         project_id: u64,
@@ -1146,6 +1302,9 @@ impl DongleContract {
         ProjectRegistry::submit_claim_request(&env, project_id, claimant, proof_cid)
     }
 
+    /// Approves a pending project ownership claim.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn approve_claim_request(
         env: Env,
         claim_request_id: u64,
@@ -1154,6 +1313,9 @@ impl DongleContract {
         ProjectRegistry::approve_claim_request(&env, claim_request_id, admin)
     }
 
+    /// Rejects a pending project ownership claim.
+    ///
+    /// `admin` must be an administrator and must authorize the decision.
     pub fn reject_claim_request(
         env: Env,
         claim_request_id: u64,
@@ -1172,6 +1334,9 @@ impl DongleContract {
 
     // --- Project Dependencies ---
 
+    /// Adds a dependency record to a project.
+    ///
+    /// `caller` must be authorized to manage the project and the dependency must be valid.
     pub fn add_project_dependency(
         env: Env,
         project_id: u64,
@@ -1183,6 +1348,9 @@ impl DongleContract {
         )
     }
 
+    /// Replaces the dependency identified by `dependency_key`.
+    ///
+    /// `caller` must be authorized to manage the project; a missing dependency returns an error.
     pub fn update_project_dependency(
         env: Env,
         project_id: u64,
@@ -1199,6 +1367,9 @@ impl DongleContract {
         )
     }
 
+    /// Removes a dependency from a project.
+    ///
+    /// `caller` must be authorized to manage the project; a missing dependency returns an error.
     pub fn remove_project_dependency(
         env: Env,
         project_id: u64,
@@ -1219,6 +1390,9 @@ impl DongleContract {
 
     // --- Duplicate Disputes ---
 
+    /// Opens a duplicate-project dispute with supporting evidence.
+    ///
+    /// `creator` must authorize the request and `evidence_cid` must be valid.
     pub fn open_duplicate_dispute(
         env: Env,
         project_id: u64,
@@ -1235,6 +1409,9 @@ impl DongleContract {
         )
     }
 
+    /// Resolves a duplicate-project dispute according to `action`.
+    ///
+    /// `admin` must be an administrator and must authorize the resolution.
     pub fn resolve_duplicate_dispute(
         env: Env,
         dispute_id: u64,
@@ -1340,6 +1517,9 @@ impl DongleContract {
 
     // --- Subscription / Follow ---
 
+    /// Follows a project on behalf of `follower`.
+    ///
+    /// `follower` must authorize the call; duplicate follows return an error.
     pub fn follow_project(
         env: Env,
         project_id: u64,
@@ -1350,6 +1530,9 @@ impl DongleContract {
         )
     }
 
+    /// Removes `follower`'s subscription to a project.
+    ///
+    /// `follower` must authorize the call; following must already exist.
     pub fn unfollow_project(
         env: Env,
         project_id: u64,
@@ -1387,6 +1570,9 @@ impl DongleContract {
 
     // --- Bookmark Registry ---
 
+    /// Saves a project in `user`'s bookmarks.
+    ///
+    /// `user` must authorize the call; duplicate bookmarks return an error.
     pub fn bookmark_project(
         env: Env,
         project_id: u64,
@@ -1395,6 +1581,9 @@ impl DongleContract {
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
+    /// Removes a project from `user`'s bookmarks.
+    ///
+    /// `user` must authorize the call; the bookmark must already exist.
     pub fn unbookmark_project(
         env: Env,
         project_id: u64,
@@ -1413,6 +1602,9 @@ impl DongleContract {
 
     // --- Endorsement Registry ---
 
+    /// Records `user`'s endorsement of a project.
+    ///
+    /// `user` must authorize the call; duplicate endorsements return an error.
     pub fn endorse_project(
         env: Env,
         project_id: u64,
@@ -1421,6 +1613,9 @@ impl DongleContract {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
+    /// Removes `user`'s endorsement of a project.
+    ///
+    /// `user` must authorize the call; the endorsement must already exist.
     pub fn unendorse_project(
         env: Env,
         project_id: u64,
@@ -1439,6 +1634,9 @@ impl DongleContract {
 
     // --- Admin Timelock ---
 
+    /// Schedules a fee configuration change for execution at `execution_timestamp`.
+    ///
+    /// `admin` must be an administrator and the timestamp must satisfy timelock rules.
     pub fn schedule_set_fee(
         env: Env,
         admin: Address,
@@ -1459,6 +1657,9 @@ impl DongleContract {
         )
     }
 
+    /// Schedules addition of an administrator after the configured timelock.
+    ///
+    /// `admin` must be an administrator and the timestamp must satisfy timelock rules.
     pub fn schedule_add_admin(
         env: Env,
         admin: Address,
@@ -1468,6 +1669,9 @@ impl DongleContract {
         TimelockManager::schedule_add_admin(&env, admin, new_admin, execution_timestamp)
     }
 
+    /// Schedules removal of an administrator after the configured timelock.
+    ///
+    /// `admin` must be an administrator and the timestamp must satisfy timelock rules.
     pub fn schedule_remove_admin(
         env: Env,
         admin: Address,
@@ -1477,6 +1681,9 @@ impl DongleContract {
         TimelockManager::schedule_remove_admin(&env, admin, admin_to_remove, execution_timestamp)
     }
 
+    /// Cancels a pending timelock action.
+    ///
+    /// `caller` must be authorized by the timelock manager; executed actions cannot be cancelled.
     pub fn cancel_scheduled_action(
         env: Env,
         caller: Address,
@@ -1485,6 +1692,9 @@ impl DongleContract {
         TimelockManager::cancel_action(&env, caller, action_id)
     }
 
+    /// Executes a due, scheduled fee configuration action.
+    ///
+    /// `caller` must be authorized and the action must be ready for execution.
     pub fn execute_scheduled_set_fee(
         env: Env,
         caller: Address,
@@ -1493,6 +1703,9 @@ impl DongleContract {
         TimelockManager::execute_set_fee(&env, caller, action_id)
     }
 
+    /// Executes a due, scheduled administrator-addition action.
+    ///
+    /// `caller` must be authorized and the action must be ready for execution.
     pub fn execute_scheduled_add_admin(
         env: Env,
         caller: Address,
@@ -1501,6 +1714,9 @@ impl DongleContract {
         TimelockManager::execute_add_admin(&env, caller, action_id)
     }
 
+    /// Executes a due, scheduled administrator-removal action.
+    ///
+    /// `caller` must be authorized and the action must be ready for execution.
     pub fn execute_scheduled_remove_admin(
         env: Env,
         caller: Address,
