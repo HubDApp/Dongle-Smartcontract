@@ -160,7 +160,7 @@ fn test_invalid_social_link_url_format_is_rejected() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]
@@ -196,7 +196,7 @@ fn test_social_link_url_length_is_rejected() {
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]

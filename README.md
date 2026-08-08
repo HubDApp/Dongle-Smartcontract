@@ -80,37 +80,111 @@ export DEPLOYER_IDENTITY=alice
 ./scripts/invoke.sh register <owner_address> "My Project" "my-project" "Description" "DeFi"
 ```
 
-For detailed deployment instructions with environment variables and script reference, see the [Smart Contract API Guide](dongle-smartcontract/README.md#deploy-and-invoke-via-scripts).
+For a comprehensive guide on configuration and scripts, refer to the [dongle-smartcontract README](dongle-smartcontract/README.md).
 
-## Key Features
+## Usage Examples
 
-| Feature | Description |
-|---------|-------------|
-| **Project Registry** | Register and manage project metadata on-chain |
-| **Reviews & Ratings** | Submit community reviews with rating aggregation |
-| **Verification** | Admin-managed project verification with renewal support |
-| **Fee Management** | Configurable fees for operations (token or native XLM) |
-| **Access Control** | Owner-based permissions and admin role management |
-| **TTL Management** | Automatic and manual time-to-live extension for data persistence |
-| **Project Linking** | Link related projects together (e.g., mainnet/testnet pairs) |
-| **Moderation** | Report projects and reviews; admin hide/delete capabilities |
-| **Collections** | Admin-curated project collections |
-| **Project Claiming** | Claim ownership of unclaimed projects |
-| **Dependencies** | Track project dependencies and relationships |
-| **Duplicate Resolution** | Report and resolve duplicate project disputes |
+For detailed usage examples of all contract functions, including:
 
-## Project Metadata (Off-Chain)
+- **Initialize** - Set up the contract with an admin
+- **Register Project** - Register a new project on-chain
+- **Update Project** - Update project metadata (owner-only)
+- **Add Review** - Submit project reviews with ratings
+- **Pay Fee** - Pay verification and registration fees
+- **Request Verification** - Request project verification
+- **Approve/Reject Verification** - Admin verification actions
+- **Project Linking** - Link related projects
+- **Featured Projects** - Admin-curated featured lists
+- **Project Reporting** - Report projects for moderation
+- **Collections** - Admin-curated project collections
+- **Project Claiming** - Claim ownership of projects
+- **Dependencies** - Track project dependencies
+- **Duplicate Disputes** - Report and resolve duplicates
+- **And many more...**
 
-Projects can attach extended metadata via IPFS CIDs. Follow the JSON schema:
+See the [comprehensive API documentation](dongle-smartcontract/README.md#usage-examples).
 
-| Schema | Purpose |
-|--------|---------|
-| [`project-metadata.schema.json`](./project-metadata.schema.json) | Project metadata structure |
-| [`project-metadata.example.json`](./project-metadata.example.json) | Example valid document |
-| [`review-cid.schema.json`](./review-cid.schema.json) | Review content structure |
-| [`review-cid.example.json`](./review-cid.example.json) | Example review document |
+## Problem Statement
 
-**Key guidelines:**
+Discoverability and trust remain challenges in decentralized ecosystems. Many projects rely on off-chain listings, centralized platforms, or unverifiable data sources.
+
+Dongle addresses this by:
+
+- Providing an on-chain source of truth for project registration
+- Enabling transparent project metadata storage
+- Allowing permissionless access to registered project data
+- Supporting open-source collaboration and extension
+
+## Scope of This Contract
+
+The Dongle smart contract is responsible for:
+
+- Registering projects on-chain
+- Storing essential metadata (name, description, links, owner)
+- Allowing controlled updates by project owners
+- Exposing read methods for frontend and indexers
+- Ensuring basic validation and access control
+- Managing project reviews and ratings
+- Handling project verification and renewal
+- Supporting project linking and collections
+- Providing admin tools for moderation
+
+## High-Level Architecture
+
+- **Blockchain:** Stellar
+- **Smart Contract Framework:** Soroban
+- **Language:** Rust
+- **Storage:** Soroban persistent storage
+- **Access Control:** Address-based ownership
+
+```
+Frontend (UI)
+   ↓
+Dongle Smart Contract (Soroban)
+```
+
+## Contract Responsibilities
+
+### Core Functions
+
+- `register_project` – Register a new project on-chain
+- `update_project` – Update project metadata (owner-only)
+- `get_project` – Fetch a single project’s data
+- `list_projects` – Retrieve registered projects (indexer-friendly)
+
+### Extended Functions
+
+- `submit_review` / `add_review` – Submit project reviews
+- `request_verification` – Request project verification
+- `approve_verification` / `reject_verification` – Admin verification actions
+- `link_project` – Link related projects
+- `report_project` – Report projects for moderation
+- `create_collection` – Create curated project collections
+- And many more - see [full API documentation](dongle-smartcontract/README.md)
+
+### Administrator Key Rotation
+
+Operational guidance for secure admin key rotation, incident response, and testnet validation is documented in [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md).
+### Project Metadata CID Schema
+
+Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Documents should follow the JSON schema in [`project-metadata.schema.json`](./project-metadata.schema.json).
+
+| | |
+|---|---|
+| **Schema** | [`project-metadata.schema.json`](./project-metadata.schema.json) |
+| **Example** | [`project-metadata.example.json`](./project-metadata.example.json) |
+| **Review CID schema** | [`review-cid.schema.json`](./review-cid.schema.json) |
+| **Verification evidence schema** | [`verification-evidence.schema.json`](./verification-evidence.schema.json) |
+| **Verification evidence example** | [`verification-evidence.example.json`](./verification-evidence.example.json) |
+
+**Required fields:** `version` (semver), `projectName`
+
+**Recommended optional fields:** `description`, `website`, `repository`, `documentation`, `logo`, `banner`, `categories`, `tags`, `socials`, `licenses`, `maintainers`, `createdAt`, `updatedAt`
+
+**Backward compatibility:** Legacy documents that only include `security_contact` (see schema) remain valid. Indexers should treat unknown fields as opaque when validating against older versions.
+
+**Best practices:**
+
 - Pin metadata on IPFS and verify the CID matches on-chain `metadata_cid`
 - Bump `version` when making breaking schema changes (use semver)
 - Keep on-chain fields (`name`, `description`, `website`) in sync with off-chain metadata
@@ -118,7 +192,14 @@ Projects can attach extended metadata via IPFS CIDs. Follow the JSON schema:
 
 ## Contract Functions Overview
 
-The contract exposes 100+ functions organized by domain:
+### Verification Evidence CID Schema
+
+Verification evidence CIDs should point to structured JSON documents with proof
+links, screenshots, signatures, attestations, and privacy notes. See
+[`docs/VERIFICATION_EVIDENCE.md`](./docs/VERIFICATION_EVIDENCE.md) for the
+schema, example document, and safety expectations.
+
+### Validation
 
 - **Admin**: `initialize`, `add_admin`, `remove_admin`, `is_admin`, `get_admin_list`, `get_admin_count`
 - **Projects**: `register_project`, `update_project`, `get_project`, `list_projects`, `archive_project`, `reactivate_project`, and more
@@ -180,22 +261,22 @@ Please open an issue or pull request for proposed changes.
 
 Dongle promotes:
 
-- **Transparency**: On-chain, verifiable source of truth for projects
-- **Decentralization**: Community-owned ecosystem data
-- **Composability**: Reusable infrastructure for Stellar builders
-- **Open Collaboration**: Standards-based smart contract protocol
+- Transparency in project discovery
+- Decentralized ownership of ecosystem data
+- Composable infrastructure for Stellar builders
+- Open collaboration through smart contracts
 
-## Documentation Index
+## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [dongle-smartcontract/README.md](dongle-smartcontract/README.md) | API reference, usage examples, deployment guide |
-| [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md) | Complete function documentation with error codes |
-| [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) | Event topics and payloads for indexers |
-| [THREAT_MODEL.md](THREAT_MODEL.md) | Security analysis and mitigation strategies |
-| [docs/STORAGE_SCHEMA.md](docs/STORAGE_SCHEMA.md) | Storage keys and persistence architecture |
-| [docs/ADMIN_ROTATION_PLAYBOOK.md](docs/ADMIN_ROTATION_PLAYBOOK.md) | Admin key rotation and incident response |
-| [docs/LOGO_ASSET_GUIDELINES.md](docs/LOGO_ASSET_GUIDELINES.md) | Logo CID best practices |
-| [Soroban Documentation](https://soroban.stellar.org/docs) | Soroban contract development guide |
-| [Stellar Developer Portal](https://developers.stellar.org/) | Stellar network documentation |
-| [Soroban Examples](https://github.com/stellar/soroban-examples) | Community contract examples |
+- [Smart Contract README](dongle-smartcontract/README.md) - Comprehensive API documentation and usage examples
+- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
+- [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
+- [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
+- [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [verification-evidence.schema.json](verification-evidence.schema.json) - Off-chain JSON schema for verification evidence CIDs
+- [verification-evidence.example.json](verification-evidence.example.json) - Valid verification evidence example
+- [Verification Evidence Guide](docs/VERIFICATION_EVIDENCE.md) - Privacy, safety, proof-link, attestation, and signature guidance
+- [Storage Schema Reference](docs/STORAGE_SCHEMA.md) — canonical storage keys, read/write mapping, index consistency rules, and migration guidance.
+- [Soroban Documentation](https://soroban.stellar.org/docs)
+- [Stellar Developer Portal](https://developers.stellar.org/)
+- [Soroban Examples](https://github.com/stellar/soroban-examples)

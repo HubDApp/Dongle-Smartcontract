@@ -4,6 +4,7 @@ use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::errors::ContractError;
 use crate::events::publish_featured_project_event;
+use crate::pagination::paginate;
 use crate::storage_keys::StorageKey;
 use crate::types::{AdminActionType, Project};
 use soroban_sdk::{Address, Env, Vec};
@@ -73,28 +74,17 @@ impl FeaturedRegistry {
             .persistent()
             .get(&StorageKey::FeaturedProjects)
             .unwrap_or(Vec::new(env));
-
-        let limit = limit.min(100);
+        let page_ids = paginate(env, &ids, start, limit);
         let mut result = Vec::new(env);
-        let mut count = 0u32;
-
-        for (i, project_id) in ids.iter().enumerate() {
-            if (i as u32) < start {
-                continue;
-            }
-            if count >= limit {
-                break;
-            }
+        for project_id in page_ids.iter() {
             if let Some(project) = env
                 .storage()
                 .persistent()
                 .get(&StorageKey::Project(project_id))
             {
                 result.push_back(project);
-                count += 1;
             }
         }
-
         result
     }
 }

@@ -3,6 +3,7 @@ use crate::events::{publish_project_followed_event, publish_project_unfollowed_e
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, Vec};
 
 pub const MAX_PAGE_LIMIT: u32 = 100;
@@ -74,14 +75,7 @@ impl SubscriptionRegistry {
             .get(&ExtensionKey::ProjectFollowers(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        let mut new_followers: Vec<Address> = Vec::new(env);
-        for i in 0..followers.len() {
-            if let Some(f) = followers.get(i) {
-                if f != follower {
-                    new_followers.push_back(f);
-                }
-            }
-        }
+        let new_followers = Utils::remove_item_from_vec(env, &followers, &follower);
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectFollowers(project_id), &new_followers);
@@ -97,14 +91,7 @@ impl SubscriptionRegistry {
             .get(&ExtensionKey::UserSubscriptions(follower.clone()))
             .unwrap_or_else(|| Vec::new(env));
 
-        let mut new_subscriptions: Vec<u64> = Vec::new(env);
-        for i in 0..subscriptions.len() {
-            if let Some(pid) = subscriptions.get(i) {
-                if pid != project_id {
-                    new_subscriptions.push_back(pid);
-                }
-            }
-        }
+        let new_subscriptions = Utils::remove_item_from_vec(env, &subscriptions, &project_id);
         env.storage().persistent().set(
             &ExtensionKey::UserSubscriptions(follower.clone()),
             &new_subscriptions,

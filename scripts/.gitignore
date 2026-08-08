@@ -1,0 +1,15 @@
+target/
+dongle-smartcontract/target/
+dongle-smartcontract/Cargo.lock
+test_snapshots/
+# Build / error logs (don't commit)
+dongle-smartcontract/build_error*.log
+dongle-smartcontract/build_errors*.log
+# Test / build output dumps (don't commit)
+dongle-smartcontract/test_results*.txt
+dongle-smartcontract/test_build_errors*.txt
+dongle-smartcontract/*_errors.txt
+.DS_Store
+.agents/
+skills-lock.json
+issue.md

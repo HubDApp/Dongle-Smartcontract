@@ -8,6 +8,13 @@ This document provides comprehensive documentation of all public contract functi
 **Network**: Stellar  
 **Language**: Rust  
 
+### Single-Entity Getter Convention
+
+All single-entity lookup functions (such as `get_project`, `get_collection`, `get_verification`, `get_verification_record`, `get_renewal_request`, `get_assigned_admin`, `get_review`, `get_duplicate_dispute`, `get_proposal`, `get_action`, etc.) return `Option<T>`.
+- Returns `Some(entity)` when the record exists.
+- Returns `None` when no entity is found for the given ID/key (without raising a contract error).
+- Multi-entity/list functions return `Vec<T>` (empty when no entries match).
+
 ---
 
 ## Table of Contents
@@ -26,6 +33,7 @@ This document provides comprehensive documentation of all public contract functi
 12. [Admin Action Log](#admin-action-log)
 13. [Dispute Resolution](#dispute-resolution)
 14. [TTL Management](#ttl-management)
+15. [Contract Configuration](#contract-configuration)
 
 ---
 
@@ -179,6 +187,34 @@ let admin_count = get_admin_count(env);
 
 ---
 
+### `get_config`
+
+**Purpose**: Return a stable public contract configuration snapshot for frontends and indexers.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `ContractConfig`
+- `fee_config`: current fee configuration when set
+- `treasury`: current treasury address when set
+- `admin_count`: current admin count
+- `paused`: current pause state; currently `false` because no pause feature is implemented
+- `version`: contract config version string
+- public limits for projects, reviews, pagination, tags, social links, verification validity, fee payment expiry, and review update cooldown
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let config = get_config(env);
+```
+
+---
+
 ## Project Registry
 
 ### `register_project`
@@ -306,6 +342,84 @@ let updated_project = update_project(env, ProjectUpdateParams {
     social_links: None,
     launch_timestamp: None,
 })?;
+```
+
+---
+
+### `update_security_contact`
+
+**Purpose**: Update the security contact for a project (owner-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `contact` (Option<String>): Optional security contact email/identifier
+
+**Return Value**: `Result<Project, ContractError>`
+- Success: `Ok(updated_project)` - The updated project with security contact
+- Failure: `ContractError`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+update_security_contact(env, project_id, owner_address, Some(String::from_slice(&env, "security@example.com")))?;
+```
+
+---
+
+### `submit_security_contact_proof`
+
+**Purpose**: Submit proof of security contact ownership via IPFS CID (owner-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `proof_cid` (String): IPFS CID containing proof of security contact
+
+**Return Value**: `Result<Project, ContractError>`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+submit_security_contact_proof(env, project_id, owner_address, String::from_slice(&env, "QmProof..."))?;
+```
+
+---
+
+### `get_security_contact_status`
+
+**Purpose**: Get the security contact verification status for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Result<SecurityContactStatus, ContractError>`
+- Contains the current security contact and verification status
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+let status = get_security_contact_status(env, project_id)?;
 ```
 
 ---
@@ -484,6 +598,112 @@ let projects = get_projects_by_ids(env, vec![&env, 1, 2, 3]);
 
 ---
 
+### `set_project_region`
+
+**Purpose**: Set or remove an optional region tag for a project (owner-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `region` (Option<String>): Optional region tag (e.g., "US", "EU")
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+set_project_region(env, project_id, owner_address, Some(String::from_slice(&env, "EU")))?;
+```
+
+---
+
+### `get_project_region`
+
+**Purpose**: Get the region tag for a project, if set.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Option<String>`
+- `Some(region)` if a region tag is set
+- `None` if no region tag
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(region) = get_project_region(env, project_id) {
+    // Use region data
+}
+```
+
+---
+
+### `get_project_integrity_hash`
+
+**Purpose**: Get the stored integrity hash for a project, if any.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Option<Bytes>`
+- `Some(hash)` if an integrity hash is stored
+- `None` if no hash
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(hash) = get_project_integrity_hash(env, project_id) {
+    // Verify project integrity
+}
+```
+
+---
+
+### `list_projects_sorted`
+
+**Purpose**: Retrieve projects sorted by a specified sort mode with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `sort_mode` (ProjectSortMode): The sorting mode (e.g., by rating, by name)
+- `start_index` (u64): Zero-based index into the sorted result for pagination
+- `limit` (u32): Maximum number of projects to return
+
+**Return Value**: `Vec<Project>`
+- A vector of projects sorted by the specified mode
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let sorted_projects = list_projects_sorted(env, ProjectSortMode::Rating, 0, 20);
+```
+
+---
+
 ### `list_projects_by_status`
 
 **Purpose**: Retrieve projects filtered by verification status with pagination.
@@ -517,7 +737,7 @@ let verified_projects = list_projects_by_status(env, VerificationStatus::Verifie
 **Parameters**:
 - `env` (Env): The contract environment
 - `category` (String): The category to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the category's project ID list for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -543,7 +763,7 @@ let defi_projects = list_projects_by_category(env, String::from_slice(&env, "DeF
 **Parameters**:
 - `env` (Env): The contract environment
 - `tag` (String): The tag to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based offset into the project ID scan space for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -610,6 +830,178 @@ archive_project(env, project_id, owner_address)?;
 **Example**:
 ```rust
 reactivate_project(env, project_id, owner_address)?;
+```
+
+---
+
+### `add_maintainer`
+
+**Purpose**: Add a maintainer to a project (owner-only). Maintainers can assist with project management.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `maintainer` (Address): The address to add as maintainer
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+add_maintainer(env, project_id, owner_address, maintainer_address)?;
+```
+
+---
+
+### `remove_maintainer`
+
+**Purpose**: Remove a maintainer from a project (owner-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `maintainer` (Address): The maintainer address to remove
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+remove_maintainer(env, project_id, owner_address, maintainer_address)?;
+```
+
+---
+
+### `get_maintainers`
+
+**Purpose**: Get the list of maintainers for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Vec<Address>`
+- A vector of maintainer addresses
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let maintainers = get_maintainers(env, project_id);
+```
+
+---
+
+### `add_reserved_name`
+
+**Purpose**: Add a name to the reserved project names list (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin calling
+- `name` (String): The name to reserve
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Example**:
+```rust
+add_reserved_name(env, admin_address, String::from_slice(&env, "reserved-name"))?;
+```
+
+---
+
+### `remove_reserved_name`
+
+**Purpose**: Remove a name from the reserved list (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin calling
+- `name` (String): The name to unreserve
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Example**:
+```rust
+remove_reserved_name(env, admin_address, String::from_slice(&env, "reserved-name"))?;
+```
+
+---
+
+### `get_reserved_names`
+
+**Purpose**: Get the list of all reserved project names.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `Vec<String>`
+- A vector of reserved names
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let reserved = get_reserved_names(env);
+```
+
+---
+
+### `is_name_reserved`
+
+**Purpose**: Check if a specific name is reserved.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `name` (String): The name to check
+
+**Return Value**: `bool`
+- `true` if the name is reserved
+- `false` otherwise
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let reserved = is_name_reserved(env, String::from_slice(&env, "some-name"));
 ```
 
 ---
@@ -769,6 +1161,111 @@ cancel_transfer(env, project_id, owner_address)?;
 **Example**:
 ```rust
 accept_transfer(env, project_id, new_owner_address)?;
+```
+
+---
+
+### `claim_contract_address`
+
+**Purpose**: Claim ownership of a contract address associated with a project (owner-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `contract_address` (String): The contract address to claim
+- `proof_cid` (String): IPFS CID containing proof of ownership
+
+**Return Value**: `Result<ContractClaimRequest, ContractError>`
+- Success: `Ok(claim_request)` - The created contract claim request
+- Failure: `ContractError`
+
+**Authorization**: 
+- Caller must be the project owner
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+
+**Example**:
+```rust
+let claim = claim_contract_address(env, project_id, owner_address, String::from_slice(&env, "CC..."), String::from_slice(&env, "QmProof..."))?;
+```
+
+---
+
+### `approve_contract_claim`
+
+**Purpose**: Approve a contract address claim (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `contract_address` (String): The contract address being claimed
+- `admin` (Address): The admin approving
+
+**Return Value**: `Result<ContractClaimRequest, ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+approve_contract_claim(env, project_id, String::from_slice(&env, "CC..."), admin_address)?;
+```
+
+---
+
+### `reject_contract_claim`
+
+**Purpose**: Reject a contract address claim (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `contract_address` (String): The contract address being claimed
+- `admin` (Address): The admin rejecting
+
+**Return Value**: `Result<ContractClaimRequest, ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+reject_contract_claim(env, project_id, String::from_slice(&env, "CC..."), admin_address)?;
+```
+
+---
+
+### `get_verified_contracts`
+
+**Purpose**: Get all verified contract addresses for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Vec<String>`
+- A vector of verified contract addresses
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let contracts = get_verified_contracts(env, project_id);
 ```
 
 ---
@@ -1384,7 +1881,7 @@ let reviews = get_reviews_by_ids(env, vec![&env, (1, reviewer1), (1, reviewer2)]
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the project's review list for pagination
 - `limit` (u32): Maximum number of reviews to return
 
 **Return Value**: `Vec<Review>`
@@ -1451,6 +1948,137 @@ let avg = stats.average_rating;
 **Example**:
 ```rust
 let batch_stats = get_stats_batch(env, vec![&env, 1, 2, 3]);
+```
+
+---
+
+### `get_weighted_rating`
+
+**Purpose**: Get the Bayesian weighted rating for a project (scaled by 100).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `u32`
+- The weighted rating (e.g., 450 = 4.50)
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let weighted = get_weighted_rating(env, project_id);
+```
+
+---
+
+### `get_review_revision_count`
+
+**Purpose**: Get the number of revisions a review has gone through.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `reviewer` (Address): The reviewer address
+
+**Return Value**: `u32`
+- The number of revisions
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let revisions = get_review_revision_count(env, project_id, reviewer_address);
+```
+
+---
+
+### `get_review_history`
+
+**Purpose**: Get revision history for a specific review with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `reviewer` (Address): The reviewer address
+- `start_index` (u32): Starting index for pagination
+- `limit` (u32): Maximum records to return
+
+**Return Value**: `Vec<ReviewRevision>`
+- A vector of review revisions
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let history = get_review_history(env, project_id, reviewer_address, 0, 10);
+```
+
+---
+
+### `get_review_tombstone`
+
+**Purpose**: Get the deletion tombstone for a review, distinguishing deleted reviews from never-existed.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `reviewer` (Address): The reviewer address
+
+**Return Value**: `Option<ReviewTombstone>`
+- `Some(tombstone)` if the review was deleted
+- `None` if the review never existed or was never deleted
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(tombstone) = get_review_tombstone(env, project_id, reviewer_address) {
+    // Review was deleted at tombstone.timestamp
+}
+```
+
+---
+
+### `list_reviews_sorted`
+
+**Purpose**: List reviews for a project sorted by a specified sort mode with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `start_index` (u32): Zero-based index into the project's review list for pagination
+- `limit` (u32): Maximum reviews to return
+- `sort_mode` (ReviewSortMode): The sorting mode
+
+**Return Value**: `Vec<Review>`
+- A vector of sorted reviews
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let reviews = list_reviews_sorted(env, project_id, 0, 20, ReviewSortMode::Rating);
 ```
 
 ---
@@ -1648,6 +2276,34 @@ request_verification(env, project_id, requester_address, String::from_slice(&env
 
 ---
 
+### `update_verification_evidence`
+
+**Purpose**: Update the verification evidence CID for a pending verification request (project owner only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `caller` (Address): The project owner
+- `new_evidence_cid` (String): The new IPFS CID containing updated evidence
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the project owner
+- Updates are allowed only when the request status is `Pending`
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `Unauthorized` - Caller is not the project owner
+- `VerificationNotFound` - No pending verification request
+
+**Example**:
+```rust
+update_verification_evidence(env, project_id, owner_address, String::from_slice(&env, "QmNewEvidence..."))?;
+```
+
+---
+
 ### `approve_verification`
 
 **Purpose**: Approve a pending verification request (admin-only).
@@ -1736,7 +2392,8 @@ revoke_verification(env, project_id, admin_address, String::from_slice(&env, "Co
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
 
-**Return Value**: `Result<VerificationRecord, ContractError>`
+**Return Value**: `Option<VerificationRecord>`
+- `Some(VerificationRecord)` if found, `None` if not found.
 - Contains:
   - `request_id` (u64): ID of the verification request
   - `project_id` (u64): Project ID
@@ -1753,12 +2410,34 @@ revoke_verification(env, project_id, admin_address, String::from_slice(&env, "Co
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `ProjectNotFound` - Project ID does not exist
-- `VerificationNotFound` - No verification record for this project
+- None (returns `None` if verification record does not exist)
 
 **Example**:
 ```rust
-let verification = get_verification(env, project_id)?;
+let verification = get_verification(env, project_id);
+```
+
+---
+
+### `get_verification_record`
+
+**Purpose**: Get a verification record by its request ID.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `request_id` (u64): The verification request ID
+
+**Return Value**: `Result<VerificationRecord, ContractError>`
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- `VerificationNotFound` - No verification record for this request ID
+
+**Example**:
+```rust
+let record = get_verification_record(env, request_id)?;
 ```
 
 ---
@@ -1833,6 +2512,61 @@ let history = get_verification_history(env, project_id);
 **Example**:
 ```rust
 let expired = is_verification_expired(env, project_id)?;
+```
+
+---
+
+### `clear_verification_history`
+
+**Purpose**: Admin: prune verification history, keeping the most recent `keep_count` records.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `admin` (Address): The admin performing the operation
+- `keep_count` (u32): Number of most recent records to keep
+
+**Return Value**: `Result<u32, ContractError>`
+- Success: `Ok(removed_count)` - Number of records removed
+- Failure: `ContractError`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+let removed = clear_verification_history(env, project_id, admin_address, 5)?;
+```
+
+---
+
+### `clear_renewal_history`
+
+**Purpose**: Admin: clear all renewal history records for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `admin` (Address): The admin performing the operation
+
+**Return Value**: `Result<u32, ContractError>`
+- Success: `Ok(removed_count)` - Number of records removed
+- Failure: `ContractError`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+let removed = clear_renewal_history(env, project_id, admin_address)?;
 ```
 
 ---
@@ -1923,18 +2657,19 @@ reject_renewal(env, project_id, admin_address)?;
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
 
-**Return Value**: `Result<VerificationRenewalRecord, ContractError>`
+**Return Value**: `Option<VerificationRenewalRecord>`
+- `Some(VerificationRenewalRecord)` if found, `None` if not found.
 - Contains renewal request details
 
 **Authorization**: 
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `ProjectNotFound` - Project ID does not exist
+- None (returns `None` if renewal request does not exist)
 
 **Example**:
 ```rust
-let renewal = get_renewal_request(env, project_id)?;
+let renewal = get_renewal_request(env, project_id);
 ```
 
 ---
@@ -1961,6 +2696,63 @@ let renewal = get_renewal_request(env, project_id)?;
 **Example**:
 ```rust
 let renewal_history = get_renewal_history(env, project_id, 0, 10);
+```
+
+---
+
+## Verification Assignment
+
+### `assign_verification`
+
+**Purpose**: Admin: assign a pending verification to a specific admin for review.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `admin` (Address): The admin performing the assignment
+- `assignee` (Address): The admin to assign the verification to
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ProjectNotFound` - Project ID does not exist
+- `VerificationNotFound` - No pending verification for this project
+
+**Example**:
+```rust
+assign_verification(env, project_id, admin_address, assignee_address)?;
+```
+
+---
+
+### `get_assigned_admin`
+
+**Purpose**: Get the admin assigned to review a verification request.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Result<Option<Address>, ContractError>`
+- `Ok(Some(admin_address))` if an admin is assigned
+- `Ok(None)` if no admin is assigned
+- Failure: `ContractError`
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+if let Some(assigned) = get_assigned_admin(env, project_id)? {
+    // Assigned admin address
+}
 ```
 
 ---
@@ -2022,6 +2814,31 @@ pay_fee(env, payer_address, project_id, None)?;
 
 ---
 
+### `is_fee_paid`
+
+**Purpose**: Check if the fee has been paid for a specific project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `bool`
+- `true` if the fee has been paid
+- `false` otherwise
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let paid = is_fee_paid(env, project_id);
+```
+
+---
+
 ### `get_fee_config`
 
 **Purpose**: Get the current fee configuration.
@@ -2044,6 +2861,85 @@ pay_fee(env, payer_address, project_id, None)?;
 **Example**:
 ```rust
 let fees = get_fee_config(env)?;
+```
+
+---
+
+### `pay_registration_fee`
+
+**Purpose**: Pay the required registration fee for a new project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `payer` (Address): The address paying the registration fee
+- `token` (Option<Address>): Token to pay in (None for native, Some for token contract)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Payer must authorize the payment
+
+**Possible Errors**:
+- `FeeConfigNotSet` - Fee configuration not set up
+- `InsufficientFee` - Payment is less than required fee
+
+**Example**:
+```rust
+pay_registration_fee(env, payer_address, None)?;
+```
+
+---
+
+### `get_fee_payment_details`
+
+**Purpose**: Get fee payment details for a project (payer, amount, token, timestamp).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `Option<FeePaymentRecord>`
+- `Some(record)` if a payment exists
+- `None` if no payment found
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(payment) = get_fee_payment_details(env, project_id) {
+    // Use payment details
+}
+```
+
+---
+
+### `get_reg_fee_payment_details`
+
+**Purpose**: Get registration fee payment details for an address.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `address` (Address): The payer address
+
+**Return Value**: `Option<FeePaymentRecord>`
+- `Some(record)` if a payment exists
+- `None` if no payment found
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(payment) = get_reg_fee_payment_details(env, payer_address) {
+    // Use payment details
+}
 ```
 
 ---
@@ -2329,7 +3225,8 @@ remove_project_from_collection(env, admin_address, collection_id, project_id)?;
 - `env` (Env): The contract environment
 - `collection_id` (u64): The collection ID
 
-**Return Value**: `Result<Collection, ContractError>`
+**Return Value**: `Option<Collection>`
+- `Some(Collection)` if found, `None` if not found.
 - Contains:
   - `id` (u64): Collection ID
   - `name` (String): Collection name
@@ -2341,11 +3238,11 @@ remove_project_from_collection(env, admin_address, collection_id, project_id)?;
 - None (read-only, permissionless)
 
 **Possible Errors**:
-- `CollectionNotFound` - Collection ID does not exist
+- None (returns `None` if collection ID does not exist)
 
 **Example**:
 ```rust
-let collection = get_collection(env, collection_id)?;
+let collection = get_collection(env, collection_id);
 ```
 
 ---
@@ -2790,6 +3687,615 @@ extend_verification_ttl(env, project_id);
 
 ---
 
+## Subscription / Follow
+
+### `follow_project`
+
+**Purpose**: Follow (subscribe to) a project for updates.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID to follow
+- `follower` (Address): The address following the project
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Follower must authorize (self-authenticated)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+follow_project(env, project_id, follower_address)?;
+```
+
+---
+
+### `unfollow_project`
+
+**Purpose**: Unfollow (unsubscribe from) a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID to unfollow
+- `follower` (Address): The address unfollowing
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Follower must authorize (self-authenticated)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+
+**Example**:
+```rust
+unfollow_project(env, project_id, follower_address)?;
+```
+
+---
+
+### `get_follower_count`
+
+**Purpose**: Get the number of followers for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `u32`
+- Number of followers
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let count = get_follower_count(env, project_id);
+```
+
+---
+
+### `is_following`
+
+**Purpose**: Check if a user is following a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `user` (Address): The user address
+
+**Return Value**: `bool`
+- `true` if following, `false` otherwise
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let following = is_following(env, project_id, user_address);
+```
+
+---
+
+### `get_project_followers`
+
+**Purpose**: Get the list of followers for a project with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `start` (u32): Starting index for pagination
+- `limit` (u32): Maximum followers to return
+
+**Return Value**: `Vec<Address>`
+- A vector of follower addresses
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let followers = get_project_followers(env, project_id, 0, 20);
+```
+
+---
+
+### `get_user_subscriptions`
+
+**Purpose**: Get all projects a user is following with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `user` (Address): The user address
+- `start` (u32): Starting index for pagination
+- `limit` (u32): Maximum subscriptions to return
+
+**Return Value**: `Vec<u64>`
+- A vector of project IDs the user follows
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let subscriptions = get_user_subscriptions(env, user_address, 0, 50);
+```
+
+---
+
+## Bookmarks
+
+### `bookmark_project`
+
+**Purpose**: Bookmark a project for later reference.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID to bookmark
+- `user` (Address): The user bookmarking the project
+
+**Return Value**: `Result<(), BookmarkError>`
+
+**Authorization**: 
+- User must authorize (self-authenticated)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `AlreadyBookmarked` - Project already bookmarked by this user
+
+**Example**:
+```rust
+bookmark_project(env, project_id, user_address)?;
+```
+
+---
+
+### `unbookmark_project`
+
+**Purpose**: Remove a project bookmark.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID to unbookmark
+- `user` (Address): The user unbookmarking
+
+**Return Value**: `Result<(), BookmarkError>`
+
+**Authorization**: 
+- User must authorize (self-authenticated)
+
+**Possible Errors**:
+- `BookmarkNotFound` - Project is not bookmarked by this user
+
+**Example**:
+```rust
+unbookmark_project(env, project_id, user_address)?;
+```
+
+---
+
+### `is_bookmarked`
+
+**Purpose**: Check if a user has bookmarked a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `user` (Address): The user address
+
+**Return Value**: `bool`
+- `true` if bookmarked, `false` otherwise
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let bookmarked = is_bookmarked(env, project_id, user_address);
+```
+
+---
+
+### `get_user_bookmarks`
+
+**Purpose**: Get all bookmarked project IDs for a user with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `user` (Address): The user address
+- `start` (u32): Starting index for pagination
+- `limit` (u32): Maximum bookmarks to return
+
+**Return Value**: `Vec<u64>`
+- A vector of bookmarked project IDs
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let bookmarks = get_user_bookmarks(env, user_address, 0, 50);
+```
+
+---
+
+## Endorsements
+
+### `endorse_project`
+
+**Purpose**: Endorse a project as a trusted or high-quality project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID to endorse
+- `user` (Address): The user endorsing
+
+**Return Value**: `Result<(), EndorsementError>`
+
+**Authorization**: 
+- User must authorize (self-authenticated)
+
+**Possible Errors**:
+- `ProjectNotFound` - Project ID does not exist
+- `AlreadyEndorsed` - User has already endorsed this project
+
+**Example**:
+```rust
+endorse_project(env, project_id, user_address)?;
+```
+
+---
+
+### `unendorse_project`
+
+**Purpose**: Remove an endorsement from a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `user` (Address): The user unendorsing
+
+**Return Value**: `Result<(), EndorsementError>`
+
+**Authorization**: 
+- User must authorize (self-authenticated)
+
+**Possible Errors**:
+- `EndorsementNotFound` - User has not endorsed this project
+
+**Example**:
+```rust
+unendorse_project(env, project_id, user_address)?;
+```
+
+---
+
+### `get_endorsement_count`
+
+**Purpose**: Get the number of endorsements for a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+
+**Return Value**: `u32`
+- Number of endorsements
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let count = get_endorsement_count(env, project_id);
+```
+
+---
+
+### `has_endorsed`
+
+**Purpose**: Check if a user has endorsed a project.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project ID
+- `user` (Address): The user address
+
+**Return Value**: `bool`
+- `true` if endorsed, `false` otherwise
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let endorsed = has_endorsed(env, project_id, user_address);
+```
+
+---
+
+## Admin Timelock
+
+### `schedule_set_fee`
+
+**Purpose**: Schedule a fee configuration change to be executed at a future timestamp (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin scheduling
+- `token` (Option<Address>): Token address
+- `verification_fee` (u128): New verification fee
+- `registration_fee` (u128): New registration fee
+- `treasury` (Address): New treasury address
+- `execution_timestamp` (u64): Unix timestamp for execution
+
+**Return Value**: `Result<u64, ContractError>`
+- Success: `Ok(action_id)` - The scheduled action ID
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Example**:
+```rust
+let action_id = schedule_set_fee(env, admin_address, None, 1000000, 500000, treasury, future_timestamp)?;
+```
+
+---
+
+### `schedule_add_admin`
+
+**Purpose**: Schedule adding a new admin at a future timestamp (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin scheduling
+- `new_admin` (Address): The address to promote
+- `execution_timestamp` (u64): Unix timestamp for execution
+
+**Return Value**: `Result<u64, ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Example**:
+```rust
+let action_id = schedule_add_admin(env, admin_address, new_admin_address, future_timestamp)?;
+```
+
+---
+
+### `schedule_remove_admin`
+
+**Purpose**: Schedule removing an admin at a future timestamp (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin scheduling
+- `admin_to_remove` (Address): The admin to remove
+- `execution_timestamp` (u64): Unix timestamp for execution
+
+**Return Value**: `Result<u64, ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Example**:
+```rust
+let action_id = schedule_remove_admin(env, admin_address, admin_to_remove, future_timestamp)?;
+```
+
+---
+
+### `cancel_scheduled_action`
+
+**Purpose**: Cancel a pending scheduled action (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The admin cancelling
+- `action_id` (u64): The scheduled action ID
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+- `ActionNotFound` - Action ID does not exist
+
+**Example**:
+```rust
+cancel_scheduled_action(env, admin_address, action_id)?;
+```
+
+---
+
+### `execute_scheduled_set_fee`
+
+**Purpose**: Execute a scheduled fee configuration change after its target timestamp.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): Any address can trigger execution
+- `action_id` (u64): The scheduled action ID
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- None (anyone can trigger after the scheduled time)
+
+**Possible Errors**:
+- `ActionNotFound` - Action ID does not exist
+- `ActionNotReady` - Execution timestamp has not been reached
+
+**Example**:
+```rust
+execute_scheduled_set_fee(env, caller_address, action_id)?;
+```
+
+---
+
+### `execute_scheduled_add_admin`
+
+**Purpose**: Execute a scheduled admin addition after its target timestamp.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): Any address can trigger execution
+- `action_id` (u64): The scheduled action ID
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- None (anyone can trigger after the scheduled time)
+
+**Possible Errors**:
+- `ActionNotFound` - Action ID does not exist
+- `ActionNotReady` - Execution timestamp has not been reached
+
+**Example**:
+```rust
+execute_scheduled_add_admin(env, caller_address, action_id)?;
+```
+
+---
+
+### `execute_scheduled_remove_admin`
+
+**Purpose**: Execute a scheduled admin removal after its target timestamp.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): Any address can trigger execution
+- `action_id` (u64): The scheduled action ID
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- None (anyone can trigger after the scheduled time)
+
+**Possible Errors**:
+- `ActionNotFound` - Action ID does not exist
+- `ActionNotReady` - Execution timestamp has not been reached
+
+**Example**:
+```rust
+execute_scheduled_remove_admin(env, caller_address, action_id)?;
+```
+
+---
+
+### `get_scheduled_action`
+
+**Purpose**: Retrieve a scheduled action by ID.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `action_id` (u64): The scheduled action ID
+
+**Return Value**: `Option<TimelockAction>`
+- `Some(action)` if found
+- `None` if not found
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+if let Some(action) = get_scheduled_action(env, action_id) {
+    // Use action data
+}
+```
+
+---
+
+### `list_scheduled_actions`
+
+**Purpose**: List all scheduled actions with pagination.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `start` (u32): Starting index for pagination
+- `limit` (u32): Maximum actions to return
+
+**Return Value**: `Vec<TimelockAction>`
+- A vector of scheduled actions
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let actions = list_scheduled_actions(env, 0, 20);
+```
+
+---
+
+### `get_scheduled_action_count`
+
+**Purpose**: Get the total number of scheduled actions.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `u64`
+- Total count of scheduled actions
+
+**Authorization**: 
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let count = get_scheduled_action_count(env);
+```
+
+---
+
 ### Configuration Functions
 
 ### `set_min_project_age`
@@ -2888,60 +4394,63 @@ let duration = get_verification_duration(env);
 
 ## Common Error Types
 
-The contract uses these error codes consistently:
+The contract uses these error codes consistently (from `ContractError` enum):
 
 | Error | Code | When It Occurs |
 |-------|------|----------------|
-| `ProjectNotFound` | 1 | Project ID doesn't exist |
-| `Unauthorized` | 2 | Caller lacks required authorization |
-| `ProjectAlreadyExists` | 3 | Project slug already registered |
-| `InvalidRating` | 4 | Rating outside valid range |
-| `ReviewNotFound` | 5 | Review doesn't exist |
-| `DuplicateReview` | 6 | Reviewer already reviewed project |
-| `NotReviewOwner` | 7 | Caller is not the review author |
-| `VerificationNotFound` | 8 | No verification record found |
-| `InvalidStatus` | 9 | Invalid status value |
-| `AdminOnly` | 10 | Caller is not an admin |
-| `FeeConfigNotSet` | 11 | Fee configuration not initialized |
-| `TreasuryNotSet` | 12 | Treasury address not set |
-| `InsufficientFee` | 13 | Payment below required fee |
-| `InvalidProjectData` | 14 | Project data validation failed |
-| `ProjectNameTooLong` | 15 | Project name exceeds max length |
-| `InvalidNameFormat` | 16 | Project name format invalid |
-| `CannotRemoveLastAdmin` | 17 | Cannot remove only remaining admin |
-| `ProjectTooYoung` | 18 | Project doesn't meet minimum age |
-| `InvalidTag` | 19 | Tag format invalid |
-| `TooManyTags` | 20 | More than 10 tags provided |
-| `InvalidSocialLink` | 21 | Social link format invalid |
-| `TooManySocialLinks` | 22 | More than 10 social links provided |
-| `AlreadyReported` | 23 | Address already reported this |
-| `InvalidReportReason` | 24 | Report reason format invalid |
-| `AdminNotFound` | 25 | Admin address not found |
-| `InvalidProjectName` | 26 | Project name validation failed |
-| `InvalidProjectDesc` | 27 | Project description validation failed |
-| `InvalidCategory` | 28 | Category validation failed |
-| `ProjectDescTooLong` | 29 | Description exceeds max length |
-| `MaxProjectsExceeded` | 30 | Contract project limit reached |
-| `InvalidWebsite` | 31 | Website URL validation failed |
-| `InvalidLogoCid` | 32 | Logo CID validation failed |
-| `InvalidMetaCid` | 33 | Metadata CID validation failed |
-| `CategoryTooLong` | 34 | Category exceeds max length |
-| `WebsiteTooLong` | 35 | Website URL exceeds max length |
-| `NotRevocable` | 36 | Verification cannot be revoked |
-| `TransferNotFound` | 37 | No pending transfer found |
-| `NotTransferRecip` | 38 | Caller is not transfer recipient |
-| `ReviewsDisabled` | 39 | Reviews disabled for project |
-| `ReviewAlreadyReported` | 40 | Review already reported |
-| `ReviewAlreadyHidden` | 41 | Review already hidden |
-| `ReviewNotHidden` | 42 | Review is not hidden |
-| `AlreadyArchived` | 43 | Project already archived |
-| `ProjectNotArchived` | 44 | Project not archived |
-| `ReportsCleared` | 45 | Reports have been cleared |
-| `CollectionNotFound` | 46 | Collection ID doesn't exist |
-| `CollectionExists` | 47 | Collection already exists |
-| `AlreadyInCollection` | 48 | Project already in collection |
-| `AlreadyLinked` | 49 | Projects already linked |
-| `CannotLinkToSelf` | 50 | Cannot link project to itself |
+| `AlreadyInitialized` | 1 | Contract already initialized |
+| `NotInitialized` | 2 | Contract not yet initialized |
+| `OnlyAdmin` | 3 | Caller is not an admin |
+| `ProjectNotFound` | 4 | Project ID doesn't exist |
+| `NotProjectOwner` | 5 | Caller is not the project owner |
+| `SlugAlreadyExists` | 6 | Project slug already registered |
+| `InvalidSlug` | 7 | Invalid project slug format |
+| `MaxProjectsExceeded` | 8 | Contract project limit reached |
+| `MaxReviewsPerUser` | 9 | User exceeded maximum reviews |
+| `MaxReviewsPerProject` | 10 | Project exceeded maximum reviews |
+| `ReviewNotFound` | 11 | Review doesn't exist |
+| `AlreadyReviewed` | 12 | Reviewer already reviewed project |
+| `InvalidCategory` | 13 | Category validation failed |
+| `InvalidUrl` | 14 | URL format validation failed |
+| `InvalidCid` | 15 | CID format validation failed |
+| `InvalidWebsite` | 18 | Website URL validation failed |
+| `InvalidLogo` | 19 | Logo data invalid |
+| `InvalidMetadata` | 20 | Metadata invalid |
+| `InvalidTags` | 21 | Tag format invalid |
+| `InvalidSocialLinks` | 22 | Social link format invalid |
+| `InvalidLauchTimestamp` | 23 | Launch timestamp invalid |
+| `AlreadyMaintainer` | 25 | Address is already a maintainer |
+| `NotMaintainer` | 26 | Address is not a maintainer |
+| `OnlyMaintainerOrOwner` | 27 | Only maintainer or owner can perform this action |
+| `CantRemoveSelf` | 29 | Cannot remove yourself |
+| `ProjectAlreadyExists` | 32 | Project slug already registered (alias) |
+| `InvalidProjectName` | 33 | Project name validation failed |
+| `ProjectNameTooLong` | 34 | Project name exceeds max length |
+| `InvalidProjectDesc` | 35 | Project description validation failed |
+| `ProjectDescTooLong` | 36 | Description exceeds max length |
+| `InvalidProjectData` | 37 | Project data validation failed |
+| `InvalidProjectSlug` | 38 | Project slug validation failed |
+| `InvalidProjectSlugLen` | 39 | Project slug length invalid |
+| `InvalidLogoCid` | 41 | Logo CID validation failed |
+| `InvalidMetaCid` | 42 | Metadata CID validation failed |
+| `Unauthorized` | 43 | Caller lacks required authorization |
+| `AdminOnly` | 44 | Caller is not an admin |
+| `AdminNotFound` | 45 | Admin address not found |
+| `VerificationNotFound` | 46 | No verification record found |
+| `VerificationNotPend` | 47 | Verification is not in pending state |
+| `InvalidStatus` | 48 | Invalid verification status value |
+| `ProjectTooYoung` | 49 | Project doesn't meet minimum age |
+| `VerifiedFieldFrozen` | 50 | Cannot modify a verified project field |
+| `AlreadyArchived` | 51 | Project already archived |
+| `ProjectNotArchived` | 52 | Project not archived |
+| `TransferNotFound` | 53 | No pending transfer found |
+| `NotTransferRecip` | 54 | Caller is not transfer recipient |
+| `ReservedName` | 55 | Project name is reserved |
+| `FeeMissing` | 56 | Required fee has not been paid |
+| `FeeInvalid` | 57 | Fee configuration is invalid |
+| `FeeAlreadyPaid` | 58 | Fee has already been paid |
+| `SecurityContactInvalid` | 59 | Security contact validation failed |
+| `DuplicateProjectName` | 60 | Normalized project name already exists |
 
 ---
 
@@ -3077,7 +4586,7 @@ if let Some(dispute) = get_duplicate_dispute(env, dispute_id) {
 
 1. **Always check return types**: Functions return `Result` or `Option` - handle both success and failure cases
 2. **Validate project ownership**: For owner-only operations, verify ownership before calling
-3. **Use pagination**: For list operations, use appropriate start_id/limit to avoid timeouts
+3. **Use pagination**: For list operations, use appropriate `start_id` (project ID cursor) or `start_index` (list offset) with `limit` to avoid timeouts
 4. **Cache project data**: Once retrieved, cache project data locally when possible
 5. **Monitor admin actions**: Regularly review admin action logs for compliance
 6. **Handle duplicates gracefully**: Use dispute resolution for duplicate detection
@@ -3087,3 +4596,70 @@ if let Some(dispute) = get_duplicate_dispute(env, dispute_id) {
 ---
 
 *This documentation matches the current implementation as of June 2024. For updates, refer to the contract source code in the repository.*
+
+---
+
+## Contract Configuration
+
+Frontends and indexers need a single, stable read of the contract's current configuration. `get_config` returns fees, treasury, admin count, approval threshold, pause state, version, and user-facing limits in one round-trip.
+
+### `get_config`
+
+**Purpose**: Return the aggregated, read-only contract configuration snapshot. Replaces the need to fan out calls to `get_fee_config`, `get_admin_count`, `get_admin_approval_threshold`, etc.
+
+**Parameters**:
+- `env` (Env): The contract environment
+
+**Return Value**: `Result<ContractConfigView, ContractError>`
+- A fully-populated `ContractConfigView` struct:
+  - `version` (`String`): Semantic version of the contract (`CONTRACT_VERSION`).
+  - `admin_count` (`u32`): Number of registered admins.
+  - `admin_approval_threshold` (`u32`): Approval threshold for multi-admin proposals.
+  - `paused` (`bool`): Global pause flag toggled via `set_pause`.
+  - `treasury` (`Option<Address>`): Treasury address that receives fees. `None` until `set_fee` is invoked.
+  - `fees` (`FeeConfig`): Token + verification + registration fee amounts. Defaults to `None`/`0`/`0` until `set_fee` is invoked.
+  - `limits` (`ContractLimits`): User-facing limits surfaced for client validation (max page limit, max projects per user, max reviews per project, max name/description length, verification validity period).
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**: None in normal operation; returns `Ok` even before `set_fee` is called (zero-fee defaults). The "never configured" state is distinguishable from "configured-with-zero-fees" via `treasury: Option<Address>` — only `set_fee` populates it.
+
+**Stability**: The shape of `ContractConfigView` / `ContractLimits` is part of the public contract surface. Only **append** new fields at the end; never reorder, rename, or remove existing fields without bumping `CONTRACT_VERSION`.
+
+**Example**:
+```rust
+let cfg = get_config(env)?;
+println!("contract version {}", cfg.version);
+println!("paused = {}", cfg.paused);
+```
+
+### `set_pause`
+
+**Purpose**: Admin-only toggle of the global pause flag surfaced by `get_config`. Records an audit-log entry on every transition.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin toggling the flag (must be a current admin)
+- `paused` (bool): `true` to pause, `false` to resume
+
+**Return Value**: `Result<bool, ContractError>`
+- Returns the pause state **before** the call (so callers can detect transitions without an extra read).
+- Other admin entry points in this contract return `()`; the previous-value return is intentional for this method.
+
+**Authorization**:
+- Caller must be an admin
+
+**Possible Errors**:
+- `AdminOnly` - Caller is not an admin
+
+**Audit logging**:
+- Records `AdminActionType::ContractPaused` when toggling `true`.
+- Records `AdminActionType::ContractResumed` when toggling `false`.
+
+**Scope**: This method only writes the flag. Enforcement across mutating entry points (`register_project`, `pay_fee`, …) is intentionally out of scope — see the future pause-enforcement ticket. Frontends should treat the flag as advisory for now.
+
+**Example**:
+```rust
+let _previous = set_pause(env, admin_address, true)?;
+```

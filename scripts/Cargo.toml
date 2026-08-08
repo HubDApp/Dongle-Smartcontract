@@ -1,0 +1,3 @@
+[workspace]
+members = ["dongle-smartcontract", "test_project"]
+resolver = "2"

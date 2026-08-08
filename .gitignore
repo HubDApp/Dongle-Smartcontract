@@ -9,6 +9,14 @@ dongle-smartcontract/build_errors*.log
 dongle-smartcontract/test_results*.txt
 dongle-smartcontract/test_build_errors*.txt
 dongle-smartcontract/*_errors.txt
+dongle-smartcontract/errors.txt
+dongle-smartcontract/check_output.txt
+dongle-smartcontract/*_output.txt
+dongle-smartcontract/*_output_*.txt
+dongle-smartcontract/full_test_*.txt
+dongle-smartcontract/final_test_*.txt
+dongle-smartcontract/test_final*.txt
+dongle-smartcontract/test_output*.txt
 .DS_Store
 .agents/
 skills-lock.json

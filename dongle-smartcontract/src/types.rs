@@ -114,12 +114,48 @@ pub struct ReviewRevisionEvent {
     pub timestamp: u64,
 }
 
+/// Shared three-state status for all claim workflows (ownership + contract-address).
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
     Pending,
     Approved,
     Rejected,
+}
+
+/// Distinguishes claim workflow kinds that share [`ClaimStatus`] transitions.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaimKind {
+    /// Claim ownership of a claimable project.
+    Ownership,
+    /// Claim a contract address for a project.
+    ContractAddress,
+}
+
+impl ClaimStatus {
+    /// Shared pending→approved / pending→rejected guard used by every claim kind.
+    pub fn require_pending(self) -> Result<(), crate::errors::ContractError> {
+        if self != Self::Pending {
+            Err(crate::errors::ContractError::InvalidStatus)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Transition Pending → Approved.
+    pub fn transition_to_approved(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Approved;
+        Ok(())
+    }
+
+    /// Transition Pending → Rejected.
+    pub fn transition_to_rejected(&mut self) -> Result<(), crate::errors::ContractError> {
+        self.require_pending()?;
+        *self = Self::Rejected;
+        Ok(())
+    }
 }
 
 #[contracttype]
@@ -134,21 +170,13 @@ pub struct ClaimRequest {
 }
 
 #[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ContractClaimStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
-
-#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractClaimRequest {
     pub project_id: u64,
     pub contract_address: String,
     pub claimant: Address,
     pub proof_cid: String,
-    pub status: ContractClaimStatus,
+    pub status: ClaimStatus,
     pub created_at: u64,
 }
 
@@ -198,23 +226,7 @@ pub struct ProjectReport {
     pub timestamp: u64,
 }
 
-#[contracttype]
-pub enum DataKey {
-    Project(u64),
-    ProjectCount,
-    OwnerProjects(Address),
-    Review(u64, Address),
-    UserReviews(Address),
-    Verification(u64),
-    NextProjectId,
-    Admin(Address),
-    FeeConfig,
-    Treasury,
-    ProjectStats(u64),
-    FeePaidForProject(u64),
-    ContractClaim(u64, String),
-    ProjectContracts(u64),
-}
+
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -237,6 +249,9 @@ pub struct VerificationRecord {
     pub decided_at: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
+    /// Unix timestamp (seconds) after which the Verified status is considered expired.
+    /// Set when the verification is approved; None for non-approved records.
+    pub expires_at: Option<u64>,
     /// Unix timestamp when verification expires (0 = no expiry)
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
@@ -269,6 +284,25 @@ pub struct FeeConfig {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractConfig {
+    pub fee_config: Option<FeeConfig>,
+    pub treasury: Option<Address>,
+    pub admin_count: u32,
+    pub paused: bool,
+    pub version: String,
+    pub max_projects_per_user: u32,
+    pub max_reviews_per_project: u32,
+    pub max_reviews_per_user: u32,
+    pub max_page_limit: u32,
+    pub max_tags_per_project: u32,
+    pub max_social_links: u32,
+    pub verification_validity_period: u64,
+    pub fee_payment_expiry_seconds: u64,
+    pub review_update_cooldown_seconds: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
     pub paid_at: u64,
     pub payer: Address,
@@ -276,16 +310,6 @@ pub struct FeePaymentRecord {
     pub token: Option<Address>,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeeRefundRecord {
-    pub request_id: u64,
-    pub project_id: u64,
-    pub payer: Address,
-    pub token: Option<Address>,
-    pub amount: u128,
-    pub refunded: bool,
-}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -296,9 +320,7 @@ pub struct FeeConfigHistoryEntry {
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}
-
-#[contracttype]
+}#[contracttype]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectAggregate {
     pub total_rating: u64,
@@ -358,14 +380,6 @@ pub struct Collection {
     pub updated_at: u64,
 }
 
-/// Parameters for creating a new collection (admin-only).
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CreateCollectionParams {
-    pub name: String,
-    pub description: String,
-}
-
 /// Types of admin actions recorded in the admin action log.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -400,6 +414,10 @@ pub enum AdminActionType {
     VerificationAssigned,
     ReservedNameAdded,
     ReservedNameRemoved,
+    /// Admin toggled the global pause flag on (`true` was the new value).
+    ContractPaused,
+    /// Admin toggled the global pause flag off (`false` was the new value).
+    ContractResumed,
 }
 
 #[contracttype]
@@ -444,7 +462,7 @@ pub struct AdminActionEntry {
     pub reason_cid: Option<String>,
 }
 
-// ── Admin Timelock ──────────────────────────────────────────────────────────
+// ── Admin Timelock ───────────────────────────────────────────────────────────
 
 /// A scheduled action in the admin timelock.
 #[contracttype]
@@ -527,6 +545,28 @@ pub struct ReviewTombstone {
     pub deleted_at: u64,
 }
 
+/// Optional anti-sybil review eligibility constraints.
+///
+/// When all constraints are zero/false (default), any address may review
+/// any project without restriction — preserving full backward compatibility.
+///
+/// Admins may relax or tighten these knobs via `set_review_eligibility_config`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewEligibilityConfig {
+    /// Minimum seconds that must have elapsed since the reviewer's first
+    /// interaction with the contract (e.g. first review, project registration,
+    /// endorsement, follow, or bookmark). Zero = no age check.
+    pub min_reviewer_age_seconds: u64,
+    /// If true, the reviewer must have previously endorsed the project
+    /// (`EndorsementRegistry::has_endorsed`) before submitting a review.
+    pub require_endorsement: bool,
+    /// Fee amount (in the configured fee token) required to submit a review.
+    /// Zero = no fee required. When non-zero, the caller must have paid this
+    /// amount to the treasury before submitting the review.
+    pub review_fee: u128,
+}
+
 /// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
 /// For large projects this increases compute budget usage proportionally to review count.
 #[contracttype]
@@ -555,4 +595,87 @@ pub enum ProjectSortMode {
     HighestRated,
     /// Most reviewed first.
     MostReviewed,
+}
+
+/// Project changelog entry for publishing update notes or release history.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogEntry {
+    /// Unique identifier for the changelog entry
+    pub id: u64,
+    /// Project ID this changelog belongs to
+    pub project_id: u64,
+    /// IPFS CID containing the changelog content
+    pub cid: String,
+    /// Timestamp when the changelog was added
+    pub created_at: u64,
+    /// Optional description/title for the changelog entry
+    pub description: Option<String>,
+}
+
+/// Changelog sort order for paginated reads
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChangelogSortMode {
+    /// Newest changelog entries first (highest created_at)
+    Newest,
+    /// Oldest changelog entries first (lowest created_at)
+    Oldest,
+}
+
+// ── Contract configuration view (returned by `get_config`) ──────────────────
+
+/// User-facing limits surfaced through `get_config`. Only the most relevant
+/// limits for frontend validation are exposed — internal string-length
+/// bounds (e.g. `MAX_WEBSITE_LEN`) are intentionally omitted to keep the
+/// response shape stable.
+///
+/// **Stability:** Adding fields here is backwards-compatible. Removing or
+/// renaming a field is a breaking change and requires a `CONTRACT_VERSION`
+/// bump in `constants.rs`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractLimits {
+    /// Maximum items per paginated list call (`MAX_PAGE_LIMIT`).
+    pub max_page_limit: u32,
+    /// Maximum projects a single owner may register (`MAX_PROJECTS_PER_USER`).
+    pub max_projects_per_user: u32,
+    /// Maximum reviewers indexed per project (`MAX_REVIEWS_PER_PROJECT`).
+    pub max_reviews_per_project: u32,
+    /// Maximum project name length in bytes (`MAX_NAME_LEN`).
+    pub max_name_len: u32,
+    /// Maximum project description length in bytes (`MAX_DESCRIPTION_LEN`).
+    pub max_description_len: u32,
+    /// Verification validity period in seconds (`VERIFICATION_VALIDITY_PERIOD`).
+    pub verification_validity_period: u64,
+}
+
+/// Aggregated, read-only contract configuration snapshot. Frontends and
+/// indexers call `get_config` to read this in one round-trip instead of
+/// walking the individual getters (`get_fee_config`, `get_admin_count`,
+/// …).
+///
+/// **Stability:** The shape of this struct is part of the public contract
+/// interface. New fields may be appended at the end; never reorder,
+/// rename, or remove existing fields without bumping `CONTRACT_VERSION`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractConfigView {
+    /// Semantic version of the contract (`CONTRACT_VERSION`).
+    pub version: String,
+    /// Number of admin addresses currently registered.
+    pub admin_count: u32,
+    /// Approval threshold for multi-admin proposal workflows
+    /// (`get_admin_approval_threshold`).
+    pub admin_approval_threshold: u32,
+    /// Global pause flag. Read by frontends to disable mutating UX. Set
+    /// by admins via `set_pause`.
+    pub paused: bool,
+    /// Treasury address that receives fees. `None` until `set_fee` is
+    /// called for the first time.
+    pub treasury: Option<Address>,
+    /// Current fee configuration (token + verification + registration fee).
+    pub fees: FeeConfig,
+    /// User-facing limits (see `ContractLimits` doc for stability rules).
+    pub limits: ContractLimits,
 }

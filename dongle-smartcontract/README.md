@@ -1463,7 +1463,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_category \
   --category "DeFi" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1475,7 +1475,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_tag \
   --tag "nft" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1575,6 +1575,20 @@ soroban contract invoke \
   -- get_admin_count
 ```
 
+#### Get Public Contract Configuration
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --network testnet \
+  -- get_config
+```
+
+Returns a stable configuration snapshot for frontends and indexers, including
+fee settings, treasury, admin count, pause state, version, and public limits.
+`paused` is currently `false` because the contract does not yet include a pause
+feature.
+
 #### Get Admin List
 
 ```bash
@@ -1658,6 +1672,10 @@ The contract implements comprehensive TTL management for Soroban persistent stor
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_project_ttl --project_id 1
 
+# Extend TTL for many projects; missing project IDs are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_projects_ttl --project_ids '[1,2,3]'
+
 # Extend TTL for critical configuration
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_critical_config_ttl
@@ -1670,10 +1688,17 @@ soroban contract invoke --id <CONTRACT_ID> --network testnet \
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_review_ttl --project_id 1 --reviewer <REVIEWER_ADDRESS>
 
+# Extend TTL for many reviews; missing reviews are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_reviews_ttl --review_ids '[[1,"<REVIEWER_ADDRESS>"],[2,"<REVIEWER_ADDRESS>"]]'
+
 # Extend TTL for verification data
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_verification_ttl --project_id 1
 ```
+
+Batch TTL calls accept up to 100 records and return the number of existing
+records refreshed.
 
 ---
 
@@ -1734,8 +1759,8 @@ src/
 
 - **Event Reference:** [EVENTS_SCHEMA.md](../EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
 - **Threat Model:** [THREAT_MODEL.md](../THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
-- **Review CID Schema:** [review-cid.schema.json](../review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
-- **Review Example:** [review-cid.example.json](../review-cid.example.json) provides a valid off-chain review document matching the schema.
+- **Review CID Schema:** [review-cid.schema.json](../docs/review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
+- **Review Example:** [review-cid.example.json](../docs/review-cid.example.json) provides a valid off-chain review document matching the schema.
 
 ## Contributing
 
