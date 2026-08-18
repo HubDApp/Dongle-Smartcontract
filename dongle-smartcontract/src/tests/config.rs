@@ -1,7 +1,6 @@
 use crate::constants::{
-    FEE_PAYMENT_EXPIRY_SECONDS, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT,
-    MAX_REVIEWS_PER_USER, MAX_SOCIAL_LINKS, MAX_TAGS_PER_PROJECT, REVIEW_UPDATE_COOLDOWN_SECONDS,
-    VERIFICATION_VALIDITY_PERIOD,
+    MAX_DESCRIPTION_LEN, MAX_NAME_LEN, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    MAX_REVIEWS_PER_PROJECT, VERIFICATION_VALIDITY_PERIOD,
 };
 use crate::tests::fixtures::setup_contract;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
@@ -14,27 +13,21 @@ fn config_after_initialization_exposes_defaults_and_limits() {
     let config = client.get_config();
 
     assert_eq!(config.admin_count, 1);
+    assert_eq!(config.admin_approval_threshold, 1);
     assert!(!config.paused);
     assert_eq!(config.version, String::from_str(&env, "1.0.0"));
-    assert_eq!(config.fee_config, None);
     assert_eq!(config.treasury, None);
-    assert_eq!(config.max_projects_per_user, MAX_PROJECTS_PER_USER);
-    assert_eq!(config.max_reviews_per_project, MAX_REVIEWS_PER_PROJECT);
-    assert_eq!(config.max_reviews_per_user, MAX_REVIEWS_PER_USER);
-    assert_eq!(config.max_page_limit, MAX_PAGE_LIMIT);
-    assert_eq!(config.max_tags_per_project, MAX_TAGS_PER_PROJECT);
-    assert_eq!(config.max_social_links, MAX_SOCIAL_LINKS);
+    assert_eq!(config.fees.token, None);
+    assert_eq!(config.fees.verification_fee, 0);
+    assert_eq!(config.fees.registration_fee, 0);
+    assert_eq!(config.limits.max_page_limit, MAX_PAGE_LIMIT);
+    assert_eq!(config.limits.max_projects_per_user, MAX_PROJECTS_PER_USER);
+    assert_eq!(config.limits.max_reviews_per_project, MAX_REVIEWS_PER_PROJECT);
+    assert_eq!(config.limits.max_name_len, MAX_NAME_LEN as u32);
+    assert_eq!(config.limits.max_description_len, MAX_DESCRIPTION_LEN as u32);
     assert_eq!(
-        config.verification_validity_period,
+        config.limits.verification_validity_period,
         VERIFICATION_VALIDITY_PERIOD
-    );
-    assert_eq!(
-        config.fee_payment_expiry_seconds,
-        FEE_PAYMENT_EXPIRY_SECONDS
-    );
-    assert_eq!(
-        config.review_update_cooldown_seconds,
-        REVIEW_UPDATE_COOLDOWN_SECONDS
     );
 }
 
@@ -52,11 +45,9 @@ fn config_reflects_fee_updates() {
     client.set_fee(&admin, &Some(token.clone()), &123u128, &45u128, &treasury);
 
     let config = client.get_config();
-    let fee_config = config.fee_config.expect("fee config should be set");
-
-    assert_eq!(fee_config.token, Some(token));
-    assert_eq!(fee_config.verification_fee, 123);
-    assert_eq!(fee_config.registration_fee, 45);
+    assert_eq!(config.fees.token, Some(token));
+    assert_eq!(config.fees.verification_fee, 123);
+    assert_eq!(config.fees.registration_fee, 45);
     assert_eq!(config.treasury, Some(treasury));
     assert_eq!(config.admin_count, 1);
     assert!(!config.paused);
