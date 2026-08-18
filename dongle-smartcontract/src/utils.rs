@@ -8,12 +8,48 @@ use crate::constants::{
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
 
 impl Utils {
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Push `item` into `vec` only if it is not already present.
+    pub fn add_unique_to_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        vec: &mut Vec<T>,
+        item: &T,
+    ) -> bool {
+        for i in 0..vec.len() {
+            if let Some(existing) = vec.get(i) {
+                if &existing == item {
+                    return false;
+                }
+            }
+        }
+        vec.push_back(item.clone());
+        true
+    }
+
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────

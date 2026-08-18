@@ -9,8 +9,8 @@ use crate::events::{
     publish_verification_approved_event, publish_verification_evidence_updated_event,
     publish_verification_expired_event, publish_verification_rejected_event,
     publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
-    publish_verification_renewal_requested_event, publish_verification_requested_event,
-    publish_verification_revoked_event,
+    publish_verification_renewal_requested_event, publish_verification_renewed_event,
+    publish_verification_requested_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -96,7 +96,6 @@ impl VerificationRegistry {
             decided_at: 0,
             fee_amount,
             revoke_reason: None,
-            expires_at: None,
             expires_at: 0,
             last_renewed_at: 0,
             assigned_admin: None,
@@ -216,8 +215,7 @@ impl VerificationRegistry {
         // Update record – stamp the expiry timestamp
         let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
-        record.expires_at = Some(now.saturating_add(duration));
-        record.expires_at = now.saturating_add(Self::get_verification_duration(env));
+        record.expires_at = now.saturating_add(duration);
         record.decided_at = now;
         env.storage()
             .persistent()
@@ -352,18 +350,18 @@ impl VerificationRegistry {
             return false;
         }
 
-        match record.expires_at {
-            None => true, // legacy / no-expiry record
-            Some(expires_at) => {
-                let now = env.ledger().timestamp();
-                if now >= expires_at {
-                    // Emit expiry event so indexers can react
-                    publish_verification_expired_event(env, project_id, expires_at);
-                    false
-                } else {
-                    true
-                }
-            }
+        if record.expires_at == 0 {
+            // legacy / no-expiry record
+            return true;
+        }
+
+        let now = env.ledger().timestamp();
+        if now >= record.expires_at {
+            // Emit expiry event so indexers can react
+            publish_verification_expired_event(env, project_id, record.expires_at);
+            false
+        } else {
+            true
         }
     }
 
@@ -734,6 +732,46 @@ impl VerificationRegistry {
             None,
         );
 
+        Ok(())
+    }
+
+    /// Directly renew an already-Verified verification without going through a
+    /// pending renewal request. Extends `expires_at` by the configured
+    /// verification duration and records the renewal timestamp.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        // Project must exist
+        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Record must exist
+        let mut record = Self::get_verification(env, project_id)
+            .ok_or(ContractError::VerificationNotFound)?;
+
+        // Can only renew an already-Verified record (not Pending / Rejected / Unverified)
+        if record.status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        let now = env.ledger().timestamp();
+        let duration = AdminManager::get_verification_duration(env);
+        let new_expires_at = now.saturating_add(duration);
+
+        record.expires_at = new_expires_at;
+        record.last_renewed_at = now;
+        env.storage().persistent().set(
+            &StorageKey::Verification(project_id),
+            &record.request_id,
+        );
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        publish_verification_renewed_event(env, project_id, admin, new_expires_at);
         Ok(())
     }
 

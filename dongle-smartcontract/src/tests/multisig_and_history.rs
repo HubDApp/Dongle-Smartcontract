@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::errors::ContractError;
+use crate::storage_keys::ExtensionKey;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProposalPayload, ProposalStatus, VerificationStatus};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
@@ -142,4 +143,49 @@ fn test_admin_multisig_approval_threshold() {
     // Execute again should fail
     let res = client.try_execute_proposal(&admin3, &proposal_id);
     assert!(res.is_err());
+}
+
+#[test]
+fn test_execute_proposal_rejects_corrupted_payload() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    let proposal_id = client.create_proposal(&admin, &payload);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Approved);
+
+    // Simulate storage corruption: swap the stored payload for a different one
+    // while keeping the original payload_hash untouched.
+    let mut corrupted = proposal;
+    corrupted.payload = ProposalPayload::AddAdmin(Address::generate(&env));
+    env.as_contract(&client.address, || {
+        env.storage().persistent().set(
+            &ExtensionKey::AdminProposal(proposal_id),
+            &corrupted,
+        );
+    });
+
+    // Execution must be rejected with PayloadHashMismatch and must not run the
+    // (corrupted) payload.
+    let res = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(res, Err(Ok(ContractError::PayloadHashMismatch)));
+
+    // The proposal must not have been marked Executed.
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Approved);
+
+    // The corrupted payload's admin must not have been added.
+    let stored = client
+        .get_proposal(&proposal_id)
+        .unwrap()
+        .payload;
+    if let ProposalPayload::AddAdmin(corrupted_admin) = stored {
+        assert!(!client.is_admin(&corrupted_admin));
+    } else {
+        panic!("unexpected payload variant");
+    }
 }

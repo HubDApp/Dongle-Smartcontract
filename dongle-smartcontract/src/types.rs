@@ -249,9 +249,6 @@ pub struct VerificationRecord {
     pub decided_at: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
-    /// Unix timestamp (seconds) after which the Verified status is considered expired.
-    /// Set when the verification is approved; None for non-approved records.
-    pub expires_at: Option<u64>,
     /// Unix timestamp when verification expires (0 = no expiry)
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
@@ -284,25 +281,6 @@ pub struct FeeConfig {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ContractConfig {
-    pub fee_config: Option<FeeConfig>,
-    pub treasury: Option<Address>,
-    pub admin_count: u32,
-    pub paused: bool,
-    pub version: String,
-    pub max_projects_per_user: u32,
-    pub max_reviews_per_project: u32,
-    pub max_reviews_per_user: u32,
-    pub max_page_limit: u32,
-    pub max_tags_per_project: u32,
-    pub max_social_links: u32,
-    pub verification_validity_period: u64,
-    pub fee_payment_expiry_seconds: u64,
-    pub review_update_cooldown_seconds: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
     pub paid_at: u64,
     pub payer: Address,
@@ -320,7 +298,9 @@ pub struct FeeConfigHistoryEntry {
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}#[contracttype]
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectAggregate {
     pub total_rating: u64,

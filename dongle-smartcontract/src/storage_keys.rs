@@ -144,6 +144,12 @@ pub enum ExtensionKey {
     AdminProposal(u64),
     /// Admin governance: list of all proposal IDs.
     AdminProposalIds,
+    /// Changelog: next changelog entry ID counter.
+    NextChangelogEntryId,
+    /// Changelog: entry by ID.
+    ProjectChangelogEntry(u64),
+    /// Changelog: list of changelog entry IDs for a project.
+    ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
