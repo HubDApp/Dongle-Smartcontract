@@ -104,6 +104,8 @@ impl DongleContract {
 
     pub fn get_verification_duration(env: Env) -> u64 {
         AdminManager::get_verification_duration(&env)
+    }
+
     pub fn get_admin_approval_threshold(env: Env) -> u32 {
         AdminManager::get_admin_approval_threshold(&env)
     }
@@ -709,6 +711,8 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         VerificationRegistry::renew_verification(&env, project_id, admin)
+    }
+
     pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
