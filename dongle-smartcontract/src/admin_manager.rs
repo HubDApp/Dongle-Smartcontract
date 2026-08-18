@@ -192,6 +192,8 @@ impl AdminManager {
 
         // Keep this config entry alive as long as critical data.
         StorageManager::extend_critical_config_ttl(env);
+    }
+
     pub fn get_admin_approval_threshold(env: &Env) -> u32 {
         env.storage()
             .persistent()
@@ -554,6 +556,8 @@ impl AdminManager {
             .persistent()
             .get(&StorageKey::VerificationDuration)
             .unwrap_or(DEFAULT_VERIFICATION_DURATION_SECS)
+    }
+
     pub fn get_proposal(env: &Env, proposal_id: u64) -> Option<AdminProposal> {
         env.storage()
             .persistent()

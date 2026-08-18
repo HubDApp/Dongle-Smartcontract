@@ -23,7 +23,7 @@ branches and contained error codes and behavior that no longer match `main`.
 The entrypoints are defined in
 [`lib.rs`](../dongle-smartcontract/src/lib.rs), and the workflow is implemented
 by
-[`VerificationRegistry`](../dongle-smartcontract/src/verification_registry.rs).
+[`VerificationRegistry`](../dongle-smartcontract/src/verification_registry/mod.rs).
 
 ## Renewal Record
 

@@ -1757,8 +1757,8 @@ src/
 
 ## Schemas & References
 
-- **Event Reference:** [EVENTS_SCHEMA.md](../EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
-- **Threat Model:** [THREAT_MODEL.md](../THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
+- **Event Reference:** [EVENTS_SCHEMA.md](../docs/EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
+- **Threat Model:** [THREAT_MODEL.md](../docs/THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
 - **Review CID Schema:** [review-cid.schema.json](../docs/review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
 - **Review Example:** [review-cid.example.json](../docs/review-cid.example.json) provides a valid off-chain review document matching the schema.
 
