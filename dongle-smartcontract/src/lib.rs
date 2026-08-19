@@ -739,6 +739,16 @@ impl DongleContract {
         VerificationRegistry::is_verification_expired(&env, project_id)
     }
 
+    /// Returns whether a non-expired verification will expire within the
+    /// supplied threshold. This is a read-only renewal-warning helper.
+    pub fn is_verification_expiring_soon(
+        env: Env,
+        project_id: u64,
+        threshold_seconds: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
+    }
+
     /// Admin: prune verification history, keeping the most recent `keep_count` records.
     /// Returns the number of records removed.
     pub fn clear_verification_history(
