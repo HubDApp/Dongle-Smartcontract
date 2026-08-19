@@ -192,6 +192,10 @@ impl AdminManager {
 
         // Keep this config entry alive as long as critical data.
         StorageManager::extend_critical_config_ttl(env);
+
+        Ok(())
+    }
+
     pub fn get_admin_approval_threshold(env: &Env) -> u32 {
         env.storage()
             .persistent()
@@ -355,6 +359,15 @@ impl AdminManager {
                 proposal_id,
             ))
             .ok_or(ContractError::InvalidStatus)?;
+
+        // Re-compute the payload hash and verify it matches the hash stored at
+        // proposal creation time. This prevents a proposal whose stored payload
+        // has been corrupted (e.g. storage corruption) from being silently
+        // executed with unintended effects.
+        let computed_hash = Self::compute_payload_hash(env, &proposal.payload);
+        if computed_hash != proposal.payload_hash {
+            return Err(ContractError::PayloadHashMismatch);
+        }
 
         if proposal.status == ProposalStatus::Executed {
             return Err(ContractError::InvalidStatus);
@@ -554,6 +567,8 @@ impl AdminManager {
             .persistent()
             .get(&StorageKey::VerificationDuration)
             .unwrap_or(DEFAULT_VERIFICATION_DURATION_SECS)
+    }
+
     pub fn get_proposal(env: &Env, proposal_id: u64) -> Option<AdminProposal> {
         env.storage()
             .persistent()
