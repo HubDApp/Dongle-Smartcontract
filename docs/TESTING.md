@@ -1,6 +1,6 @@
-# Local Test Execution Guide
+# Testing Guide for Dongle Smart Contract
 
-Since Rust/Cargo is not available in this environment, you need to run these commands on your local machine or CI/CD environment where Rust is installed.
+This document provides guidance on running tests, formatting, linting, and building the Dongle Smart Contract locally.
 
 ---
 
@@ -15,63 +15,43 @@ Make sure you have:
 
 ## Complete Test Pipeline
 
-Run these commands in order in your local environment:
+Run these commands in order in your local environment, from the `dongle-smartcontract` directory:
 
-### Step 1: Pull Latest Changes
-```bash
-cd /path/to/Dongle-Smartcontract-1
-git pull https://github.com/mayasimi/Dongle-Smartcontract.git
-```
-
-### Step 2: Navigate to Contract Directory
-```bash
-cd dongle-smartcontract
-```
-
-### Step 3: Run Tests
+### Step 1: Run Tests
 ```bash
 cargo test --lib
 ```
 
 **Expected Output**: All tests should pass ✅
-- Archive & Reactivate tests: 20+
-- Project Slug tests: 20+
-- Review Moderation tests: 23
-- Verification Renewal tests: 20
-
-**What to watch for**:
-- All test names appear with `test ... ok`
-- Final message: `test result: ok`
+- Test names appear with `test ... ok`
+- Final message: `test result: ok` with count of passed tests
 - No failures or errors
 
-### Step 4: Run Cargo Clippy (Linter)
+### Step 2: Run Cargo Clippy (Linter)
 ```bash
 cargo clippy -p dongle-contract --target wasm32-unknown-unknown -- -D warnings
 ```
 
 **Expected Output**: No warnings or errors ✅
-- Should complete successfully
-- No `error` messages
-- No `warning` messages
+- Completes successfully
+- No `error` or `warning` messages
 
-### Step 5: Run Cargo Format Check
+### Step 3: Check Formatting
 ```bash
 cargo fmt --all -- --check
 ```
 
 **Expected Output**: All files properly formatted ✅
 - Should complete with no output (clean)
-- OR show which files need formatting
+- Or show which files need formatting
 
-### Step 6: Apply Formatting (if needed)
-If Step 5 shows formatting issues, run:
+### Step 4: Apply Formatting (if needed)
+If Step 3 shows formatting issues, run:
 ```bash
 cargo fmt --all
 ```
 
-**Expected Output**: Files are reformatted ✅
-
-### Step 7: Build WASM Contract
+### Step 5: Build WASM Contract
 ```bash
 cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 ```
@@ -84,27 +64,35 @@ cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 
 ## Full Pipeline Script
 
-Create a file `run_tests.sh` and run all at once:
+### Bash (Linux/macOS)
+
+Create a file `run_tests.sh`:
 
 ```bash
 #!/bin/bash
 
 set -e  # Exit on first error
 
+cd dongle-smartcontract
+
 echo "=== Step 1: Running Tests ==="
 cargo test --lib
 
+echo ""
 echo "=== Step 2: Running Clippy ==="
 cargo clippy -p dongle-contract --target wasm32-unknown-unknown -- -D warnings
 
+echo ""
 echo "=== Step 3: Checking Format ==="
 cargo fmt --all -- --check
 
 if [ $? -ne 0 ]; then
+    echo ""
     echo "=== Step 3b: Applying Format ==="
     cargo fmt --all
 fi
 
+echo ""
 echo "=== Step 4: Building WASM ==="
 cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 
@@ -119,15 +107,15 @@ Then run:
 bash run_tests.sh
 ```
 
----
-
-## Windows PowerShell Script
+### PowerShell (Windows)
 
 Create a file `run_tests.ps1`:
 
 ```powershell
 # Exit on first error
 $ErrorActionPreference = "Stop"
+
+Set-Location dongle-smartcontract
 
 Write-Host "=== Step 1: Running Tests ===" -ForegroundColor Green
 cargo test --lib
@@ -160,23 +148,7 @@ Then run:
 
 ---
 
-## Expected Test Results
-
-### Tests Passing
-```
-test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
-```
-
-### Individual Test Counts
-- **Archive & Reactivate**: 20+ tests ✅
-- **Project Slug**: 20+ tests ✅
-- **Review Moderation**: 23 tests ✅
-- **Verification Renewal**: 20 tests ✅
-- **Total**: 80+ tests ✅
-
----
-
-## Troubleshooting
+## Common Issues and Solutions
 
 ### Issue: "cargo: command not found"
 **Solution**: Install Rust from https://rustup.rs/
@@ -187,14 +159,14 @@ test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ### Issue: Test failures
 **Solution**: 
 1. Check test output for specific errors
-2. Refer to `TEST_FAILURE_TROUBLESHOOTING.md`
-3. Review the specific test failure
-4. Check for missing imports or uninitialized fields
+2. Verify all imports are present
+3. Ensure all struct fields are properly initialized
+4. Check that contract is properly registered in test setup
 
 ### Issue: Clippy warnings
 **Solution**:
 1. Review the warning message
-2. Either fix the code or add `#[allow(...)]` attribute
+2. Either fix the code or add `#[allow(...)]` attribute if justified
 3. Re-run clippy
 
 ### Issue: Format check fails
@@ -205,68 +177,77 @@ test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ---
 
+## Test Structure
+
+Tests use the Soroban SDK testing framework:
+
+1. **Setup**: Create environment and register contract
+2. **Configure**: Mock authentication and set test data
+3. **Execute**: Call contract functions
+4. **Verify**: Assert expected outcomes
+
+Example test pattern:
+```rust
+#[test]
+fn test_example() {
+    let env = Env::default();
+    let contract_id = env.register(DongleContract, ());
+    let client = DongleContractClient::new(&env, &contract_id);
+    
+    env.mock_all_auths();
+    
+    let result = client.try_register_project(&params);
+    assert!(result.is_ok());
+}
+```
+
+---
+
+## CI/CD Integration
+
+The GitHub Actions CI pipeline runs the same checks automatically:
+
+1. Tests pass (`cargo test --lib`)
+2. Clippy passes (`cargo clippy -- -D warnings`)
+3. Code is formatted (`cargo fmt -- --check`)
+
+Check `.github/workflows/ci.yml` for the exact CI configuration.
+
+---
+
 ## Next Steps After Successful Tests
 
 Once all tests pass, clippy is clean, and code is formatted:
 
-1. **Create Pull Request** (if not already done)
-   - Visit: https://github.com/mayasimi/Dongle-Smartcontract
-   - Create PR with detailed description
+1. **Create Pull Request** (if working on a feature branch)
+   - Push to remote: `git push origin [branch-name]`
+   - Create PR on GitHub with detailed description
 
-2. **Request Code Review**
-   - Assign reviewers
-   - Add relevant labels
-   - Add description of changes
-
-3. **Wait for CI/CD**
+2. **Wait for CI/CD**
    - GitHub Actions will run same tests automatically
    - Verify all checks pass
+
+3. **Code Review**
+   - Request reviewers
+   - Address feedback
+   - Re-push if needed
 
 4. **Merge to Main**
    - After approval and CI passes
    - Use "Squash and merge" or "Rebase and merge"
 
-5. **Deploy**
-   - Monitor deployment to testnet
-   - Monitor deployment to mainnet
-   - Verify functionality
+---
+
+## Additional Resources
+
+- [Soroban SDK Documentation](https://docs.rs/soroban-sdk/latest/)
+- [Rust Book](https://doc.rust-lang.org/book/)
+- [Cargo Documentation](https://doc.rust-lang.org/cargo/)
+- [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md) - Contract API reference
+- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event schema documentation
 
 ---
 
-## Current Status
-
-✅ **All Features Merged to Main**:
-- Feature/project-slug: Merged (PR #3)
-- Feature/review-moderation: Merged (PR #2)
-- Feature/verification-renewal: Merged (PR #1)
-
-✅ **Ready for**:
-- Local testing
-- CI/CD validation
-- Production deployment
-
----
-
-## Files to Reference
-
-- `FIXES_APPLIED.md` - Summary of fixes applied
-- `TEST_FAILURE_TROUBLESHOOTING.md` - Common issues and solutions
-- `FINAL_PROJECT_SUMMARY.md` - Complete project overview
-
----
-
-## Summary
-
-All three features are now merged into main and ready for testing. Follow this guide to:
-1. ✅ Run all tests
-2. ✅ Run clippy for code quality
-3. ✅ Run fmt for formatting
-4. ✅ Build WASM contract
-
-Everything should pass successfully!
-
----
-
-**Last Updated**: June 1, 2026  
-**Status**: Ready for local testing and deployment  
-**All Features**: Merged to main
+**Last Updated**: July 29, 2026  
+**Status**: Active  
+**Maintained By**: Development team

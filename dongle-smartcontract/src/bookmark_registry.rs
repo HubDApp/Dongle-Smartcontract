@@ -1,19 +1,12 @@
+use crate::errors::ContractError;
 use crate::events::{publish_project_bookmarked_event, publish_project_unbookmarked_event};
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::utils::Utils;
-use soroban_sdk::{contracterror, Address, Env, Vec};
+use soroban_sdk::{Address, Env, Vec};
 
 pub const MAX_PAGE_LIMIT: u32 = 100;
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum BookmarkError {
-    AlreadyBookmarked = 1,
-    NotBookmarked = 2,
-}
 
 pub struct BookmarkRegistry;
 
@@ -22,15 +15,15 @@ impl BookmarkRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), BookmarkError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if ProjectRegistry::get_project(env, project_id).is_none() {
-            panic!("project not found");
+            return Err(ContractError::ProjectNotFound);
         }
 
         if Self::is_bookmarked(env, project_id, &user) {
-            return Err(BookmarkError::AlreadyBookmarked);
+            return Err(ContractError::AlreadyBookmarked);
         }
 
         let mut bookmarks: Vec<u64> = env
@@ -38,7 +31,7 @@ impl BookmarkRegistry {
             .persistent()
             .get(&ExtensionKey::UserBookmarks(user.clone()))
             .unwrap_or_else(|| Vec::new(env));
-        bookmarks.push_back(project_id);
+        let _ = Utils::add_unique_to_vec(&mut bookmarks, &project_id);
         env.storage()
             .persistent()
             .set(&ExtensionKey::UserBookmarks(user.clone()), &bookmarks);
@@ -54,11 +47,11 @@ impl BookmarkRegistry {
         env: &Env,
         project_id: u64,
         user: Address,
-    ) -> Result<(), BookmarkError> {
+    ) -> Result<(), ContractError> {
         user.require_auth();
 
         if !Self::is_bookmarked(env, project_id, &user) {
-            return Err(BookmarkError::NotBookmarked);
+            return Err(ContractError::NotBookmarked);
         }
 
         let bookmarks: Vec<u64> = env

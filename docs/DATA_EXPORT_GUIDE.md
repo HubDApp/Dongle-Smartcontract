@@ -31,7 +31,7 @@ The combination of read-based backfill and event-driven updates ensures your ind
 ## Prerequisites
 
 - **Stellar RPC endpoint** – e.g. `https://soroban-testnet.stellar.org:443` for testnet.
-- **Contract address** – from [deployments.json](./deployments.json).
+- **Contract address** – from [deployments.json](../deployments.json).
 - **Soroban SDK or Stellar JS SDK** – to invoke read functions and subscribe to events.
 - **Local database** – to persist indexed state between restarts (e.g. PostgreSQL, SQLite).
 - **Checkpoint store** – to persist the last processed ledger sequence so restarts resume correctly.
@@ -369,7 +369,7 @@ await db.set("last_synced_ledger", latestLedger); // commit checkpoint last
 
 ## Event Reference
 
-The following event shapes are emitted by the current contract implementation. Topics are published as Soroban topic tuples, and the payload is available on `event.data`. The storage-key enum in [dongle-smartcontract/src/storage_keys.rs](./dongle-smartcontract/src/storage_keys.rs) is an internal implementation detail for persistence and should not be treated as an external event schema.
+The following event shapes are emitted by the current contract implementation. Topics are published as Soroban topic tuples, and the payload is available on `event.data`. The storage-key enum in [dongle-smartcontract/src/storage_keys.rs](../dongle-smartcontract/src/storage_keys.rs) is an internal implementation detail for persistence and should not be treated as an external event schema.
 
 | Event | Topic tuple | Key fields in `event.data` |
 |---|---|---|

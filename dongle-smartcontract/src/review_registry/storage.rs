@@ -1,15 +1,16 @@
-//! Review registry: create/update/delete reviews and maintain aggregates and indexes.
+//! Review registry storage mutations: CRUD, moderation, aggregates, and listing.
 
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
     DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
-    MAX_CID_LEN, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER,
-    MAX_REVIEW_REVISIONS, RATING_MAX, RATING_MIN, REVIEW_UPDATE_COOLDOWN_SECONDS,
+    MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, MAX_REVIEW_REVISIONS,
+    REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
 use crate::errors::ContractError;
 use crate::events::{publish_review_event, publish_review_revision_event};
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
+use crate::review_registry::validation::ReviewValidation;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
@@ -22,13 +23,6 @@ use soroban_sdk::{Address, Env, String, Vec};
 pub struct ReviewRegistry;
 
 impl ReviewRegistry {
-    fn validate_review_cid(cid: &String) -> Result<(), ContractError> {
-        if !Utils::is_valid_ipfs_cid(cid) || cid.len() as usize > MAX_CID_LEN {
-            return Err(ContractError::InvalidProjectData);
-        }
-        Ok(())
-    }
-
     // ── Anti-Sybil Review Eligibility ───────────────────────────────────
 
     /// Retrieve the current review eligibility configuration.
@@ -93,7 +87,9 @@ impl ReviewRegistry {
                 .get(&ExtensionKey::FirstInteraction(reviewer.clone()))
                 .unwrap_or(0);
             let now = env.ledger().timestamp();
-            if first_interaction == 0 || now.saturating_sub(first_interaction) < config.min_reviewer_age_seconds {
+            if first_interaction == 0
+                || now.saturating_sub(first_interaction) < config.min_reviewer_age_seconds
+            {
                 return Err(ContractError::ReviewerNotEligible);
             }
         }
@@ -127,7 +123,7 @@ impl ReviewRegistry {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
-            Self::validate_review_cid(cid)?;
+            ReviewValidation::validate_review_cid(cid)?;
         }
 
         // Validation phase
@@ -140,18 +136,14 @@ impl ReviewRegistry {
         };
 
         // Project owners cannot review their own project
-        if project.owner == reviewer {
-            return Err(ContractError::OwnerCannotReview);
-        }
+        ReviewValidation::ensure_not_owner(&project, &reviewer)?;
 
         // Check if reviews are enabled for this project
         if !Self::get_reviews_enabled(env, project_id) {
             return Err(ContractError::ReviewsDisabled);
         }
 
-        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
-            return Err(ContractError::InvalidRating);
-        }
+        ReviewValidation::validate_rating(rating)?;
 
         // Anti-sybil eligibility check
         Self::check_review_eligibility(env, project_id, &reviewer)?;
@@ -261,7 +253,7 @@ impl ReviewRegistry {
         rating: u32,
         review_cid: String,
     ) -> Result<(), ContractError> {
-        Self::validate_review_cid(&review_cid)?;
+        ReviewValidation::validate_review_cid(&review_cid)?;
         Self::add_review(env, project_id, reviewer, rating, Some(review_cid))
     }
 
@@ -273,7 +265,7 @@ impl ReviewRegistry {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
-            Self::validate_review_cid(cid)?;
+            ReviewValidation::validate_review_cid(cid)?;
         }
 
         // Validation phase
@@ -284,9 +276,7 @@ impl ReviewRegistry {
             return Err(ContractError::ProjectNotFound);
         }
 
-        if !(RATING_MIN..=RATING_MAX).contains(&rating) {
-            return Err(ContractError::InvalidRating);
-        }
+        ReviewValidation::validate_rating(rating)?;
 
         let review_key = StorageKey::Review(project_id, reviewer.clone());
         let mut review: Review = env
@@ -836,7 +826,7 @@ impl ReviewRegistry {
         out
     }
 
-    pub fn list_reviews(env: &Env, project_id: u64, start_id: u32, limit: u32) -> Vec<Review> {
+    pub fn list_reviews(env: &Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         // Enforce pagination limits: limit must be 1..=MAX_PAGE_LIMIT
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
@@ -852,12 +842,12 @@ impl ReviewRegistry {
 
         let mut reviews = Vec::new(env);
         let len = reviewers.len();
-        if start_id >= len {
+        if start_index >= len {
             return reviews;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
 
-        for i in start_id..end {
+        for i in start_index..end {
             if let Some(reviewer) = reviewers.get(i) {
                 if let Some(review) = Self::get_review(env, project_id, reviewer) {
                     // Exclude hidden reviews from default listings
@@ -1136,7 +1126,7 @@ impl ReviewRegistry {
     pub fn list_reviews_sorted(
         env: &Env,
         project_id: u64,
-        start_id: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
@@ -1175,11 +1165,11 @@ impl ReviewRegistry {
 
         // Apply pagination.
         let mut out = Vec::new(env);
-        if start_id >= n {
+        if start_index >= n {
             return out;
         }
-        let end = core::cmp::min(start_id.saturating_add(effective_limit), n);
-        for i in start_id..end {
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), n);
+        for i in start_index..end {
             if let Some(review) = all.get(i) {
                 out.push_back(review);
             }

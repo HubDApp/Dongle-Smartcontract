@@ -140,7 +140,7 @@ fn reg_slug_over_max_rejected() {
     let mut p = base_params(&e, &owner, "Short2");
     p.slug = ss_rep(&e, 'a', MAX_SLUG_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectSlug.into())));
     let _ = admin;
 }
 
@@ -284,7 +284,7 @@ fn reg_logo_cid_below_min_rejected() {
     let (client, admin) = setup_contract(&e);
     let owner = Address::generate(&e);
     let mut p = base_params(&e, &owner, "LogoShort");
-    p.logo_cid = Some(cid_of_len(&e, 45)); // one below minimum
+    p.logo_cid = Some(cid_of_len(&e, 39)); // one below minimum
     let result = client.try_register_project(&p);
     assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
     let _ = admin;

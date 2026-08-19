@@ -238,17 +238,22 @@ let admin_count = get_admin_count(env);
 
 ---
 
-### `get_admin_approval_threshold`
+### `get_config`
 
-**Purpose**: Get the number of approvals required for a proposal to be executed.
+**Purpose**: Return a stable public contract configuration snapshot for frontends and indexers.
 
 **Parameters**:
 - `env` (Env): The contract environment
 
-**Return Value**: `u32`
-- The approval threshold count
+**Return Value**: `ContractConfig`
+- `fee_config`: current fee configuration when set
+- `treasury`: current treasury address when set
+- `admin_count`: current admin count
+- `paused`: current pause state; currently `false` because no pause feature is implemented
+- `version`: contract config version string
+- public limits for projects, reviews, pagination, tags, social links, verification validity, fee payment expiry, and review update cooldown
 
-**Authorization**: 
+**Authorization**:
 - None (read-only, permissionless)
 
 **Possible Errors**:
@@ -256,134 +261,7 @@ let admin_count = get_admin_count(env);
 
 **Example**:
 ```rust
-let threshold = get_admin_approval_threshold(env);
-```
-
----
-
-### `set_admin_approval_threshold`
-
-**Purpose**: Set the number of approvals required for proposals (admin-only).
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `caller` (Address): The admin calling this function
-- `threshold` (u32): The new approval threshold
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-
-**Example**:
-```rust
-set_admin_approval_threshold(env, admin_address, 3)?;
-```
-
----
-
-### `create_proposal`
-
-**Purpose**: Create a new admin proposal for multi-sig governance decisions.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `proposer` (Address): The admin creating the proposal
-- `payload` (ProposalPayload): The proposal payload containing the action to execute
-
-**Return Value**: `Result<u64, ContractError>`
-- Success: `Ok(proposal_id)` - The unique ID of the created proposal
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-
-**Example**:
-```rust
-let proposal_id = create_proposal(env, admin_address, payload)?;
-```
-
----
-
-### `approve_proposal`
-
-**Purpose**: Approve a pending proposal (admin-only). Once the approval threshold is met, the proposal can be executed.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `admin` (Address): The admin approving
-- `proposal_id` (u64): The ID of the proposal to approve
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an existing admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-- `ProposalNotFound` - Proposal ID does not exist
-
-**Example**:
-```rust
-approve_proposal(env, admin_address, proposal_id)?;
-```
-
----
-
-### `execute_proposal`
-
-**Purpose**: Execute an approved proposal that has met the approval threshold.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `caller` (Address): The address executing the proposal
-- `proposal_id` (u64): The ID of the proposal to execute
-
-**Return Value**: `Result<(), ContractError>`
-
-**Authorization**: 
-- Caller must be an admin
-
-**Possible Errors**:
-- `AdminOnly` - Caller is not an admin
-- `ProposalNotFound` - Proposal ID does not exist
-- `ProposalNotApproved` - Proposal has not met the approval threshold
-
-**Example**:
-```rust
-execute_proposal(env, admin_address, proposal_id)?;
-```
-
----
-
-### `get_proposal`
-
-**Purpose**: Retrieve a proposal by ID.
-
-**Parameters**:
-- `env` (Env): The contract environment
-- `proposal_id` (u64): The ID of the proposal
-
-**Return Value**: `Option<AdminProposal>`
-- `Some(proposal)` if found
-- `None` if not found
-
-**Authorization**: 
-- None (read-only, permissionless)
-
-**Possible Errors**:
-- None
-
-**Example**:
-```rust
-if let Some(proposal) = get_proposal(env, proposal_id) {
-    // Use proposal data
-}
+let config = get_config(env);
 ```
 
 ---
@@ -858,7 +736,7 @@ if let Some(hash) = get_project_integrity_hash(env, project_id) {
 **Parameters**:
 - `env` (Env): The contract environment
 - `sort_mode` (ProjectSortMode): The sorting mode (e.g., by rating, by name)
-- `start_id` (u64): The starting project ID for pagination
+- `start_index` (u64): Zero-based index into the sorted result for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -910,7 +788,7 @@ let verified_projects = list_projects_by_status(env, VerificationStatus::Verifie
 **Parameters**:
 - `env` (Env): The contract environment
 - `category` (String): The category to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the category's project ID list for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -936,7 +814,7 @@ let defi_projects = list_projects_by_category(env, String::from_slice(&env, "DeF
 **Parameters**:
 - `env` (Env): The contract environment
 - `tag` (String): The tag to filter by
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based offset into the project ID scan space for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -2054,7 +1932,7 @@ let reviews = get_reviews_by_ids(env, vec![&env, (1, reviewer1), (1, reviewer2)]
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start_id` (u32): The starting index for pagination
+- `start_index` (u32): Zero-based index into the project's review list for pagination
 - `limit` (u32): Maximum number of reviews to return
 
 **Return Value**: `Vec<Review>`
@@ -2236,7 +2114,7 @@ if let Some(tombstone) = get_review_tombstone(env, project_id, reviewer_address)
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start_id` (u32): Starting index for pagination
+- `start_index` (u32): Zero-based index into the project's review list for pagination
 - `limit` (u32): Maximum reviews to return
 - `sort_mode` (ReviewSortMode): The sorting mode
 
@@ -4759,7 +4637,7 @@ if let Some(dispute) = get_duplicate_dispute(env, dispute_id) {
 
 1. **Always check return types**: Functions return `Result` or `Option` - handle both success and failure cases
 2. **Validate project ownership**: For owner-only operations, verify ownership before calling
-3. **Use pagination**: For list operations, use appropriate start_id/limit to avoid timeouts
+3. **Use pagination**: For list operations, use appropriate `start_id` (project ID cursor) or `start_index` (list offset) with `limit` to avoid timeouts
 4. **Cache project data**: Once retrieved, cache project data locally when possible
 5. **Monitor admin actions**: Regularly review admin action logs for compliance
 6. **Handle duplicates gracefully**: Use dispute resolution for duplicate detection

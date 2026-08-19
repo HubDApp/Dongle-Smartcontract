@@ -56,14 +56,14 @@ All project-related events start with the topic `PROJECT` (Symbol).
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Project Reactivated
-* **Topic:** `(Symbol("PROJECT"), Symbol("ACTIVE"), project_id: u64)`
+* **Topic:** `(Symbol("PROJECT"), Symbol("RESTORED"), project_id: u64)`
 * **Payload (`ProjectReactivatedEvent`):**
   * `project_id` (`u64`): The ID of the reactivated project.
   * `caller` (`Address`): Address of the admin or owner who reactivated the project.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Project Ownership Transferred
-* **Topic:** `(Symbol("PROJECT"), Symbol("OWNER_TR"), project_id: u64)`
+* **Topic:** `(Symbol("PROJECT"), Symbol("TRANSFER"), project_id: u64)`
 * **Payload (`ProjectOwnershipTransferredEvent`):**
   * `project_id` (`u64`): The ID of the project.
   * `caller` (`Address`): Address that executed the transfer.
@@ -114,7 +114,7 @@ All review-related events start with the topic `REVIEW` (Symbol).
 All fee-related events start with the topic `FEE` (Symbol).
 
 ### Fee Set
-* **Topic:** `(Symbol("FEE"), Symbol("SET"))`
+* **Topic:** `(Symbol("CONFIG"), Symbol("FEE"))`
 * **Payload (`FeeSetEvent`):**
   * `admin` (`Address`): The admin who updated the fee configuration.
   * `token` (`Option<Address>`): Address of the SAC token contract used for payment (`None` = native/no token required).
@@ -156,7 +156,7 @@ All fee-related events start with the topic `FEE` (Symbol).
 All verification-related events start with the topic `VERIFY` (Symbol).
 
 ### Verification Requested
-* **Topic:** `(Symbol("VERIFY"), Symbol("REQUEST"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("REQ"), project_id: u64)`
 * **Payload (`VerificationRequestedEvent`):**
   * `project_id` (`u64`): The ID of the project requesting verification.
   * `requester` (`Address`): The requester's address.
@@ -166,7 +166,7 @@ All verification-related events start with the topic `VERIFY` (Symbol).
 #### Verification Requested Event Example
 ```json
 {
-  "topics": ["VERIFY", "REQUEST", 1],
+  "topics": ["VERIFY", "REQ", 1],
   "data": {
     "project_id": 1,
     "requester": "GDXX...XXXX",
@@ -177,17 +177,19 @@ All verification-related events start with the topic `VERIFY` (Symbol).
 ```
 
 ### Verification Approved
-* **Topic:** `(Symbol("VERIFY"), Symbol("APPROVED"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("APP"), project_id: u64)`
 * **Payload (`VerificationApprovedEvent`):**
   * `project_id` (`u64`): The ID of the verified project.
   * `admin` (`Address`): Admin address who approved the request.
+  * `decided_at` (`u64`): Timestamp when the decision was made.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Verification Rejected
-* **Topic:** `(Symbol("VERIFY"), Symbol("REJECTED"), project_id: u64)`
+* **Topic:** `(Symbol("VERIFY"), Symbol("REJ"), project_id: u64)`
 * **Payload (`VerificationRejectedEvent`):**
   * `project_id` (`u64`): The ID of the project.
   * `admin` (`Address`): Admin address.
+  * `decided_at` (`u64`): Timestamp when the decision was made.
   * `timestamp` (`u64`): Unix timestamp.
 
 ### Verification Revoked
@@ -196,4 +198,106 @@ All verification-related events start with the topic `VERIFY` (Symbol).
   * `project_id` (`u64`): The ID of the project.
   * `admin` (`Address`): Admin address.
   * `reason` (`String`): Explanation string for the revocation.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Expired
+* **Topic:** `(Symbol("VERIFY"), Symbol("EXPRD"), project_id: u64)`
+* **Payload (`VerificationExpiredEvent`):**
+  * `project_id` (`u64`): The ID of the project whose verification expired.
+  * `expired_at` (`u64`): Expiry timestamp recorded for the verification.
+  * `timestamp` (`u64`): Unix timestamp when the expiry event was emitted.
+
+### Verification Renewed
+* **Topic:** `(Symbol("VERIFY"), Symbol("RENEWD"), project_id: u64)`
+* **Payload (`VerificationRenewedEvent`):**
+  * `project_id` (`u64`): The ID of the renewed project.
+  * `admin` (`Address`): Admin address that renewed the verification.
+  * `new_expires_at` (`u64`): New verification expiry timestamp.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Evidence Updated
+* **Topic:** `(Symbol("VERIFY"), Symbol("EV_UPD"), project_id: u64)`
+* **Payload (`VerificationEvidenceUpdatedEvent`):**
+  * `project_id` (`u64`): The ID of the project whose evidence changed.
+  * `requester` (`Address`): Address that submitted the update.
+  * `old_evidence_cid` (`String`): Previous evidence CID.
+  * `new_evidence_cid` (`String`): Replacement evidence CID.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Assigned
+* **Topic:** `(Symbol("VERIFY"), Symbol("ASSIGNED"), project_id: u64)`
+* **Payload (`VerificationAssignedEvent`):**
+  * `project_id` (`u64`): The ID of the project assigned for verification review.
+  * `request_id` (`u64`): Verification request identifier.
+  * `assigned_admin` (`Address`): Admin assigned to review the request.
+  * `assigner` (`Address`): Address that made the assignment.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification History Cleared
+* **Topic:** `(Symbol("VERIFY"), Symbol("HISTCLR"), project_id: u64)`
+* **Payload (`VerificationHistoryClearedEvent`):**
+  * `project_id` (`u64`): The ID of the project whose verification history was pruned.
+  * `admin` (`Address`): Admin address that cleared the history.
+  * `removed_count` (`u32`): Number of verification records removed.
+  * `retained_count` (`u32`): Number of verification records retained.
+  * `timestamp` (`u64`): Unix timestamp.
+
+---
+
+## 5. Renewal Events
+
+Verification renewal events start with the topic `RENEW` (Symbol).
+
+### Verification Renewal Requested
+* **Topic:** `(Symbol("RENEW"), Symbol("REQUEST"), project_id: u64)`
+* **Payload (`VerificationRenewalReqEvent`):**
+  * `project_id` (`u64`): The ID of the project requesting renewal.
+  * `requester` (`Address`): Address that requested renewal.
+  * `evidence_cid` (`String`): Evidence CID supporting the renewal request.
+  * `fee_amount` (`u128`): Fee amount associated with the renewal request.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Renewal Approved
+* **Topic:** `(Symbol("RENEW"), Symbol("APPROVED"), project_id: u64)`
+* **Payload (`VerificationRenewalApprovedEvent`):**
+  * `project_id` (`u64`): The ID of the renewed project.
+  * `admin` (`Address`): Admin address that approved the renewal.
+  * `expires_at` (`u64`): New verification expiry timestamp.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Renewal Rejected
+* **Topic:** `(Symbol("RENEW"), Symbol("REJECTED"), project_id: u64)`
+* **Payload (`VerificationRenewalRejectedEvent`):**
+  * `project_id` (`u64`): The ID of the project whose renewal was rejected.
+  * `admin` (`Address`): Admin address that rejected the renewal.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Renewal History Cleared
+* **Topic:** `(Symbol("RENEW"), Symbol("HISTCLR"), project_id: u64)`
+* **Payload (`RenewalHistoryClearedEvent`):**
+  * `project_id` (`u64`): The ID of the project whose renewal history was cleared.
+  * `admin` (`Address`): Admin address that cleared the renewal history.
+  * `removed_count` (`u32`): Number of renewal records removed.
+  * `timestamp` (`u64`): Unix timestamp.
+
+---
+
+## 6. Verification Configuration Events
+
+Verification configuration events use the `CONFIG` topic namespace.
+
+### Minimum Project Age Set
+* **Topic:** `(Symbol("CONFIG"), Symbol("MIN_AGE"))`
+* **Payload (`MinProjectAgeSetEvent`):**
+  * `admin` (`Address`): Admin address that changed the setting.
+  * `previous_min_age_seconds` (`u64`): Previous minimum project age.
+  * `min_age_seconds` (`u64`): New minimum project age.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Verification Duration Set
+* **Topic:** `(Symbol("CONFIG"), Symbol("DURATION"))`
+* **Payload (`VerificationDurationSetEvent`):**
+  * `admin` (`Address`): Admin address that changed the setting.
+  * `previous_duration_seconds` (`u64`): Previous verification duration.
+  * `duration_seconds` (`u64`): New verification duration.
   * `timestamp` (`u64`): Unix timestamp.
