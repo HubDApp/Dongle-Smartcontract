@@ -72,6 +72,10 @@ for the full policy.
 
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
+- Applied `cargo fmt --all` across the workspace, clearing the pre-existing
+  `rustfmt` drift in 18 source files that was failing the CI `Formatting` job
+  and blocking the `Build Contract` and `Optimize WASM` jobs. Formatting only —
+  no logic, signature, storage key, event or error code was changed.
 
 ## [0.6.0] - 2026-08-01
 
