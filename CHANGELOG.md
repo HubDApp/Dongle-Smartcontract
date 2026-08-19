@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Tag validation now rejects duplicate values (case-insensitive after ASCII
+  lowercase normalization) with `InvalidTags` (#526).
+
 ### Changed
 
 - **Repository hygiene:** Consolidated repository-root documentation. Reference

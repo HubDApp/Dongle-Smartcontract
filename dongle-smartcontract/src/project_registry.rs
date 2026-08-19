@@ -460,6 +460,9 @@ impl ProjectRegistry {
 
         // Handle tags update
         if let Some(value) = params.tags {
+            if let Some(ref tags) = value {
+                Utils::validate_tags(tags)?;
+            }
             project.tags = value;
         }
         if let Some(value) = params.social_links {

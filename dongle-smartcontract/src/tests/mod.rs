@@ -32,6 +32,7 @@ mod verification_features;
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;
 mod string_validation;
+mod tags;
 
 // Metadata freeze policy for verified projects
 // mod verified_freeze;

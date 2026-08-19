@@ -138,6 +138,8 @@ pub enum ContractError {
     TimelockNotExpired = 66,
     /// Stored proposal payload does not match its recorded hash
     PayloadHashMismatch = 67,
+    /// Tag list is invalid (empty, over-length, too many, bad charset, or duplicates)
+    InvalidTags = 68,
 }
 
 pub type Error = ContractError;
