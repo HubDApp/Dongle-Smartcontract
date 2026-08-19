@@ -76,6 +76,16 @@ for the full policy.
   `rustfmt` drift in 18 source files that was failing the CI `Formatting` job
   and blocking the `Build Contract` and `Optimize WASM` jobs. Formatting only —
   no logic, signature, storage key, event or error code was changed.
+- CI `Optimize WASM` job: install the Stellar CLI from its prebuilt release
+  binary (pinned to 27.1.0) instead of `cargo install --locked stellar-cli
+  --features opt`. The published crate now requires a rustc newer than the
+  toolchain pinned in `rust-toolchain.toml` (1.85.0), so building it from
+  source failed immediately; the prebuilt binary already bundles `wasm-opt`
+  and installs in seconds.
+- `scripts/optimize_wasm.sh` now selects an optimizer at runtime
+  (`stellar contract optimize`, then `wasm-opt -Oz`), verifies the output file
+  was produced, and exits with actionable install instructions when no
+  optimizer is available.
 
 ## [0.6.0] - 2026-08-01
 
