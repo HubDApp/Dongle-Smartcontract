@@ -194,6 +194,7 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(params.owner.clone()),
             &owner_projects,
         );
+        Self::add_active_owner_project(env, &params.owner, count);
 
         let mut category_projects: Vec<u64> = env
             .storage()
@@ -786,7 +787,7 @@ impl ProjectRegistry {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&StorageKey::OwnerProjects(owner))
+            .get(&StorageKey::ActiveOwnerProjects(owner))
             .unwrap_or_else(|| Vec::new(env));
 
         let mut projects = Vec::new(env);
@@ -794,9 +795,7 @@ impl ProjectRegistry {
         for i in 0..len {
             if let Some(project_id) = ids.get(i) {
                 if let Some(project) = Self::get_project(env, project_id) {
-                    if !project.archived {
-                        projects.push_back(project);
-                    }
+                    projects.push_back(project);
                 }
             }
         }
@@ -818,6 +817,43 @@ impl ProjectRegistry {
             return Err(ContractError::MaxProjectsExceeded);
         }
         Ok(())
+    }
+
+    fn add_active_owner_project(env: &Env, owner: &Address, project_id: u64) {
+        let mut active_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ActiveOwnerProjects(owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        if !active_projects.contains(&project_id) {
+            active_projects.push_back(project_id);
+            env.storage().persistent().set(
+                &StorageKey::ActiveOwnerProjects(owner.clone()),
+                &active_projects,
+            );
+        }
+        StorageManager::extend_active_owner_projects_ttl(env, owner);
+    }
+
+    fn remove_active_owner_project(env: &Env, owner: &Address, project_id: u64) {
+        let active_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ActiveOwnerProjects(owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut updated_active_projects: Vec<u64> = Vec::new(env);
+        for i in 0..active_projects.len() {
+            if let Some(id) = active_projects.get(i) {
+                if id != project_id {
+                    updated_active_projects.push_back(id);
+                }
+            }
+        }
+        env.storage().persistent().set(
+            &StorageKey::ActiveOwnerProjects(owner.clone()),
+            &updated_active_projects,
+        );
+        StorageManager::extend_active_owner_projects_ttl(env, owner);
     }
 
     pub fn get_owner_project_count(env: &Env, owner: &Address) -> u32 {
@@ -1064,6 +1100,7 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::OwnerProjects(old_owner.clone()), &updated_old);
+        Self::remove_active_owner_project(env, &old_owner, project_id);
 
         Self::ensure_owner_capacity(env, &pending_new_owner)?;
 
@@ -1078,6 +1115,9 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(pending_new_owner.clone()),
             &new_owner_projects,
         );
+        if !project.archived {
+            Self::add_active_owner_project(env, &pending_new_owner, project_id);
+        }
 
         // Update project owner
         project.owner = pending_new_owner.clone();
@@ -1134,6 +1174,7 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
+        Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_archived_event(env, project_id, caller);
         Ok(())
@@ -1167,6 +1208,7 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
+        Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_reactivated_event(env, project_id, caller);
         Ok(())
@@ -1393,6 +1435,13 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(claim_request.claimant.clone()),
             &new_owner_projects,
         );
+        if !project.archived {
+            Self::add_active_owner_project(
+                env,
+                &claim_request.claimant,
+                claim_request.project_id,
+            );
+        }
 
         // Save project
         env.storage()

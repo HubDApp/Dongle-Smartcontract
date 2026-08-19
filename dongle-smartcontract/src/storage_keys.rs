@@ -103,6 +103,8 @@ pub enum StorageKey {
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
     ContractPaused,
+    /// List of non-archived project IDs registered by owner.
+    ActiveOwnerProjects(Address),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
