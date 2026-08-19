@@ -21,3 +21,7 @@ dongle-smartcontract/test_output*.txt
 .agents/
 skills-lock.json
 issue.md
+# Python tooling caches (scripts/validate_*.py, scripts/test_*.py)
+__pycache__/
+*.py[cod]
+.pytest_cache/

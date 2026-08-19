@@ -27,7 +27,7 @@ For detailed information, refer to:
 - **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
 - **[Data Export Guide](docs/DATA_EXPORT_GUIDE.md)** — How indexers reconstruct contract state
 - **[Contributing Guidelines](docs/CONTRIBUTING.md)** — How to contribute, test, and submit PRs
-- **[Changelog](CHANGELOG.md)** — Release history and notable changes
+- **[Changelog](CHANGELOG.md)** — Release history, breaking changes and feature additions ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + SemVer)
 
 ## Quick Start
 
@@ -280,7 +280,7 @@ Dongle promotes:
 - [STORAGE_INDEXES.md](docs/STORAGE_INDEXES.md) - Storage index size strategy and read pagination
 - [CONTRACT_INTERFACE.md](docs/CONTRACT_INTERFACE.md) - Full contract function documentation
 - [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contribution guidelines and PR process
-- [CHANGELOG.md](CHANGELOG.md) - Release history and notable changes
+- [CHANGELOG.md](CHANGELOG.md) - Release history, breaking changes and feature additions (Keep a Changelog 1.1.0 format; validated in CI by `scripts/validate_changelog.py`)
 - [review-cid.schema.json](docs/review-cid.schema.json) - Off-chain JSON schema for review content CIDs
 - [review-cid.example.json](docs/review-cid.example.json) - Valid off-chain JSON review example
 - [verification-evidence.schema.json](verification-evidence.schema.json) - Off-chain JSON schema for verification evidence CIDs

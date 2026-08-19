@@ -59,6 +59,7 @@ Before opening a Pull Request, verify that:
 - [ ] Target WASM contract builds successfully.
 - [ ] Existing API contracts and backward compatibility are maintained.
 - [ ] Clear documentation is provided for any new functions, events, or storage keys.
+- [ ] A `CHANGELOG.md` entry was added under `## [Unreleased]` (see [section 6](#6-changelog-entries)) and `python3 scripts/validate_changelog.py` passes.
 
 ### PR Description Template
 When creating a PR, provide a structured description following this template:
@@ -83,6 +84,9 @@ When creating a PR, provide a structured description following this template:
 ## Test Coverage
 - Description of tests added or updated
 - Commands executed to verify changes: `cargo test <module>`
+
+## Changelog
+- [ ] Entry added to `CHANGELOG.md` under `## [Unreleased]` (category: Added / Changed / Deprecated / Removed / Fixed / Security)
 
 ## Related Issues
 Closes #[issue_number]
@@ -124,3 +128,72 @@ gh pr create \
   ```
 - **CI Test Failures**:
   If CI checks fail, reproduce locally via `cargo test`, apply necessary fixes, commit, and push updates to your feature branch.
+
+---
+
+## 6. Changelog Entries
+
+This repository tracks version history in [`CHANGELOG.md`](../CHANGELOG.md), which
+follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+### Policy
+
+- **Every user-visible change requires a changelog entry in the same PR.**
+  Purely internal changes (test-only refactors, CI tweaks with no operator
+  impact, typo fixes) may be skipped.
+- Add your bullet under `## [Unreleased]`, inside one of the six allowed
+  categories: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+- Create the category heading only if it does not already exist in
+  `## [Unreleased]`.
+- Write one line per change, in the imperative/descriptive past style used by
+  existing entries, and reference the issue or PR number: `(#123)`.
+- Prefix any change to an on-chain interface (function signature, storage key,
+  event topic, error code) with **BREAKING** and describe the required operator
+  or integrator action.
+
+### Example
+
+```markdown
+## [Unreleased]
+
+### Added
+
+- `get_project_endorsements` view returning paginated endorsers (#412).
+
+### Changed
+
+- **BREAKING:** `list_projects` now takes `start_index` instead of `offset` (#351).
+```
+
+### Validation
+
+The changelog structure is machine-checked. Run the validator before pushing:
+
+```bash
+python3 scripts/validate_changelog.py      # validate CHANGELOG.md
+python3 scripts/test_validate_changelog.py # self-tests for the validator
+```
+
+CI runs both in the `validate-changelog` job; a malformed changelog fails the
+build. The validator enforces:
+
+1. `# Changelog` title plus Keep a Changelog and SemVer references.
+2. An `## [Unreleased]` section placed above all releases.
+3. Release headings of the form `## [X.Y.Z] - YYYY-MM-DD` with valid SemVer and
+   ISO-8601 dates, unique and ordered newest first.
+4. Only the six Keep a Changelog categories, and no empty categories.
+5. A link reference definition at the bottom for every version (and no orphans).
+6. Agreement between the newest released version and the `dongle-contract`
+   crate version in `dongle-smartcontract/Cargo.toml`.
+
+### Cutting a Release
+
+1. Rename `## [Unreleased]` content into a new
+   `## [X.Y.Z] - YYYY-MM-DD` section and re-add an empty `## [Unreleased]`
+   heading with no categories removed from history.
+2. Bump `version` in `dongle-smartcontract/Cargo.toml` (and refresh
+   `Cargo.lock`) to the same `X.Y.Z`.
+3. Add the `[X.Y.Z]` compare link at the bottom and repoint `[Unreleased]` to
+   `compare/vX.Y.Z...HEAD`.
+4. Run `python3 scripts/validate_changelog.py`, then tag the release `vX.Y.Z`.

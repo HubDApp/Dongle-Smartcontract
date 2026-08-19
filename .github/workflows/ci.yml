@@ -19,6 +19,16 @@ jobs:
       - name: Run validation script
         run: python3 scripts/validate_deployments.py
 
+  validate-changelog:
+    name: Validate Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CHANGELOG.md format (Keep a Changelog)
+        run: python3 scripts/validate_changelog.py
+      - name: Run changelog validator self-tests
+        run: python3 scripts/test_validate_changelog.py
+
   fmt:
     name: Formatting
     runs-on: ubuntu-latest
@@ -141,6 +151,7 @@ jobs:
         run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 
       - name: Optimize WASM
+
         run: bash scripts/optimize_wasm.sh
 
       - name: Upload optimized artifact

@@ -1,11 +1,51 @@
 # Changelog
 
-All notable changes to the Dongle Smart Contract are documented in this file.
+All notable changes to the **Dongle Smart Contract** are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## How to read this file
+
+- Every release has its own `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` heading, newest first.
+- Changes are grouped under the Keep a Changelog categories: `Added`, `Changed`,
+  `Deprecated`, `Removed`, `Fixed`, `Security`.
+- Entries marked **BREAKING** change an on-chain interface (function signature,
+  storage key, event topic, or error code) and require operator action before or
+  during upgrade. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the upgrade procedure.
+- Unreleased work lands under `## [Unreleased]` and is folded into the next
+  version at release time.
+
+## How to add an entry
+
+Contributors must add a bullet to `## [Unreleased]` in the same pull request as
+their change. Keep entries user-facing, one line each, and reference the issue or
+PR number where available:
+
+```markdown
 ## [Unreleased]
+
+### Added
+
+- New `get_config` view returning public contract configuration (#202).
+```
+
+Run `python3 scripts/validate_changelog.py` locally before pushing; CI runs the
+same check. See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#6-changelog-entries)
+for the full policy.
+
+---
+
+## [Unreleased]
+
+### Added
+
+- `CHANGELOG.md` policy tooling: `scripts/validate_changelog.py` validates the
+  Keep a Changelog structure (heading order, SemVer versions, ISO dates,
+  allowed section names, link references, and crate-version agreement) and is
+  wired into CI as the `validate-changelog` job (#505).
+- Changelog contribution policy documented in `docs/CONTRIBUTING.md`, including
+  a PR checklist item requiring an `Unreleased` entry.
 
 ### Changed
 
@@ -18,111 +58,160 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated stale documentation links in `README.md`, `docs/`,
   `dongle-smartcontract/README.md`, and `bug-bounty/README.md` to point at the
   consolidated `docs/` paths.
+- Pinned the Rust toolchain (1.85.0) in CI workflows for reproducible builds
+  (#514).
+- Timelocked admin proposals now verify the proposal payload hash before
+  execution.
 
-## [2026-08-01] - Dispute Flow, Pagination & Registry Hygiene
+### Removed
+
+- Committed test output text files (`test_output.txt`, `test_final.txt`,
+  `test_output_latest.txt`) from the `dongle-smartcontract/` directory (#503).
+
+### Fixed
+
+- Documented previously undocumented verification events in
+  `docs/EVENTS_SCHEMA.md` (#508).
+
+## [0.6.0] - 2026-08-01
+
+_Dispute flow, pagination and registry hygiene._
 
 ### Added
 
 - Duplicate project dispute flow (#151).
-- Possible-next-state coverage for verification state machine.
-- Project changelog CID feature (#157).
+- Possible-next-state coverage for the verification state machine.
+- Project changelog CID feature, letting projects publish their own release
+  notes off-chain (#157).
 
 ### Changed
 
-- Renamed offset pagination cursor parameters to `start_index` (#351).
-- Unified claim status handling across both claim workflows (#357).
-- Consolidated registry helpers (`remove_item_from_vec`), removed unused
-  `FeeRefundRecord` scaffolding, and repaired `utils.rs` corruption.
-- CI fix: return contract errors instead of raw panics for timelock and
-  endorsement operations.
+- **BREAKING:** Renamed offset pagination cursor parameters to `start_index`
+  across all paginated views; callers passing the old parameter name must be
+  updated (#351).
+- **BREAKING:** Unified claim status handling across both claim workflows, so a
+  single `ClaimStatus` enum is now returned by both paths (#357).
+- Consolidated registry helpers into `remove_item_from_vec` and removed the
+  unused `FeeRefundRecord` scaffolding.
 
-## [2026-07-01] - Verification Expiry, Anti-Sybil & Safety Hardening
+### Fixed
+
+- Repaired corruption in `utils.rs` and restored the missing
+  `validate_report_reason_cid` function (#408).
+- Timelock and endorsement operations now return `ContractError` values instead
+  of raw panics.
+
+## [0.5.0] - 2026-07-01
+
+_Verification expiry, anti-Sybil controls and safety hardening._
 
 ### Added
 
 - Verification expiry implementation (#131).
-- Anti-Sybil review constraints (reviewer eligibility age, endorsements,
-  review fees).
-- Emergency stop / contract pause with admin pause toggle.
-- `get_config` view for public configuration read access.
+- Anti-Sybil review constraints: reviewer eligibility age, endorsement
+  requirements and review fees.
+- Emergency stop / contract pause with an admin pause toggle.
+- `get_config` view for public configuration read access (#202).
 - `MIN_STRING_LEN` validation constants.
 - Admin console contract configuration view.
 
 ### Changed
 
-- Replaced raw panics with `ContractError` variants; added 22 missing
-  `ContractError` variants (61-82).
-- Collapsed ~20 near-identical `extend_*_ttl` storage helpers into a single
-  generic helper (#338).
-- Consolidated CID validators and error handling.
-- Extended `.gitignore` coverage for test output files; Makefile cleanup
-  (#384).
+- **BREAKING:** Replaced raw panics with `ContractError` variants and added 22
+  new error codes (61-82); integrators must map the new codes. See
+  [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md).
+- Collapsed roughly 20 near-identical `extend_*_ttl` storage helpers into a
+  single generic helper (#338).
+- Consolidated CID validators and their error handling.
+- Extended `.gitignore` coverage for test output files and cleaned up the
+  Makefile (#384).
 
-## [2026-06-01] - Fee Handling, Endorsements & Deployment Readiness
+### Security
+
+- Emergency pause blocks state-mutating entry points while active, limiting
+  blast radius during incident response.
+
+## [0.4.0] - 2026-06-01
+
+_Fee handling, endorsements and deployment readiness._
 
 ### Added
 
 - Comprehensive fee payment error handling and token transfer failure tests.
-- Fee refund flow, expiry, config history, and SLA tracking.
-- Native asset fee guardrails and token-only fee policy clarification.
-- Historical verification records and admin multisig approval threshold.
+- Fee refund flow, fee expiry, configuration history and SLA tracking.
+- Native asset fee guardrails and a token-only fee policy.
+- Historical verification records and an admin multisig approval threshold.
 - Metadata freeze policy for verified projects.
 - Project endorsements.
-- Bug bounty metadata and `bounty_url` on projects.
+- Bug bounty metadata and a `bounty_url` field on projects.
 - Optional project license field.
-- Verification evidence updates while pending.
-- Fee boundary validation, review tombstones, sorting, and review update cooldown.
-- Fee payment payer getter, reserved names, verification assignment, and logo
+- Verification evidence updates while a request is pending.
+- Fee boundary validation, review tombstones, review sorting and a review
+  update cooldown.
+- Fee payment payer getter, reserved names, verification assignment and logo
   asset guidelines.
-- WASM optimization, invariant tests, and property-based pagination tests.
+- WASM size optimization, invariant tests and property-based pagination tests.
 - Weighted rating calculation.
 
 ### Changed
 
-- Soroban deployment and schema documentation.
-- Example/schema JSON files co-located in `docs/`.
+- Expanded Soroban deployment and schema documentation.
+- Co-located example and schema JSON files in `docs/`.
 
-## [2026-04-01] - TTL Management, Archive & Review Moderation
+## [0.3.0] - 2026-04-01
+
+_TTL management, archival and review moderation._
 
 ### Added
 
 - TTL (time-to-live) management for data persistence.
 - Admin action logging.
-- Project archive & reactivate feature.
-- Project slug (URL-friendly stable identifiers).
-- Review moderation (report/hide) feature.
+- Project archive and reactivate feature.
+- Project slugs (URL-friendly stable identifiers).
+- Review moderation (report / hide) feature.
 
 ### Changed
 
-- Verification evidence schema and update flows.
+- Reworked the verification evidence schema and update flows.
 
-## [2026-02-01] - Extended Feature Set
+## [0.2.0] - 2026-02-01
+
+_Extended feature set._
 
 ### Added
 
 - Admin role management and access control system.
 - Project verification system with automated fee handling and admin controls.
-- Review timestamps and review security/auditability improvements.
+- Review timestamps plus review security and auditability improvements.
 - Strict project name validation and normalization policy.
 - Auth-matrix test coverage (#215).
-- Region metadata, integrity hash, owner review block, and event snapshot
-  tests.
+- Region metadata, integrity hash, owner review block and event snapshot tests.
 - Verified contract claims and sorting options.
-- Project metadata CID schema and admin rotation playbook.
+- Project metadata CID schema and the admin rotation playbook.
 
-## [2025-09-25] - Initial Contract
+## [0.1.0] - 2025-09-25
+
+_Initial contract._
 
 ### Added
 
-- Initial Rust/Soroban smart contract structure.
-- Core Dongle smart contract modules: project, review, verification, and fee
-  management, with associated types, events, and error handling.
+- Initial Rust / Soroban smart contract structure.
+- Core Dongle modules: project, review, verification and fee management, with
+  associated types, events and error handling.
 - On-chain review events and tests.
 - Dynamic ratings: type definitions, rating calculation module, `add_review`,
-  `update_review`, and `delete_review` with aggregate recalculation.
+  `update_review` and `delete_review` with aggregate recalculation.
 - Category enumeration and unique sequential project IDs.
 - Project registration with duplicate-prevention metadata validation.
-- Project listing and retrieval by id/owner.
+- Project listing and retrieval by id and by owner.
 - Emitted `ProjectRegistered` event.
 - Project review submission with IPFS CID.
-- Review soft deletion and rating recalculation.
+- Review soft deletion with rating recalculation.
+
+[Unreleased]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/felladaniel36-hash/Dongle-Smartcontract/releases/tag/v0.1.0
