@@ -226,8 +226,6 @@ pub struct ProjectReport {
     pub timestamp: u64,
 }
 
-
-
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
@@ -287,7 +285,6 @@ pub struct FeePaymentRecord {
     pub amount: u128,
     pub token: Option<Address>,
 }
-
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

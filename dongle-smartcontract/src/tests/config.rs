@@ -22,9 +22,15 @@ fn config_after_initialization_exposes_defaults_and_limits() {
     assert_eq!(config.fees.registration_fee, 0);
     assert_eq!(config.limits.max_page_limit, MAX_PAGE_LIMIT);
     assert_eq!(config.limits.max_projects_per_user, MAX_PROJECTS_PER_USER);
-    assert_eq!(config.limits.max_reviews_per_project, MAX_REVIEWS_PER_PROJECT);
+    assert_eq!(
+        config.limits.max_reviews_per_project,
+        MAX_REVIEWS_PER_PROJECT
+    );
     assert_eq!(config.limits.max_name_len, MAX_NAME_LEN as u32);
-    assert_eq!(config.limits.max_description_len, MAX_DESCRIPTION_LEN as u32);
+    assert_eq!(
+        config.limits.max_description_len,
+        MAX_DESCRIPTION_LEN as u32
+    );
     assert_eq!(
         config.limits.verification_validity_period,
         VERIFICATION_VALIDITY_PERIOD
