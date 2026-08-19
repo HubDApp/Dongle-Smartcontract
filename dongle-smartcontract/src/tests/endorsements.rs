@@ -84,6 +84,22 @@ fn endorse_nonexistent_project_returns_exact_error() {
 }
 
 #[test]
+fn endorse_project_requires_user_authorization() {
+    let env = Env::default();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let user = Address::generate(&env);
+    let project_id = create_test_project(&client, &owner, "UnauthorizedEndorseProject");
+
+    let result = client.try_endorse_project(&project_id, &user);
+
+    assert!(result.is_err());
+    assert_eq!(client.get_endorsement_count(&project_id), 0);
+    assert!(!client.has_endorsed(&project_id, &user));
+}
+
+#[test]
 fn unendorse_without_endorsement_returns_exact_error_without_changing_state() {
     let env = Env::default();
     env.mock_all_auths();
@@ -98,6 +114,23 @@ fn unendorse_without_endorsement_returns_exact_error_without_changing_state() {
     assert_eq!(result, Err(Ok(ContractError::NotEndorsed)));
     assert_eq!(client.get_endorsement_count(&project_id), 0);
     assert!(!client.has_endorsed(&project_id, &user));
+}
+
+#[test]
+fn unendorse_project_requires_user_authorization() {
+    let env = Env::default();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let user = Address::generate(&env);
+    let project_id = create_test_project(&client, &owner, "UnauthorizedUnendorseProject");
+    client.mock_all_auths().endorse_project(&project_id, &user);
+
+    let result = client.try_unendorse_project(&project_id, &user);
+
+    assert!(result.is_err());
+    assert_eq!(client.get_endorsement_count(&project_id), 1);
+    assert!(client.has_endorsed(&project_id, &user));
 }
 
 #[test]
@@ -174,7 +207,7 @@ fn endorsement_state_is_isolated_by_project_and_user() {
 }
 
 #[test]
-fn project_owner_can_self_endorse() {
+fn project_owner_can_self_endorse_under_current_policy() {
     let env = Env::default();
     env.mock_all_auths();
 
