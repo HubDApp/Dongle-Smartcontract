@@ -18,7 +18,12 @@ impl Utils {
     // ────────────────────────────────────────────────────────────────────
 
     /// Push `item` into `vec` only if it is not already present.
-    pub fn add_unique_to_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+    pub fn add_unique_to_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
         vec: &mut Vec<T>,
         item: &T,
     ) -> bool {
@@ -34,7 +39,12 @@ impl Utils {
     }
 
     /// Return a new Vec containing all items from `vec` except those equal to `item`.
-    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+    pub fn remove_item_from_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
         env: &Env,
         vec: &Vec<T>,
         item: &T,
@@ -136,7 +146,6 @@ impl Utils {
         let s = core::str::from_utf8(&out[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
-
 
     // ────────────────────────────────────────────────────────────────────
     // Name / slug / field validation

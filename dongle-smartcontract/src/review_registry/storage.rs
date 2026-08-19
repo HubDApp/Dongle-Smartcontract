@@ -97,9 +97,7 @@ impl ReviewRegistry {
         // 2. Endorsement requirement check
         if config.require_endorsement {
             if !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
-                env,
-                project_id,
-                reviewer,
+                env, project_id, reviewer,
             ) {
                 return Err(ContractError::ReviewerNotEligible);
             }

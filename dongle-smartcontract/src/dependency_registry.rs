@@ -133,8 +133,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 56];
             buf[0..4].copy_from_slice(b"CTR:");
             contract.copy_into_slice(&mut buf[4..60]);
-            let key_str = core::str::from_utf8(&buf[..60])
-                .map_err(|_| ContractError::InvalidProjectData)?;
+            let key_str =
+                core::str::from_utf8(&buf[..60]).map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)

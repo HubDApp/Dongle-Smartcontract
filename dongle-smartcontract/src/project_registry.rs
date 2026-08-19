@@ -15,9 +15,8 @@ use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project,
-    ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
-    VerificationStatus,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectRegistrationParams,
+    ProjectSortMode, ProjectUpdateParams, SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
@@ -1173,7 +1172,12 @@ impl ProjectRegistry {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: &Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
+    pub fn list_projects_by_tag(
+        env: &Env,
+        tag: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -2017,8 +2021,7 @@ impl ProjectRegistry {
         region: Option<String>,
     ) -> Result<(), ContractError> {
         caller.require_auth();
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
         if project.owner != caller {
             return Err(ContractError::Unauthorized);
         }
@@ -2048,7 +2051,6 @@ impl ProjectRegistry {
             .persistent()
             .get(&ExtensionKey::ProjectIntegrityHash(project_id))
     }
-
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
     /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
