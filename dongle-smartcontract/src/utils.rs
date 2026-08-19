@@ -4,7 +4,7 @@ use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
-    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
+    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
@@ -341,13 +341,27 @@ impl Utils {
         Ok(())
     }
 
-    /// Validate the social links map (each value must be a valid URL).
+    /// Validate social link platform keys and URLs.
     pub fn validate_social_links(
         links: &soroban_sdk::Map<String, String>,
     ) -> Result<(), ContractError> {
         let keys = links.keys();
         for i in 0..keys.len() {
             if let Some(key) = keys.get(i) {
+                let key_len = key.len() as usize;
+                if key_len == 0 || key_len > MAX_SOCIAL_LINK_PLATFORM_LEN {
+                    return Err(ContractError::InvalidInput);
+                }
+
+                let mut key_buf = [0u8; MAX_SOCIAL_LINK_PLATFORM_LEN];
+                key.copy_into_slice(&mut key_buf[..key_len]);
+                if key_buf[..key_len]
+                    .iter()
+                    .any(|&b| !b.is_ascii_alphanumeric() && b != b'-' && b != b'_')
+                {
+                    return Err(ContractError::InvalidInput);
+                }
+
                 if let Some(url) = links.get(key) {
                     Self::validate_website(&url)?;
                 }
