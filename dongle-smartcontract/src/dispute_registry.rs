@@ -5,7 +5,7 @@ use crate::events::{
     publish_duplicate_dispute_opened_event, publish_duplicate_dispute_resolved_event,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{AdminActionType, DisputeResolutionAction, DisputeStatus, DuplicateDispute};
 use crate::utils::Utils;
@@ -46,7 +46,7 @@ impl DisputeRegistry {
         }
 
         // Generate next dispute ID
-        let mut dispute_id: u64 = env
+        let dispute_id: u64 = env
             .storage()
             .persistent()
             .get(&ExtensionKey::NextDuplicateDisputeId)

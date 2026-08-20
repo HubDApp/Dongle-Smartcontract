@@ -7,7 +7,6 @@ use crate::constants::{
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
-use crate::storage_keys::StorageKey;
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
@@ -18,7 +17,12 @@ impl Utils {
     // ────────────────────────────────────────────────────────────────────
 
     /// Push `item` into `vec` only if it is not already present.
-    pub fn add_unique_to_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+    pub fn add_unique_to_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
         vec: &mut Vec<T>,
         item: &T,
     ) -> bool {
@@ -34,7 +38,12 @@ impl Utils {
     }
 
     /// Return a new Vec containing all items from `vec` except those equal to `item`.
-    pub fn remove_item_from_vec<T: PartialEq + Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val> + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+    pub fn remove_item_from_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
         env: &Env,
         vec: &Vec<T>,
         item: &T,
@@ -95,12 +104,10 @@ impl Utils {
         let mut out = [0u8; 64];
         name.copy_into_slice(&mut src[..max]);
 
-        let mut out_buf = [0u8; 64];
         let mut out_len: usize = 0;
         let mut last_was_space = true; // treat start as "space" to strip leading
 
-        for i in 0..max {
-            let b = src[i];
+        for &b in src.iter().take(max) {
             let normalized = if b.is_ascii_uppercase() {
                 b + 32
             } else if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' {
@@ -136,7 +143,6 @@ impl Utils {
         let s = core::str::from_utf8(&out[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
-
 
     // ────────────────────────────────────────────────────────────────────
     // Name / slug / field validation
@@ -362,7 +368,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 40 || len > MAX_CID_LEN {
+        if !(40..=MAX_CID_LEN).contains(&len) {
             return false;
         }
 

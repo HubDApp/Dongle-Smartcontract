@@ -360,6 +360,7 @@ pub fn publish_review_event(
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn publish_review_revision_event(
     env: &Env,
     project_id: u64,
@@ -2079,7 +2080,11 @@ pub fn publish_changelog_added_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("CHANGELOG"), symbol_short!("ADDED"), project_id),
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("ADDED"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -2097,7 +2102,11 @@ pub fn publish_changelog_removed_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("CHANGELOG"), symbol_short!("REMOVED"), project_id),
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("REMOVED"),
+            project_id,
+        ),
         event_data,
     );
 }
