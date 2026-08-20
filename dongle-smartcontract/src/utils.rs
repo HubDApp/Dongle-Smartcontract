@@ -4,7 +4,7 @@ use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
-    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_WEBSITE_LEN,
+    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_TAG_LENGTH, MAX_TAGS_PER_PROJECT, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
@@ -329,20 +329,27 @@ impl Utils {
         Ok(())
     }
 
-    /// Validate the tags list (each tag must be non-empty ASCII alphanumeric/hyphen/underscore).
+    /// Validate the tags list.
+    ///
+    /// Rules:
+    /// - At most `MAX_TAGS_PER_PROJECT` tags.
+    /// - Each tag is non-empty, at most `MAX_TAG_LENGTH` bytes, and ASCII
+    ///   alphanumeric / hyphen / underscore only.
+    /// - Values must be unique after ASCII-lowercase normalization
+    ///   (e.g. `DeFi` and `defi` are duplicates).
     pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
+        if tags.len() > MAX_TAGS_PER_PROJECT {
+            return Err(ContractError::InvalidTags);
+        }
+
         for i in 0..tags.len() {
             if let Some(tag) = tags.get(i) {
-                let len = tag.len() as usize;
-                if len == 0 {
-                    return Err(ContractError::InvalidInput);
-                }
-                let mut buf = [0u8; 64];
-                let cap = if len < buf.len() { len } else { buf.len() };
-                tag.copy_into_slice(&mut buf[..cap]);
-                for &b in buf[..cap].iter() {
-                    if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
-                        return Err(ContractError::InvalidInput);
+                Self::validate_single_tag(&tag)?;
+                for j in 0..i {
+                    if let Some(prev) = tags.get(j) {
+                        if Self::tags_equal_normalized(&tag, &prev) {
+                            return Err(ContractError::InvalidTags);
+                        }
                     }
                 }
             }
@@ -350,7 +357,45 @@ impl Utils {
         Ok(())
     }
 
-    /// Validate social link platform keys and URLs.
+    fn validate_single_tag(tag: &String) -> Result<(), ContractError> {
+        let len = tag.len() as usize;
+        if len == 0 || len > MAX_TAG_LENGTH {
+            return Err(ContractError::InvalidTags);
+        }
+
+        let mut buf = [0u8; MAX_TAG_LENGTH];
+        tag.copy_into_slice(&mut buf[..len]);
+        for &b in buf[..len].iter() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidTags);
+            }
+        }
+        Ok(())
+    }
+
+    /// Case-insensitive equality after ASCII-lowercase normalization.
+    /// Callers must already have validated each tag length is `<= MAX_TAG_LENGTH`.
+    fn tags_equal_normalized(a: &String, b: &String) -> bool {
+        let a_len = a.len() as usize;
+        let b_len = b.len() as usize;
+        if a_len != b_len {
+            return false;
+        }
+
+        let mut a_buf = [0u8; MAX_TAG_LENGTH];
+        let mut b_buf = [0u8; MAX_TAG_LENGTH];
+        a.copy_into_slice(&mut a_buf[..a_len]);
+        b.copy_into_slice(&mut b_buf[..b_len]);
+
+        for i in 0..a_len {
+            if a_buf[i].to_ascii_lowercase() != b_buf[i].to_ascii_lowercase() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Validate the social links map (each value must be a valid URL).
     pub fn validate_social_links(
         links: &soroban_sdk::Map<String, String>,
     ) -> Result<(), ContractError> {

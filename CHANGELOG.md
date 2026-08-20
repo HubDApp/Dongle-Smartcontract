@@ -40,12 +40,8 @@ for the full policy.
 
 ### Added
 
-- `CHANGELOG.md` policy tooling: `scripts/validate_changelog.py` validates the
-  Keep a Changelog structure (heading order, SemVer versions, ISO dates,
-  allowed section names, link references, and crate-version agreement) and is
-  wired into CI as the `validate-changelog` job (#505).
-- Changelog contribution policy documented in `docs/CONTRIBUTING.md`, including
-  a PR checklist item requiring an `Unreleased` entry.
+- Tag validation now rejects duplicate values (case-insensitive after ASCII
+  lowercase normalization) with `InvalidTags` (#526).
 
 ### Changed
 
