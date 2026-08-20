@@ -5,7 +5,7 @@
 
 use crate::constants::*;
 use crate::storage_keys::{ExtensionKey, StorageKey};
-use soroban_sdk::{Address, Env, IntoVal, Val, String, Vec};
+use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -252,6 +252,16 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &StorageKey::OwnerProjects(owner.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for the active owner projects list.
+    pub fn extend_active_owner_projects_ttl(env: &Env, owner: &Address) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ActiveOwnerProjects(owner.clone()),
             LEDGER_THRESHOLD_USER,
             LEDGER_BUMP_USER,
         );

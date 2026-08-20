@@ -97,9 +97,7 @@ impl ReviewRegistry {
         // 2. Endorsement requirement check
         if config.require_endorsement {
             if !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
-                env,
-                project_id,
-                reviewer,
+                env, project_id, reviewer,
             ) {
                 return Err(ContractError::ReviewerNotEligible);
             }
@@ -404,7 +402,40 @@ impl ReviewRegistry {
             env.storage().persistent().set(&count_key, &new_count);
             revision_count
         } else {
-            revision_count.saturating_sub(1)
+            let start_idx = revision_count.saturating_sub(MAX_REVIEW_REVISIONS - 1);
+            for j in 0..(MAX_REVIEW_REVISIONS - 1) {
+                let src_idx = start_idx + j;
+                let from_key = ExtensionKey::ReviewRevision(project_id, reviewer.clone(), src_idx);
+                if let Some(mut rev) = env.storage().persistent().get::<_, ReviewRevision>(&from_key) {
+                    rev.revision_index = j;
+                    let to_key = ExtensionKey::ReviewRevision(project_id, reviewer.clone(), j);
+                    env.storage().persistent().set(&to_key, &rev);
+                }
+            }
+
+            let new_index = MAX_REVIEW_REVISIONS - 1;
+            env.storage().persistent().set(
+                &ExtensionKey::ReviewRevision(project_id, reviewer.clone(), new_index),
+                &ReviewRevision {
+                    revision_index: new_index,
+                    rating,
+                    content_cid,
+                    revised_at,
+                },
+            );
+            env.storage().persistent().set(&count_key, &MAX_REVIEW_REVISIONS);
+
+            if revision_count > MAX_REVIEW_REVISIONS {
+                for i in MAX_REVIEW_REVISIONS..revision_count {
+                    env.storage().persistent().remove(&ExtensionKey::ReviewRevision(
+                        project_id,
+                        reviewer.clone(),
+                        i,
+                    ));
+                }
+            }
+
+            new_index
         }
     }
 
