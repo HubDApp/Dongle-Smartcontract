@@ -39,6 +39,57 @@ All single-entity lookup functions (such as `get_project`, `get_collection`, `ge
 
 ## Initialization & Admin Management
 
+### Multi-Sig Governance Workflow
+
+The admin approval threshold determines whether supported administrative actions use a direct call or an on-chain proposal:
+
+| Current threshold | Operational path |
+| --- | --- |
+| `1` | One authenticated admin may use the direct function. A proposal also works, but is immediately `Approved` because the proposer supplies the first approval. |
+| Greater than `1` | Use `create_proposal` -> `approve_proposal` -> `execute_proposal`. The corresponding direct functions return `Unauthorized`. |
+
+This routing applies to the actions represented by `ProposalPayload`: adding or removing an admin, changing the fee configuration and treasury, changing the approval threshold, and approving, rejecting, or revoking a verification. Other admin-only functions that have no `ProposalPayload` variant continue to use their documented direct-call authorization rules.
+
+#### Complete proposal flow
+
+1. Read `get_admin_list` and `get_admin_approval_threshold` so operators know the current eligible signers and quorum.
+2. Construct exactly one `ProposalPayload` action and have a current admin call `create_proposal`. The contract authenticates the proposer, assigns the next proposal ID, records the payload and its hash, and automatically adds the proposer as the first approval. The initial status is `Approved` when that one approval meets the current threshold; otherwise it is `Pending`.
+3. Distribute the proposal ID and verify the stored payload with `get_proposal` before signing. Each additional current admin calls `approve_proposal` once. Duplicate approvals fail, and approvals can only be added while the proposal is `Pending`. The call that reaches the current threshold changes its status to `Approved`.
+4. Re-read the proposal and the current threshold immediately before execution. Any current admin may call `execute_proposal`; the executor does not have to be the proposer or one of the approvers. Execution checks the live threshold again, applies the payload atomically, and changes the status to `Executed`.
+5. Confirm the resulting contract state and the proposal's `Executed` status. A proposal cannot be executed twice.
+
+Proposals do not execute automatically when quorum is reached. There is also no proposal expiry or cancellation operation in this interface, so operational tooling should track all non-executed proposals and avoid creating ambiguous duplicates.
+
+#### Threshold changes and existing proposals
+
+The threshold is **not snapshotted** into an `AdminProposal`. Creation, approval, and execution each read the threshold that is current at the time of that call. Consequently:
+
+- Raising the threshold affects every unexecuted proposal. A proposal already marked `Approved` can fail execution when its recorded approval count is below the new threshold. Because `approve_proposal` only accepts `Pending` proposals, no more approvals can be added to that already-`Approved` proposal; it remains blocked until the threshold is lowered sufficiently. Operators should therefore execute ready proposals before raising the threshold, or recreate them after the change.
+- Lowering the threshold also affects every unexecuted proposal immediately. A `Pending` proposal whose existing approval count meets the new threshold can be executed even if its stored status has not yet changed to `Approved`, because `execute_proposal` validates the live approval count rather than requiring the `Approved` status. A later valid approval would also refresh a `Pending` proposal to `Approved`.
+- Changing the threshold from a value greater than `1` must itself use a `SetThreshold` proposal. The direct `set_admin_approval_threshold` call is available only while the current threshold is `1`.
+- A proposed threshold is validated when executed and must be between `1` and the admin count at that moment. Admin-set changes can therefore make a previously valid `SetThreshold` payload fail at execution.
+
+Approval entries are historical addresses stored on the proposal. Execution checks their count, but does not revalidate that every approver is still an admin; only the executor must be a current admin. For predictable governance, complete or replace outstanding proposals as part of any admin rotation.
+
+#### Example: two-of-three administration
+
+```rust
+let payload = ProposalPayload::SetThreshold(3);
+
+// admin_1's signature is recorded as approval one.
+let proposal_id = create_proposal(env, admin_1, payload)?;
+
+// A distinct current admin supplies approval two, reaching the current 2-of-3 quorum.
+approve_proposal(env, admin_2, proposal_id)?;
+
+// Any current admin may execute. This changes the threshold to 3.
+execute_proposal(env, admin_3, proposal_id)?;
+```
+
+The address arguments shown above must authorize their respective contract invocations.
+
+---
+
 ### `initialize`
 
 **Purpose**: Initialize the contract with an initial admin address. This function must be called exactly once before any other operations.
