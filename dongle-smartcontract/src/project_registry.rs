@@ -2111,7 +2111,7 @@ mod tests {
         // 3. Validate alphanumeric, underscore, hyphen
         for c in name_str.chars() {
             if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidNameFormat);
+                return Err(ContractError::InvalidProjectNameFormat);
             }
         }
 
@@ -2154,7 +2154,7 @@ mod tests {
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "Cat"),
         );
-        assert_eq!(result, Err(ContractError::InvalidNameFormat));
+        assert_eq!(result, Err(ContractError::InvalidProjectNameFormat));
     }
 
     #[test]
