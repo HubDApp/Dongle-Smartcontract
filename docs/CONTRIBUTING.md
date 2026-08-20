@@ -20,6 +20,18 @@ git pull origin main
 git checkout -b feature/your-feature-name
 ```
 
+### Commit Message Conventions
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+- **feat**: A new feature
+- **fix**: A bug fix
+- **docs**: Documentation only changes
+- **style**: Changes that do not affect the meaning of the code
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+- **test**: Adding missing tests or correcting existing tests
+- **chore**: Changes to the build process or auxiliary tools
+
+Example: `feat: add project review capability`
+
 ---
 
 ## 2. Local Testing & Building
@@ -27,7 +39,10 @@ git checkout -b feature/your-feature-name
 ### Running Tests
 Always run the test suite locally before pushing changes:
 ```bash
-# Run all tests
+# Run all tests using Make (preferred)
+make test
+
+# Or run all tests using Cargo
 cargo test
 
 # Run tests for a specific module or feature
@@ -113,7 +128,17 @@ gh pr create \
 
 ---
 
-## 5. Troubleshooting & CI Failures
+## 5. Code Review Process
+
+Once your PR is opened, it will undergo review by the maintainers:
+1. **Automated Checks**: Ensure all CI/CD pipelines (tests, lints, builds) pass successfully.
+2. **Review**: One or more maintainers will review the code for logic, security, and standards. They may leave comments requesting changes.
+3. **Addressing Feedback**: Make any requested changes by committing them to your branch and pushing them. Do not squash commits during the review process as it makes it harder to review subsequent changes.
+4. **Approval & Merge**: Once approved, the maintainer will squash and merge your PR into `main`.
+
+---
+
+## 6. Troubleshooting & CI Failures
 
 - **Merge Conflicts / Outdated Branch**:
   Rebase your feature branch against latest `main`:
