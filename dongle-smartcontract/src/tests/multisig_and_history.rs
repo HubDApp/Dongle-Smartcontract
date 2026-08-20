@@ -146,6 +146,33 @@ fn test_admin_multisig_approval_threshold() {
 }
 
 #[test]
+fn test_proposal_ids_start_at_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1) = setup_contract(&env);
+
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    client.add_admin(&admin1, &admin2);
+    client.add_admin(&admin1, &admin3);
+
+    // First proposal should get ID 0
+    let payload1 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id1 = client.create_proposal(&admin1, &payload1);
+    assert_eq!(id1, 0);
+
+    // Second proposal should get ID 1
+    let payload2 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id2 = client.create_proposal(&admin2, &payload2);
+    assert_eq!(id2, 1);
+
+    // Third proposal should get ID 2
+    let payload3 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id3 = client.create_proposal(&admin3, &payload3);
+    assert_eq!(id3, 2);
+}
+
+#[test]
 fn test_execute_proposal_rejects_corrupted_payload() {
     let env = Env::default();
     env.mock_all_auths();
