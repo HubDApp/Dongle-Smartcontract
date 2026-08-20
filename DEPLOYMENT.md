@@ -161,6 +161,89 @@ soroban contract inspect \
 
 ---
 
+## Post-Deploy Governance Operations
+
+After initialize, privileged admin changes (adding/removing admins, raising the approval threshold, fee updates, verification decisions) can be executed directly **only while** `get_admin_approval_threshold` is `1`. Once the threshold is greater than `1`, those mutations must go through the multi-sig proposal workflow: `create_proposal` → `approve_proposal` → `execute_proposal`.
+
+Use [`scripts/invoke.sh`](scripts/invoke.sh). Each call is signed by `DEPLOYER_IDENTITY` (the admin whose key is used for that step). Export `CONTRACT_ID` or keep `.contract_id` from deploy.
+
+### 1. Bootstrap additional admins (threshold still 1)
+
+```bash
+export NETWORK=testnet
+export DEPLOYER_IDENTITY=alice          # current admin identity
+
+# Add co-admins while single-admin mode still allows direct add_admin
+./scripts/invoke.sh add_admin "$(soroban keys address bob)"
+./scripts/invoke.sh add_admin "$(soroban keys address carol)"
+
+# Require two approvals before a proposal can execute
+./scripts/invoke.sh set_admin_approval_threshold 2
+./scripts/invoke.sh get_admin_approval_threshold
+```
+
+Direct `add_admin` / `remove_admin` now returns `Unauthorized`. Use proposals instead.
+
+### 2. Create a proposal
+
+Example: propose adding a fourth admin. The proposer is counted as the first approval.
+
+```bash
+export DEPLOYER_IDENTITY=alice
+./scripts/invoke.sh create_proposal add_admin "$(soroban keys address dave)"
+```
+
+The invoke prints the new `proposal_id` (for example `1`). Inspect it:
+
+```bash
+./scripts/invoke.sh get_proposal 1
+```
+
+Other payloads supported by the helper:
+
+```bash
+./scripts/invoke.sh create_proposal remove_admin <admin_address>
+./scripts/invoke.sh create_proposal set_threshold 3
+./scripts/invoke.sh create_proposal set_fee none 1000 500 <treasury_address>
+./scripts/invoke.sh create_proposal approve_verification 1
+./scripts/invoke.sh create_proposal reject_verification 1
+./scripts/invoke.sh create_proposal revoke_verification 1 "policy violation"
+```
+
+### 3. Collect approvals
+
+A second distinct admin must approve until `approvals.len() >= threshold`. The original proposer cannot approve twice.
+
+```bash
+export DEPLOYER_IDENTITY=bob
+./scripts/invoke.sh approve_proposal 1
+
+./scripts/invoke.sh get_proposal 1
+# status should be Approved when the threshold is met
+```
+
+### 4. Execute the proposal
+
+Any admin (including one who has not approved) can execute once the threshold is met. Execution applies the payload (here, adding `dave` as admin) and marks the proposal `Executed`.
+
+```bash
+export DEPLOYER_IDENTITY=carol
+./scripts/invoke.sh execute_proposal 1
+
+./scripts/invoke.sh get_proposal 1
+./scripts/invoke.sh is_admin "$(soroban keys address dave)"
+```
+
+Re-executing an already executed proposal fails with `InvalidStatus`.
+
+### Threshold 1 shortcut
+
+If the threshold is still `1`, `create_proposal` is auto-approved (the proposer's vote meets the threshold). Skip `approve_proposal` and call `execute_proposal` immediately.
+
+For operational key rotation with this flow, see [docs/ADMIN_ROTATION_PLAYBOOK.md](docs/ADMIN_ROTATION_PLAYBOOK.md).
+
+---
+
 ## CI/CD Validation
 
 To prevent invalid, broken, or undocumented deployments from entering the `main` branch, the CI/CD pipeline runs `scripts/validate_deployments.py` on every push and pull request. If the script fails, the CI check will fail, blocking merges.
