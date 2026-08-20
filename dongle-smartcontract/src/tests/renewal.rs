@@ -398,6 +398,7 @@ fn test_is_verification_expired_no_expiry() {
     // Check expiry (should be false since expires_at = 0)
     let is_expired = client.is_verification_expired(&project_id);
     assert_eq!(is_expired, false);
+    assert_eq!(client.is_verification_expiring_soon(&project_id, &u64::MAX), false);
 }
 
 // ---------------------------------------------------------------------------

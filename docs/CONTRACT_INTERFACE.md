@@ -2565,6 +2565,22 @@ let history = get_verification_history(env, project_id);
 let expired = is_verification_expired(env, project_id)?;
 ```
 
+### `is_verification_expiring_soon`
+
+**Purpose**: Report whether a verification will expire within a caller-supplied renewal-warning threshold.
+
+**Parameters**:
+- `project_id` (u64): Project to inspect.
+- `threshold_seconds` (u64): Maximum remaining lifetime for the warning.
+
+**Returns**:
+- `true` when the verification has a nonzero expiry, is not already expired, and has at most `threshold_seconds` remaining.
+- `false` for no-expiry and already-expired records.
+
+```rust
+let expiring_soon = is_verification_expiring_soon(env, project_id, 2_592_000)?;
+```
+
 ---
 
 ### `clear_verification_history`
