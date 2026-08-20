@@ -59,6 +59,7 @@ impl FeeManager {
     ///
     /// Validates fee config/treasury, transfers tokens (when amount > 0), sets the
     /// paid flag, stores a [`FeePaymentRecord`], and emits a fee-paid event.
+    #[allow(clippy::too_many_arguments)]
     fn execute_fee_payment(
         env: &Env,
         payer: Address,
@@ -171,9 +172,7 @@ impl FeeManager {
         operation: FeeOperation,
         amount: u128,
     ) -> Result<(), ContractError> {
-        env.storage()
-            .persistent()
-            .remove(&paid_key);
+        env.storage().persistent().remove(&paid_key);
         publish_fee_consumed_event(env, event_project_id, caller, operation, amount);
         Ok(())
     }
@@ -326,8 +325,8 @@ impl FeeManager {
             return Err(ContractError::InsufficientFee);
         }
 
-        let record = Self::get_fee_payment_details(env, project_id)
-            .ok_or(ContractError::InsufficientFee)?;
+        let record =
+            Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
 
         // Authorization: Payer or Admin only
         let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
@@ -348,7 +347,7 @@ impl FeeManager {
         if record.amount > 0 {
             let token_address = record.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
             let treasury = Self::get_treasury(env)?;
-            
+
             // Treasury authorization is required to transfer tokens out of the treasury
             treasury.require_auth();
             let token_client = soroban_sdk::token::Client::new(env, &token_address);

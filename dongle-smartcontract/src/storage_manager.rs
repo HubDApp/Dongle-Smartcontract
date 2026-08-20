@@ -5,7 +5,7 @@
 
 use crate::constants::*;
 use crate::storage_keys::{ExtensionKey, StorageKey};
-use soroban_sdk::{Address, Env, IntoVal, Val, String, Vec};
+use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -241,7 +241,7 @@ impl StorageManager {
     }
 
     /// Extend TTL for project bounty url (removed - not part of core storage)
-    pub fn extend_project_bounty_url_ttl(env: &Env, project_id: u64) {
+    pub fn extend_project_bounty_url_ttl(_env: &Env, _project_id: u64) {
         // Bounty URL storage removed - not part of core implementation
     }
 

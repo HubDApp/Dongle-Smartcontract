@@ -34,7 +34,7 @@ impl DependencyRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         for &c in buf.iter() {
-            if !(c.is_ascii_uppercase() || (c >= b'2' && c <= b'7')) {
+            if !(c.is_ascii_uppercase() || (b'2'..=b'7').contains(&c)) {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -133,8 +133,8 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 56];
             buf[0..4].copy_from_slice(b"CTR:");
             contract.copy_into_slice(&mut buf[4..60]);
-            let key_str = core::str::from_utf8(&buf[..60])
-                .map_err(|_| ContractError::InvalidProjectData)?;
+            let key_str =
+                core::str::from_utf8(&buf[..60]).map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)
@@ -253,7 +253,7 @@ impl DependencyRegistry {
             .persistent()
             .remove(&ExtensionKey::ProjectDependency(project_id, key.clone()));
 
-        let mut keys: Vec<String> = env
+        let keys: Vec<String> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))

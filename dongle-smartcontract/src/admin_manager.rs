@@ -241,7 +241,7 @@ impl AdminManager {
         proposer.require_auth();
         Self::require_admin(env, &proposer)?;
 
-        let mut id: u64 = env
+        let id: u64 = env
             .storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
