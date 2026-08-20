@@ -141,3 +141,38 @@ fn test_weighted_rating_formula_validation() {
     assert_eq!(RatingCalculator::calculate_average(2000, 4), 500);
     assert_eq!(RatingCalculator::calculate_weighted(2000, 4), 416);
 }
+
+#[test]
+fn test_review_revision_history_pruning_at_max_limit() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Prune-Revisions-Project");
+    let reviewer = Address::generate(&env);
+
+    let cid_base = String::from_str(&env, CID_V1);
+    client.submit_review(&project_id, &reviewer, &1, &cid_base);
+
+    // Perform 52 updates to exceed MAX_REVIEW_REVISIONS (50)
+    for i in 1..=52 {
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+        let new_rating = (i % 5) + 1;
+        client.update_review(&project_id, &reviewer, &new_rating, &Some(cid_base.clone()));
+    }
+
+    let revision_count = client.get_review_revision_count(&project_id, &reviewer);
+    assert_eq!(revision_count, 50, "Revision count must be capped at 50");
+
+    let history = client.get_review_history(&project_id, &reviewer, &0, &100);
+    assert_eq!(history.len(), 50, "History length must not exceed 50");
+
+    // The first revision in history should have revision_index 0
+    let first = history.get(0).unwrap();
+    assert_eq!(first.revision_index, 0);
+
+    // The last revision in history should have revision_index 49
+    let last = history.get(49).unwrap();
+    assert_eq!(last.revision_index, 49);
+}
+
