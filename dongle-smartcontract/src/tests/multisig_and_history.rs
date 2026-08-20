@@ -163,10 +163,9 @@ fn test_execute_proposal_rejects_corrupted_payload() {
     let mut corrupted = proposal;
     corrupted.payload = ProposalPayload::AddAdmin(Address::generate(&env));
     env.as_contract(&client.address, || {
-        env.storage().persistent().set(
-            &ExtensionKey::AdminProposal(proposal_id),
-            &corrupted,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::AdminProposal(proposal_id), &corrupted);
     });
 
     // Execution must be rejected with PayloadHashMismatch and must not run the
@@ -179,10 +178,7 @@ fn test_execute_proposal_rejects_corrupted_payload() {
     assert_eq!(proposal.status, ProposalStatus::Approved);
 
     // The corrupted payload's admin must not have been added.
-    let stored = client
-        .get_proposal(&proposal_id)
-        .unwrap()
-        .payload;
+    let stored = client.get_proposal(&proposal_id).unwrap().payload;
     if let ProposalPayload::AddAdmin(corrupted_admin) = stored {
         assert!(!client.is_admin(&corrupted_admin));
     } else {

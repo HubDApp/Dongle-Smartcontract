@@ -40,9 +40,11 @@ impl ConfigRegistry {
         let key = ExtensionKey::Paused;
         let paused: bool = env.storage().persistent().get(&key).unwrap_or(false);
         if env.storage().persistent().has(&key) {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, LEDGER_THRESHOLD_CRITICAL, LEDGER_BUMP_CRITICAL);
+            env.storage().persistent().extend_ttl(
+                &key,
+                LEDGER_THRESHOLD_CRITICAL,
+                LEDGER_BUMP_CRITICAL,
+            );
         }
         paused
     }
