@@ -5,7 +5,7 @@
 extern crate alloc;
 use alloc::string::String as StdString;
 
-use crate::constants::{MAX_TAG_LENGTH, MAX_TAGS_PER_PROJECT};
+use crate::constants::{MAX_TAGS_PER_PROJECT, MAX_TAG_LENGTH};
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProjectRegistrationParams, ProjectUpdateParams};
@@ -42,7 +42,12 @@ fn unique_tags(env: &Env, count: u32) -> Vec<String> {
     list
 }
 
-fn registration_params(env: &Env, owner: &Address, name: &str, tag_list: Vec<String>) -> ProjectRegistrationParams {
+fn registration_params(
+    env: &Env,
+    owner: &Address,
+    name: &str,
+    tag_list: Vec<String>,
+) -> ProjectRegistrationParams {
     let slug = name.to_lowercase().replace(' ', "-");
     ProjectRegistrationParams {
         owner: owner.clone(),
@@ -61,7 +66,12 @@ fn registration_params(env: &Env, owner: &Address, name: &str, tag_list: Vec<Str
     }
 }
 
-fn update_params(env: &Env, project_id: u64, caller: &Address, tag_list: Vec<String>) -> ProjectUpdateParams {
+fn update_params(
+    env: &Env,
+    project_id: u64,
+    caller: &Address,
+    tag_list: Vec<String>,
+) -> ProjectUpdateParams {
     ProjectUpdateParams {
         project_id,
         caller: caller.clone(),
@@ -169,10 +179,7 @@ fn tag_over_max_length_rejected() {
     let e = mk_env();
     let mut list = Vec::new(&e);
     list.push_back(repeat_byte(&e, b'a', MAX_TAG_LENGTH + 1));
-    assert_eq!(
-        Utils::validate_tags(&list),
-        Err(ContractError::InvalidTags)
-    );
+    assert_eq!(Utils::validate_tags(&list), Err(ContractError::InvalidTags));
 }
 
 #[test]
@@ -201,7 +208,12 @@ fn register_project_rejects_duplicate_tags() {
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
-    let params = registration_params(&env, &owner, "DupTagsProject", tags(&env, &["defi", "defi", "nft"]));
+    let params = registration_params(
+        &env,
+        &owner,
+        "DupTagsProject",
+        tags(&env, &["defi", "defi", "nft"]),
+    );
     let result = client.try_register_project(&params);
     assert_eq!(result, Err(Ok(ContractError::InvalidTags.into())));
 }
