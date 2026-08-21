@@ -175,4 +175,3 @@ fn test_review_revision_history_pruning_at_max_limit() {
     let last = history.get(49).unwrap();
     assert_eq!(last.revision_index, 49);
 }
-
