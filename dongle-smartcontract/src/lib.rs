@@ -150,6 +150,13 @@ impl DongleContract {
         AdminManager::get_proposal(&env, proposal_id)
     }
 
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start, limit)
+    }
+
     // --- Contract Pause / Emergency Stop ---
 
     /// Pause the contract (admin-only). All non-admin mutating operations will fail.
