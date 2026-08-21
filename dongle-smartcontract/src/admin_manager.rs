@@ -576,6 +576,34 @@ impl AdminManager {
                 proposal_id,
             ))
     }
+
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset into the proposal ID list and `limit`
+    /// caps how many proposals are returned (clamped to `MAX_PAGE_LIMIT`).
+    /// Returns the corresponding `AdminProposal` structs for the paginated
+    /// slice of IDs, skipping any that are missing from storage.
+    pub fn list_proposals(env: &Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&crate::storage_keys::ExtensionKey::AdminProposalIds)
+            .unwrap_or_else(|| Vec::new(env));
+        let page_ids = crate::pagination::paginate(env, &ids, start, limit);
+        let mut result = Vec::new(env);
+        for proposal_id in page_ids.iter() {
+            if let Some(proposal) = env
+                .storage()
+                .persistent()
+                .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                    proposal_id,
+                ))
+            {
+                result.push_back(proposal);
+            }
+        }
+        result
+    }
 }
 
 #[cfg(test)]
