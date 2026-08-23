@@ -91,9 +91,6 @@ impl ProjectRegistry {
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
         }
-        if let Some(bounty_url) = &params.bounty_url {
-            Utils::validate_website(bounty_url)?;
-        }
 
         Self::ensure_owner_capacity(env, &params.owner)?;
 
