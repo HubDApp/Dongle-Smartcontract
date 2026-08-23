@@ -23,6 +23,8 @@ pub enum StorageKey {
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
     ProjectByNormalizedName(String),
+    /// Project lifecycle status by project ID.
+    ProjectLifecycleStatus(u64),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
