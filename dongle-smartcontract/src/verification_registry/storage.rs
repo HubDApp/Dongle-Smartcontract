@@ -831,6 +831,26 @@ impl VerificationRegistry {
         Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
     }
 
+    pub fn is_verification_expiring_soon(
+        env: &Env,
+        project_id: u64,
+        threshold_seconds: u64,
+    ) -> Result<bool, ContractError> {
+        let verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
+        if verification.expires_at == 0 {
+            return Ok(false);
+        }
+
+        let now = env.ledger().timestamp();
+        if now > verification.expires_at {
+            return Ok(false);
+        }
+
+        Ok(now.saturating_add(threshold_seconds) >= verification.expires_at)
+    }
+
     /// Admin-only: prune verification history for a project, retaining only the
     /// most recent `keep_count` records. Pass `keep_count = 0` to remove all
     /// historical records (the live `Verification(project_id)` record is never removed).

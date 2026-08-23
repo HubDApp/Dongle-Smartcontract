@@ -257,6 +257,16 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for the active owner projects list.
+    pub fn extend_active_owner_projects_ttl(env: &Env, owner: &Address) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ActiveOwnerProjects(owner.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
     /// Extend TTL for user reviews list
     pub fn extend_user_reviews_ttl(env: &Env, user: &Address) {
         Self::extend_if_exists(

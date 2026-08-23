@@ -64,6 +64,42 @@ fn test_archived_project_excluded_from_list_projects() {
 }
 
 #[test]
+fn test_archiving_and_reactivating_updates_owner_project_index() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let project_id = create_test_project(&client, &owner, "IndexedProject");
+    assert_eq!(client.get_projects_by_owner(&owner).len(), 1);
+
+    client.archive_project(&project_id, &owner);
+    assert_eq!(client.get_projects_by_owner(&owner).len(), 0);
+
+    client.reactivate_project(&project_id, &owner);
+    let projects = client.get_projects_by_owner(&owner);
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects.get(0).unwrap().id, project_id);
+}
+
+#[test]
+fn test_archived_project_stays_out_of_active_index_after_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup_contract(&env);
+    let old_owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+
+    let project_id = create_test_project(&client, &old_owner, "ArchivedTransfer");
+    client.archive_project(&project_id, &old_owner);
+    client.initiate_transfer(&project_id, &old_owner, &new_owner);
+    client.accept_transfer(&project_id, &new_owner);
+
+    assert_eq!(client.get_projects_by_owner(&old_owner).len(), 0);
+    assert_eq!(client.get_projects_by_owner(&new_owner).len(), 0);
+}
+
+#[test]
 fn test_archived_project_excluded_from_list_by_category() {
     let env = Env::default();
     env.mock_all_auths();

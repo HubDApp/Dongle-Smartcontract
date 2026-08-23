@@ -148,6 +148,13 @@ impl DongleContract {
         AdminManager::get_proposal(&env, proposal_id)
     }
 
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start, limit)
+    }
+
     // --- Contract Pause / Emergency Stop ---
 
     /// Pause the contract (admin-only). All non-admin mutating operations will fail.
@@ -725,6 +732,16 @@ impl DongleContract {
 
     pub fn is_verification_expired(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expired(&env, project_id)
+    }
+
+    /// Returns whether a non-expired verification will expire within the
+    /// supplied threshold. This is a read-only renewal-warning helper.
+    pub fn is_verification_expiring_soon(
+        env: Env,
+        project_id: u64,
+        threshold_seconds: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
     }
 
     /// Admin: prune verification history, keeping the most recent `keep_count` records.
