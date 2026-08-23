@@ -1440,11 +1440,7 @@ impl ProjectRegistry {
             &new_owner_projects,
         );
         if !project.archived {
-            Self::add_active_owner_project(
-                env,
-                &claim_request.claimant,
-                claim_request.project_id,
-            );
+            Self::add_active_owner_project(env, &claim_request.claimant, claim_request.project_id);
         }
 
         // Save project

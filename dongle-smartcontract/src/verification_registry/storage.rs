@@ -837,15 +837,17 @@ impl VerificationRegistry {
     ) -> Result<bool, ContractError> {
         let verification =
             Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
-        
-        let now = env.ledger().timestamp();
-        // If it's already expired or expires_at is 0 (doesn't expire), it's not "expiring soon"
-        if verification.expires_at == 0 || now >= verification.expires_at {
+
+        if verification.expires_at == 0 {
             return Ok(false);
         }
-        
-        let time_remaining = verification.expires_at - now;
-        Ok(time_remaining <= threshold_seconds)
+
+        let now = env.ledger().timestamp();
+        if now > verification.expires_at {
+            return Ok(false);
+        }
+
+        Ok(now.saturating_add(threshold_seconds) >= verification.expires_at)
     }
 
     /// Admin-only: prune verification history for a project, retaining only the

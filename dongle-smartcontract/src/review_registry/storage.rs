@@ -406,7 +406,11 @@ impl ReviewRegistry {
             for j in 0..(MAX_REVIEW_REVISIONS - 1) {
                 let src_idx = start_idx + j;
                 let from_key = ExtensionKey::ReviewRevision(project_id, reviewer.clone(), src_idx);
-                if let Some(mut rev) = env.storage().persistent().get::<_, ReviewRevision>(&from_key) {
+                if let Some(mut rev) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, ReviewRevision>(&from_key)
+                {
                     rev.revision_index = j;
                     let to_key = ExtensionKey::ReviewRevision(project_id, reviewer.clone(), j);
                     env.storage().persistent().set(&to_key, &rev);
@@ -423,15 +427,19 @@ impl ReviewRegistry {
                     revised_at,
                 },
             );
-            env.storage().persistent().set(&count_key, &MAX_REVIEW_REVISIONS);
+            env.storage()
+                .persistent()
+                .set(&count_key, &MAX_REVIEW_REVISIONS);
 
             if revision_count > MAX_REVIEW_REVISIONS {
                 for i in MAX_REVIEW_REVISIONS..revision_count {
-                    env.storage().persistent().remove(&ExtensionKey::ReviewRevision(
-                        project_id,
-                        reviewer.clone(),
-                        i,
-                    ));
+                    env.storage()
+                        .persistent()
+                        .remove(&ExtensionKey::ReviewRevision(
+                            project_id,
+                            reviewer.clone(),
+                            i,
+                        ));
                 }
             }
 
