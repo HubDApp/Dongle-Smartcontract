@@ -2,6 +2,12 @@
 
 **Dongle** is an open-source smart contract built on the **Stellar network** that enables decentralized project discovery and verification on-chain.
 
+## ⚠️ Build Status
+
+**Current Status:** 🔴 **NOT READY FOR DEPLOYMENT** — Build is broken, see [BUILD_STATUS.md](BUILD_STATUS.md) for details.
+
+For deployment readiness assessment, consult [BUILD_STATUS.md](BUILD_STATUS.md) — this is the authoritative source for current project status. Do not rely on other completion/status documents.
+
 ## Overview
 
 Dongle serves as a foundational protocol for building transparent, on-chain project registries. It enables:
@@ -235,6 +241,8 @@ See [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md) for complete documenta
 
 ## Development Status
 
+⚠️ **See [BUILD_STATUS.md](BUILD_STATUS.md) for current build and deployment readiness.**
+
 ✅ Contract structure defined  
 ✅ Core storage models implemented  
 ✅ Extended features (reviews, verification, collections, etc.)  
@@ -244,6 +252,8 @@ See [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md) for complete documenta
 ✅ Ongoing improvements and testing  
 
 This is an **actively evolving open-source project**.
+
+**Note:** Any "completion" or "ready" documents in the repo history are stale and potentially misleading. Consult [BUILD_STATUS.md](BUILD_STATUS.md) for the actual current state.
 
 ## Deployments
 
