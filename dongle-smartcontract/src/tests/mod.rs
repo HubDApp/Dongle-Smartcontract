@@ -75,3 +75,6 @@ mod ttl_batch;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+
+// Configurable max reviews per project (#527)
+mod configurable_max_reviews;

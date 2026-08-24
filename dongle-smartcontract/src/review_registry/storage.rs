@@ -3,9 +3,10 @@
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
     DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
-    MAX_PAGE_LIMIT, MAX_REVIEWS_PER_PROJECT, MAX_REVIEWS_PER_USER, MAX_REVIEW_REVISIONS,
+    MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER, MAX_REVIEW_REVISIONS,
     REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
+use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
 use crate::events::{publish_review_event, publish_review_revision_event};
 use crate::project_registry::ProjectRegistry;
@@ -162,7 +163,7 @@ impl ReviewRegistry {
             .get(&StorageKey::ProjectReviews(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        if project_reviews.len() >= MAX_REVIEWS_PER_PROJECT {
+        if project_reviews.len() >= ConfigRegistry::get_max_reviews_per_project(env) {
             return Err(ContractError::MaxProjectsExceeded);
         }
         if user_reviews.len() >= MAX_REVIEWS_PER_USER {

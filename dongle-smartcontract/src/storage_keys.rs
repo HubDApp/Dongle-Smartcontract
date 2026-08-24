@@ -183,4 +183,7 @@ pub enum ExtensionKey {
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
+    /// Admin-configured maximum number of reviews per project.
+    /// Falls back to `MAX_REVIEWS_PER_PROJECT` (500) when absent.
+    MaxReviewsPerProject,
 }
