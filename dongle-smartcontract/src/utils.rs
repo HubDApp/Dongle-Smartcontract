@@ -186,6 +186,17 @@ impl Utils {
         Ok(())
     }
 
+    /// Normalizes a project name for case-insensitive lookups by lowercasing it.
+    /// Project names are validated to be ASCII alphanumeric/underscore/hyphen only,
+    /// so a simple ASCII lowercase is sufficient.
+    pub fn normalize_name(env: &Env, name: &String) -> String {
+        extern crate alloc;
+        use alloc::string::ToString;
+
+        let lowered = name.to_string().to_ascii_lowercase();
+        String::from_str(env, &lowered)
+    }
+
     /// Validates project tags
     pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
         extern crate alloc;

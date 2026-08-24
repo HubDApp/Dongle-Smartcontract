@@ -15,6 +15,7 @@ mod basic_new_features;
 mod cleanup;
 mod events;
 mod moderation;
+mod name_search;
 mod pagination;
 mod review_settings;
 

@@ -18,6 +18,8 @@ pub enum StorageKey {
     OwnerProjects(Address),
     /// Project by name (for duplicate detection).
     ProjectByName(String),
+    /// Project by normalized (lowercased) name, for case-insensitive name lookups.
+    ProjectByNormalizedName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
     /// Project count.
