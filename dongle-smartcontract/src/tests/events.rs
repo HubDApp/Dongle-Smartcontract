@@ -14,7 +14,7 @@ use crate::{DongleContract, DongleContractClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger, LedgerInfo},
-    Address, Env, IntoVal, String, TryIntoVal, Val, Vec,
+    Address, Env, IntoVal, String, TryFromVal, TryIntoVal, Val, Vec,
 };
 
 const TEST_TIMESTAMP: u64 = 1_700_000_123;
@@ -74,7 +74,9 @@ where
     Topics: IntoVal<Env, Vec<Val>>,
     F: Fn(T) -> bool,
 {
-    let expected_topics = expected_topics.into_val(env);
+    let expected_topics_val = expected_topics.into_val(env);
+    let expected_topics: soroban_sdk::Vec<Val> =
+        soroban_sdk::Vec::try_from_val(env, &expected_topics_val).unwrap();
     env.events().all().iter().any(|(_, topics, data)| {
         topics == expected_topics
             && decode_event::<T>(env, &data)

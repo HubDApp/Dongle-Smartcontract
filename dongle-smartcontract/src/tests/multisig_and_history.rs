@@ -300,4 +300,3 @@ fn test_list_proposals_start_beyond_total() {
     let proposals = client.list_proposals(&10, &10);
     assert_eq!(proposals.len(), 0);
 }
-

@@ -331,7 +331,7 @@ fn test_request_verification_for_nonexistent_project_fails() {
     let result = client.try_request_verification(
         &999u64,
         &requester,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
@@ -350,7 +350,7 @@ fn test_approve_verification_by_non_admin_fails() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     let result = client.try_approve_verification(&project_id, &non_admin);
@@ -371,7 +371,7 @@ fn test_reject_verification_by_non_admin_fails() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     let result = client.try_reject_verification(&project_id, &non_admin);
@@ -437,7 +437,7 @@ fn test_request_verification_without_fee_payment_fails() {
     let result = client.try_request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));

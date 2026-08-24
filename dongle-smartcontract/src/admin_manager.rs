@@ -592,13 +592,9 @@ impl AdminManager {
         let page_ids = crate::pagination::paginate(env, &ids, start, limit);
         let mut result = Vec::new(env);
         for proposal_id in page_ids.iter() {
-            if let Some(proposal) = env
-                .storage()
-                .persistent()
-                .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
-                    proposal_id,
-                ))
-            {
+            if let Some(proposal) = env.storage().persistent().get::<_, AdminProposal>(
+                &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            ) {
                 result.push_back(proposal);
             }
         }
