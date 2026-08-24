@@ -830,9 +830,6 @@ impl VerificationRegistry {
         Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
     }
 
-    /// Returns `true` if the project has a non-expired verification that will
-    /// expire within `threshold_seconds` from now. Returns `false` if the
-    /// project is not verified, already expired, or has no expiry.
     pub fn is_verification_expiring_soon(
         env: &Env,
         project_id: u64,
@@ -840,15 +837,17 @@ impl VerificationRegistry {
     ) -> Result<bool, ContractError> {
         let verification =
             Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
         if verification.expires_at == 0 {
             return Ok(false);
         }
+
         let now = env.ledger().timestamp();
         if now > verification.expires_at {
-            // Already expired — not "expiring soon"
             return Ok(false);
         }
-        Ok(verification.expires_at - now <= threshold_seconds)
+
+        Ok(now.saturating_add(threshold_seconds) >= verification.expires_at)
     }
 
     /// Admin-only: prune verification history for a project, retaining only the
