@@ -2,8 +2,24 @@
 //! Contract limits and validation constants. Kept in one place for easy future updates.
 
 /// Maximum number of projects a single user (address) can register. Prevents abuse.
-#[allow(dead_code)]
 pub const MAX_PROJECTS_PER_USER: u32 = 50;
+
+// ── Storage index size limits ───────────────────────────────────────────────
+// Vec-based indexes are capped on write to avoid unbounded per-user/project growth.
+// See STORAGE_INDEXES.md for the full index catalog and pagination strategy.
+
+/// Maximum unique reviewers indexed per project (`ProjectReviews`).
+pub const MAX_REVIEWS_PER_PROJECT: u32 = 500;
+
+/// Maximum projects indexed per reviewer (`UserReviews`).
+/// Also used as the shared index-capacity error (`MaxProjectsExceeded`) for review indexes.
+pub const MAX_REVIEWS_PER_USER: u32 = 200;
+
+/// Maximum items returned per paginated read query across list endpoints.
+pub const MAX_PAGE_LIMIT: u32 = 100;
+
+/// Maximum records that can be refreshed by one batch TTL extension call.
+pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 
 /// Minimum length for name, description, category (must be non-empty after trim in validation).
 #[allow(dead_code)]
@@ -16,20 +32,41 @@ pub const MAX_NAME_LEN: usize = 50;
 pub const MAX_SLUG_LEN: usize = 64;
 
 /// Maximum length for project description.
-#[allow(dead_code)]
 pub const MAX_DESCRIPTION_LEN: usize = 2048;
 
 /// Maximum length for category.
-#[allow(dead_code)]
 pub const MAX_CATEGORY_LEN: usize = 64;
 
 /// Maximum length for website URL.
-#[allow(dead_code)]
 pub const MAX_WEBSITE_LEN: usize = 256;
 
+/// Maximum length for a project's license description.
+pub const MAX_LICENSE_LEN: usize = 64;
+
+/// Maximum length for a project's published security contact.
+pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
+
 /// Maximum length for any CID (logo, metadata, comment, evidence).
-#[allow(dead_code)]
 pub const MAX_CID_LEN: usize = 128;
+
+/// Maximum stored edit revisions per review (oldest dropped when exceeded).
+pub const MAX_REVIEW_REVISIONS: u32 = 50;
+
+/// Bayesian prior review count for weighted rating (see RatingCalculator::calculate_weighted).
+pub const WEIGHTED_RATING_PRIOR_COUNT: u32 = 5;
+
+/// Bayesian prior mean rating scaled by 100 (350 = 3.50 stars).
+pub const WEIGHTED_RATING_PRIOR_MEAN: u32 = 350;
+
+/// Project metadata fields whose changes invalidate an existing verification.
+pub const MAJOR_METADATA_FIELD_NAME: &str = "name";
+pub const MAJOR_METADATA_FIELD_WEBSITE: &str = "website";
+pub const MAJOR_METADATA_FIELD_METADATA_CID: &str = "metadata_cid";
+pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
+    MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE,
+    MAJOR_METADATA_FIELD_METADATA_CID,
+];
 
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
@@ -50,14 +87,11 @@ pub const MAX_SOCIAL_LINK_URL_LEN: usize = 256;
 pub const MAX_SOCIAL_LINK_PLATFORM_LEN: usize = 32;
 
 /// Valid rating range (inclusive). Reviews must be in [RATING_MIN, RATING_MAX]. u32 for Soroban Val.
-#[allow(dead_code)]
 pub const RATING_MIN: u32 = 1;
-#[allow(dead_code)]
 pub const RATING_MAX: u32 = 5;
 
 /// Verification validity period in seconds (365 days).
 /// After this period, verified projects need to renew their verification.
-#[allow(dead_code)]
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
@@ -87,10 +121,60 @@ pub const LEDGER_THRESHOLD_VERIFICATION: u32 = 777_600;
 /// User data should persist reasonably long.
 pub const LEDGER_THRESHOLD_USER: u32 = 1_036_800;
 
+/// Maximum number of collections that can exist.
+pub const MAX_COLLECTIONS: u32 = 100;
+
+/// Maximum length for a collection name.
+pub const MAX_COLLECTION_NAME_LEN: usize = 100;
+
+/// Maximum length for a collection description.
+pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
+
+/// Maximum number of projects per collection.
+pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
+
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
+/// Maximum entries returned per admin action log paginated query.
+pub const MAX_ADMIN_ACTION_LOG_PAGE: u32 = 100;
+
 pub const LEDGER_BUMP_CRITICAL: u32 = LEDGER_THRESHOLD_CRITICAL;
 pub const LEDGER_BUMP_PROJECT: u32 = LEDGER_THRESHOLD_PROJECT;
 pub const LEDGER_BUMP_REVIEW: u32 = LEDGER_THRESHOLD_REVIEW;
 pub const LEDGER_BUMP_VERIFICATION: u32 = LEDGER_THRESHOLD_VERIFICATION;
 pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
+
+// ── Verification Expiry Constants ─────────────────────────────────────────
+
+/// Default duration (in seconds) that a verified status remains active.
+/// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
+/// Admins can override this via set_verification_duration.
+pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
+/// Minimum timelock delay in seconds (1 day).
+/// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
+pub const TIMELOCK_MIN_DELAY: u64 = 86400;
+
+/// Fee payment validity window in seconds (7 days).
+/// After this window, the payment record is considered expired and the
+/// verification request is rejected until the owner re-pays.
+pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
+/// Configurable by changing this constant.
+pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+/// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
+pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
+
+/// Default setting for whether endorsements are required for reviews (default: false).
+pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
+
+/// Default review fee amount (default: 0, free).
+pub const DEFAULT_REVIEW_FEE: u128 = 0;
+
+// ── Contract metadata (read by `get_config`) ────────────────────────────────
+
+/// Semantic version of the contract, surfaced verbatim through `get_config`.
+/// Bump when a non-backwards-compatible change to the public contract surface
+/// is released (storage layout, argument shape, new required fields, etc.).
+pub const CONTRACT_VERSION: &str = "1.0.0";

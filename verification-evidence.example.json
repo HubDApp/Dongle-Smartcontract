@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "id": 42,
+    "name": "Dongle Demo Project",
+    "slug": "dongle-demo-project",
+    "repository": "https://github.com/example/dongle-demo",
+    "website": "https://example.org"
+  },
+  "submittedAt": "2026-06-23T12:00:00Z",
+  "summary": "Evidence that the project repository, website, and Stellar deployment are controlled by the same project team.",
+  "proofs": [
+    {
+      "type": "repository",
+      "label": "Repository ownership proof",
+      "url": "https://github.com/example/dongle-demo/blob/main/VERIFICATION.md",
+      "description": "Repository file links the project slug to the Stellar deployment."
+    },
+    {
+      "type": "deployment",
+      "label": "Stellar testnet deployment",
+      "url": "https://stellar.expert/explorer/testnet/contract/CDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "description": "Explorer page for the submitted contract deployment."
+    },
+    {
+      "type": "screenshot",
+      "label": "Website verification screenshot",
+      "url": "ipfs://bafybeigdyrzt6a2exampleverificationevidencecid0000000000000",
+      "cid": "bafybeigdyrzt6a2exampleverificationevidencecid0000000000000",
+      "description": "Screenshot showing the verification badge on the project website."
+    }
+  ],
+  "attestations": [
+    {
+      "attestor": "Dongle Demo Maintainer",
+      "role": "Project maintainer",
+      "statement": "I attest that the repository, website, and deployment listed in this document belong to the Dongle Demo Project.",
+      "issuedAt": "2026-06-23T12:05:00Z",
+      "url": "https://github.com/example/dongle-demo/issues/1"
+    }
+  ],
+  "signatures": [
+    {
+      "scheme": "stellar-account",
+      "publicKey": "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "signature": "base64-or-hex-encoded-signature",
+      "message": "Signature over the canonical JSON evidence document."
+    }
+  ],
+  "privacy": {
+    "containsPersonalData": false,
+    "redactionNotes": "No private user data, access tokens, private keys, or non-public contact details are included.",
+    "unsafeContentExcluded": true
+  }
+}

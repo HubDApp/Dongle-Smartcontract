@@ -15,14 +15,20 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 }
 
 fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
+    let slug = name.to_lowercase().replace(' ', "-");
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
         name: String::from_str(env, name),
+        slug: String::from_str(env, &slug),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
         logo_cid: None,
         metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
     })
 }
 
@@ -131,7 +137,7 @@ fn test_initiate_overwrites_previous_pending_transfer() {
 
     // First recipient can no longer accept
     let result = client.try_accept_transfer(&project_id, &first_recipient);
-    assert_eq!(result, Err(Ok(ContractError::NotPendingTransferRecipient)));
+    assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
 
     // Second recipient can accept
     client.accept_transfer(&project_id, &second_recipient);
@@ -171,7 +177,7 @@ fn test_accept_by_wrong_address_fails() {
     client.initiate_transfer(&project_id, &owner, &intended);
 
     let result = client.try_accept_transfer(&project_id, &attacker);
-    assert_eq!(result, Err(Ok(ContractError::NotPendingTransferRecipient)));
+    assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
 }
 
 #[test]
