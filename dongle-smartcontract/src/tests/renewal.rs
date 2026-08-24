@@ -561,7 +561,7 @@ fn test_request_renewal_after_expiry_success() {
 
     // Expiry should now be 2300 (1300 + 1000)
     let verification = client.get_verification(&project_id).unwrap();
-    assert_eq!(verification.expires_at, 2300);
+    assert_eq!(verification.expires_at, Some(2300));
     assert_eq!(
         verification.status,
         crate::types::VerificationStatus::Verified

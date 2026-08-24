@@ -10,7 +10,7 @@ use crate::events::{
     publish_verification_expired_event, publish_verification_rejected_event,
     publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
     publish_verification_renewal_requested_event, publish_verification_requested_event,
-    publish_verification_revoked_event,
+    publish_verification_renewed_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -97,7 +97,6 @@ impl VerificationRegistry {
             fee_amount,
             revoke_reason: None,
             expires_at: None,
-            expires_at: 0,
             last_renewed_at: 0,
             assigned_admin: None,
         };
@@ -217,7 +216,6 @@ impl VerificationRegistry {
         let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
         record.expires_at = Some(now.saturating_add(duration));
-        record.expires_at = now.saturating_add(Self::get_verification_duration(env));
         record.decided_at = now;
         env.storage()
             .persistent()
@@ -604,6 +602,59 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Admin-driven direct renewal: reset the expiry of an already-verified project
+    /// without requiring a pending renewal request.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        let mut project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if project.verification_status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        let mut verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
+        let now = env.ledger().timestamp();
+        let duration = Self::get_verification_duration(env);
+        let new_expires_at = now.saturating_add(duration);
+
+        verification.expires_at = Some(new_expires_at);
+        verification.last_renewed_at = now;
+        env.storage().persistent().set(
+            &StorageKey::Verification(project_id),
+            &verification.request_id,
+        );
+        env.storage().persistent().set(
+            &StorageKey::VerificationRecord(verification.request_id),
+            &verification,
+        );
+
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        publish_verification_renewed_event(env, project_id, admin.clone(), new_expires_at);
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRenewalApproved,
+            Some(project_id),
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
     pub fn request_renewal(
         env: &Env,
         project_id: u64,
@@ -684,7 +735,7 @@ impl VerificationRegistry {
         let expires_at = now.saturating_add(Self::get_verification_duration(env));
 
         verification.status = VerificationStatus::Verified;
-        verification.expires_at = expires_at;
+        verification.expires_at = Some(expires_at);
         verification.last_renewed_at = now;
         env.storage().persistent().set(
             &StorageKey::Verification(project_id),
@@ -802,7 +853,10 @@ impl VerificationRegistry {
     pub fn is_verification_expired(env: &Env, project_id: u64) -> Result<bool, ContractError> {
         let verification = Self::get_verification(env, project_id)
             .ok_or(ContractError::VerificationNotFound)?;
-        Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
+        Ok(match verification.expires_at {
+            Some(exp) if exp > 0 => env.ledger().timestamp() > exp,
+            _ => false,
+        })
     }
 
     /// Admin-only: prune verification history for a project, retaining only the

@@ -175,4 +175,10 @@ pub enum ExtensionKey {
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
+    /// Next changelog entry ID counter.
+    NextChangelogEntryId,
+    /// Changelog entry by ID.
+    ProjectChangelogEntry(u64),
+    /// List of changelog entry IDs for a project.
+    ProjectChangelogEntries(u64),
 }

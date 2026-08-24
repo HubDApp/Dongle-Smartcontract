@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String, Vec};
+use soroban_sdk::{Env, Map, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -8,7 +8,6 @@ use crate::constants::{
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
@@ -54,7 +53,12 @@ impl Utils {
 
         // Allocate a source buffer and an output buffer of the same size
         // (normalization can only shrink or preserve length).
-        let max = if len > 64 { 64 } else { len }; // MAX_NAME_LEN is 50, safe upper bound
+        // MAX_NAME_LEN is 50; names longer than the buffer are already invalid
+        // and will be rejected by validate_project_name — just return empty.
+        if len > 64 {
+            return String::from_str(env, "");
+        }
+        let max = len;
         let mut src = [0u8; 64];
         let mut out = [0u8; 64];
         name.copy_into_slice(&mut src[..max]);
@@ -161,7 +165,7 @@ impl Utils {
         slug.copy_into_slice(&mut buf[..cap]);
 
         for (i, &b) in buf[..cap].iter().enumerate() {
-            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+            if !b.is_ascii_lowercase() && !b.is_ascii_digit() && b != b'-' && b != b'_' {
                 return Err(ContractError::InvalidProjectSlug);
             }
             if b == b'-' && (i == 0 || i == cap - 1) {
@@ -326,7 +330,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 40 || len > MAX_CID_LEN {
+        if len < 46 || len > MAX_CID_LEN {
             return false;
         }
 
@@ -336,7 +340,7 @@ impl Utils {
         cid.copy_into_slice(&mut buf[..len]);
 
         if buf[0] == b'Q' && buf[1] == b'm' {
-            // CIDv0: historically exactly 46 characters, but we allow larger for test flexibility
+            // CIDv0: exactly 46 characters (base58btc encoded SHA-256 multihash)
             true
         } else if buf[0] == b'b' {
             // CIDv1
@@ -393,5 +397,55 @@ impl Utils {
                 }
             }
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Remove the first occurrence of `item` from `vec` and return the new vec.
+    /// If `item` is not found, returns a clone of the original vec unchanged.
+    pub fn remove_item_from_vec<T>(
+        env: &Env,
+        vec: &soroban_sdk::Vec<T>,
+        item: &T,
+    ) -> soroban_sdk::Vec<T>
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
+            + PartialEq,
+    {
+        let mut result = soroban_sdk::Vec::new(env);
+        let mut removed = false;
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if !removed && &v == item {
+                    removed = true;
+                } else {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
+    /// Add `item` to `vec` only if it is not already present.
+    /// Returns `true` if the item was added, `false` if it was already present.
+    pub fn add_unique_to_vec<T>(vec: &mut soroban_sdk::Vec<T>, item: &T) -> bool
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
+            + PartialEq
+            + Clone,
+    {
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v == item {
+                    return false;
+                }
+            }
+        }
+        vec.push_back(item.clone());
+        true
     }
 }

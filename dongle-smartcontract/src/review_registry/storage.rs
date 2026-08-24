@@ -14,8 +14,8 @@ use crate::review_registry::validation::ReviewValidation;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig, ReviewRevision,
-    ReviewSortMode, ReviewTombstone,
+    AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
+    ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
