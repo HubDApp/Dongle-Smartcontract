@@ -779,7 +779,10 @@ impl ProjectRegistry {
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectBySlug(slug))?;
+            .get(&StorageKey::ProjectBySlug(slug.clone()))?;
+
+        // Extend the slug-index TTL so it stays alive as long as the project data.
+        StorageManager::extend_project_by_slug_ttl(env, &slug);
 
         // Get project by ID
         Self::get_project(env, project_id)
@@ -1443,11 +1446,7 @@ impl ProjectRegistry {
             &new_owner_projects,
         );
         if !project.archived {
-            Self::add_active_owner_project(
-                env,
-                &claim_request.claimant,
-                claim_request.project_id,
-            );
+            Self::add_active_owner_project(env, &claim_request.claimant, claim_request.project_id);
         }
 
         // Save project

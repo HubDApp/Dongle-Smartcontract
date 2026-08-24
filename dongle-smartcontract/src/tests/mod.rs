@@ -75,3 +75,7 @@ mod ttl_batch;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+mod slug;
+
+// Contract Pause / Emergency Stop feature
+mod emergency_pause;

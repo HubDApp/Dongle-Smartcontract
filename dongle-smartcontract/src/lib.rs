@@ -384,6 +384,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
@@ -392,6 +393,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
@@ -401,6 +403,7 @@ impl DongleContract {
         caller: Address,
         maintainer: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
@@ -441,6 +444,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
@@ -612,6 +616,7 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
@@ -833,6 +838,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -974,6 +980,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -1329,6 +1336,7 @@ impl DongleContract {
         project_id: u64,
         follower: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::subscription_registry::SubscriptionRegistry::follow_project(
             &env, project_id, follower,
         )
@@ -1372,6 +1380,7 @@ impl DongleContract {
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1394,6 +1403,7 @@ impl DongleContract {
     // --- Endorsement Registry ---
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 

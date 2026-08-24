@@ -391,14 +391,24 @@ fn test_is_verification_expired_no_expiry() {
     let owner = admin.clone();
     let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789012345678901234567890");
 
-    // Verify the project (without renewal, expires_at = 0)
+    // Verify the project — approve_verification sets expires_at = now + DEFAULT_DURATION (1 year)
     client.request_verification(&project_id, &owner, &evidence_cid);
     client.approve_verification(&project_id, &admin);
 
-    // Check expiry (should be false since expires_at = 0)
+    // At timestamp 0, expires_at = DEFAULT_VERIFICATION_DURATION_SECS (31_536_000)
+    // is_verification_expired should be false (not yet expired)
     let is_expired = client.is_verification_expired(&project_id);
     assert_eq!(is_expired, false);
-    assert_eq!(client.is_verification_expiring_soon(&project_id, &u64::MAX), false);
+
+    // With a threshold smaller than the remaining time, it's NOT expiring soon
+    // DEFAULT_VERIFICATION_DURATION_SECS = 31_536_000; use threshold = 86_400 (1 day)
+    assert_eq!(client.is_verification_expiring_soon(&project_id, &86_400_u64), false);
+
+    // With a threshold >= remaining time, it IS expiring soon
+    assert_eq!(
+        client.is_verification_expiring_soon(&project_id, &31_536_000_u64),
+        true
+    );
 }
 
 // ---------------------------------------------------------------------------
