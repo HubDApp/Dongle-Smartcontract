@@ -104,6 +104,7 @@ impl DongleContract {
 
     pub fn get_verification_duration(env: Env) -> u64 {
         AdminManager::get_verification_duration(&env)
+    }
     pub fn get_admin_approval_threshold(env: Env) -> u32 {
         AdminManager::get_admin_approval_threshold(&env)
     }
