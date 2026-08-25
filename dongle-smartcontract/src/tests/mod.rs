@@ -21,6 +21,7 @@ mod moderation;
 mod claim;
 mod config;
 mod dependencies;
+mod lifecycle_status;
 mod maintainers;
 mod renewal;
 mod review_history;

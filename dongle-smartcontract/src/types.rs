@@ -35,6 +35,7 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
+    pub lifecycle_status: Option<ProjectLifecycleStatus>,
 }
 
 #[contracttype]
@@ -197,6 +198,7 @@ pub struct Project {
     pub current_verification_id: Option<u64>,
     pub archived: bool,
     pub claimable: bool,
+    pub lifecycle_status: ProjectLifecycleStatus,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
@@ -233,6 +235,23 @@ pub enum VerificationStatus {
     Pending,
     Verified,
     Rejected,
+}
+
+/// Project lifecycle status for managing project activity state.
+/// Allows project owners to signal project maturity, stability, and maintenance status.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectLifecycleStatus {
+    /// Active development - project is regularly maintained
+    Active,
+    /// Beta/experimental - not yet stable for production use
+    Beta,
+    /// Paused - temporarily not maintained
+    Paused,
+    /// Deprecated - no longer recommended for new use
+    Deprecated,
+    /// Sunset - officially discontinued
+    Sunset,
 }
 
 #[contracttype]

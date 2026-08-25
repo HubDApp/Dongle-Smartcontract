@@ -1,4 +1,4 @@
-use crate::types::{AdminActionType, ReviewAction, ReviewEventData, VerificationStatus};
+use crate::types::{AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -27,6 +27,16 @@ pub struct ProjectRegisteredEvent {
 pub struct ProjectUpdatedEvent {
     pub project_id: u64,
     pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectLifecycleStatusUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub previous_status: ProjectLifecycleStatus,
+    pub new_status: ProjectLifecycleStatus,
     pub timestamp: u64,
 }
 
@@ -423,6 +433,30 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
         (
             symbol_short!("PROJECT"),
             symbol_short!("UPDATED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_lifecycle_status_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    previous_status: ProjectLifecycleStatus,
+    new_status: ProjectLifecycleStatus,
+) {
+    let event_data = ProjectLifecycleStatusUpdatedEvent {
+        project_id,
+        owner,
+        previous_status,
+        new_status,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("LCSCHED"),
             project_id,
         ),
         event_data,

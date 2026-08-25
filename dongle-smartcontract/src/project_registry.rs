@@ -8,15 +8,17 @@ use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
     publish_claim_request_submitted_event, publish_ownership_transferred_event,
     publish_project_archived_event, publish_project_claimable_set_event,
-    publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event, publish_verification_status_reset_event,
+    publish_project_lifecycle_status_updated_event, publish_project_reactivated_event,
+    publish_project_registered_event, publish_project_updated_event,
+    publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectRegistrationParams,
-    ProjectSortMode, ProjectUpdateParams, SecurityContactStatus, VerificationStatus,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
+    VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
@@ -147,6 +149,7 @@ impl ProjectRegistry {
             current_verification_id: None,
             archived: false,
             claimable: false,
+            lifecycle_status: ProjectLifecycleStatus::Active,
             created_at: now,
             updated_at: now,
             tags: params.tags.clone(),
@@ -2121,6 +2124,91 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+    }
+
+    /// Update a project's lifecycle status.
+    /// Only the project owner can change the lifecycle status.
+    pub fn set_project_lifecycle_status(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_status: ProjectLifecycleStatus,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let previous_status = project.lifecycle_status;
+        if previous_status == new_status {
+            // Status unchanged, no event needed
+            return Ok(project);
+        }
+
+        project.lifecycle_status = new_status;
+        project.updated_at = env.ledger().timestamp();
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_lifecycle_status_updated_event(
+            env,
+            project_id,
+            project.owner.clone(),
+            previous_status,
+            new_status,
+        );
+
+        Ok(project)
+    }
+
+    /// List projects by lifecycle status with pagination.
+    /// Returns projects matching the specified lifecycle status, excluding archived projects.
+    pub fn list_projects_by_lifecycle_status(
+        env: &Env,
+        status: ProjectLifecycleStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if count == 0 {
+            return projects;
+        }
+
+        let first = if start_id > 0 { start_id } else { 1 };
+        let mut collected: u32 = 0;
+
+        for id in first..=count {
+            if collected >= effective_limit {
+                break;
+            }
+
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived && project.lifecycle_status == status {
+                    projects.push_back(project);
+                    collected = collected.saturating_add(1);
+                }
+            }
+        }
+
+        projects
     }
 }
 

@@ -52,8 +52,8 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
     DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
-    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
-    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats,
+    ProjectUpdateParams, ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
     SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -187,6 +187,16 @@ impl DongleContract {
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_project(&env, params)
+    }
+
+    pub fn set_project_lifecycle_status(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        status: ProjectLifecycleStatus,
+    ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
     pub fn update_security_contact(
@@ -337,6 +347,15 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
+    }
+
+    pub fn list_projects_by_lifecycle_status(
+        env: Env,
+        status: ProjectLifecycleStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_lifecycle_status(&env, status, start_id, limit)
     }
 
     pub fn list_projects_sorted(
