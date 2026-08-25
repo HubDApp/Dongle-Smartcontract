@@ -109,7 +109,7 @@ impl ProjectRegistry {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(
+            .has(&ExtensionKey::ProjectByNormalizedName(
                 normalized_name.clone(),
             ))
         {
@@ -184,7 +184,7 @@ impl ProjectRegistry {
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
         env.storage().persistent().set(
-            &StorageKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name),
             &count,
         );
 
@@ -366,8 +366,8 @@ impl ProjectRegistry {
                 let new_normalized = Utils::normalize_project_name(env, &value);
                 let old_normalized = Utils::normalize_project_name(env, &old_name);
                 if new_normalized != old_normalized {
-                    if let Some(existing_id) = env.storage().persistent().get::<StorageKey, u64>(
-                        &StorageKey::ProjectByNormalizedName(new_normalized.clone()),
+                    if let Some(existing_id) = env.storage().persistent().get::<ExtensionKey, u64>(
+                        &ExtensionKey::ProjectByNormalizedName(new_normalized.clone()),
                     ) {
                         if existing_id != params.project_id {
                             return Err(ContractError::DuplicateProjectName);
@@ -552,7 +552,7 @@ impl ProjectRegistry {
             let old_normalized = Utils::normalize_project_name(env, &old_name);
             env.storage()
                 .persistent()
-                .remove(&StorageKey::ProjectByNormalizedName(old_normalized));
+                .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
 
             // Create new exact name mapping
             env.storage().persistent().set(
@@ -563,7 +563,7 @@ impl ProjectRegistry {
             // Create new normalized name mapping
             let new_normalized = Utils::normalize_project_name(env, &project.name);
             env.storage().persistent().set(
-                &StorageKey::ProjectByNormalizedName(new_normalized),
+                &ExtensionKey::ProjectByNormalizedName(new_normalized),
                 &params.project_id,
             );
         }
@@ -1892,18 +1892,17 @@ impl ProjectRegistry {
 
         // If a pending claim already exists for this address, only allow replacing it
         // once it has expired. Active (non-expired) pending claims block new submissions.
-        if let Some(existing) = env
-            .storage()
-            .persistent()
-            .get::<_, ContractClaimRequest>(&ExtensionKey::ContractClaim(
-                project_id,
-                contract_address.clone(),
-            ))
+        if let Some(existing) =
+            env.storage()
+                .persistent()
+                .get::<_, ContractClaimRequest>(&ExtensionKey::ContractClaim(
+                    project_id,
+                    contract_address.clone(),
+                ))
         {
             if existing.status == ClaimStatus::Pending {
                 // expires_at == 0 is the legacy sentinel for "no expiry"; treat as non-expired.
-                let is_expired =
-                    existing.expires_at > 0 && now >= existing.expires_at;
+                let is_expired = existing.expires_at > 0 && now >= existing.expires_at;
                 if !is_expired {
                     return Err(ContractError::InvalidStatus);
                 }
