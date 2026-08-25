@@ -69,6 +69,8 @@ pub enum ContractError {
     NotPendingTransferRecipient = 32,
     /// Verification has expired and is no longer active
     VerificationExpired = 33,
+    /// Fee payment has expired and must be re-paid
+    FeePaymentExpired = 34,
     AlreadyInitialized = 1,
     ProjectNotFound = 3,
     MaxProjectsExceeded = 5,

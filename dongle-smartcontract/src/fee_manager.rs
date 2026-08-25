@@ -8,6 +8,7 @@ use crate::events::{
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::types::{AdminActionType, FeeConfig, FeePaymentRecord};
 use soroban_sdk::{Address, Env};
 
@@ -188,6 +189,12 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
+        let record = Self::get_fee_payment_details(env, project_id)
+            .ok_or(ContractError::InsufficientFee)?;
+        let now = env.ledger().timestamp();
+        if now >= record.paid_at + FEE_PAYMENT_EXPIRY_SECONDS {
+            return Err(ContractError::FeePaymentExpired);
+        }
         Self::execute_consume_fee_payment(
             env,
             StorageKey::FeePaidForProject(project_id),
@@ -303,6 +310,12 @@ impl FeeManager {
     ) -> Result<(), ContractError> {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
+        }
+        let record = Self::get_registration_fee_payment_details(env, address)
+            .ok_or(ContractError::InsufficientFee)?;
+        let now = env.ledger().timestamp();
+        if now >= record.paid_at + FEE_PAYMENT_EXPIRY_SECONDS {
+            return Err(ContractError::FeePaymentExpired);
         }
         Self::execute_consume_fee_payment(
             env,
