@@ -2110,6 +2110,25 @@ impl ProjectRegistry {
         category: &String,
         description: &String,
     ) {
+        let hash_bytes = Self::compute_integrity_hash(env, name, slug, category, description);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+    }
+
+    /// Computes (but does not store) the SHA-256 integrity hash for the given
+    /// metadata fields.  The hash input is the pipe-separated concatenation:
+    /// name|slug|category|description.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
         let sep = b'|';
         let mut buf = soroban_sdk::Bytes::new(env);
         Self::append_string_bytes(env, &mut buf, name);
@@ -2120,10 +2139,7 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
-        let hash_bytes = soroban_sdk::Bytes::from_array(env, &hash.to_array());
-        env.storage()
-            .persistent()
-            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
     }
 
     /// Update a project's lifecycle status.

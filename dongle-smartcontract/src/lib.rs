@@ -1227,6 +1227,12 @@ impl DongleContract {
         crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
     }
 
+    /// Returns the number of dependencies for a project without fetching
+    /// the full dependency list.  Useful for UI count badges.
+    pub fn get_project_dependency_count(env: Env, project_id: u64) -> u32 {
+        crate::dependency_registry::DependencyRegistry::get_dependency_count(&env, project_id)
+    }
+
     // --- Duplicate Disputes ---
 
     pub fn open_duplicate_dispute(

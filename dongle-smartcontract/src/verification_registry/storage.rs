@@ -204,6 +204,18 @@ impl VerificationRegistry {
         let mut record =
             Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
+        // Verify integrity hash: ensure project metadata (name, slug, category,
+        // description) has not changed since the hash was last written by
+        // register_project or update_project.  Recompute using the same
+        // pipe-separated SHA-256 scheme and compare byte-for-byte.
+        if let Some(stored_hash) = ProjectRegistry::get_project_integrity_hash(env, project_id) {
+            let recomputed =
+                ProjectRegistry::compute_integrity_hash(env, &project.name, &project.slug, &project.category, &project.description);
+            if recomputed != stored_hash {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
         // Then validate state transition
         VerificationStateMachine::validate_transition(
             project.verification_status,
