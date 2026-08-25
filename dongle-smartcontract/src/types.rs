@@ -530,7 +530,7 @@ pub struct AdminProposal {
     pub action_type: AdminActionType,
     pub payload_hash: soroban_sdk::BytesN<32>,
     pub payload: ProposalPayload,
-    pub approvals: Vec<Address>,
+    pub approvals: Map<Address, bool>,
     pub status: ProposalStatus,
     pub created_at: u64,
 }
