@@ -126,8 +126,9 @@ impl DongleContract {
         env: Env,
         proposer: Address,
         payload: ProposalPayload,
+        expires_at: u64,
     ) -> Result<u64, ContractError> {
-        AdminManager::create_proposal(&env, proposer, payload)
+        AdminManager::create_proposal(&env, proposer, payload, expires_at)
     }
 
     pub fn approve_proposal(

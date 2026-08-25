@@ -529,6 +529,10 @@ pub struct AdminProposal {
     pub approvals: Vec<Address>,
     pub status: ProposalStatus,
     pub created_at: u64,
+    /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
+    /// will reject the proposal if the current ledger time is at or past this value.
+    /// Zero means no expiry (legacy / always executable once approved).
+    pub expires_at: u64,
 }
 
 /// Tombstone stored when a review is deleted so indexers can distinguish

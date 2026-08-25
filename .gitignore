@@ -1,5 +1,7 @@
 target/
 dongle-smartcontract/target/
+# Windows installer binary — must never be committed to the source tree
+rustup-init.exe
 dongle-smartcontract/Cargo.lock
 test_snapshots/
 # Build / error logs (don't commit)

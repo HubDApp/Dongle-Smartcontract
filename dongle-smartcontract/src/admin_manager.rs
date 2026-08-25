@@ -237,6 +237,7 @@ impl AdminManager {
         env: &Env,
         proposer: Address,
         payload: ProposalPayload,
+        expires_at: u64,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::require_admin(env, &proposer)?;
@@ -278,6 +279,7 @@ impl AdminManager {
             approvals,
             status,
             created_at: env.ledger().timestamp(),
+            expires_at,
         };
 
         env.storage().persistent().set(
@@ -367,6 +369,13 @@ impl AdminManager {
         let computed_hash = Self::compute_payload_hash(env, &proposal.payload);
         if computed_hash != proposal.payload_hash {
             return Err(ContractError::PayloadHashMismatch);
+        }
+
+        // Reject stale proposals: if expires_at is non-zero and the current
+        // ledger time has reached or passed it, the proposal can no longer be
+        // executed regardless of its approval status.
+        if proposal.expires_at != 0 && env.ledger().timestamp() >= proposal.expires_at {
+            return Err(ContractError::ProposalExpired);
         }
 
         if proposal.status == ProposalStatus::Executed {
