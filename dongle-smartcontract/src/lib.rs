@@ -3,9 +3,9 @@
 
 mod admin_action_log;
 mod admin_manager;
-pub mod pagination;
 pub mod auth;
 mod bookmark_registry;
+mod changelog_registry;
 mod collection_registry;
 mod config_registry;
 pub mod constants;
@@ -13,11 +13,11 @@ mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_registry;
-mod changelog_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+pub mod pagination;
 mod project_registry;
 pub mod rating_calculator;
 mod report_registry;
@@ -35,13 +35,13 @@ mod tests;
 
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
+use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
-use crate::changelog_registry::ChangelogRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -49,12 +49,12 @@ use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ClaimRequest, ClaimStatus, Collection, ContractClaimRequest,
-    ContractConfig, DependencyRef, DisputeResolutionAction, DisputeStatus, DuplicateDispute,
-    FeeConfig, FeePaymentRecord, Project, ProjectDependency, ProjectRegistrationParams,
-    ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
-    VerificationRecord, VerificationStatus,
+    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
+    Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
+    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -105,27 +105,13 @@ impl DongleContract {
     pub fn get_verification_duration(env: Env) -> u64 {
         AdminManager::get_verification_duration(&env)
     }
+
     pub fn get_admin_approval_threshold(env: Env) -> u32 {
         AdminManager::get_admin_approval_threshold(&env)
     }
 
-    pub fn get_config(env: Env) -> ContractConfig {
-        ContractConfig {
-            fee_config: FeeManager::get_fee_config(&env).ok(),
-            treasury: FeeManager::get_treasury(&env).ok(),
-            admin_count: AdminManager::get_admin_count(&env),
-            paused: false,
-            version: String::from_str(&env, "1.0.0"),
-            max_projects_per_user: crate::constants::MAX_PROJECTS_PER_USER,
-            max_reviews_per_project: crate::constants::MAX_REVIEWS_PER_PROJECT,
-            max_reviews_per_user: crate::constants::MAX_REVIEWS_PER_USER,
-            max_page_limit: crate::constants::MAX_PAGE_LIMIT,
-            max_tags_per_project: crate::constants::MAX_TAGS_PER_PROJECT,
-            max_social_links: crate::constants::MAX_SOCIAL_LINKS,
-            verification_validity_period: crate::constants::VERIFICATION_VALIDITY_PERIOD,
-            fee_payment_expiry_seconds: crate::constants::FEE_PAYMENT_EXPIRY_SECONDS,
-            review_update_cooldown_seconds: crate::constants::REVIEW_UPDATE_COOLDOWN_SECONDS,
-        }
+    pub fn get_config(env: Env) -> Result<ContractConfigView, ContractError> {
+        ConfigRegistry::get_config(&env)
     }
 
     pub fn set_admin_approval_threshold(
@@ -162,6 +148,13 @@ impl DongleContract {
 
     pub fn get_proposal(env: Env, proposal_id: u64) -> Option<AdminProposal> {
         AdminManager::get_proposal(&env, proposal_id)
+    }
+
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start, limit)
     }
 
     // --- Contract Pause / Emergency Stop ---
@@ -682,17 +675,11 @@ impl DongleContract {
         VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
     }
 
-    pub fn get_verification(
-        env: Env,
-        project_id: u64,
-    ) -> Option<VerificationRecord> {
+    pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
-    pub fn get_verification_record(
-        env: Env,
-        request_id: u64,
-    ) -> Option<VerificationRecord> {
+    pub fn get_verification_record(env: Env, request_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
@@ -710,6 +697,8 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         VerificationRegistry::renew_verification(&env, project_id, admin)
+    }
+
     pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
@@ -749,6 +738,16 @@ impl DongleContract {
 
     pub fn is_verification_expired(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expired(&env, project_id)
+    }
+
+    /// Returns whether a non-expired verification will expire within the
+    /// supplied threshold. This is a read-only renewal-warning helper.
+    pub fn is_verification_expiring_soon(
+        env: Env,
+        project_id: u64,
+        threshold_seconds: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
     }
 
     /// Admin: prune verification history, keeping the most recent `keep_count` records.
@@ -975,20 +974,6 @@ impl DongleContract {
         VerificationRegistry::get_min_project_age(&env)
     }
 
-    /// Set verification duration (admin only)
-    pub fn set_verification_duration(
-        env: Env,
-        admin: Address,
-        duration_seconds: u64,
-    ) -> Result<(), ContractError> {
-        VerificationRegistry::set_verification_duration(&env, admin, duration_seconds)
-    }
-
-    /// Get verification duration configuration
-    pub fn get_verification_duration(env: Env) -> u64 {
-        VerificationRegistry::get_verification_duration(&env)
-    }
-
     /// Report a project for spam, scams, broken links, or abusive metadata - Issue #127
     pub fn report_project(
         env: Env,
@@ -1024,7 +1009,12 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
+    pub fn list_projects_by_tag(
+        env: Env,
+        tag: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_tag(&env, tag, start_index, limit)
     }
 
@@ -1388,11 +1378,7 @@ impl DongleContract {
 
     // --- Bookmark Registry ---
 
-    pub fn bookmark_project(
-        env: Env,
-        project_id: u64,
-        user: Address,
-    ) -> Result<(), ContractError> {
+    pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1414,11 +1400,7 @@ impl DongleContract {
 
     // --- Endorsement Registry ---
 
-    pub fn endorse_project(
-        env: Env,
-        project_id: u64,
-        user: Address,
-    ) -> Result<(), ContractError> {
+    pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1530,10 +1512,6 @@ impl DongleContract {
     /// Returns `ContractError::FeeConfigNotSet` until `set_fee` has been
     /// called at least once. Frontends can use the presence of a fee
     /// config as a readiness signal for production traffic.
-    pub fn get_config(env: Env) -> Result<ContractConfigView, ContractError> {
-        ConfigRegistry::get_config(&env)
-    }
-
     /// Admin: toggle the global pause flag surfaced by `get_config`.
     ///
     /// **Returns** the pause state *before* the call (so callers can

@@ -62,6 +62,7 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 52 | `NotFollowing` | Caller is not following this project. | Follow the project before attempting to unfollow. |
 | 53 | `VerifiedFieldFrozen` | A metadata field is frozen and cannot be modified once the project is verified. | Revoke verification first (admin-only) if the field must change; prefer not changing verified metadata. |
 | 54 | `NativeFeeNotSupported` | Native XLM fee payment is not supported. | Use the configured token contract address for fee payment. |
+| 68 | `InvalidTags` | Tag list is invalid: empty tag, over-length tag, too many tags, invalid characters, or duplicate values (case-insensitive after ASCII-lowercase normalization). | Provide unique, non-empty tags within `MAX_TAGS_PER_PROJECT` / `MAX_TAG_LENGTH` using only `[A-Za-z0-9_-]`. |
 
 > **Gaps in numeric codes** (25, 34, 35, 37): These codes are intentionally
 > unassigned. Do not use them for new errors to avoid ambiguity with any

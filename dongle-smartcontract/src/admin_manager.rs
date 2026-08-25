@@ -192,6 +192,10 @@ impl AdminManager {
 
         // Keep this config entry alive as long as critical data.
         StorageManager::extend_critical_config_ttl(env);
+
+        Ok(())
+    }
+
     pub fn get_admin_approval_threshold(env: &Env) -> u32 {
         env.storage()
             .persistent()
@@ -241,7 +245,7 @@ impl AdminManager {
             .storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
-            .unwrap_or(1);
+            .unwrap_or(0);
 
         let action_type = match &payload {
             ProposalPayload::AddAdmin(_) => AdminActionType::AdminAdded,
@@ -356,7 +360,16 @@ impl AdminManager {
             ))
             .ok_or(ContractError::InvalidStatus)?;
 
-        if proposal.status != ProposalStatus::Approved {
+        // Re-compute the payload hash and verify it matches the hash stored at
+        // proposal creation time. This prevents a proposal whose stored payload
+        // has been corrupted (e.g. storage corruption) from being silently
+        // executed with unintended effects.
+        let computed_hash = Self::compute_payload_hash(env, &proposal.payload);
+        if computed_hash != proposal.payload_hash {
+            return Err(ContractError::PayloadHashMismatch);
+        }
+
+        if proposal.status == ProposalStatus::Executed {
             return Err(ContractError::InvalidStatus);
         }
 
@@ -554,12 +567,42 @@ impl AdminManager {
             .persistent()
             .get(&StorageKey::VerificationDuration)
             .unwrap_or(DEFAULT_VERIFICATION_DURATION_SECS)
+    }
+
     pub fn get_proposal(env: &Env, proposal_id: u64) -> Option<AdminProposal> {
         env.storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::AdminProposal(
                 proposal_id,
             ))
+    }
+
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset into the proposal ID list and `limit`
+    /// caps how many proposals are returned (clamped to `MAX_PAGE_LIMIT`).
+    /// Returns the corresponding `AdminProposal` structs for the paginated
+    /// slice of IDs, skipping any that are missing from storage.
+    pub fn list_proposals(env: &Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&crate::storage_keys::ExtensionKey::AdminProposalIds)
+            .unwrap_or_else(|| Vec::new(env));
+        let page_ids = crate::pagination::paginate(env, &ids, start, limit);
+        let mut result = Vec::new(env);
+        for proposal_id in page_ids.iter() {
+            if let Some(proposal) = env
+                .storage()
+                .persistent()
+                .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                    proposal_id,
+                ))
+            {
+                result.push_back(proposal);
+            }
+        }
+        result
     }
 }
 

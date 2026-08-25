@@ -1,7 +1,7 @@
 //! Verification registry storage mutations: request/approve/reject, renewal, and assignment.
 
-use crate::admin_manager::AdminManager;
 use crate::admin_action_log::AdminActionLog;
+use crate::admin_manager::AdminManager;
 use crate::auth::{require_admin_auth, require_owner_auth};
 use crate::constants::MAX_PAGE_LIMIT;
 use crate::errors::ContractError;
@@ -9,8 +9,8 @@ use crate::events::{
     publish_verification_approved_event, publish_verification_evidence_updated_event,
     publish_verification_expired_event, publish_verification_rejected_event,
     publish_verification_renewal_approved_event, publish_verification_renewal_rejected_event,
-    publish_verification_renewal_requested_event, publish_verification_requested_event,
-    publish_verification_revoked_event,
+    publish_verification_renewal_requested_event, publish_verification_renewed_event,
+    publish_verification_requested_event, publish_verification_revoked_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
@@ -96,7 +96,6 @@ impl VerificationRegistry {
             decided_at: 0,
             fee_amount,
             revoke_reason: None,
-            expires_at: None,
             expires_at: 0,
             last_renewed_at: 0,
             assigned_admin: None,
@@ -216,8 +215,7 @@ impl VerificationRegistry {
         // Update record – stamp the expiry timestamp
         let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
-        record.expires_at = Some(now.saturating_add(duration));
-        record.expires_at = now.saturating_add(Self::get_verification_duration(env));
+        record.expires_at = now.saturating_add(duration);
         record.decided_at = now;
         env.storage()
             .persistent()
@@ -307,10 +305,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    pub fn get_verification(
-        env: &Env,
-        project_id: u64,
-    ) -> Option<VerificationRecord> {
+    pub fn get_verification(env: &Env, project_id: u64) -> Option<VerificationRecord> {
         let request_id = env
             .storage()
             .persistent()
@@ -320,10 +315,7 @@ impl VerificationRegistry {
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
     }
 
-    pub fn get_verification_record(
-        env: &Env,
-        request_id: u64,
-    ) -> Option<VerificationRecord> {
+    pub fn get_verification_record(env: &Env, request_id: u64) -> Option<VerificationRecord> {
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
@@ -352,18 +344,18 @@ impl VerificationRegistry {
             return false;
         }
 
-        match record.expires_at {
-            None => true, // legacy / no-expiry record
-            Some(expires_at) => {
-                let now = env.ledger().timestamp();
-                if now >= expires_at {
-                    // Emit expiry event so indexers can react
-                    publish_verification_expired_event(env, project_id, expires_at);
-                    false
-                } else {
-                    true
-                }
-            }
+        if record.expires_at == 0 {
+            // legacy / no-expiry record
+            return true;
+        }
+
+        let now = env.ledger().timestamp();
+        if now >= record.expires_at {
+            // Emit expiry event so indexers can react
+            publish_verification_expired_event(env, project_id, record.expires_at);
+            false
+        } else {
+            true
         }
     }
 
@@ -456,10 +448,7 @@ impl VerificationRegistry {
     }
 
     /// Get the admin assigned to review a verification request.
-    pub fn get_assigned_admin(
-        env: &Env,
-        project_id: u64,
-    ) -> Option<Address> {
+    pub fn get_assigned_admin(env: &Env, project_id: u64) -> Option<Address> {
         let record = Self::get_verification(env, project_id)?;
         record.assigned_admin
     }
@@ -675,8 +664,8 @@ impl VerificationRegistry {
 
         let renewal = Self::get_renewal_request(env, project_id)
             .ok_or(ContractError::VerificationNotFound)?;
-        let mut verification = Self::get_verification(env, project_id)
-            .ok_or(ContractError::VerificationNotFound)?;
+        let mut verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
         let mut project =
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
@@ -737,6 +726,45 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Directly renew an already-Verified verification without going through a
+    /// pending renewal request. Extends `expires_at` by the configured
+    /// verification duration and records the renewal timestamp.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        // Project must exist
+        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        // Record must exist
+        let mut record =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
+        // Can only renew an already-Verified record (not Pending / Rejected / Unverified)
+        if record.status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatusTransition);
+        }
+
+        let now = env.ledger().timestamp();
+        let duration = AdminManager::get_verification_duration(env);
+        let new_expires_at = now.saturating_add(duration);
+
+        record.expires_at = new_expires_at;
+        record.last_renewed_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Verification(project_id), &record.request_id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::VerificationRecord(record.request_id), &record);
+
+        publish_verification_renewed_event(env, project_id, admin, new_expires_at);
+        Ok(())
+    }
+
     pub fn reject_renewal(env: &Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
         let _renewal = Self::get_renewal_request(env, project_id)
@@ -758,10 +786,7 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    pub fn get_renewal_request(
-        env: &Env,
-        project_id: u64,
-    ) -> Option<VerificationRenewalRecord> {
+    pub fn get_renewal_request(env: &Env, project_id: u64) -> Option<VerificationRenewalRecord> {
         env.storage()
             .persistent()
             .get(&StorageKey::VerificationRenewal(project_id))
@@ -800,9 +825,29 @@ impl VerificationRegistry {
     }
 
     pub fn is_verification_expired(env: &Env, project_id: u64) -> Result<bool, ContractError> {
-        let verification = Self::get_verification(env, project_id)
-            .ok_or(ContractError::VerificationNotFound)?;
+        let verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
         Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
+    }
+
+    pub fn is_verification_expiring_soon(
+        env: &Env,
+        project_id: u64,
+        threshold_seconds: u64,
+    ) -> Result<bool, ContractError> {
+        let verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
+        if verification.expires_at == 0 {
+            return Ok(false);
+        }
+
+        let now = env.ledger().timestamp();
+        if now > verification.expires_at {
+            return Ok(false);
+        }
+
+        Ok(now.saturating_add(threshold_seconds) >= verification.expires_at)
     }
 
     /// Admin-only: prune verification history for a project, retaining only the

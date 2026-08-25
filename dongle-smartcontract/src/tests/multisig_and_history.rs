@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::errors::ContractError;
+use crate::storage_keys::ExtensionKey;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProposalPayload, ProposalStatus, VerificationStatus};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
@@ -143,3 +144,160 @@ fn test_admin_multisig_approval_threshold() {
     let res = client.try_execute_proposal(&admin3, &proposal_id);
     assert!(res.is_err());
 }
+
+#[test]
+fn test_proposal_ids_start_at_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1) = setup_contract(&env);
+
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    client.add_admin(&admin1, &admin2);
+    client.add_admin(&admin1, &admin3);
+
+    // First proposal should get ID 0
+    let payload1 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id1 = client.create_proposal(&admin1, &payload1);
+    assert_eq!(id1, 0);
+
+    // Second proposal should get ID 1
+    let payload2 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id2 = client.create_proposal(&admin2, &payload2);
+    assert_eq!(id2, 1);
+
+    // Third proposal should get ID 2
+    let payload3 = ProposalPayload::AddAdmin(Address::generate(&env));
+    let id3 = client.create_proposal(&admin3, &payload3);
+    assert_eq!(id3, 2);
+}
+
+#[test]
+fn test_execute_proposal_rejects_corrupted_payload() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    let proposal_id = client.create_proposal(&admin, &payload);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Approved);
+
+    // Simulate storage corruption: swap the stored payload for a different one
+    // while keeping the original payload_hash untouched.
+    let mut corrupted = proposal;
+    corrupted.payload = ProposalPayload::AddAdmin(Address::generate(&env));
+    env.as_contract(&client.address, || {
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::AdminProposal(proposal_id), &corrupted);
+    });
+
+    // Execution must be rejected with PayloadHashMismatch and must not run the
+    // (corrupted) payload.
+    let res = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(res, Err(Ok(ContractError::PayloadHashMismatch)));
+
+    // The proposal must not have been marked Executed.
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Approved);
+
+    // The corrupted payload's admin must not have been added.
+    let stored = client.get_proposal(&proposal_id).unwrap().payload;
+    if let ProposalPayload::AddAdmin(corrupted_admin) = stored {
+        assert!(!client.is_admin(&corrupted_admin));
+    } else {
+        panic!("unexpected payload variant");
+    }
+}
+
+// ── list_proposals pagination tests ─────────────────────────────────────────
+
+#[test]
+fn test_list_proposals_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup_contract(&env);
+
+    let proposals = client.list_proposals(&0, &10);
+    assert_eq!(proposals.len(), 0);
+}
+
+#[test]
+fn test_list_proposals_returns_created_proposals() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    let id0 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin1));
+    let id1 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin2));
+
+    let proposals = client.list_proposals(&0, &10);
+    assert_eq!(proposals.len(), 2);
+    assert_eq!(proposals.get(0).unwrap().id, id0);
+    assert_eq!(proposals.get(1).unwrap().id, id1);
+}
+
+#[test]
+fn test_list_proposals_pagination_offset_and_limit() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    // Create 5 proposals
+    for _ in 0..5 {
+        let addr = Address::generate(&env);
+        client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+    }
+
+    // First page: start=0, limit=2
+    let page1 = client.list_proposals(&0, &2);
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1.get(0).unwrap().id, 0);
+    assert_eq!(page1.get(1).unwrap().id, 1);
+
+    // Second page: start=2, limit=2
+    let page2 = client.list_proposals(&2, &2);
+    assert_eq!(page2.len(), 2);
+    assert_eq!(page2.get(0).unwrap().id, 2);
+    assert_eq!(page2.get(1).unwrap().id, 3);
+
+    // Third page: start=4, limit=2 → only 1 left
+    let page3 = client.list_proposals(&4, &2);
+    assert_eq!(page3.len(), 1);
+    assert_eq!(page3.get(0).unwrap().id, 4);
+}
+
+#[test]
+fn test_list_proposals_limit_exceeds_total() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let addr = Address::generate(&env);
+    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+
+    // Requesting more than available should return all
+    let proposals = client.list_proposals(&0, &100);
+    assert_eq!(proposals.len(), 1);
+}
+
+#[test]
+fn test_list_proposals_start_beyond_total() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let addr = Address::generate(&env);
+    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+
+    // Starting beyond existing proposals returns empty
+    let proposals = client.list_proposals(&10, &10);
+    assert_eq!(proposals.len(), 0);
+}
+

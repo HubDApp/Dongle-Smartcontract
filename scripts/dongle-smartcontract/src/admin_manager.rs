@@ -225,7 +225,7 @@ impl AdminManager {
             .storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
-            .unwrap_or(1);
+            .unwrap_or(0);
 
         let action_type = match &payload {
             ProposalPayload::AddAdmin(_) => AdminActionType::AdminAdded,

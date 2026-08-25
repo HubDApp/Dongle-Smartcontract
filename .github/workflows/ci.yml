@@ -19,6 +19,16 @@ jobs:
       - name: Run validation script
         run: python3 scripts/validate_deployments.py
 
+  validate-changelog:
+    name: Validate Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CHANGELOG.md format (Keep a Changelog)
+        run: python3 scripts/validate_changelog.py
+      - name: Run changelog validator self-tests
+        run: python3 scripts/test_validate_changelog.py
+
   fmt:
     name: Formatting
     runs-on: ubuntu-latest
@@ -26,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
           components: rustfmt
 
@@ -40,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
           targets: wasm32-unknown-unknown
           components: clippy
@@ -52,7 +62,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-clippy-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          key: ${{ runner.os }}-clippy-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-clippy-
 
@@ -66,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
           targets: wasm32-unknown-unknown
 
@@ -77,7 +87,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-test-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          key: ${{ runner.os }}-test-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-test-
 
@@ -92,7 +102,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
           targets: wasm32-unknown-unknown
 
@@ -103,7 +113,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
@@ -118,7 +128,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
           targets: wasm32-unknown-unknown
 
@@ -128,14 +138,29 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin
             target
-          key: ${{ runner.os }}-optimize-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          key: ${{ runner.os }}-optimize-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-optimize-
 
-      - name: Install Stellar CLI with wasm-opt
-        run: cargo install --locked stellar-cli --features opt
+      # Installed as a prebuilt release binary rather than `cargo install
+      # stellar-cli`: the published crate now declares an MSRV newer than the
+      # toolchain this repository pins in rust-toolchain.toml, so building it
+      # from source fails immediately. The prebuilt binary already bundles
+      # wasm-opt (the `opt` feature) and installs in seconds instead of minutes.
+      - name: Install Stellar CLI (prebuilt, includes wasm-opt)
+        env:
+          STELLAR_CLI_VERSION: 27.1.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stellar-cli"
+          curl -sSfL \
+            "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/stellar-cli"
+          echo "$RUNNER_TEMP/stellar-cli" >> "$GITHUB_PATH"
+
+      - name: Verify Stellar CLI
+        run: stellar --version
 
       - name: Build WASM release
         run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release

@@ -243,8 +243,8 @@ Once all tests pass, clippy is clean, and code is formatted:
 - [Soroban SDK Documentation](https://docs.rs/soroban-sdk/latest/)
 - [Rust Book](https://doc.rust-lang.org/book/)
 - [Cargo Documentation](https://doc.rust-lang.org/cargo/)
-- `CONTRACT_INTERFACE.md` - Contract API reference
-- `EVENTS_SCHEMA.md` - Event schema documentation
+- [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md) - Contract API reference
+- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event schema documentation
 
 ---
 

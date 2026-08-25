@@ -36,9 +36,9 @@ impl ChangelogRegistry {
         owner.require_auth();
 
         // Verify project exists and caller is owner
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
-        
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
@@ -105,13 +105,7 @@ impl ChangelogRegistry {
         StorageManager::extend_project_ttl(env, project_id);
 
         // Publish event
-        publish_changelog_added_event(
-            env,
-            changelog_id,
-            project_id,
-            owner,
-            cid,
-        );
+        publish_changelog_added_event(env, changelog_id, project_id, owner, cid);
 
         Ok(changelog_id)
     }
@@ -144,7 +138,7 @@ impl ChangelogRegistry {
         // Verify caller is project owner
         let project = ProjectRegistry::get_project(env, entry.project_id)
             .ok_or(ContractError::ProjectNotFound)?;
-        
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
@@ -227,7 +221,7 @@ impl ChangelogRegistry {
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at < b.created_at);
             }
             crate::types::ChangelogSortMode::Oldest => {
-                // For oldest first (ascending), swap when a.created_at > b.created_at  
+                // For oldest first (ascending), swap when a.created_at > b.created_at
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at > b.created_at);
             }
         }
@@ -235,7 +229,7 @@ impl ChangelogRegistry {
         // Apply pagination
         let end = (start + effective_limit).min(total);
         let mut paginated = Vec::new(env);
-        
+
         for i in start..end {
             if let Some(entry) = entries.get(i) {
                 paginated.push_back(entry.clone());

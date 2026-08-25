@@ -19,11 +19,15 @@ This repository contains the smart contract logic only. Frontend interfaces and 
 For detailed information, refer to:
 
 - **[Smart Contract API & Usage](dongle-smartcontract/README.md)** — Complete API reference, usage examples, and deployment guide
-- **[Contract Interface Specification](CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
+- **[Contract Interface Specification](docs/CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
 - **[Storage Schema & Keys](docs/STORAGE_SCHEMA.md)** — Storage architecture and persistence management
 - **[Admin Rotation & Security](docs/ADMIN_ROTATION_PLAYBOOK.md)** — Operational security guidelines
-- **[Event Schema](EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
-- **[Threat Model](THREAT_MODEL.md)** — Security analysis and risk mitigation
+- **[Event Schema](docs/EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
+- **[Threat Model](docs/THREAT_MODEL.md)** — Security analysis and risk mitigation
+- **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
+- **[Data Export Guide](docs/DATA_EXPORT_GUIDE.md)** — How indexers reconstruct contract state
+- **[Contributing Guidelines](docs/CONTRIBUTING.md)** — How to contribute, test, and submit PRs
+- **[Changelog](CHANGELOG.md)** — Release history, breaking changes and feature additions ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + SemVer)
 
 ## Quick Start
 
@@ -167,13 +171,13 @@ Dongle Smart Contract (Soroban)
 Operational guidance for secure admin key rotation, incident response, and testnet validation is documented in [docs/ADMIN_ROTATION_PLAYBOOK.md](./docs/ADMIN_ROTATION_PLAYBOOK.md).
 ### Project Metadata CID Schema
 
-Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Documents should follow the JSON schema in [`project-metadata.schema.json`](./project-metadata.schema.json).
+Projects may attach extended off-chain metadata via `metadata_cid` (IPFS). Documents should follow the JSON schema in [`project-metadata.schema.json`](./docs/project-metadata.schema.json).
 
 | | |
 |---|---|
-| **Schema** | [`project-metadata.schema.json`](./project-metadata.schema.json) |
-| **Example** | [`project-metadata.example.json`](./project-metadata.example.json) |
-| **Review CID schema** | [`review-cid.schema.json`](./review-cid.schema.json) |
+| **Schema** | [`project-metadata.schema.json`](./docs/project-metadata.schema.json) |
+| **Example** | [`project-metadata.example.json`](./docs/project-metadata.example.json) |
+| **Review CID schema** | [`review-cid.schema.json`](./docs/review-cid.schema.json) |
 | **Verification evidence schema** | [`verification-evidence.schema.json`](./verification-evidence.schema.json) |
 | **Verification evidence example** | [`verification-evidence.example.json`](./verification-evidence.example.json) |
 
@@ -211,7 +215,7 @@ schema, example document, and safety expectations.
 - **Disputes**: `open_duplicate_dispute`, `resolve_duplicate_dispute`, `get_disputes_for_project`
 - **Statistics**: `get_project_stats`, `get_project_reports`, `get_project_report_count`
 
-See [CONTRACT_INTERFACE.md](./CONTRACT_INTERFACE.md) for complete documentation, and [dongle-smartcontract/README.md](dongle-smartcontract/README.md) for usage examples.
+See [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md) for complete documentation, and [dongle-smartcontract/README.md](dongle-smartcontract/README.md) for usage examples.
 
 ## Authorization Model
 
@@ -269,10 +273,16 @@ Dongle promotes:
 ## Documentation
 
 - [Smart Contract README](dongle-smartcontract/README.md) - Comprehensive API documentation and usage examples
-- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
-- [THREAT_MODEL.md](THREAT_MODEL.md) - Security threat model and mitigation reference
-- [review-cid.schema.json](review-cid.schema.json) - Off-chain JSON schema for review content CIDs
-- [review-cid.example.json](review-cid.example.json) - Valid off-chain JSON review example
+- [EVENTS_SCHEMA.md](docs/EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
+- [THREAT_MODEL.md](docs/THREAT_MODEL.md) - Security threat model and mitigation reference
+- [ERROR_CODES.md](docs/ERROR_CODES.md) - Contract error codes reference
+- [DATA_EXPORT_GUIDE.md](docs/DATA_EXPORT_GUIDE.md) - Data export guide for indexers
+- [STORAGE_INDEXES.md](docs/STORAGE_INDEXES.md) - Storage index size strategy and read pagination
+- [CONTRACT_INTERFACE.md](docs/CONTRACT_INTERFACE.md) - Full contract function documentation
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contribution guidelines and PR process
+- [CHANGELOG.md](CHANGELOG.md) - Release history, breaking changes and feature additions (Keep a Changelog 1.1.0 format; validated in CI by `scripts/validate_changelog.py`)
+- [review-cid.schema.json](docs/review-cid.schema.json) - Off-chain JSON schema for review content CIDs
+- [review-cid.example.json](docs/review-cid.example.json) - Valid off-chain JSON review example
 - [verification-evidence.schema.json](verification-evidence.schema.json) - Off-chain JSON schema for verification evidence CIDs
 - [verification-evidence.example.json](verification-evidence.example.json) - Valid verification evidence example
 - [Verification Evidence Guide](docs/VERIFICATION_EVIDENCE.md) - Privacy, safety, proof-link, attestation, and signature guidance

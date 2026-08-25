@@ -19,11 +19,12 @@ branches and contained error codes and behavior that no longer match `main`.
 | `get_renewal_request(project_id)` | Public | Returns the current pending request |
 | `get_renewal_history(project_id, start_index, limit)` | Public | Returns approved renewal records with pagination |
 | `is_verification_expired(project_id)` | Public | Reports whether a nonzero expiry is earlier than the current ledger time |
+| `is_verification_expiring_soon(project_id, threshold_seconds)` | Public | Reports whether a non-expired verification has `threshold_seconds` or less remaining |
 
 The entrypoints are defined in
 [`lib.rs`](../dongle-smartcontract/src/lib.rs), and the workflow is implemented
 by
-[`VerificationRegistry`](../dongle-smartcontract/src/verification_registry.rs).
+[`VerificationRegistry`](../dongle-smartcontract/src/verification_registry/mod.rs).
 
 ## Renewal Record
 
@@ -135,6 +136,12 @@ or beyond the stored count returns an empty vector.
 - `false` when `expires_at` is zero, which represents no expiry;
 - `false` while the current ledger timestamp is at or before the expiry; and
 - `true` only after the expiry timestamp has passed.
+
+`is_verification_expiring_soon` returns `true` only for an expiry-enabled,
+non-expired verification whose remaining lifetime is less than or equal to the
+supplied threshold. It returns `false` for records without an expiry and for
+already-expired records; callers should use `is_verification_expired` for the
+latter state.
 
 ## Errors
 
