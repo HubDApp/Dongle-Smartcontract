@@ -1132,11 +1132,23 @@ impl DongleContract {
         AdminActionLog::list_admin_actions(&env, start, limit)
     }
 
+    /// List admin action log entries filtered to a specific admin address (most recent first).
+    ///
+    /// Uses a per-admin index for efficiency — no full scan needed.
+    /// `start` is a zero-based offset; `limit` is capped at `MAX_ADMIN_ACTION_LOG_PAGE`.
+    pub fn get_admin_action_log_by_admin(
+        env: Env,
+        admin: Address,
+        start: u32,
+        limit: u32,
+    ) -> Vec<AdminActionEntry> {
+        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start, limit)
+    }
+
     /// Get the total number of admin action log entries.
     pub fn get_admin_action_log_count(env: Env) -> u64 {
         AdminActionLog::get_action_log_count(&env)
     }
-
     // --- Project Claiming ---
 
     pub fn set_project_claimable(
@@ -1280,6 +1292,8 @@ impl DongleContract {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -1290,9 +1304,11 @@ impl DongleContract {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description)
+        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description, version, changelog_cid)
     }
 
     /// Remove a changelog entry (project owner only).

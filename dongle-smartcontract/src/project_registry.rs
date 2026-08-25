@@ -1,7 +1,7 @@
 use crate::admin_manager::AdminManager;
 use crate::constants::{
-    MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME, MAJOR_METADATA_FIELD_WEBSITE,
-    MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
 };
 use crate::errors::ContractError;
 use crate::events::{
@@ -1888,13 +1888,39 @@ impl ProjectRegistry {
 
         Utils::validate_metadata_cid(&proof_cid)?;
 
+        let now = env.ledger().timestamp();
+
+        // If a pending claim already exists for this address, only allow replacing it
+        // once it has expired. Active (non-expired) pending claims block new submissions.
+        if let Some(existing) = env
+            .storage()
+            .persistent()
+            .get::<_, ContractClaimRequest>(&ExtensionKey::ContractClaim(
+                project_id,
+                contract_address.clone(),
+            ))
+        {
+            if existing.status == ClaimStatus::Pending {
+                // expires_at == 0 is the legacy sentinel for "no expiry"; treat as non-expired.
+                let is_expired =
+                    existing.expires_at > 0 && now >= existing.expires_at;
+                if !is_expired {
+                    return Err(ContractError::InvalidStatus);
+                }
+                // Expired — fall through and overwrite the stale pending claim.
+            }
+        }
+
+        let expires_at = now + CLAIM_EXPIRY_SECONDS;
+
         let req = ContractClaimRequest {
             project_id,
             contract_address: contract_address.clone(),
             claimant: caller.clone(),
             proof_cid: proof_cid.clone(),
             status: ClaimStatus::Pending,
-            created_at: env.ledger().timestamp(),
+            created_at: now,
+            expires_at,
         };
 
         env.storage().persistent().set(

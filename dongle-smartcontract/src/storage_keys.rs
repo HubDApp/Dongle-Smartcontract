@@ -185,4 +185,6 @@ pub enum ExtensionKey {
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
 }
