@@ -83,3 +83,6 @@ mod ttl_batch;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+
+// Contract API compatibility (issue #257)
+mod api_compat;

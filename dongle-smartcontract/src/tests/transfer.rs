@@ -33,6 +33,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     })
 }
 

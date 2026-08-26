@@ -37,6 +37,7 @@ fn setup_project_with_fee(
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
         license: None,
     };
     let project_id = client.register_project(&params);
@@ -77,6 +78,7 @@ fn test_verification_lifecycle() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
         license: None,
     };
     let project_id = client.register_project(&params);
@@ -137,6 +139,7 @@ fn test_reject_verification() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
         license: None,
     };
     let project_id = client.register_project(&params);
