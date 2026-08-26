@@ -81,12 +81,11 @@ fn test_full_verification_lifecycle_with_fee() {
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
 
     // ── Step 2: Pay the verification fee ────────────────────────────────
-    setup_and_pay_fee(&client, &env, &admin, &owner, project_id);
+    let fee_token = setup_and_pay_fee(&client, &env, &admin, &owner, project_id);
     assert!(client.is_fee_paid(&project_id));
 
     // ── Step 3: Request verification ────────────────────────────────────
-    let evidence_cid =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
+    let evidence_cid = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
     client.request_verification(&project_id, &owner, &evidence_cid);
 
     let project = client.get_project(&project_id).unwrap();
@@ -104,7 +103,10 @@ fn test_full_verification_lifecycle_with_fee() {
 
     let record = client.get_verification(&project_id).unwrap();
     assert_eq!(record.status, VerificationStatus::Verified);
-    assert!(record.expires_at > 0, "expires_at must be set after approval");
+    assert!(
+        record.expires_at > 0,
+        "expires_at must be set after approval"
+    );
     // expires_at = 1_000 (now) + 1_000 (duration) = 2_000
     assert_eq!(record.expires_at, 2_000);
 
@@ -130,8 +132,13 @@ fn test_full_verification_lifecycle_with_fee() {
     assert!(client.is_verification_expired(&project_id));
 
     // ── Step 6: Request renewal ─────────────────────────────────────────
-    let renewal_cid =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTb");
+    // A renewal opens a new verification cycle and consumes a fee of its own —
+    // the original payment was consumed by `request_verification` in step 3.
+    // Without this the call fails with `InsufficientFee`.
+    client.pay_fee(&owner, &project_id, &Some(fee_token.clone()));
+    assert!(client.is_fee_paid(&project_id));
+
+    let renewal_cid = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTb");
     client.request_renewal(&project_id, &owner, &renewal_cid);
 
     let renewal = client.get_renewal_request(&project_id).unwrap();
@@ -184,10 +191,12 @@ fn test_request_verification_blocked_without_fee() {
         .address();
     client.set_fee(&admin, &Some(token_address), &100u128, &0u128, &admin);
 
-    let evidence_cid =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
+    let evidence_cid = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
     let result = client.try_request_verification(&project_id, &owner, &evidence_cid);
-    assert!(result.is_err(), "verification should be blocked without fee payment");
+    assert!(
+        result.is_err(),
+        "verification should be blocked without fee payment"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -202,8 +211,7 @@ fn test_verification_history_recorded_across_lifecycle() {
     let owner = Address::generate(&env);
 
     let project_id = register_project(&client, &env, &owner, "history-project");
-    let evidence_cid =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
+    let evidence_cid = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
 
     // First cycle: approve then revoke
     client.request_verification(&project_id, &owner, &evidence_cid);
@@ -212,8 +220,7 @@ fn test_verification_history_recorded_across_lifecycle() {
     client.revoke_verification(&project_id, &admin, &revoke_reason);
 
     // Second cycle: approve again
-    let evidence2 =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTb");
+    let evidence2 = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTb");
     client.request_verification(&project_id, &owner, &evidence2);
     client.approve_verification(&project_id, &admin);
 
@@ -236,17 +243,22 @@ fn test_renewal_requires_verified_status() {
     let owner = Address::generate(&env);
 
     let project_id = register_project(&client, &env, &owner, "unverified-renewal");
-    let evidence_cid =
-        String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
+    let evidence_cid = String::from_str(&env, "QmYwAPJhy5nTAQCj9g1s2bkss7jBlEd22bN2R4s5gR5PTa");
 
     // Project is still Unverified; renewal must fail
     let result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
-    assert!(result.is_err(), "renewal must be rejected for unverified project");
+    assert!(
+        result.is_err(),
+        "renewal must be rejected for unverified project"
+    );
 
     // Request and reject verification → Rejected state
     client.request_verification(&project_id, &owner, &evidence_cid);
     client.reject_verification(&project_id, &admin);
 
     let result = client.try_request_renewal(&project_id, &owner, &evidence_cid);
-    assert!(result.is_err(), "renewal must be rejected when verification was rejected");
+    assert!(
+        result.is_err(),
+        "renewal must be rejected when verification was rejected"
+    );
 }

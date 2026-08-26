@@ -142,6 +142,12 @@ pub enum ContractError {
     InvalidTags = 68,
     /// Admin proposal has passed its expiry time and can no longer be executed
     ProposalExpired = 69,
+    /// No refund is recorded for the given project.
+    NoRefundAvailable = 70,
+    /// The recorded refund has already been paid out.
+    RefundAlreadyClaimed = 71,
+    /// A checked arithmetic operation overflowed.
+    ArithmeticOverflow = 72,
 }
 
 pub type Error = ContractError;

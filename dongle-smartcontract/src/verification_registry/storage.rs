@@ -209,8 +209,13 @@ impl VerificationRegistry {
         // register_project or update_project.  Recompute using the same
         // pipe-separated SHA-256 scheme and compare byte-for-byte.
         if let Some(stored_hash) = ProjectRegistry::get_project_integrity_hash(env, project_id) {
-            let recomputed =
-                ProjectRegistry::compute_integrity_hash(env, &project.name, &project.slug, &project.category, &project.description);
+            let recomputed = ProjectRegistry::compute_integrity_hash(
+                env,
+                &project.name,
+                &project.slug,
+                &project.category,
+                &project.description,
+            );
             if recomputed != stored_hash {
                 return Err(ContractError::InvalidProjectData);
             }
@@ -303,6 +308,19 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
+        // Issue #472: a rejected request must not keep the requester's fee.
+        // The payout is recorded as claimable rather than transferred here —
+        // moving tokens out of the treasury needs `treasury.require_auth()`,
+        // which the rejecting admin cannot generally supply. See
+        // `FeeManager::record_verification_refund`.
+        FeeManager::record_verification_refund(
+            env,
+            project_id,
+            record.request_id,
+            record.requester.clone(),
+            record.fee_amount,
+        )?;
+
         publish_verification_rejected_event(env, project_id, admin.clone(), now);
 
         AdminActionLog::record_action(
@@ -343,11 +361,13 @@ impl VerificationRegistry {
     /// If the record is expired this also emits a `VerificationExpiredEvent` so that
     /// indexers can pick it up without needing a dedicated "check expiry" transaction.
     pub fn is_verification_active(env: &Env, project_id: u64) -> bool {
-        let record: VerificationRecord = match env
-            .storage()
-            .persistent()
-            .get(&StorageKey::Verification(project_id))
-        {
+        // `StorageKey::Verification(project_id)` holds the *request id*, not the
+        // record — the record lives under `VerificationRecord(request_id)`.
+        // Reading it directly as a `VerificationRecord` raised a
+        // `ConversionError` that escalated to a host panic, so this entry point
+        // trapped for every project that had ever requested verification.
+        // `Self::get_verification` already performs the correct two-hop lookup.
+        let record: VerificationRecord = match Self::get_verification(env, project_id) {
             Some(r) => r,
             None => return false,
         };
