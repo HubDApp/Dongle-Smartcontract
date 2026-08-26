@@ -66,6 +66,9 @@ for the full policy.
 
 ### Fixed
 
+- Added test coverage confirming archived projects are excluded from
+  `list_projects_by_tag` and `list_projects_sorted`, the two discovery paths
+  documented in `docs/ARCHIVE_FEATURE.md` that had no regression test (#171).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
