@@ -1457,19 +1457,43 @@ pub fn publish_project_removed_from_collection_event(
     );
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectLinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnlinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 pub fn publish_project_linked_event(
     env: &Env,
     project_id: u64,
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectLinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("LINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 
@@ -1479,13 +1503,19 @@ pub fn publish_project_unlinked_event(
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectUnlinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("UNLINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 

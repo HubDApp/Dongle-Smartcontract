@@ -71,6 +71,48 @@ All project-related events start with the topic `PROJECT` (Symbol).
   * `new_owner` (`Address`): The new owner address.
   * `timestamp` (`u64`): Unix timestamp.
 
+### Project Linked
+* **Topic:** `(Symbol("PROJECT"), Symbol("LINKED"), project_id: u64)`
+* **Payload (`ProjectLinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project that initiated the link.
+  * `linked_project_id` (`u64`): The ID of the project being linked to.
+  * `owner` (`Address`): Address of the project owner (or admin) who created the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was created.
+
+#### Project Linked Event Example
+```json
+{
+  "topics": ["PROJECT", "LINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390400
+  }
+}
+```
+
+### Project Unlinked
+* **Topic:** `(Symbol("PROJECT"), Symbol("UNLINKED"), project_id: u64)`
+* **Payload (`ProjectUnlinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project from which the link was removed.
+  * `linked_project_id` (`u64`): The ID of the project that was unlinked.
+  * `owner` (`Address`): Address of the project owner (or admin) who removed the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was removed.
+
+#### Project Unlinked Event Example
+```json
+{
+  "topics": ["PROJECT", "UNLINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390500
+  }
+}
+```
+
 ---
 
 ## 2. Review Events
