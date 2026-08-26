@@ -102,6 +102,59 @@ fn test_non_admin_cannot_approve() {
     assert_eq!(client.get_proposal(&id).unwrap().approvals.len(), 1);
 }
 
+#[test]
+fn test_admin_can_reject_pending_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, _admin2, admin3) = setup_two_of_three(&env);
+
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+
+    client.reject_proposal(&admin3, &id);
+
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Rejected
+    );
+    assert!(client.try_approve_proposal(&admin3, &id).is_err());
+    assert!(client.try_execute_proposal(&admin3, &id).is_err());
+}
+
+#[test]
+fn test_non_admin_cannot_reject_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, _admin2, _admin3) = setup_two_of_three(&env);
+
+    let outsider = Address::generate(&env);
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+
+    assert!(client.try_reject_proposal(&outsider, &id).is_err());
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Pending
+    );
+}
+
+#[test]
+fn test_approved_proposal_cannot_be_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, admin2, _admin3) = setup_two_of_three(&env);
+
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+    client.approve_proposal(&admin2, &id);
+
+    assert!(client.try_reject_proposal(&admin1, &id).is_err());
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Approved
+    );
+}
+
 // ─── Execution gating ────────────────────────────────────────────────────────
 
 #[test]
