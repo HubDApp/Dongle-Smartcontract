@@ -578,6 +578,8 @@ fn snapshot_verification_requested_and_approved_event_shape() {
                 && event.requester == owner
                 && event.evidence_cid == evidence_cid
                 && event.timestamp == TEST_TIMESTAMP
+                && event.request_id == 1
+                && event.previous_request_id.is_none()
         }
     ));
 
@@ -590,6 +592,52 @@ fn snapshot_verification_requested_and_approved_event_shape() {
         (symbol_short!("VERIFY"), symbol_short!("APP"), project_id),
         |event| event.project_id == project_id && event.admin == admin
     ));
+}
+
+#[test]
+fn verification_requested_event_distinguishes_rerequest() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner, "Rerequest-Snapshot");
+
+    let first_cid = String::from_str(&env, "QmEvidenceCidFirst00123456789012345678901234567");
+    client
+        .mock_all_auths()
+        .request_verification(&project_id, &owner, &first_cid);
+
+    // `env.events().all()` reflects the most recent contract invocation, so
+    // assert on the event right after the call that emits it — a project's
+    // first-ever request has no previous request to reference.
+    assert!(has_event::<VerificationRequestedEvent, _, _>(
+        &env,
+        (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
+        |event| { event.request_id == 1 && event.previous_request_id.is_none() }
+    ));
+
+    client
+        .mock_all_auths()
+        .reject_verification(&project_id, &admin);
+
+    let second_cid = String::from_str(&env, "QmEvidenceCidSecond0123456789012345678901234567");
+    client
+        .mock_all_auths()
+        .request_verification(&project_id, &owner, &second_cid);
+
+    // The re-request event references the rejected request's id, making the
+    // replacement explicit for indexers without a separate lookup.
+    assert!(has_event::<VerificationRequestedEvent, _, _>(
+        &env,
+        (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
+        |event| {
+            event.request_id == 2
+                && event.previous_request_id == Some(1)
+                && event.evidence_cid == second_cid
+        }
+    ));
+
+    let second_record = client.get_verification(&project_id).unwrap();
+    assert_eq!(second_record.request_id, 2);
 }
 
 #[test]

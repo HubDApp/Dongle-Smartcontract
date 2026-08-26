@@ -58,6 +58,15 @@ impl VerificationRegistry {
         // 5. Validate evidence before any storage mutation, including fee consumption.
         VerificationValidation::validate_evidence_cid(&evidence_cid)?;
 
+        // Capture the previous request (if any) before it's superseded below.
+        // The previous `VerificationRecord` is never mutated or removed here —
+        // it remains reachable via `get_verification_record` and
+        // `get_verification_history` exactly as it was decided, preserving its
+        // original status and evidence CID. Only the "current" pointer
+        // (`StorageKey::Verification`) and the project's `current_verification_id`
+        // move to the new request.
+        let previous_request_id = project.current_verification_id;
+
         // 6. Consume fee payment when configured
         let fee_amount = match FeeManager::get_fee_config(env) {
             Ok(config) if config.verification_fee > 0 => {
@@ -131,7 +140,14 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_requested_event(env, project_id, requester, evidence_cid);
+        publish_verification_requested_event(
+            env,
+            project_id,
+            requester,
+            evidence_cid,
+            request_id,
+            previous_request_id,
+        );
         Ok(())
     }
 

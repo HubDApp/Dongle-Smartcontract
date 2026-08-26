@@ -1,4 +1,4 @@
-# Verification Renewal
+# Verification
 
 Verification renewal lets the owner of a verified project submit updated
 evidence and lets a contract administrator approve or reject that request. An
@@ -193,6 +193,80 @@ cargo test -p dongle-contract renewal
 - Fee configuration can make a request free or require a previously recorded
   verification-fee payment.
 - Expiry checks are read-only. They do not automatically change project status.
+
+## Requesting Verification and Re-request Replacement Rules
+
+`request_verification(project_id, requester, evidence_cid)` is the entrypoint
+for the *initial* (non-renewal) verification flow. It can be called whenever
+a project's `verification_status` is `Unverified` or `Rejected` (enforced by
+`VerificationStateMachine::can_request_verification`) — including after a
+prior request was rejected by an admin, or after a previously verified
+project was revoked (revocation sets status back to `Unverified`).
+
+### Versioning, not overwriting
+
+A new request always **creates a new `VerificationRecord`** with a fresh,
+monotonically increasing `request_id`; it never mutates or deletes the
+previous record. Concretely, on every call:
+
+1. the previous record (if any) is left exactly as the admin last decided it
+   — its `status`, `evidence_cid`, `decided_at`, and `revoke_reason` are
+   unchanged and remain readable via `get_verification_record(request_id)`;
+2. a new record is appended to `ProjectVerificationHistory(project_id)`, so
+   `get_verification_history(project_id)` returns every past request in
+   submission order, oldest first;
+3. only the "current" pointers move: `StorageKey::Verification(project_id)`
+   and `Project.current_verification_id` are updated to the new
+   `request_id`, so `get_verification(project_id)` and `get_project` always
+   reflect the latest request.
+
+This means a rejected or revoked request's original evidence is permanently
+auditable — a re-request cannot retroactively change what an earlier
+decision was made against.
+
+```rust
+client.request_verification(&project_id, &owner, &evidence_v1);
+let first = client.get_verification(&project_id).unwrap();
+
+client.reject_verification(&project_id, &admin);
+client.request_verification(&project_id, &owner, &evidence_v2);
+
+// The rejected record is untouched.
+let rejected = client.get_verification_record(&first.request_id).unwrap();
+assert_eq!(rejected.status, VerificationStatus::Rejected);
+assert_eq!(rejected.evidence_cid, evidence_v1);
+
+// The current record is the new one.
+let current = client.get_verification(&project_id).unwrap();
+assert_ne!(current.request_id, first.request_id);
+assert_eq!(current.evidence_cid, evidence_v2);
+
+// Both are in history.
+assert_eq!(client.get_verification_history(&project_id).len(), 2);
+```
+
+### Distinguishing re-requests in events
+
+`VerificationRequestedEvent` carries `request_id` (the new record's id) and
+`previous_request_id: Option<u64>` — `None` for a project's first-ever
+request, `Some(old_request_id)` for a re-request. Indexers can use this field
+directly instead of inferring a re-request from event ordering:
+
+```rust
+assert!(has_event::<VerificationRequestedEvent, _, _>(
+    &env,
+    (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
+    |event| event.previous_request_id == Some(first.request_id)
+));
+```
+
+### While a request is already Pending
+
+Only one request may be Pending at a time. Calling `request_verification`
+again while the current record's status is `Pending` returns
+`ContractError::InvalidStatus` — the owner must wait for an admin to approve
+or reject first, or use `update_verification_evidence` to change the
+evidence CID on the pending request instead of submitting a new one.
 
 ## Documentation Cleanup Note
 

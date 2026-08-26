@@ -162,6 +162,12 @@ All verification-related events start with the topic `VERIFY` (Symbol).
   * `requester` (`Address`): The requester's address.
   * `evidence_cid` (`String`): The IPFS/content CID containing supporting verification evidence.
   * `timestamp` (`u64`): Unix timestamp.
+  * `request_id` (`u64`): ID of the newly created `VerificationRecord` for this request.
+  * `previous_request_id` (`Option<u64>`): ID of the project's previous verification
+    request, if any. `None` for a project's first-ever request; `Some(id)` marks
+    this as a re-request (e.g. after rejection or revocation) that **versions**
+    rather than overwrites the record identified by `id` — see
+    [`VERIFICATION.md`](VERIFICATION.md#requesting-verification-and-re-request-replacement-rules).
 
 #### Verification Requested Event Example
 ```json
@@ -171,7 +177,9 @@ All verification-related events start with the topic `VERIFY` (Symbol).
     "project_id": 1,
     "requester": "GDXX...XXXX",
     "evidence_cid": "QmZ4tUD4vC5P16G1sA1nemtYgPpHdWEz79ojWnPbdG",
-    "timestamp": 1782390600
+    "timestamp": 1782390600,
+    "request_id": 2,
+    "previous_request_id": 1
   }
 }
 ```

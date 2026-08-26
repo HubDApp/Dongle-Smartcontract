@@ -42,6 +42,12 @@ for the full policy.
 
 - Tag validation now rejects duplicate values (case-insensitive after ASCII
   lowercase normalization) with `InvalidTags` (#526).
+- Documented and tested verification request replacement rules: a re-request
+  after rejection or revocation versions (new `VerificationRecord`, preserved
+  history) rather than overwriting the previous record. `VerificationRequestedEvent`
+  now carries `request_id` and `previous_request_id` so re-requests are
+  distinguishable from a project's first request (#225, **BREAKING**: adds
+  fields to `VerificationRequestedEvent`).
 
 ### Changed
 
