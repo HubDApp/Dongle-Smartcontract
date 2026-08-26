@@ -35,6 +35,7 @@ mod verification_lifecycle;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;
+mod sorted_listing;
 mod string_validation;
 mod tag_index;
 mod tags;

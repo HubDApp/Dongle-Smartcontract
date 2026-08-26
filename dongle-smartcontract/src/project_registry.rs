@@ -2109,41 +2109,114 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut all: Vec<Project> = Vec::new(env);
-        for id in 1..=count {
-            if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
-                    all.push_back(project);
-                }
-            }
+        let mut result: Vec<Project> = Vec::new(env);
+        if count == 0 {
+            return result;
         }
 
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ProjectSortMode::Newest => a.created_at < b.created_at,
-            ProjectSortMode::Oldest => a.created_at > b.created_at,
-            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                if sort_mode == ProjectSortMode::HighestRated {
-                    stats_a.average_rating < stats_b.average_rating
-                        || (stats_a.average_rating == stats_b.average_rating
-                            && stats_a.review_count < stats_b.review_count)
-                } else {
-                    stats_a.review_count < stats_b.review_count
-                        || (stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating)
+        match sort_mode {
+            // Project IDs are handed out in registration order and `created_at` is
+            // non-decreasing across them, so the ID space is already the sort order.
+            // Walking it directly reads only the requested page instead of loading
+            // and ordering the whole registry (issue #484).
+            ProjectSortMode::Newest | ProjectSortMode::Oldest => {
+                let newest_first = sort_mode == ProjectSortMode::Newest;
+                let mut skipped: u64 = 0;
+                let mut collected: u32 = 0;
+
+                for step in 0..count {
+                    if collected >= effective_limit {
+                        break;
+                    }
+                    let id = if newest_first { count - step } else { step + 1 };
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    if skipped < start_index {
+                        skipped += 1;
+                        continue;
+                    }
+                    result.push_back(project);
+                    collected += 1;
                 }
             }
-        });
-        let n = all.len();
+            // Rating order cannot be derived from the ID space. Read each project's
+            // review stats once - the previous bubble sort re-read them inside every
+            // comparison, which made the call O(N^2) in storage reads - and then select
+            // just the requested page rather than ordering the entire registry.
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let mut candidates: Vec<Project> = Vec::new(env);
+                let mut averages: Vec<u32> = Vec::new(env);
+                let mut review_counts: Vec<u32> = Vec::new(env);
 
-        let mut result = Vec::new(env);
-        let start = start_index as u32;
-        if start < n {
-            let end = core::cmp::min(start.saturating_add(effective_limit), n);
-            for i in start..end {
-                if let Some(project) = all.get(i) {
-                    result.push_back(project);
+                for id in 1..=count {
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    let stats = crate::review_registry::ReviewRegistry::get_project_stats(env, id);
+                    candidates.push_back(project);
+                    averages.push_back(stats.average_rating);
+                    review_counts.push_back(stats.review_count);
+                }
+
+                let total = candidates.len();
+                let start = start_index as u32;
+                if start >= total {
+                    return result;
+                }
+                let wanted = core::cmp::min(start.saturating_add(effective_limit), total);
+
+                let highest_rated = sort_mode == ProjectSortMode::HighestRated;
+                let mut taken: Vec<bool> = Vec::new(env);
+                for _ in 0..total {
+                    taken.push_back(false);
+                }
+
+                // Partial selection: only `wanted` ranks are resolved, so the work is
+                // bounded by the page the caller asked for.
+                for rank in 0..wanted {
+                    let mut best: Option<u32> = None;
+                    for i in 0..total {
+                        if taken.get(i).unwrap_or(false) {
+                            continue;
+                        }
+                        let Some(best_index) = best else {
+                            best = Some(i);
+                            continue;
+                        };
+                        let (primary, secondary) = if highest_rated {
+                            (&averages, &review_counts)
+                        } else {
+                            (&review_counts, &averages)
+                        };
+                        let candidate_primary = primary.get(i).unwrap_or(0);
+                        let best_primary = primary.get(best_index).unwrap_or(0);
+                        let candidate_secondary = secondary.get(i).unwrap_or(0);
+                        let best_secondary = secondary.get(best_index).unwrap_or(0);
+
+                        if candidate_primary > best_primary
+                            || (candidate_primary == best_primary
+                                && candidate_secondary > best_secondary)
+                        {
+                            best = Some(i);
+                        }
+                    }
+
+                    let Some(best_index) = best else {
+                        break;
+                    };
+                    taken.set(best_index, true);
+                    if rank >= start {
+                        if let Some(project) = candidates.get(best_index) {
+                            result.push_back(project);
+                        }
+                    }
                 }
             }
         }
