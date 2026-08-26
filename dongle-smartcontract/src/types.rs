@@ -69,6 +69,10 @@ pub struct Review {
     /// Unix timestamp (seconds) of the most recent modification to this review.
     pub updated_at: u64,
 
+    /// Unix timestamp (seconds) of the most recent reviewer update.
+    /// Zero means the review has not been updated since submission.
+    pub last_updated_at: u64,
+
     /// Whether the review is hidden by moderation.
     pub hidden: bool,
 

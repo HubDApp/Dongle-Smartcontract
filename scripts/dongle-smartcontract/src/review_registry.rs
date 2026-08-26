@@ -95,6 +95,7 @@ impl ReviewRegistry {
             owner_response: None,
             created_at: now,
             updated_at: now,
+            last_updated_at: 0,
             hidden: false,
             report_count: 0,
         };
@@ -202,17 +203,12 @@ impl ReviewRegistry {
             return Err(ContractError::NotReviewOwner);
         }
 
-        // Cooldown: reject update if within REVIEW_UPDATE_COOLDOWN_SECONDS of the last update.
-        // Note: ContractError::InvalidStatus (9) is reused as the cooldown error because
-        // Soroban SDK 22 #[contracterror] is limited to 50 variants and this enum is full.
-        // A dedicated ReviewCooldownActive variant should be introduced when a variant slot
-        // is freed in a future refactor.
-        let cooldown_key = ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone());
-        if let Some(last_updated_at) = env.storage().persistent().get::<_, u64>(&cooldown_key) {
-            let now_ts = env.ledger().timestamp();
-            if now_ts.saturating_sub(last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS {
-                return Err(ContractError::InvalidStatus);
-            }
+        // Cooldown: reject update if within the cooldown window of the last update.
+        let now_ts = env.ledger().timestamp();
+        if review.last_updated_at > 0
+            && now_ts.saturating_sub(review.last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS
+        {
+            return Err(ContractError::InvalidStatus);
         }
 
         // Mutation phase — archive prior revision before applying changes
@@ -231,6 +227,7 @@ impl ReviewRegistry {
         review.rating = rating;
         review.content_cid = comment_cid.clone();
         review.updated_at = now;
+        review.last_updated_at = now;
 
         // Get current stats
         let stats: ProjectStats = env
@@ -260,12 +257,6 @@ impl ReviewRegistry {
                 review_count: stats.review_count,
                 average_rating: new_avg,
             },
-        );
-
-        // Record the update timestamp for cooldown enforcement on subsequent updates.
-        env.storage().persistent().set(
-            &ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone()),
-            &now,
         );
 
         publish_review_event(
