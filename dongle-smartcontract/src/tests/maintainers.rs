@@ -71,6 +71,8 @@ fn test_maintainer_can_update_metadata() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let updated_proj = client.mock_all_auths().update_project(&update_params);
@@ -136,6 +138,8 @@ fn test_unauthorized_user_cannot_do_anything() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let res = client.mock_all_auths().try_update_project(&update_params);
     assert_eq!(res, Err(Ok(ContractError::Unauthorized)));
@@ -223,6 +227,8 @@ fn test_owner_does_not_lose_ownership_privileges() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let updated_proj = client.mock_all_auths().update_project(&update_params);
     assert_eq!(updated_proj.description, new_desc);

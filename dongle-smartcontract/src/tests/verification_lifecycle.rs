@@ -32,6 +32,7 @@ fn register_project(
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.register_project(&params)
 }
