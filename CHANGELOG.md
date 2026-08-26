@@ -66,6 +66,9 @@ for the full policy.
 
 ### Fixed
 
+- Added explicit test coverage confirming `bookmark_project` returns a typed
+  `ContractError::ProjectNotFound` for a nonexistent project rather than
+  panicking, matching `endorse_project` and the rest of the registries (#314).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
