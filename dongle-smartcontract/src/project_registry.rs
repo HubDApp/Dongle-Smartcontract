@@ -1,22 +1,24 @@
 use crate::admin_manager::AdminManager;
 use crate::constants::{
-    MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME, MAJOR_METADATA_FIELD_WEBSITE,
-    MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
 };
 use crate::errors::ContractError;
 use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
     publish_claim_request_submitted_event, publish_ownership_transferred_event,
     publish_project_archived_event, publish_project_claimable_set_event,
-    publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event, publish_verification_status_reset_event,
+    publish_project_lifecycle_status_updated_event, publish_project_reactivated_event,
+    publish_project_registered_event, publish_project_updated_event,
+    publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectRegistrationParams,
-    ProjectSortMode, ProjectUpdateParams, SecurityContactStatus, VerificationStatus,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
+    VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
@@ -147,6 +149,7 @@ impl ProjectRegistry {
             current_verification_id: None,
             archived: false,
             claimable: false,
+            lifecycle_status: ProjectLifecycleStatus::Active,
             created_at: now,
             updated_at: now,
             tags: params.tags.clone(),
@@ -1902,13 +1905,39 @@ impl ProjectRegistry {
 
         Utils::validate_metadata_cid(&proof_cid)?;
 
+        let now = env.ledger().timestamp();
+
+        // If a pending claim already exists for this address, only allow replacing it
+        // once it has expired. Active (non-expired) pending claims block new submissions.
+        if let Some(existing) = env
+            .storage()
+            .persistent()
+            .get::<_, ContractClaimRequest>(&ExtensionKey::ContractClaim(
+                project_id,
+                contract_address.clone(),
+            ))
+        {
+            if existing.status == ClaimStatus::Pending {
+                // expires_at == 0 is the legacy sentinel for "no expiry"; treat as non-expired.
+                let is_expired =
+                    existing.expires_at > 0 && now >= existing.expires_at;
+                if !is_expired {
+                    return Err(ContractError::InvalidStatus);
+                }
+                // Expired — fall through and overwrite the stale pending claim.
+            }
+        }
+
+        let expires_at = now + CLAIM_EXPIRY_SECONDS;
+
         let req = ContractClaimRequest {
             project_id,
             contract_address: contract_address.clone(),
             claimant: caller.clone(),
             proof_cid: proof_cid.clone(),
             status: ClaimStatus::Pending,
-            created_at: env.ledger().timestamp(),
+            created_at: now,
+            expires_at,
         };
 
         env.storage().persistent().set(
@@ -2124,6 +2153,25 @@ impl ProjectRegistry {
         category: &String,
         description: &String,
     ) {
+        let hash_bytes = Self::compute_integrity_hash(env, name, slug, category, description);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+    }
+
+    /// Computes (but does not store) the SHA-256 integrity hash for the given
+    /// metadata fields.  The hash input is the pipe-separated concatenation:
+    /// name|slug|category|description.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
         let sep = b'|';
         let mut buf = soroban_sdk::Bytes::new(env);
         Self::append_string_bytes(env, &mut buf, name);
@@ -2134,10 +2182,92 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
-        let hash_bytes = soroban_sdk::Bytes::from_array(env, &hash.to_array());
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Update a project's lifecycle status.
+    /// Only the project owner can change the lifecycle status.
+    pub fn set_project_lifecycle_status(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_status: ProjectLifecycleStatus,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let previous_status = project.lifecycle_status;
+        if previous_status == new_status {
+            // Status unchanged, no event needed
+            return Ok(project);
+        }
+
+        project.lifecycle_status = new_status;
+        project.updated_at = env.ledger().timestamp();
+
         env.storage()
             .persistent()
-            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_lifecycle_status_updated_event(
+            env,
+            project_id,
+            project.owner.clone(),
+            previous_status,
+            new_status,
+        );
+
+        Ok(project)
+    }
+
+    /// List projects by lifecycle status with pagination.
+    /// Returns projects matching the specified lifecycle status, excluding archived projects.
+    pub fn list_projects_by_lifecycle_status(
+        env: &Env,
+        status: ProjectLifecycleStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if count == 0 {
+            return projects;
+        }
+
+        let first = if start_id > 0 { start_id } else { 1 };
+        let mut collected: u32 = 0;
+
+        for id in first..=count {
+            if collected >= effective_limit {
+                break;
+            }
+
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived && project.lifecycle_status == status {
+                    projects.push_back(project);
+                    collected = collected.saturating_add(1);
+                }
+            }
+        }
+
+        projects
     }
 }
 

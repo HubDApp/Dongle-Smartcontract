@@ -140,6 +140,8 @@ pub enum ContractError {
     PayloadHashMismatch = 67,
     /// Tag list is invalid (empty, over-length, too many, bad charset, or duplicates)
     InvalidTags = 68,
+    /// Admin proposal has passed its expiry time and can no longer be executed
+    ProposalExpired = 69,
 }
 
 pub type Error = ContractError;

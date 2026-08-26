@@ -52,8 +52,8 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
     DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
-    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
-    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats,
+    ProjectUpdateParams, ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
     SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -126,8 +126,9 @@ impl DongleContract {
         env: Env,
         proposer: Address,
         payload: ProposalPayload,
+        expires_at: u64,
     ) -> Result<u64, ContractError> {
-        AdminManager::create_proposal(&env, proposer, payload)
+        AdminManager::create_proposal(&env, proposer, payload, expires_at)
     }
 
     pub fn approve_proposal(
@@ -187,6 +188,16 @@ impl DongleContract {
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::update_project(&env, params)
+    }
+
+    pub fn set_project_lifecycle_status(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        status: ProjectLifecycleStatus,
+    ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
     pub fn update_security_contact(
@@ -341,6 +352,15 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
+    }
+
+    pub fn list_projects_by_lifecycle_status(
+        env: Env,
+        status: ProjectLifecycleStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_lifecycle_status(&env, status, start_id, limit)
     }
 
     pub fn list_projects_sorted(
@@ -1116,11 +1136,23 @@ impl DongleContract {
         AdminActionLog::list_admin_actions(&env, start, limit)
     }
 
+    /// List admin action log entries filtered to a specific admin address (most recent first).
+    ///
+    /// Uses a per-admin index for efficiency — no full scan needed.
+    /// `start` is a zero-based offset; `limit` is capped at `MAX_ADMIN_ACTION_LOG_PAGE`.
+    pub fn get_admin_action_log_by_admin(
+        env: Env,
+        admin: Address,
+        start: u32,
+        limit: u32,
+    ) -> Vec<AdminActionEntry> {
+        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start, limit)
+    }
+
     /// Get the total number of admin action log entries.
     pub fn get_admin_action_log_count(env: Env) -> u64 {
         AdminActionLog::get_action_log_count(&env)
     }
-
     // --- Project Claiming ---
 
     pub fn set_project_claimable(
@@ -1212,6 +1244,12 @@ impl DongleContract {
         crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
     }
 
+    /// Returns the number of dependencies for a project without fetching
+    /// the full dependency list.  Useful for UI count badges.
+    pub fn get_project_dependency_count(env: Env, project_id: u64) -> u32 {
+        crate::dependency_registry::DependencyRegistry::get_dependency_count(&env, project_id)
+    }
+
     // --- Duplicate Disputes ---
 
     pub fn open_duplicate_dispute(
@@ -1258,6 +1296,8 @@ impl DongleContract {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -1268,9 +1308,11 @@ impl DongleContract {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description)
+        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description, version, changelog_cid)
     }
 
     /// Remove a changelog entry (project owner only).

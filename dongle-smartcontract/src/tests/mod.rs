@@ -5,6 +5,7 @@ mod admin;
 mod admin_action_log;
 mod archival;
 mod collections;
+mod collection_registry_crud;
 mod error_handling_tests;
 mod featured;
 // mod fee;
@@ -23,6 +24,7 @@ mod pagination;
 mod claim;
 mod config;
 mod dependencies;
+mod lifecycle_status;
 mod maintainers;
 mod renewal;
 mod review_history;
@@ -30,6 +32,7 @@ mod review_settings;
 mod security_contact;
 mod verification;
 mod verification_features;
+mod verification_lifecycle;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;

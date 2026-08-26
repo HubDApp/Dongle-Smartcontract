@@ -35,6 +35,7 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
+    pub lifecycle_status: Option<ProjectLifecycleStatus>,
 }
 
 #[contracttype]
@@ -178,6 +179,10 @@ pub struct ContractClaimRequest {
     pub proof_cid: String,
     pub status: ClaimStatus,
     pub created_at: u64,
+    /// Unix timestamp (seconds) after which this pending claim is considered expired.
+    /// A value of 0 means no expiry (legacy). New claims always set this to
+    /// `created_at + CLAIM_EXPIRY_SECONDS`.
+    pub expires_at: u64,
 }
 
 #[contracttype]
@@ -197,6 +202,7 @@ pub struct Project {
     pub current_verification_id: Option<u64>,
     pub archived: bool,
     pub claimable: bool,
+    pub lifecycle_status: ProjectLifecycleStatus,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
@@ -233,6 +239,23 @@ pub enum VerificationStatus {
     Pending,
     Verified,
     Rejected,
+}
+
+/// Project lifecycle status for managing project activity state.
+/// Allows project owners to signal project maturity, stability, and maintenance status.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectLifecycleStatus {
+    /// Active development - project is regularly maintained
+    Active,
+    /// Beta/experimental - not yet stable for production use
+    Beta,
+    /// Paused - temporarily not maintained
+    Paused,
+    /// Deprecated - no longer recommended for new use
+    Deprecated,
+    /// Sunset - officially discontinued
+    Sunset,
 }
 
 #[contracttype]
@@ -510,6 +533,10 @@ pub struct AdminProposal {
     pub approvals: Vec<Address>,
     pub status: ProposalStatus,
     pub created_at: u64,
+    /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
+    /// will reject the proposal if the current ledger time is at or past this value.
+    /// Zero means no expiry (legacy / always executable once approved).
+    pub expires_at: u64,
 }
 
 /// Tombstone stored when a review is deleted so indexers can distinguish
@@ -588,6 +615,12 @@ pub struct ChangelogEntry {
     pub created_at: u64,
     /// Optional description/title for the changelog entry
     pub description: Option<String>,
+    /// Optional semantic version string for this release (e.g. "1.2.3").
+    /// Allows indexers to correlate changelog entries with project releases.
+    pub version: Option<String>,
+    /// Optional IPFS CID pointing to a structured release-notes document.
+    /// Complements `cid` when separate machine-readable release metadata is needed.
+    pub changelog_cid: Option<String>,
 }
 
 /// Changelog sort order for paginated reads

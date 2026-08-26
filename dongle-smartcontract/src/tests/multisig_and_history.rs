@@ -112,7 +112,7 @@ fn test_admin_multisig_approval_threshold() {
 
     // Create a proposal to add admin4
     let payload = ProposalPayload::AddAdmin(admin4.clone());
-    let proposal_id = client.create_proposal(&admin1, &payload);
+    let proposal_id = client.create_proposal(&admin1, &payload, &0u64);
 
     // Verify proposal details
     let proposal = client.get_proposal(&proposal_id).unwrap();
@@ -158,17 +158,17 @@ fn test_proposal_ids_start_at_zero() {
 
     // First proposal should get ID 0
     let payload1 = ProposalPayload::AddAdmin(Address::generate(&env));
-    let id1 = client.create_proposal(&admin1, &payload1);
+    let id1 = client.create_proposal(&admin1, &payload1, &0u64);
     assert_eq!(id1, 0);
 
     // Second proposal should get ID 1
     let payload2 = ProposalPayload::AddAdmin(Address::generate(&env));
-    let id2 = client.create_proposal(&admin2, &payload2);
+    let id2 = client.create_proposal(&admin2, &payload2, &0u64);
     assert_eq!(id2, 1);
 
     // Third proposal should get ID 2
     let payload3 = ProposalPayload::AddAdmin(Address::generate(&env));
-    let id3 = client.create_proposal(&admin3, &payload3);
+    let id3 = client.create_proposal(&admin3, &payload3, &0u64);
     assert_eq!(id3, 2);
 }
 
@@ -180,7 +180,7 @@ fn test_execute_proposal_rejects_corrupted_payload() {
 
     let new_admin = Address::generate(&env);
     let payload = ProposalPayload::AddAdmin(new_admin.clone());
-    let proposal_id = client.create_proposal(&admin, &payload);
+    let proposal_id = client.create_proposal(&admin, &payload, &0u64);
 
     let proposal = client.get_proposal(&proposal_id).unwrap();
     assert_eq!(proposal.status, ProposalStatus::Approved);
@@ -234,8 +234,8 @@ fn test_list_proposals_returns_created_proposals() {
     let new_admin1 = Address::generate(&env);
     let new_admin2 = Address::generate(&env);
 
-    let id0 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin1));
-    let id1 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin2));
+    let id0 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin1), &0u64);
+    let id1 = client.create_proposal(&admin, &ProposalPayload::AddAdmin(new_admin2), &0u64);
 
     let proposals = client.list_proposals(&0, &10);
     assert_eq!(proposals.len(), 2);
@@ -252,7 +252,7 @@ fn test_list_proposals_pagination_offset_and_limit() {
     // Create 5 proposals
     for _ in 0..5 {
         let addr = Address::generate(&env);
-        client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+        client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr), &0u64);
     }
 
     // First page: start=0, limit=2
@@ -280,7 +280,7 @@ fn test_list_proposals_limit_exceeds_total() {
     let (client, admin) = setup_contract(&env);
 
     let addr = Address::generate(&env);
-    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr), &0u64);
 
     // Requesting more than available should return all
     let proposals = client.list_proposals(&0, &100);
@@ -294,9 +294,102 @@ fn test_list_proposals_start_beyond_total() {
     let (client, admin) = setup_contract(&env);
 
     let addr = Address::generate(&env);
-    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr));
+    client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr), &0u64);
 
     // Starting beyond existing proposals returns empty
     let proposals = client.list_proposals(&10, &10);
     assert_eq!(proposals.len(), 0);
 }
+
+// ── Proposal expiry tests (issue #474) ──────────────────────────────────────
+
+#[test]
+fn test_execute_proposal_before_expiry_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(1000);
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    // expires_at = 2000, current timestamp = 1000 → still valid
+    let proposal_id = client.create_proposal(&admin, &payload, &2000u64);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.expires_at, 2000);
+
+    env.ledger().set_timestamp(1500);
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert!(result.is_ok(), "proposal should execute before expiry");
+    assert!(client.is_admin(&new_admin));
+}
+
+#[test]
+fn test_execute_proposal_at_expiry_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(1000);
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    // expires_at = 2000
+    let proposal_id = client.create_proposal(&admin, &payload, &2000u64);
+
+    // Advance to exactly the expiry timestamp → must be rejected
+    env.ledger().set_timestamp(2000);
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalExpired)));
+    assert!(!client.is_admin(&new_admin));
+}
+
+#[test]
+fn test_execute_proposal_past_expiry_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(1000);
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    let proposal_id = client.create_proposal(&admin, &payload, &2000u64);
+
+    // Advance well past expiry
+    env.ledger().set_timestamp(9999);
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalExpired)));
+    assert!(!client.is_admin(&new_admin));
+}
+
+#[test]
+fn test_execute_proposal_no_expiry_always_executable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(1000);
+    let (client, admin) = setup_contract(&env);
+
+    let new_admin = Address::generate(&env);
+    let payload = ProposalPayload::AddAdmin(new_admin.clone());
+    // expires_at = 0 means no expiry
+    let proposal_id = client.create_proposal(&admin, &payload, &0u64);
+
+    // Advance far into the future; the proposal should still be executable
+    env.ledger().set_timestamp(u64::MAX / 2);
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert!(result.is_ok(), "proposal with expires_at=0 should never expire");
+    assert!(client.is_admin(&new_admin));
+}
+
+#[test]
+fn test_proposal_stores_expires_at_field() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+
+    let addr = Address::generate(&env);
+    let proposal_id = client.create_proposal(&admin, &ProposalPayload::AddAdmin(addr), &9999u64);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.expires_at, 9999);
+}
+

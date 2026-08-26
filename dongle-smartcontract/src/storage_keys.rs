@@ -24,6 +24,8 @@ pub enum StorageKey {
     /// Used for case/whitespace/punctuation-insensitive duplicate detection and for
     /// case-insensitive name lookups (`get_project_by_name`).
     ProjectByNormalizedName(String),
+    /// Project lifecycle status by project ID.
+    ProjectLifecycleStatus(u64),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -184,4 +186,6 @@ pub enum ExtensionKey {
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
 }
