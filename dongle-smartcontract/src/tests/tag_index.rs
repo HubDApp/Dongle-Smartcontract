@@ -135,16 +135,17 @@ fn updating_tags_moves_the_project_between_index_entries() {
             tags(&env, &["defi"]),
         ));
 
-    client
-        .mock_all_auths()
-        .update_project(&retag_params(
-            &env,
-            id,
-            &owner,
-            Some(tags(&env, &["gaming"])),
-        ));
+    client.mock_all_auths().update_project(&retag_params(
+        &env,
+        id,
+        &owner,
+        Some(tags(&env, &["gaming"])),
+    ));
 
-    assert_eq!(client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(), 0);
+    assert_eq!(
+        client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(),
+        0
+    );
     let gaming = client.list_projects_by_tag(&s(&env, "gaming"), &0, &10);
     assert_eq!(gaming.len(), 1);
     assert_eq!(gaming.get(0).unwrap().id, id);
@@ -170,17 +171,21 @@ fn keeping_a_tag_while_adding_another_leaves_both_indexed() {
             tags(&env, &["defi"]),
         ));
 
-    client
-        .mock_all_auths()
-        .update_project(&retag_params(
-            &env,
-            id,
-            &owner,
-            Some(tags(&env, &["defi", "nft"])),
-        ));
+    client.mock_all_auths().update_project(&retag_params(
+        &env,
+        id,
+        &owner,
+        Some(tags(&env, &["defi", "nft"])),
+    ));
 
-    assert_eq!(client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(), 1);
-    assert_eq!(client.list_projects_by_tag(&s(&env, "nft"), &0, &10).len(), 1);
+    assert_eq!(
+        client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(),
+        1
+    );
+    assert_eq!(
+        client.list_projects_by_tag(&s(&env, "nft"), &0, &10).len(),
+        1
+    );
 }
 
 #[test]
@@ -200,7 +205,10 @@ fn archived_projects_are_hidden_from_tag_listings() {
 
     client.mock_all_auths().archive_project(&id, &owner);
 
-    assert_eq!(client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(), 0);
+    assert_eq!(
+        client.list_projects_by_tag(&s(&env, "defi"), &0, &10).len(),
+        0
+    );
 }
 
 #[test]
@@ -243,4 +251,3 @@ fn start_index_pages_through_matching_projects() {
     assert_eq!(second.len(), 1);
     assert_eq!(second.get(0).unwrap().id, c);
 }
-
