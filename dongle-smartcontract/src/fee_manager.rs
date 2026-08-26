@@ -29,6 +29,11 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        // Reject native fees (no token with non-zero fees)
+        if token.is_none() && (verification_fee > 0 || registration_fee > 0) {
+            return Err(ContractError::FeeConfigNotSet);
+        }
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -96,7 +101,7 @@ impl FeeManager {
         if amount > 0 {
             // set_fee enforces that token is Some when fees are non-zero, so this
             // ok_or branch is a defensive guard against corrupted storage state.
-            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             // Transfer must succeed before we set the payment flag.
             // If transfer fails, this function returns early without setting the flag.
@@ -216,7 +221,7 @@ impl FeeManager {
         let amount = config.registration_fee;
         if amount > 0 {
             // Defensive guard — set_fee already rejects None token with non-zero fees.
-            let token_address = config.token.ok_or(ContractError::NativeFeeNotSupported)?;
+            let token_address = config.token.ok_or(ContractError::FeeConfigNotSet)?;
             let client = soroban_sdk::token::Client::new(env, &token_address);
             // Transfer must succeed before we set the payment flag.
             // If transfer fails, this function returns early without setting the flag.

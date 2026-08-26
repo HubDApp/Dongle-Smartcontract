@@ -53,7 +53,7 @@ pub enum ContractError {
     AlreadyFollowing = 51,
     NotFollowing = 52,
     VerifiedFieldFrozen = 53,
-    NativeFeeNotSupported = 54,
+    MultiSigRequired = 54,
 }
 
 pub type Error = ContractError;
