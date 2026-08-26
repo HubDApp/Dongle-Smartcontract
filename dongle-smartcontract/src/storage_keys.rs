@@ -20,9 +20,6 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
     /// Project lifecycle status by project ID.
     ProjectLifecycleStatus(u64),
     /// Project count.
@@ -166,6 +163,8 @@ pub enum ExtensionKey {
     FeePaymentDetails(u64),
     /// Fee payment details for a registration (payer, amount, token, timestamp).
     RegistrationFeePaymentDetails(Address),
+    /// Claimable refund owed after a rejected verification (issue #472).
+    FeeRefund(u64),
     /// List of reserved project names (admin-managed).
     ReservedNames,
     /// Optional region/market metadata for a project.
@@ -174,6 +173,12 @@ pub enum ExtensionKey {
     ProjectIntegrityHash(u64),
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ///
+    /// Declared here rather than in `StorageKey`: Soroban caps a `#[contracttype]`
+    /// union at 50 cases and `StorageKey` was at 51, which panics the macro. The
+    /// key encoding is the variant name plus payload and is identical either way,
+    /// so relocating it needs no storage migration. An unused duplicate of this
+    /// variant already existed here.
     ProjectByNormalizedName(String),
     /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
     /// pause state across mutating entry points is intentionally out of scope for the

@@ -35,7 +35,14 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
-    pub lifecycle_status: Option<ProjectLifecycleStatus>,
+    // NOTE: lifecycle status is deliberately not updatable here. It has its own
+    // entry point, `set_project_lifecycle_status`, which emits a dedicated
+    // event. A `lifecycle_status` field previously sat here but was never read
+    // by `update_project`, so it silently did nothing — while its
+    // `Option<unit-enum>` type broke every `testutils` build (soroban-sdk 22
+    // generates only `TryFrom<T> for ScVal` on unit enums, and `Option<T>`
+    // needs the by-value `From`). That is why `cargo build` passed while
+    // `cargo test` could not compile at all.
 }
 
 #[contracttype]
@@ -307,6 +314,33 @@ pub struct FeePaymentRecord {
     pub payer: Address,
     pub amount: u128,
     pub token: Option<Address>,
+}
+
+/// A refund owed to a project owner after their verification request was
+/// rejected (issue #472).
+///
+/// Rejection records the debt rather than transferring immediately: paying out
+/// requires the treasury's authorization, and the rejecting admin cannot be
+/// expected to hold the treasury key. The payer (or an admin acting for them)
+/// settles it later via `claim_fee_refund`, and that transaction carries the
+/// treasury signature.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeRefundRecord {
+    /// Project whose verification fee is being refunded.
+    pub project_id: u64,
+    /// Verification request that was rejected.
+    pub request_id: u64,
+    /// Address that paid the fee and is owed the refund.
+    pub payer: Address,
+    /// Amount owed, in the smallest unit of `token`.
+    pub amount: u128,
+    /// Token the fee was paid in. `None` when the fee was configured as free.
+    pub token: Option<Address>,
+    /// Ledger timestamp at which the refund became claimable.
+    pub created_at: u64,
+    /// Ledger timestamp of the payout, or `None` while still outstanding.
+    pub claimed_at: Option<u64>,
 }
 
 #[contracttype]

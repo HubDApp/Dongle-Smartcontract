@@ -4,8 +4,8 @@
 mod admin;
 mod admin_action_log;
 mod archival;
-mod collections;
 mod collection_registry_crud;
+mod collections;
 mod error_handling_tests;
 mod featured;
 // mod fee;
@@ -61,14 +61,18 @@ mod fee_boundary;
 mod review_features;
 
 // Test infrastructure
+mod bookmark_pagination;
 mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
 mod linked_projects;
 mod multisig_and_history;
+mod proposal_threshold;
+mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;

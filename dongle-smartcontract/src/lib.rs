@@ -51,10 +51,11 @@ use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, Project, ProjectDependency,
-    ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats,
-    ProjectUpdateParams, ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
-    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, FeeRefundRecord, Project,
+    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
+    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
+    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
+    VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -350,7 +351,15 @@ impl DongleContract {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
     }
 
-    pub fn list_projects_by_lifecycle_status(
+    /// List projects filtered by lifecycle status.
+    ///
+    /// Named `list_projects_by_lifecycle` rather than
+    /// `..._by_lifecycle_status`: Soroban caps exported contract function
+    /// names at 32 characters and the longer form is 33, which panics
+    /// `#[contractimpl]` at compile time. The internal
+    /// `ProjectRegistry::list_projects_by_lifecycle_status` keeps its full
+    /// name, since the limit applies only to exported symbols.
+    pub fn list_projects_by_lifecycle(
         env: Env,
         status: ProjectLifecycleStatus,
         start_id: u64,
@@ -705,6 +714,27 @@ impl DongleContract {
 
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    /// Read the refund recorded after a rejected verification (issue #472).
+    ///
+    /// Returns `None` if the project has no refund on record. A record with
+    /// `claimed_at: Some(_)` has already been paid out.
+    pub fn get_fee_refund(env: Env, project_id: u64) -> Option<FeeRefundRecord> {
+        FeeManager::get_fee_refund(&env, project_id)
+    }
+
+    /// Pay out a recorded refund to the original fee payer.
+    ///
+    /// Callable by the payer or any admin. Funds always go to the recorded
+    /// payer, so an admin settling on someone's behalf cannot redirect them.
+    /// The transaction must also carry the treasury's authorization.
+    pub fn claim_fee_refund(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        FeeManager::claim_fee_refund(&env, caller, project_id)
     }
 
     pub fn is_verification_active(env: Env, project_id: u64) -> bool {
@@ -1308,7 +1338,15 @@ impl DongleContract {
         changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ChangelogRegistry::add_changelog_entry(&env, project_id, owner, cid, description, version, changelog_cid)
+        ChangelogRegistry::add_changelog_entry(
+            &env,
+            project_id,
+            owner,
+            cid,
+            description,
+            version,
+            changelog_cid,
+        )
     }
 
     /// Remove a changelog entry (project owner only).

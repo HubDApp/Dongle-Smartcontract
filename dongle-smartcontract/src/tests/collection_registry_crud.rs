@@ -9,7 +9,10 @@
 
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger as _},
+    Address, Env, String,
+};
 
 // ---------------------------------------------------------------------------
 // create_collection
@@ -356,9 +359,10 @@ fn test_add_project_to_collection_duplicate_rejected() {
         .add_project_to_collection(&admin, &coll_id, &project_id);
 
     // Adding the same project a second time must fail
-    let result = client
-        .mock_all_auths()
-        .try_add_project_to_collection(&admin, &coll_id, &project_id);
+    let result =
+        client
+            .mock_all_auths()
+            .try_add_project_to_collection(&admin, &coll_id, &project_id);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
 
     // Count must still be 1
@@ -391,9 +395,10 @@ fn test_add_project_to_nonexistent_collection_rejected() {
 
     let project_id = create_test_project(&client, &owner, "ProjectA");
 
-    let result = client
-        .mock_all_auths()
-        .try_add_project_to_collection(&_admin, &999u64, &project_id);
+    let result =
+        client
+            .mock_all_auths()
+            .try_add_project_to_collection(&_admin, &999u64, &project_id);
     assert_eq!(result, Err(Ok(ContractError::CollectionNotFound)));
 }
 
@@ -448,9 +453,10 @@ fn test_remove_project_not_in_collection_rejected() {
         &String::from_str(&env, "desc"),
     );
 
-    let result = client
-        .mock_all_auths()
-        .try_remove_project_from_collection(&admin, &coll_id, &project_id);
+    let result =
+        client
+            .mock_all_auths()
+            .try_remove_project_from_collection(&admin, &coll_id, &project_id);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
 }
 
@@ -463,9 +469,10 @@ fn test_remove_project_from_nonexistent_collection_rejected() {
 
     let project_id = create_test_project(&client, &owner, "P1");
 
-    let result = client
-        .mock_all_auths()
-        .try_remove_project_from_collection(&admin, &999u64, &project_id);
+    let result =
+        client
+            .mock_all_auths()
+            .try_remove_project_from_collection(&admin, &999u64, &project_id);
     assert_eq!(result, Err(Ok(ContractError::CollectionNotFound)));
 }
 

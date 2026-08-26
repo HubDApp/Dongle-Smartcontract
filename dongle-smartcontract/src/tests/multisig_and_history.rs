@@ -4,7 +4,10 @@ use crate::errors::ContractError;
 use crate::storage_keys::ExtensionKey;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::{ProposalPayload, ProposalStatus, VerificationStatus};
-use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger as _},
+    Address, Env, String, Vec,
+};
 
 #[test]
 fn test_historical_verification_records() {
@@ -376,7 +379,10 @@ fn test_execute_proposal_no_expiry_always_executable() {
     // Advance far into the future; the proposal should still be executable
     env.ledger().set_timestamp(u64::MAX / 2);
     let result = client.try_execute_proposal(&admin, &proposal_id);
-    assert!(result.is_ok(), "proposal with expires_at=0 should never expire");
+    assert!(
+        result.is_ok(),
+        "proposal with expires_at=0 should never expire"
+    );
     assert!(client.is_admin(&new_admin));
 }
 
@@ -392,4 +398,3 @@ fn test_proposal_stores_expires_at_field() {
     let proposal = client.get_proposal(&proposal_id).unwrap();
     assert_eq!(proposal.expires_at, 9999);
 }
-
