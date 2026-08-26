@@ -150,6 +150,10 @@ pub enum ContractError {
     ArithmeticOverflow = 72,
     /// Project is not in the collection
     NotInCollection = 73,
+    /// Address is already a maintainer of this project
+    AlreadyMaintainerAdded = 74,
+    /// The referenced linked project does not exist or is not linked
+    LinkedProjectNotFound = 75,
 }
 
 pub type Error = ContractError;

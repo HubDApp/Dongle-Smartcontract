@@ -1575,7 +1575,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -1642,7 +1642,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         env.storage()
@@ -1693,7 +1693,7 @@ impl ProjectRegistry {
 
         let mut maintainers = Self::get_maintainers(env, project_id);
         if maintainers.contains(&maintainer) {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::AlreadyMaintainerAdded);
         }
 
         maintainers.push_back(maintainer.clone());

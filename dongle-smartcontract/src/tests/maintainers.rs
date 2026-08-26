@@ -175,7 +175,7 @@ fn test_duplicate_maintainer_fails() {
     let res = client
         .mock_all_auths()
         .try_add_maintainer(&project_id, &owner, &maintainer);
-    assert_eq!(res, Err(Ok(ContractError::AlreadyLinked)));
+    assert_eq!(res, Err(Ok(ContractError::AlreadyMaintainerAdded)));
 }
 
 #[test]
