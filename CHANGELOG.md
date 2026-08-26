@@ -66,6 +66,10 @@ for the full policy.
 
 ### Fixed
 
+- Added test coverage confirming a reactivated project reappears in
+  `list_projects`, `list_projects_by_status`, `list_projects_by_category`,
+  `list_projects_by_tag`, and `list_projects_sorted` — previously only
+  `get_projects_by_owner` had a reactivation-reappearance test (#172).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
