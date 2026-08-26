@@ -148,6 +148,8 @@ pub enum ContractError {
     RefundAlreadyClaimed = 71,
     /// A checked arithmetic operation overflowed.
     ArithmeticOverflow = 72,
+    /// Project is not in the collection
+    NotInCollection = 73,
 }
 
 pub type Error = ContractError;
