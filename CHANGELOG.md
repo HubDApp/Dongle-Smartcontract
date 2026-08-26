@@ -42,6 +42,12 @@ for the full policy.
 
 - Tag validation now rejects duplicate values (case-insensitive after ASCII
   lowercase normalization) with `InvalidTags` (#526).
+- **BREAKING (error codes):** `AlreadyMaintainerAdded` (74) and
+  `LinkedProjectNotFound` (75) so maintainer and link failures no longer share
+  `AlreadyLinked` (#462).
+- Inverted tag index (`TagProjects`) maintained by `register_project` and
+  `update_project`, so `list_projects_by_tag` no longer scans every project
+  (#485).
 
 ### Changed
 
@@ -58,6 +64,15 @@ for the full policy.
   (#514).
 - Timelocked admin proposals now verify the proposal payload hash before
   execution.
+- `list_projects_by_tag` now returns the projects matching the tag from
+  `start_index` onwards. It previously treated `start_index` as an offset into
+  the project ID space, which could return a short page while matches remained
+  (#485).
+- `list_projects_sorted` no longer bubble sorts the whole registry on-chain.
+  `Newest`/`Oldest` read the page directly off the project ID space, and the
+  rated modes read each project's review stats once and resolve only the ranks
+  the requested page needs. Ordering, tie-breaks, and archived filtering are
+  unchanged (#484).
 
 ### Removed
 
@@ -66,6 +81,9 @@ for the full policy.
 
 ### Fixed
 
+- `AlreadyLinked` was returned for three unrelated conditions (duplicate link,
+  duplicate maintainer, missing linked project), so clients could not tell them
+  apart (#462).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
