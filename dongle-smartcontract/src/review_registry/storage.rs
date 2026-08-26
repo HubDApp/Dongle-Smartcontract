@@ -133,8 +133,9 @@ impl ReviewRegistry {
             None => return Err(ContractError::ProjectNotFound),
         };
 
-        // Project owners cannot review their own project
-        ReviewValidation::ensure_not_owner(&project, &reviewer)?;
+        // Nobody who controls the project may review it (issue #478):
+        // owners and maintainers alike.
+        ReviewValidation::ensure_can_review(env, project_id, &project, &reviewer)?;
 
         // Check if reviews are enabled for this project
         if !Self::get_reviews_enabled(env, project_id) {
@@ -270,9 +271,15 @@ impl ReviewRegistry {
         reviewer.require_auth();
 
         // Check if project exists
-        if ProjectRegistry::get_project(env, project_id).is_none() {
-            return Err(ContractError::ProjectNotFound);
-        }
+        let project = match ProjectRegistry::get_project(env, project_id) {
+            Some(p) => p,
+            None => return Err(ContractError::ProjectNotFound),
+        };
+
+        // Issue #478: re-check on update, not just on create. A reviewer who
+        // has since become the owner or a maintainer must not be able to keep
+        // editing their own rating.
+        ReviewValidation::ensure_can_review(env, project_id, &project, &reviewer)?;
 
         ReviewValidation::validate_rating(rating)?;
 

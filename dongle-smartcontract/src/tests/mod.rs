@@ -82,3 +82,6 @@ mod ttl_batch;
 
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
+
+// Issues #478 (reviewer control) and #483 (inverted tag index)
+mod reviewer_control_and_tag_index;
