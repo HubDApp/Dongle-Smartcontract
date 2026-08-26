@@ -469,6 +469,10 @@ impl DongleContract {
         VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
+    pub fn get_verification_records_batch(env: Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
     pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
         VerificationRegistry::get_verification_history(&env, project_id)
     }

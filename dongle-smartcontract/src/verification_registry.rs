@@ -402,19 +402,52 @@ impl VerificationRegistry {
     }
 
     /// Batch-fetch verification records for multiple project IDs.
-    /// Silently skips IDs with no record. Clamped to 100 entries.
+    /// Silently skips IDs with no record. Enforces max batch size of 100.
     pub fn get_verifications_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
-        const MAX_PAGE_LIMIT: u32 = 100;
-        let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
+        const MAX_BATCH_SIZE: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_BATCH_SIZE);
         let mut out = Vec::new(env);
+        
         for i in 0..len {
-            if let Some(id) = ids.get(i) {
+            if let Some(project_id) = ids.get(i) {
+                // First get the request ID for this project
+                if let Some(request_id) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, u64>(&StorageKey::Verification(project_id))
+                {
+                    // Then get the actual verification record
+                    if let Some(record) = env
+                        .storage()
+                        .persistent()
+                        .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
+                    {
+                        out.push_back((project_id, record));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Batch-fetch verification records for multiple request IDs.
+    /// Silently skips IDs with no record. Enforces max batch size of 100.
+    pub fn get_verification_records_batch(
+        env: &Env, 
+        request_ids: Vec<u64>
+    ) -> Vec<(u64, VerificationRecord)> {
+        const MAX_BATCH_SIZE: u32 = 100;
+        let len = core::cmp::min(request_ids.len(), MAX_BATCH_SIZE);
+        let mut out = Vec::new(env);
+        
+        for i in 0..len {
+            if let Some(request_id) = request_ids.get(i) {
                 if let Some(record) = env
                     .storage()
                     .persistent()
-                    .get(&StorageKey::Verification(id))
+                    .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
                 {
-                    out.push_back((id, record));
+                    out.push_back((request_id, record));
                 }
             }
         }
