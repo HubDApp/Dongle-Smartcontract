@@ -1,5 +1,6 @@
 //! Tests for two-step project ownership transfer.
 
+use crate::constants::MAX_PROJECTS_PER_USER;
 use crate::errors::ContractError;
 use crate::types::ProjectRegistrationParams;
 use crate::DongleContract;
@@ -15,14 +16,17 @@ fn setup(env: &Env) -> (DongleContractClient<'_>, Address) {
 }
 
 fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name: &str) -> u64 {
-    let slug = name.to_lowercase().replace(' ', "-");
+    // Project names may only contain alphanumerics, '-', or '_' (no spaces).
+    let safe_name = name.replace(' ', "-");
+    let slug = safe_name.to_lowercase();
     client.register_project(&ProjectRegistrationParams {
         owner: owner.clone(),
-        name: String::from_str(env, name),
+        name: String::from_str(env, &safe_name),
         slug: String::from_str(env, &slug),
         description: String::from_str(env, "A test project description here"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
@@ -234,4 +238,49 @@ fn test_cancel_with_no_pending_transfer_fails() {
 
     let result = client.try_cancel_transfer(&project_id, &owner);
     assert_eq!(result, Err(Ok(ContractError::TransferNotFound)));
+}
+
+#[test]
+fn test_double_accept_transfer_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let project_id = register(&client, &env, &owner, "Double Accept");
+
+    client.initiate_transfer(&project_id, &owner, &new_owner);
+    client.accept_transfer(&project_id, &new_owner);
+
+    // The pending transfer is consumed by the first accept; a second
+    // attempt has nothing left to accept.
+    let result = client.try_accept_transfer(&project_id, &new_owner);
+    assert_eq!(result, Err(Ok(ContractError::TransferNotFound)));
+}
+
+#[test]
+fn test_accept_transfer_fails_when_new_owner_at_capacity() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let project_id = register(&client, &env, &owner, "Capacity Source");
+
+    // Fill the prospective new owner's project slots to the limit.
+    extern crate alloc;
+    use alloc::format;
+    for i in 0..MAX_PROJECTS_PER_USER {
+        register(&client, &env, &new_owner, &format!("Filler {}", i));
+    }
+
+    client.initiate_transfer(&project_id, &owner, &new_owner);
+
+    let result = client.try_accept_transfer(&project_id, &new_owner);
+    assert_eq!(result, Err(Ok(ContractError::MaxProjectsExceeded)));
+
+    // Ownership must not have moved since the accept was rejected.
+    assert_eq!(client.get_project(&project_id).unwrap().owner, owner);
 }

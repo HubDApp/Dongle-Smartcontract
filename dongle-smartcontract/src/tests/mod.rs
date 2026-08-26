@@ -11,6 +11,7 @@ mod featured;
 // mod fee;
 // mod indexer;
 mod review;
+mod transfer;
 
 // New test modules
 // mod authorization;
