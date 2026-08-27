@@ -155,6 +155,13 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
+    /// Adding this dependency would create a circular reference in the
+    /// transitive project-dependency graph (project A depends on B which
+    /// depends back on A, directly or indirectly).
+    CircularDependency = 75,
+    /// Adding this dependency would make the transitive project-dependency
+    /// chain deeper than `MAX_DEPENDENCY_DEPTH` levels.
+    DependencyDepthExceeded = 76,
 }
 
 pub type Error = ContractError;
