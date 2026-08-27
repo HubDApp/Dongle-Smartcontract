@@ -38,6 +38,7 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         })
 }
 
@@ -130,6 +131,8 @@ fn test_update_project_by_non_owner_fails() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -161,6 +164,8 @@ fn test_update_project_nonexistent_fails() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -469,6 +474,8 @@ fn test_unauthorized_update_does_not_mutate_state() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let _ = client.mock_all_auths().try_update_project(&params);
 
@@ -521,6 +528,8 @@ fn test_owner_can_update_own_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().update_project(&params);

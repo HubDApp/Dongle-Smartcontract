@@ -32,6 +32,7 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -437,6 +438,7 @@ fn test_list_projects_by_category_basic() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params1);
 
@@ -453,6 +455,7 @@ fn test_list_projects_by_category_basic() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params2);
 
@@ -490,6 +493,7 @@ fn test_list_projects_by_category_update_moves_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
 
@@ -513,6 +517,8 @@ fn test_list_projects_by_category_update_moves_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().update_project(&update_params);
 
@@ -553,6 +559,7 @@ fn test_list_projects_by_category_pagination() {
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         };
         client.mock_all_auths().register_project(&params);
     }

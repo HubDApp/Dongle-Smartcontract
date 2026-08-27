@@ -107,6 +107,7 @@ fn test_bounty_url_validation() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: Some(valid_bounty.clone()),
+        repository_url: None,
     };
 
     let proj_id = client.register_project(&params_valid);
@@ -129,6 +130,7 @@ fn test_bounty_url_validation() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: Some(invalid_bounty),
+        repository_url: None,
     };
 
     let res = client.try_register_project(&params_invalid);

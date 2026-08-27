@@ -457,7 +457,7 @@ fn test_remove_project_not_in_collection_rejected() {
         client
             .mock_all_auths()
             .try_remove_project_from_collection(&admin, &coll_id, &project_id);
-    assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
+    assert_eq!(result, Err(Ok(ContractError::NotInCollection)));
 }
 
 #[test]
