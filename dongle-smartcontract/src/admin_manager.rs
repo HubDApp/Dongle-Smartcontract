@@ -384,6 +384,35 @@ impl AdminManager {
         Ok(())
     }
 
+    pub fn reject_proposal(
+        env: &Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::require_admin(env, &admin)?;
+
+        let mut proposal = env
+            .storage()
+            .persistent()
+            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
+            .ok_or(ContractError::InvalidStatus)?;
+
+        if proposal.status != ProposalStatus::Pending {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        proposal.status = ProposalStatus::Rejected;
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            &proposal,
+        );
+
+        Ok(())
+    }
+
     pub fn execute_proposal(
         env: &Env,
         caller: Address,
@@ -416,7 +445,7 @@ impl AdminManager {
             return Err(ContractError::ProposalExpired);
         }
 
-        if proposal.status == ProposalStatus::Executed {
+        if proposal.status != ProposalStatus::Approved {
             return Err(ContractError::InvalidStatus);
         }
 

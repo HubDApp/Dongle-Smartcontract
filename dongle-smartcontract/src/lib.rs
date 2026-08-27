@@ -140,6 +140,14 @@ impl DongleContract {
         AdminManager::approve_proposal(&env, admin, proposal_id)
     }
 
+    pub fn reject_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::reject_proposal(&env, admin, proposal_id)
+    }
+
     pub fn execute_proposal(
         env: Env,
         caller: Address,
