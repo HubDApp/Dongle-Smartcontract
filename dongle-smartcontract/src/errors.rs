@@ -155,6 +155,15 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
+    /// Admin approval threshold is greater than 1; use the proposal system
+    /// (`create_proposal`) instead of the direct admin mutation entry points.
+    MultiSigRequired = 75,
+    /// A recorded fee payment has passed its expiry window and must be re-paid.
+    FeePaymentExpired = 76,
+    /// The project referenced as a link target does not exist.
+    LinkedProjectNotFound = 77,
+    /// The address is already a maintainer of the project.
+    AlreadyMaintainerAdded = 78,
 }
 
 pub type Error = ContractError;
