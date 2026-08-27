@@ -14,7 +14,7 @@ use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Env, Map, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -260,8 +260,8 @@ impl AdminManager {
 
         let payload_hash = Self::compute_payload_hash(env, &payload);
 
-        let mut approvals = Vec::new(env);
-        approvals.push_back(proposer.clone());
+        let mut approvals = Map::new(env);
+        approvals.set(proposer.clone(), true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         let status = if approvals.len() >= threshold {
@@ -325,13 +325,11 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
-        for existing in proposal.approvals.iter() {
-            if existing == admin {
-                return Err(ContractError::Unauthorized);
-            }
+        if proposal.approvals.contains_key(&admin) {
+            return Err(ContractError::Unauthorized);
         }
 
-        proposal.approvals.push_back(admin);
+        proposal.approvals.set(admin, true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         if proposal.approvals.len() >= threshold {
