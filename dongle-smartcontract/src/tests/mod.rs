@@ -11,6 +11,7 @@ mod featured;
 // mod fee;
 // mod indexer;
 mod review;
+mod transfer;
 
 // New test modules
 // mod authorization;
@@ -31,10 +32,13 @@ mod security_contact;
 mod verification;
 mod verification_features;
 mod verification_lifecycle;
+mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;
+mod sorted_listing;
 mod string_validation;
+mod tag_index;
 mod tags;
 
 // Metadata freeze policy for verified projects
@@ -42,6 +46,9 @@ mod tags;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
+
+// Full verification-fee payment lifecycle integration test
+mod fee_lifecycle;
 
 // Storage field size boundary tests
 mod field_limits;
@@ -70,6 +77,8 @@ mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
 mod linked_projects;
+// Issues #458, #463, #465, #466: typed-error and admin-log regressions
+mod typed_error_regressions;
 mod multisig_and_history;
 mod proposal_threshold;
 mod report_registry;
@@ -83,5 +92,5 @@ mod ttl_batch;
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
 
-// Issues #478 (reviewer control) and #483 (inverted tag index)
-mod reviewer_control_and_tag_index;
+// Contract API compatibility (issue #257)
+mod api_compat;

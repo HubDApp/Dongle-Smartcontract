@@ -18,6 +18,7 @@ use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{
     AdminActionType, VerificationRecord, VerificationRenewalRecord, VerificationStatus,
 };
+use crate::utils::Utils;
 use crate::verification_registry::state_machine::VerificationStateMachine;
 use crate::verification_registry::validation::VerificationValidation;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -57,6 +58,15 @@ impl VerificationRegistry {
 
         // 5. Validate evidence before any storage mutation, including fee consumption.
         VerificationValidation::validate_evidence_cid(&evidence_cid)?;
+
+        // Capture the previous request (if any) before it's superseded below.
+        // The previous `VerificationRecord` is never mutated or removed here —
+        // it remains reachable via `get_verification_record` and
+        // `get_verification_history` exactly as it was decided, preserving its
+        // original status and evidence CID. Only the "current" pointer
+        // (`StorageKey::Verification`) and the project's `current_verification_id`
+        // move to the new request.
+        let previous_request_id = project.current_verification_id;
 
         // 6. Consume fee payment when configured
         let fee_amount = match FeeManager::get_fee_config(env) {
@@ -123,6 +133,16 @@ impl VerificationRegistry {
             &history,
         );
 
+        let mut pending = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(env));
+        Utils::add_unique_to_vec(&mut pending, &request_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::PendingVerificationRequests, &pending);
+
         // 11. Update project status to Pending
         project.verification_status = VerificationStatus::Pending;
         project.current_verification_id = Some(request_id);
@@ -131,7 +151,14 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
-        publish_verification_requested_event(env, project_id, requester, evidence_cid);
+        publish_verification_requested_event(
+            env,
+            project_id,
+            requester,
+            evidence_cid,
+            request_id,
+            previous_request_id,
+        );
         Ok(())
     }
 
@@ -241,6 +268,8 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
+        Self::remove_pending_request(env, record.request_id);
+
         // Update project
         project.verification_status = VerificationStatus::Verified;
         project.current_verification_id = Some(record.request_id);
@@ -321,6 +350,8 @@ impl VerificationRegistry {
             record.fee_amount,
         )?;
 
+        Self::remove_pending_request(env, record.request_id);
+
         publish_verification_rejected_event(env, project_id, admin.clone(), now);
 
         AdminActionLog::record_action(
@@ -349,6 +380,46 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
+    }
+
+    pub fn get_pending_verifications(
+        env: &Env,
+        start: u32,
+        limit: u32,
+    ) -> Vec<VerificationRecord> {
+        let pending_ids = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(env));
+        let page_ids = crate::pagination::paginate(env, &pending_ids, start, limit);
+        let mut records = Vec::new(env);
+        for i in 0..page_ids.len() {
+            if let Some(request_id) = page_ids.get(i) {
+                if let Some(record) = Self::get_verification_record(env, request_id) {
+                    records.push_back(record);
+                }
+            }
+        }
+        records
+    }
+
+    fn remove_pending_request(env: &Env, request_id: u64) {
+        let pending = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(env));
+        let updated = Utils::remove_item_from_vec(env, &pending, &request_id);
+        if updated.is_empty() {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::PendingVerificationRequests);
+        } else {
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::PendingVerificationRequests, &updated);
+        }
     }
 
     /// Returns `true` if the project has a Verified record that has **not** yet expired.

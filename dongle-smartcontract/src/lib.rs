@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(warnings)]
 
 mod admin_action_log;
 mod admin_manager;
@@ -51,7 +50,8 @@ use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, FeeRefundRecord, Project,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
@@ -628,8 +628,7 @@ impl DongleContract {
         ReviewRegistry::get_review_tombstone(&env, project_id, reviewer)
     }
 
-    /// List reviews sorted by the given sort mode with pagination.
-    /// Sorting is performed on-chain in-memory; compute cost scales with review count.
+    /// List a bounded review page. Sort the returned pages client-side.
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,
@@ -712,8 +711,24 @@ impl DongleContract {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
+    pub fn get_pending_verifications(
+        env: Env,
+        start: u32,
+        limit: u32,
+    ) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_pending_verifications(&env, start, limit)
+    }
+
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_records_batch(env: Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verification_records_batch(&env, request_ids)
     }
 
     /// Read the refund recorded after a rejected verification (issue #472).
@@ -918,6 +933,10 @@ impl DongleContract {
 
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
         FeeManager::get_fee_config(&env)
+    }
+
+    pub fn get_fee_config_history(env: Env) -> Vec<FeeConfigHistoryEntry> {
+        FeeManager::get_fee_config_history(&env)
     }
 
     /// Get fee payment details for a project (payer, amount, token, timestamp).
