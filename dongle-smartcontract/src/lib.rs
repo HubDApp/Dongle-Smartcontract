@@ -50,7 +50,8 @@ use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, FeeRefundRecord, Project,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
@@ -925,6 +926,10 @@ impl DongleContract {
 
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {
         FeeManager::get_fee_config(&env)
+    }
+
+    pub fn get_fee_config_history(env: Env) -> Vec<FeeConfigHistoryEntry> {
+        FeeManager::get_fee_config_history(&env)
     }
 
     /// Get fee payment details for a project (payer, amount, token, timestamp).

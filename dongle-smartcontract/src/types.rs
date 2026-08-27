@@ -350,6 +350,10 @@ pub struct FeeRefundRecord {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigHistoryEntry {
     pub admin: Address,
+    pub old_token: Option<Address>,
+    pub old_verification_fee: Option<u128>,
+    pub old_registration_fee: Option<u128>,
+    pub old_treasury: Option<Address>,
     pub token: Option<Address>,
     pub verification_fee: u128,
     pub registration_fee: u128,

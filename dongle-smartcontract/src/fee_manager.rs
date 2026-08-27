@@ -8,8 +8,10 @@ use crate::events::{
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, StorageKey};
-use crate::types::{AdminActionType, FeeConfig, FeePaymentRecord, FeeRefundRecord};
-use soroban_sdk::{Address, Env};
+use crate::types::{
+    AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
+};
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeeManager;
 
@@ -29,6 +31,15 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        let old_config = env
+            .storage()
+            .persistent()
+            .get::<_, FeeConfig>(&StorageKey::FeeConfig);
+        let old_treasury = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&StorageKey::Treasury);
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -40,6 +51,31 @@ impl FeeManager {
         env.storage()
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
+
+        let history_id = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
+            .unwrap_or(0);
+        let history_entry = FeeConfigHistoryEntry {
+            admin: admin.clone(),
+            old_token: old_config.as_ref().and_then(|config| config.token.clone()),
+            old_verification_fee: old_config.as_ref().map(|config| config.verification_fee),
+            old_registration_fee: old_config.as_ref().map(|config| config.registration_fee),
+            old_treasury,
+            token: config.token.clone(),
+            verification_fee,
+            registration_fee,
+            treasury: treasury.clone(),
+            timestamp: env.ledger().timestamp(),
+        };
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::FeeConfigHistoryEntry(history_id), &history_entry);
+        env.storage().persistent().set(
+            &ExtensionKey::FeeConfigHistoryCount,
+            &(history_id + 1u32),
+        );
 
         publish_fee_set_event(
             env,

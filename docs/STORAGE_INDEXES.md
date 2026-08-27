@@ -87,6 +87,7 @@ These are written in production code and belong to the live scheme, but do not c
 | `ExtensionKey::TimelockActionIds` | action IDs | Timelock queue |
 | `ExtensionKey::AdminProposalIds` | proposal IDs | Admin governance |
 | `ExtensionKey::ReservedNames` | `Vec<String>` | Reserved project names |
+| `ExtensionKey::FeeConfigHistoryEntry(u32)` | `FeeConfigHistoryEntry` | Fee changes in chronological order; count stored in `FeeConfigHistoryCount` |
 
 Lookup / singleton keys (not Vec indexes) such as `Project`, `ProjectBySlug`, `FeeConfig`, `FeePaidForProject`, claim records, etc. live in the same enums but are outside the scope of this size-strategy doc. See `docs/STORAGE_SCHEMA.md` for project field layout.
 
@@ -98,10 +99,7 @@ Cross-check against `storage_keys.rs` / `types.rs` found keys and types that are
 |------|----------|--------|
 | `DataKey` enum | `types.rs` | Legacy duplicate of `StorageKey` / partial keys; unused |
 | `ExtensionKey::FeeRefundRecord(u64)` | `storage_keys.rs` | Defined only; no read/write path |
-| `ExtensionKey::FeeConfigHistoryCount` | `storage_keys.rs` | Defined only; no read/write path |
-| `ExtensionKey::FeeConfigHistoryEntry(u32)` | `storage_keys.rs` | Defined only; no read/write path |
 | `FeeRefundRecord` struct | `types.rs` | Dead type paired with unused key |
-| `FeeConfigHistoryEntry` struct | `types.rs` | Dead type paired with unused keys |
 | `StorageKey::NextProjectId` | `storage_keys.rs` | Unused (counter is `ProjectCount`) |
 | `StorageKey::ProjectLaunchTimestamp(u64)` | `storage_keys.rs` | Unused |
 
