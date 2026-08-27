@@ -506,3 +506,102 @@ fn test_schedule_set_fee_at_min_delay_accepted() {
     assert!(!action.executed);
     assert!(!action.cancelled);
 }
+
+// ---------------------------------------------------------------------------
+// Issue #471 — minimum-delay enforcement on every scheduling entry point.
+//
+// `validate_timelock` already rejects a too-soon `execution_timestamp`, and
+// `schedule_set_fee` had boundary coverage. `schedule_add_admin` and
+// `schedule_remove_admin` did not, even though bypassing the delay on an admin
+// change is the more dangerous of the two: it is how an attacker would grant
+// themselves an admin key without the community getting a day's notice.
+//
+// These pin the boundary on both, so a future refactor cannot quietly drop the
+// check from one scheduler while `set_fee` keeps the suite green.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_schedule_add_admin_one_below_min_delay_rejected() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let new_admin = Address::generate(&env);
+    let execution_time = env.ledger().timestamp() + TIMELOCK_MIN_DELAY - 1;
+
+    let result =
+        client
+            .mock_all_auths()
+            .try_schedule_add_admin(&admin, &new_admin, &execution_time);
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
+}
+
+#[test]
+fn test_schedule_add_admin_at_min_delay_accepted() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let new_admin = Address::generate(&env);
+    let execution_time = env.ledger().timestamp() + TIMELOCK_MIN_DELAY;
+
+    let action_id = client
+        .mock_all_auths()
+        .schedule_add_admin(&admin, &new_admin, &execution_time);
+
+    let action = client.get_scheduled_action(&action_id).unwrap();
+    assert_eq!(action.execution_timestamp, execution_time);
+}
+
+#[test]
+fn test_schedule_remove_admin_one_below_min_delay_rejected() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let target = Address::generate(&env);
+    client.mock_all_auths().add_admin(&admin, &target);
+    let execution_time = env.ledger().timestamp() + TIMELOCK_MIN_DELAY - 1;
+
+    let result =
+        client
+            .mock_all_auths()
+            .try_schedule_remove_admin(&admin, &target, &execution_time);
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
+}
+
+#[test]
+fn test_schedule_remove_admin_at_min_delay_accepted() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let target = Address::generate(&env);
+    client.mock_all_auths().add_admin(&admin, &target);
+    let execution_time = env.ledger().timestamp() + TIMELOCK_MIN_DELAY;
+
+    let action_id = client
+        .mock_all_auths()
+        .schedule_remove_admin(&admin, &target, &execution_time);
+
+    let action = client.get_scheduled_action(&action_id).unwrap();
+    assert_eq!(action.execution_timestamp, execution_time);
+}
+
+#[test]
+fn test_schedule_in_the_past_rejected_on_every_scheduler() {
+    // A timestamp already behind the ledger is the crudest bypass attempt.
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    fast_forward(&env, TIMELOCK_MIN_DELAY * 2);
+    let past = env.ledger().timestamp() - 1;
+    let target = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    assert_eq!(
+        client
+            .mock_all_auths()
+            .try_schedule_add_admin(&admin, &target, &past),
+        Err(Ok(ContractError::InvalidInput))
+    );
+    assert_eq!(
+        client
+            .mock_all_auths()
+            .try_schedule_set_fee(&admin, &None, &1u128, &1u128, &treasury, &past),
+        Err(Ok(ContractError::InvalidInput))
+    );
+}

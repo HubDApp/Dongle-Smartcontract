@@ -1,4 +1,5 @@
 use crate::admin_manager::AdminManager;
+use crate::auth::require_admin_auth;
 use crate::constants::{
     CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
     MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
@@ -257,6 +258,14 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(count), &project);
+
+        // Issue #483: keep the inverted tag index current from registration.
+        Self::index_project_tags(env, count, &project.tags);
+        // Ids are handed out sequentially, so a new project extends the covered
+        // range by exactly one whenever it lands directly after the watermark.
+        if count == Self::get_tag_index_watermark(env).saturating_add(1) {
+            Self::set_tag_index_watermark(env, count);
+        }
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectCount, &count);
@@ -550,6 +559,11 @@ impl ProjectRegistry {
             if let Some(ref tags) = value {
                 Utils::validate_tags(tags)?;
             }
+            // Issue #483: move the project between tag entries so the index does
+            // not keep pointing at it under tags it no longer carries.
+            let previous_tags = project.tags.clone();
+            Self::unindex_project_tags(env, params.project_id, &previous_tags);
+            Self::index_project_tags(env, params.project_id, &value);
             project.tags = value;
         }
         if let Some(value) = params.social_links {
@@ -1311,6 +1325,203 @@ impl ProjectRegistry {
     }
 
     /// List projects by tag - Issue #125
+
+    // ===== Tag index (issue #483) =====
+    //
+    // `list_projects_by_tag` loads every project from id 1 to ProjectCount on
+    // every call, so a tag lookup costs O(total projects) regardless of how few
+    // carry the tag. These maintain an inverted index, tag -> project ids.
+    //
+    // The index is only authoritative for ids at or below the watermark.
+    // Projects registered before the index existed are absent from it, and an
+    // absent entry is indistinguishable from "no project has this tag" — so a
+    // lookup serves the covered range from the index and scans only the tail.
+
+    /// Project ids known to carry `tag`.
+    pub fn get_tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Highest project id guaranteed to be represented in the tag index.
+    pub fn get_tag_index_watermark(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagIndexWatermark)
+            .unwrap_or(0)
+    }
+
+    fn set_tag_index_watermark(env: &Env, value: u64) {
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagIndexWatermark, &value);
+    }
+
+    /// Add `project_id` to the index entry for `tag`, if not already present.
+    fn index_tag(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::get_tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Remove `project_id` from the index entry for `tag`.
+    fn unindex_tag(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::get_tag_index(env, tag);
+        let mut remaining = Vec::new(env);
+        let mut changed = false;
+        for id in ids.iter() {
+            if id == project_id {
+                changed = true;
+            } else {
+                remaining.push_back(id);
+            }
+        }
+        if !changed {
+            return;
+        }
+        let key = ExtensionKey::TagProjects(tag.clone());
+        if remaining.is_empty() {
+            env.storage().persistent().remove(&key);
+        } else {
+            env.storage().persistent().set(&key, &remaining);
+        }
+    }
+
+    /// Index every tag on a project.
+    fn index_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::index_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    /// Remove a project from every tag entry it was indexed under.
+    fn unindex_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::unindex_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    /// Backfill the tag index for projects registered before it existed.
+    ///
+    /// Processes at most `limit` ids past the watermark and advances it, so the
+    /// backfill can be driven in bounded batches rather than one unbounded call.
+    /// Returns the watermark after this batch.
+    pub fn reindex_tags(env: &Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        require_admin_auth(env, &caller)?;
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut watermark = Self::get_tag_index_watermark(env);
+        let batch = if limit == 0 { 1u64 } else { limit as u64 };
+        let target = core::cmp::min(watermark.saturating_add(batch), count);
+
+        while watermark < target {
+            let id = watermark + 1;
+            if let Some(project) = Self::get_project(env, id) {
+                Self::index_project_tags(env, id, &project.tags);
+            }
+            watermark = id;
+        }
+
+        Self::set_tag_index_watermark(env, watermark);
+        Ok(watermark)
+    }
+
+    /// Look projects up by tag using the inverted index (issue #483).
+    ///
+    /// Serves ids within the indexed range directly. Any range not yet covered
+    /// by the watermark is scanned, so results are correct before a backfill has
+    /// finished — the index makes it fast, it does not make it correct.
+    /// Archived projects are excluded, matching `list_projects_by_tag`.
+    pub fn get_projects_by_tag_batch(env: &Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let watermark = Self::get_tag_index_watermark(env);
+        let mut projects = Vec::new(env);
+        let mut seen: Vec<u64> = Vec::new(env);
+
+        // Indexed range: straight lookups, no full scan.
+        for tag in tags.iter() {
+            for id in Self::get_tag_index(env, &tag).iter() {
+                if projects.len() >= effective_limit {
+                    return projects;
+                }
+                if id > watermark || seen.contains(&id) {
+                    continue;
+                }
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    seen.push_back(id);
+                    projects.push_back(project);
+                }
+            }
+        }
+
+        // Uncovered tail: scan until a backfill catches up.
+        if watermark < count {
+            for id in (watermark + 1)..=count {
+                if projects.len() >= effective_limit {
+                    break;
+                }
+                if seen.contains(&id) {
+                    continue;
+                }
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    if let Some(project_tags) = &project.tags {
+                        let mut matched = false;
+                        for project_tag in project_tags.iter() {
+                            for tag in tags.iter() {
+                                if project_tag == tag {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            if matched {
+                                break;
+                            }
+                        }
+                        if matched {
+                            seen.push_back(id);
+                            projects.push_back(project);
+                        }
+                    }
+                }
+            }
+        }
+
+        projects
+    }
+
     pub fn list_projects_by_tag(
         env: &Env,
         tag: String,

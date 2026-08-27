@@ -1078,6 +1078,27 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
+    /// Look projects up by one or more tags using the inverted index (issue #483).
+    ///
+    /// `list_projects_by_tag` scans every project id on every call. This serves
+    /// the indexed range directly and scans only the range a backfill has not
+    /// reached yet, so a single call can also cover several tags at once instead
+    /// of one round trip per tag.
+    pub fn get_projects_by_tag_batch(env: Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_tag_batch(&env, tags, limit)
+    }
+
+    /// Backfill the tag index for projects registered before it existed.
+    /// Admin only. Processes at most `limit` ids and returns the new watermark.
+    pub fn reindex_tags(env: Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        ProjectRegistry::reindex_tags(&env, caller, limit)
+    }
+
+    /// Highest project id guaranteed to be present in the tag index.
+    pub fn get_tag_index_watermark(env: Env) -> u64 {
+        ProjectRegistry::get_tag_index_watermark(&env)
+    }
+
     pub fn list_projects_by_tag(
         env: Env,
         tag: String,
