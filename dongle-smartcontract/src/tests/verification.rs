@@ -453,6 +453,47 @@ fn test_state_machine_with_different_admins() {
     );
 }
 
+#[test]
+fn test_pending_verification_queue_order_pagination_and_removal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, owner) = setup(&env);
+
+    let first_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 1");
+    let second_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 2");
+    let third_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 3");
+    let evidence = String::from_str(
+        &env,
+        "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+    );
+
+    client.request_verification(&first_project, &owner, &evidence);
+    client.request_verification(&second_project, &owner, &evidence);
+    client.request_verification(&third_project, &owner, &evidence);
+
+    let all = client.get_pending_verifications(&0, &10);
+    assert_eq!(all.len(), 3);
+    assert_eq!(all.get(0).unwrap().project_id, first_project);
+    assert_eq!(all.get(1).unwrap().project_id, second_project);
+    assert_eq!(all.get(2).unwrap().project_id, third_project);
+
+    let first_page = client.get_pending_verifications(&0, &2);
+    assert_eq!(first_page.len(), 2);
+    assert_eq!(first_page.get(0).unwrap().project_id, first_project);
+    assert_eq!(first_page.get(1).unwrap().project_id, second_project);
+
+    let second_page = client.get_pending_verifications(&2, &2);
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page.get(0).unwrap().project_id, third_project);
+
+    client.approve_verification(&first_project, &admin);
+    client.reject_verification(&second_project, &admin);
+
+    let remaining = client.get_pending_verifications(&0, &10);
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining.get(0).unwrap().project_id, third_project);
+}
+
 // --- Revocation Tests ---
 
 #[test]
