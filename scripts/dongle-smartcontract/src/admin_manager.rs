@@ -339,7 +339,7 @@ impl AdminManager {
             ))
             .ok_or(ContractError::InvalidStatus)?;
 
-        if proposal.status == ProposalStatus::Executed {
+        if proposal.status != ProposalStatus::Approved {
             return Err(ContractError::InvalidStatus);
         }
 
