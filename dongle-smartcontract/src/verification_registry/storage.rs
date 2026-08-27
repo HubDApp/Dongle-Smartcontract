@@ -666,6 +666,7 @@ impl VerificationRegistry {
     }
 
     /// Set verification validity duration (admin only)
+    #[allow(dead_code)]
     pub fn set_verification_duration(
         env: &Env,
         admin: Address,

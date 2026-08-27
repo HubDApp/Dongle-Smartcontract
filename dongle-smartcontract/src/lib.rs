@@ -44,7 +44,6 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
-use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
@@ -329,16 +328,12 @@ impl DongleContract {
 
     /// Returns the region tag for a project, if set.
     pub fn get_project_region(env: Env, project_id: u64) -> Option<String> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectRegion(project_id))
+        ProjectRegistry::get_project_region(&env, project_id)
     }
 
     /// Returns the stored integrity hash for a project, if any.
     pub fn get_project_integrity_hash(env: Env, project_id: u64) -> Option<soroban_sdk::Bytes> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectIntegrityHash(project_id))
+        ProjectRegistry::get_project_integrity_hash(&env, project_id)
     }
 
     pub fn list_projects_by_status(

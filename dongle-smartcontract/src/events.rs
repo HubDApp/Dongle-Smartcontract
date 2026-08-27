@@ -378,6 +378,7 @@ pub fn publish_review_event(
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn publish_review_revision_event(
     env: &Env,
     project_id: u64,

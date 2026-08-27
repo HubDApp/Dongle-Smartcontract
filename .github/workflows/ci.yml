@@ -95,7 +95,7 @@ jobs:
             ${{ runner.os }}-clippy-
 
       - name: Run clippy
-        run: cargo clippy -p dongle-contract --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy -p dongle-contract --target wasm32-unknown-unknown --all-features -- -D warnings
 
   test:
     name: Tests

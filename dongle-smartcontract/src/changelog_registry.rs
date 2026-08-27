@@ -167,7 +167,7 @@ impl ChangelogRegistry {
         }
 
         // Remove from project's changelog list
-        let mut project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
         let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
         env.storage().persistent().set(
             &ExtensionKey::ProjectChangelogEntries(entry.project_id),

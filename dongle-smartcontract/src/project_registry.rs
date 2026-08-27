@@ -22,7 +22,7 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{Address, Bytes, Env, String, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
@@ -2458,8 +2458,8 @@ impl ProjectRegistry {
         let len = s.len() as usize;
         let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
         s.copy_into_slice(&mut scratch[..len]);
-        for i in 0..len {
-            buf.push_back(scratch[i]);
+        for &byte in scratch.iter().take(len) {
+            buf.push_back(byte);
         }
     }
     /// Set the optional region tag for a project (owner only).

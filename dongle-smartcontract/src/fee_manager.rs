@@ -95,6 +95,7 @@ impl FeeManager {
     ///
     /// Validates fee config/treasury, transfers tokens (when amount > 0), sets the
     /// paid flag, stores a [`FeePaymentRecord`], and emits a fee-paid event.
+    #[allow(clippy::too_many_arguments)]
     fn execute_fee_payment(
         env: &Env,
         payer: Address,

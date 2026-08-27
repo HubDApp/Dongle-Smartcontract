@@ -94,19 +94,17 @@ impl ReviewRegistry {
         }
 
         // 2. Endorsement requirement check
-        if config.require_endorsement {
-            if !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
+        if config.require_endorsement
+            && !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
                 env, project_id, reviewer,
-            ) {
-                return Err(ContractError::ReviewerNotEligible);
-            }
+            )
+        {
+            return Err(ContractError::ReviewerNotEligible);
         }
 
         // 3. Review fee check
-        if config.review_fee > 0 {
-            if !crate::fee_manager::FeeManager::is_fee_paid(env, project_id) {
-                return Err(ContractError::ReviewFeeRequired);
-            }
+        if config.review_fee > 0 && !crate::fee_manager::FeeManager::is_fee_paid(env, project_id) {
+            return Err(ContractError::ReviewFeeRequired);
         }
 
         Ok(())
