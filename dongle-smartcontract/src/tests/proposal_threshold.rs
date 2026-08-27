@@ -376,7 +376,8 @@ fn test_raising_threshold_blocks_an_already_approved_proposal() {
 // ─── Threshold downgrade supermajority protection ────────────────────────────
 
 /// Exact-majority attempt: threshold is 3, proposal wants to lower to 2,
-/// but only 2 admins approved (== new_threshold). Must be rejected.
+/// but only 3 admins approved (== current_threshold). Must be rejected because
+/// the guard requires strictly MORE than current_threshold approvals.
 #[test]
 fn test_downgrade_threshold_rejected_when_approvals_equal_new_threshold() {
     let env = Env::default();
@@ -395,10 +396,11 @@ fn test_downgrade_threshold_rejected_when_approvals_equal_new_threshold() {
 
     // Propose lowering from 3 to 2.
     let id = client.create_proposal(&admin1, &ProposalPayload::SetThreshold(2), &0u64);
-    // admin1 (proposer) + admin2 = 2 approvals, which equals the proposed new
-    // threshold of 2 — not strictly greater, so execution must be refused.
+    // admin1 (proposer) + admin2 + admin3 = 3 approvals, which equals the
+    // current threshold of 3 but does NOT exceed it.  The supermajority guard
+    // requires strictly more than current_threshold, so execution must be refused.
     client.approve_proposal(&admin2, &id);
-    client.approve_proposal(&admin3, &id); // meets live threshold of 3 → Approved status
+    client.approve_proposal(&admin3, &id); // 3 approvals == current_threshold → Approved
     assert_eq!(
         client.get_proposal(&id).unwrap().status,
         ProposalStatus::Approved
@@ -407,38 +409,41 @@ fn test_downgrade_threshold_rejected_when_approvals_equal_new_threshold() {
     let result = client.try_execute_proposal(&admin4, &id);
     assert_eq!(
         result,
-        Err(Ok(crate::errors::ContractError::ThresholdDowngradeRequiresSupermajority))
+        Err(Ok(
+            crate::errors::ContractError::ThresholdDowngradeRequiresSupermajority
+        ))
     );
     // Threshold must remain unchanged.
     assert_eq!(client.get_admin_approval_threshold(), 3);
 }
-
-/// Supermajority path: threshold is 3, proposal lowers to 2, and 3 admins
-/// have approved (> new_threshold of 2). Must succeed.
+/// have approved (> current_threshold of 3). Must succeed.
 #[test]
 fn test_downgrade_threshold_succeeds_with_supermajority() {
     let env = Env::default();
     env.mock_all_auths();
 
-    // Four admins, threshold = 3.
+    // Five admins, threshold = 3.
     let (client, admin1) = crate::tests::fixtures::setup_contract(&env);
     let admin2 = Address::generate(&env);
     let admin3 = Address::generate(&env);
     let admin4 = Address::generate(&env);
+    let admin5 = Address::generate(&env);
     client.add_admin(&admin1, &admin2);
     client.add_admin(&admin1, &admin3);
     client.add_admin(&admin1, &admin4);
+    client.add_admin(&admin1, &admin5);
     client.set_admin_approval_threshold(&admin1, &3);
     assert_eq!(client.get_admin_approval_threshold(), 3);
 
     // Propose lowering from 3 to 2.
     let id = client.create_proposal(&admin1, &ProposalPayload::SetThreshold(2), &0u64);
-    // admin1 (proposer) + admin2 + admin3 = 3 approvals > new_threshold of 2.
+    // admin1 (proposer) + admin2 + admin3 + admin4 = 4 approvals > current_threshold of 3.
     client.approve_proposal(&admin2, &id);
     client.approve_proposal(&admin3, &id);
+    client.approve_proposal(&admin4, &id);
 
-    // Execute — should succeed because 3 > 2.
-    client.execute_proposal(&admin4, &id);
+    // Execute — should succeed because 4 > current_threshold(3).
+    client.execute_proposal(&admin5, &id);
     assert_eq!(client.get_admin_approval_threshold(), 2);
     assert_eq!(
         client.get_proposal(&id).unwrap().status,

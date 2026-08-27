@@ -480,20 +480,22 @@ impl AdminManager {
                 // Supermajority rule for threshold downgrades:
                 //
                 // If this proposal would *lower* the current threshold, the number
-                // of approvals must be strictly greater than the proposed new
-                // threshold.  Without this guard, exactly `new_threshold` colluding
-                // admins could create and approve a `SetThreshold(new_threshold)`
-                // proposal — which passes the live threshold check above — and
-                // immediately reduce the quorum required for all subsequent
-                // proposals, including ones that act on sensitive state.
+                // of approvals must be strictly greater than the *current* threshold
+                // — not merely greater than the proposed new threshold.
+                //
+                // Rationale: the quorum that is being dismantled must itself be
+                // exceeded, not just the smaller quorum being installed. With a
+                // guard of `> new_threshold` only, exactly `current_threshold`
+                // colluding admins could create a proposal that passes the live
+                // threshold check and yet immediately reduces future quorum.
+                // Requiring `> current_threshold` means at least one admin beyond
+                // the current quorum must sign off on any reduction.
                 //
                 // For threshold *increases* or no-ops the normal threshold check
                 // (approvals.len() >= current_threshold) already performed above
                 // is sufficient; no additional requirement is added.
                 let current_threshold = Self::get_admin_approval_threshold(env);
-                if new_threshold < current_threshold
-                    && proposal.approvals.len() <= new_threshold
-                {
+                if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
                     return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
                 }
 
