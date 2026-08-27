@@ -88,6 +88,36 @@ fn test_fee_config_reflects_new_token_after_rotation() {
 }
 
 #[test]
+fn test_fee_config_history_records_old_and_new_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, treasury, token_a) = setup_with_token(&env);
+
+    let token_b = Address::generate(&env);
+    let treasury_b = Address::generate(&env);
+    client.set_fee(&admin, &Some(token_b.clone()), &200u128, &25u128, &treasury_b);
+
+    let history = client.get_fee_config_history();
+    assert_eq!(history.len(), 2);
+
+    assert_eq!(history.get(0).unwrap().old_token, None);
+    assert_eq!(history.get(0).unwrap().token, Some(token_a));
+    assert_eq!(history.get(0).unwrap().old_verification_fee, None);
+    assert_eq!(history.get(0).unwrap().treasury, treasury);
+
+    let rotation = history.get(1).unwrap();
+    assert_eq!(rotation.admin, admin);
+    assert_eq!(rotation.old_token, history.get(0).unwrap().token);
+    assert_eq!(rotation.old_verification_fee, Some(100u128));
+    assert_eq!(rotation.old_registration_fee, Some(0u128));
+    assert_eq!(rotation.old_treasury, Some(treasury));
+    assert_eq!(rotation.token, Some(token_b));
+    assert_eq!(rotation.verification_fee, 200u128);
+    assert_eq!(rotation.registration_fee, 25u128);
+    assert_eq!(rotation.treasury, treasury_b);
+}
+
+#[test]
 fn test_treasury_unchanged_after_token_rotation() {
     let env = Env::default();
     env.mock_all_auths();

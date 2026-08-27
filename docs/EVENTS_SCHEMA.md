@@ -71,6 +71,48 @@ All project-related events start with the topic `PROJECT` (Symbol).
   * `new_owner` (`Address`): The new owner address.
   * `timestamp` (`u64`): Unix timestamp.
 
+### Project Linked
+* **Topic:** `(Symbol("PROJECT"), Symbol("LINKED"), project_id: u64)`
+* **Payload (`ProjectLinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project that initiated the link.
+  * `linked_project_id` (`u64`): The ID of the project being linked to.
+  * `owner` (`Address`): Address of the project owner (or admin) who created the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was created.
+
+#### Project Linked Event Example
+```json
+{
+  "topics": ["PROJECT", "LINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390400
+  }
+}
+```
+
+### Project Unlinked
+* **Topic:** `(Symbol("PROJECT"), Symbol("UNLINKED"), project_id: u64)`
+* **Payload (`ProjectUnlinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project from which the link was removed.
+  * `linked_project_id` (`u64`): The ID of the project that was unlinked.
+  * `owner` (`Address`): Address of the project owner (or admin) who removed the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was removed.
+
+#### Project Unlinked Event Example
+```json
+{
+  "topics": ["PROJECT", "UNLINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390500
+  }
+}
+```
+
 ---
 
 ## 2. Review Events
@@ -162,6 +204,12 @@ All verification-related events start with the topic `VERIFY` (Symbol).
   * `requester` (`Address`): The requester's address.
   * `evidence_cid` (`String`): The IPFS/content CID containing supporting verification evidence.
   * `timestamp` (`u64`): Unix timestamp.
+  * `request_id` (`u64`): ID of the newly created `VerificationRecord` for this request.
+  * `previous_request_id` (`Option<u64>`): ID of the project's previous verification
+    request, if any. `None` for a project's first-ever request; `Some(id)` marks
+    this as a re-request (e.g. after rejection or revocation) that **versions**
+    rather than overwrites the record identified by `id` — see
+    [`VERIFICATION.md`](VERIFICATION.md#requesting-verification-and-re-request-replacement-rules).
 
 #### Verification Requested Event Example
 ```json
@@ -171,7 +219,9 @@ All verification-related events start with the topic `VERIFY` (Symbol).
     "project_id": 1,
     "requester": "GDXX...XXXX",
     "evidence_cid": "QmZ4tUD4vC5P16G1sA1nemtYgPpHdWEz79ojWnPbdG",
-    "timestamp": 1782390600
+    "timestamp": 1782390600,
+    "request_id": 2,
+    "previous_request_id": 1
   }
 }
 ```

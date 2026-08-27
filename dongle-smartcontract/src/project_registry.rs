@@ -26,6 +26,78 @@ use soroban_sdk::{Address, Bytes, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    /// Project IDs carrying `tag`, per the inverted tag index (issue #485).
+    fn tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Add `project_id` to the index entry for `tag`, ignoring duplicates.
+    fn tag_index_insert(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Drop `project_id` from the index entry for `tag`, removing the entry when it empties.
+    fn tag_index_remove(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::tag_index(env, tag);
+        let mut remaining: Vec<u64> = Vec::new(env);
+        for i in 0..ids.len() {
+            if let Some(id) = ids.get(i) {
+                if id != project_id {
+                    remaining.push_back(id);
+                }
+            }
+        }
+        if remaining.is_empty() {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::TagProjects(tag.clone()));
+        } else {
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::TagProjects(tag.clone()), &remaining);
+        }
+    }
+
+    /// Index every tag in `tags` for `project_id`.
+    fn tag_index_insert_all(env: &Env, tags: &Vec<String>, project_id: u64) {
+        for tag in tags.iter() {
+            Self::tag_index_insert(env, &tag, project_id);
+        }
+    }
+
+    /// Reconcile the index after a tag change: drop the tags that went away, add the new ones.
+    fn tag_index_sync(
+        env: &Env,
+        project_id: u64,
+        previous: &Option<Vec<String>>,
+        current: &Option<Vec<String>>,
+    ) {
+        if let Some(old_tags) = previous {
+            for tag in old_tags.iter() {
+                let still_present = match current {
+                    Some(new_tags) => new_tags.contains(&tag),
+                    None => false,
+                };
+                if !still_present {
+                    Self::tag_index_remove(env, &tag, project_id);
+                }
+            }
+        }
+        if let Some(new_tags) = current {
+            Self::tag_index_insert_all(env, new_tags, project_id);
+        }
+    }
+
     /// Shared status-transition helper for both ownership and contract-address claims.
     fn apply_claim_decision(
         status: &mut ClaimStatus,
@@ -231,6 +303,7 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectTags(count), tags);
+            Self::tag_index_insert_all(env, tags, count);
         }
         if let Some(social_links) = &params.social_links {
             env.storage()
@@ -472,6 +545,7 @@ impl ProjectRegistry {
         }
 
         // Handle tags update
+        let previous_tags = project.tags.clone();
         if let Some(value) = params.tags {
             if let Some(ref tags) = value {
                 Utils::validate_tags(tags)?;
@@ -489,6 +563,7 @@ impl ProjectRegistry {
 
         // Handle tags update
         if let Some(value) = tags_update {
+            Self::tag_index_sync(env, params.project_id, &previous_tags, &value);
             if let Some(tags) = &value {
                 env.storage()
                     .persistent()
@@ -1248,39 +1323,37 @@ impl ProjectRegistry {
             limit
         };
 
-        let count: u64 = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectCount)
-            .unwrap_or(0);
+        // Read the inverted tag index rather than scanning the whole ID space (issue #485).
+        let ids = Self::tag_index(env, &tag);
 
         let mut projects = Vec::new(env);
-        if count == 0 {
+        if ids.is_empty() {
             return projects;
         }
 
+        let mut skipped: u32 = 0;
         let mut collected: u32 = 0;
 
-        // Iterate through all projects; start_index is a 0-based offset into the project ID space.
-        for id in (start_index as u64 + 1)..=count {
+        // `start_index` is a 0-based offset into the projects matching this tag.
+        for i in 0..ids.len() {
             if collected >= effective_limit {
                 break;
             }
-
-            if let Some(project) = Self::get_project(env, id) {
-                if project.archived {
-                    continue;
-                }
-                if let Some(tags) = &project.tags {
-                    for project_tag in tags.iter() {
-                        if project_tag == tag {
-                            projects.push_back(project);
-                            collected += 1;
-                            break;
-                        }
-                    }
-                }
+            let Some(id) = ids.get(i) else {
+                continue;
+            };
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+            if project.archived {
+                continue;
             }
+            if skipped < start_index {
+                skipped += 1;
+                continue;
+            }
+            projects.push_back(project);
+            collected += 1;
         }
 
         projects
@@ -1594,7 +1667,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -1661,7 +1734,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         env.storage()
@@ -1712,7 +1785,7 @@ impl ProjectRegistry {
 
         let mut maintainers = Self::get_maintainers(env, project_id);
         if maintainers.contains(&maintainer) {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::AlreadyMaintainerAdded);
         }
 
         maintainers.push_back(maintainer.clone());
@@ -2055,41 +2128,114 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut all: Vec<Project> = Vec::new(env);
-        for id in 1..=count {
-            if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
-                    all.push_back(project);
-                }
-            }
+        let mut result: Vec<Project> = Vec::new(env);
+        if count == 0 {
+            return result;
         }
 
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ProjectSortMode::Newest => a.created_at < b.created_at,
-            ProjectSortMode::Oldest => a.created_at > b.created_at,
-            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                if sort_mode == ProjectSortMode::HighestRated {
-                    stats_a.average_rating < stats_b.average_rating
-                        || (stats_a.average_rating == stats_b.average_rating
-                            && stats_a.review_count < stats_b.review_count)
-                } else {
-                    stats_a.review_count < stats_b.review_count
-                        || (stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating)
+        match sort_mode {
+            // Project IDs are handed out in registration order and `created_at` is
+            // non-decreasing across them, so the ID space is already the sort order.
+            // Walking it directly reads only the requested page instead of loading
+            // and ordering the whole registry (issue #484).
+            ProjectSortMode::Newest | ProjectSortMode::Oldest => {
+                let newest_first = sort_mode == ProjectSortMode::Newest;
+                let mut skipped: u64 = 0;
+                let mut collected: u32 = 0;
+
+                for step in 0..count {
+                    if collected >= effective_limit {
+                        break;
+                    }
+                    let id = if newest_first { count - step } else { step + 1 };
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    if skipped < start_index {
+                        skipped += 1;
+                        continue;
+                    }
+                    result.push_back(project);
+                    collected += 1;
                 }
             }
-        });
-        let n = all.len();
+            // Rating order cannot be derived from the ID space. Read each project's
+            // review stats once - the previous bubble sort re-read them inside every
+            // comparison, which made the call O(N^2) in storage reads - and then select
+            // just the requested page rather than ordering the entire registry.
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let mut candidates: Vec<Project> = Vec::new(env);
+                let mut averages: Vec<u32> = Vec::new(env);
+                let mut review_counts: Vec<u32> = Vec::new(env);
 
-        let mut result = Vec::new(env);
-        let start = start_index as u32;
-        if start < n {
-            let end = core::cmp::min(start.saturating_add(effective_limit), n);
-            for i in start..end {
-                if let Some(project) = all.get(i) {
-                    result.push_back(project);
+                for id in 1..=count {
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    let stats = crate::review_registry::ReviewRegistry::get_project_stats(env, id);
+                    candidates.push_back(project);
+                    averages.push_back(stats.average_rating);
+                    review_counts.push_back(stats.review_count);
+                }
+
+                let total = candidates.len();
+                let start = start_index as u32;
+                if start >= total {
+                    return result;
+                }
+                let wanted = core::cmp::min(start.saturating_add(effective_limit), total);
+
+                let highest_rated = sort_mode == ProjectSortMode::HighestRated;
+                let mut taken: Vec<bool> = Vec::new(env);
+                for _ in 0..total {
+                    taken.push_back(false);
+                }
+
+                // Partial selection: only `wanted` ranks are resolved, so the work is
+                // bounded by the page the caller asked for.
+                for rank in 0..wanted {
+                    let mut best: Option<u32> = None;
+                    for i in 0..total {
+                        if taken.get(i).unwrap_or(false) {
+                            continue;
+                        }
+                        let Some(best_index) = best else {
+                            best = Some(i);
+                            continue;
+                        };
+                        let (primary, secondary) = if highest_rated {
+                            (&averages, &review_counts)
+                        } else {
+                            (&review_counts, &averages)
+                        };
+                        let candidate_primary = primary.get(i).unwrap_or(0);
+                        let best_primary = primary.get(best_index).unwrap_or(0);
+                        let candidate_secondary = secondary.get(i).unwrap_or(0);
+                        let best_secondary = secondary.get(best_index).unwrap_or(0);
+
+                        if candidate_primary > best_primary
+                            || (candidate_primary == best_primary
+                                && candidate_secondary > best_secondary)
+                        {
+                            best = Some(i);
+                        }
+                    }
+
+                    let Some(best_index) = best else {
+                        break;
+                    };
+                    taken.set(best_index, true);
+                    if rank >= start {
+                        if let Some(project) = candidates.get(best_index) {
+                            result.push_back(project);
+                        }
+                    }
                 }
             }
         }
