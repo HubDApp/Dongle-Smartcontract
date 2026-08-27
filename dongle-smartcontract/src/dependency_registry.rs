@@ -34,7 +34,7 @@ impl DependencyRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         for &c in buf.iter() {
-            if !(c.is_ascii_uppercase() || (c >= b'2' && c <= b'7')) {
+            if !(c.is_ascii_uppercase() || (b'2'..=b'7').contains(&c)) {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -253,7 +253,7 @@ impl DependencyRegistry {
             .persistent()
             .remove(&ExtensionKey::ProjectDependency(project_id, key.clone()));
 
-        let mut keys: Vec<String> = env
+        let keys: Vec<String> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))
@@ -288,5 +288,19 @@ impl DependencyRegistry {
         }
         StorageManager::extend_project_dependency_ttl(env, project_id);
         out
+    }
+
+    /// Returns the number of dependencies registered for a project.
+    ///
+    /// This is a cheap O(1) operation — it reads only the key-list length
+    /// without fetching individual dependency records, making it suitable for
+    /// displaying a dependency-count badge in UIs.
+    pub fn get_dependency_count(env: &Env, project_id: u64) -> u32 {
+        let keys: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        keys.len()
     }
 }

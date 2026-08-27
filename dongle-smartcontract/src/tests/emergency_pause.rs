@@ -38,7 +38,9 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
-    }
+        repository_url: None,
+    };
+    client.mock_all_auths().try_register_project(&params).map(|r| r)
 }
 
 fn make_update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateParams {
@@ -57,6 +59,7 @@ fn make_update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUp
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     }
 }
 
