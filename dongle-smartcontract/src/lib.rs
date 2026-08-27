@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(warnings)]
 
 mod admin_action_log;
 mod admin_manager;
@@ -710,6 +709,14 @@ impl DongleContract {
 
     pub fn get_verification_record(env: Env, request_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
+    }
+
+    pub fn get_pending_verifications(
+        env: Env,
+        start: u32,
+        limit: u32,
+    ) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_pending_verifications(&env, start, limit)
     }
 
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {

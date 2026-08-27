@@ -357,13 +357,6 @@ pub struct FeeConfigHistoryEntry {
     pub timestamp: u64,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Default)]
-pub struct ProjectAggregate {
-    pub total_rating: u64,
-    pub review_count: u64,
-}
-
 // ── Project dependencies ─────────────────────────────────────────────────────
 
 /// External dependency reference can point to an internal project id,
