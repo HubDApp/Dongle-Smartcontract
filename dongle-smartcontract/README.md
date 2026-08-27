@@ -1,4 +1,6 @@
-# Dongle Smart Contract
+# Dongle Smart Contract — Detailed API Reference
+
+> **📌 Getting Started?** Start with the [root README](../README.md) for an overview. This document provides comprehensive API documentation and usage examples.
 
 A Soroban smart contract for decentralized project registry, reviews, and verification on the Stellar network.
 
@@ -98,6 +100,12 @@ Use the invocation helper script for common functions:
 
 # Fetch project details by Slug
 ./scripts/invoke.sh get_project_by_slug "my-project"
+
+# Multi-sig governance (see Admin Management below)
+./scripts/invoke.sh create_proposal add_admin <new_admin_address>
+./scripts/invoke.sh approve_proposal <proposal_id>
+./scripts/invoke.sh execute_proposal <proposal_id>
+./scripts/invoke.sh get_proposal <proposal_id>
 ```
 
 > [!IMPORTANT]
@@ -568,6 +576,84 @@ soroban contract invoke \
 |---|---|
 | `CannotRemoveLastAdmin` | Removing this admin would leave the contract with no admins |
 | `AdminNotFound` | The address to remove is not an admin |
+| `Unauthorized` | Caller is not an admin, or `get_admin_approval_threshold() > 1` (use the proposal workflow) |
+
+#### Multi-sig proposal workflow
+
+When the approval threshold is greater than `1`, `add_admin`, `remove_admin`, and further threshold changes cannot be called directly. Use `scripts/invoke.sh` with a different `DEPLOYER_IDENTITY` for each admin.
+
+**Step 1 — Raise the threshold** (still allowed while threshold is `1`):
+
+```bash
+export NETWORK=testnet
+export CONTRACT_ID=<CONTRACT_ID>
+export DEPLOYER_IDENTITY=alice
+
+./scripts/invoke.sh add_admin "$(soroban keys address bob)"
+./scripts/invoke.sh add_admin "$(soroban keys address carol)"
+./scripts/invoke.sh set_admin_approval_threshold 2
+```
+
+**Step 2 — Create a proposal** (`create_proposal`). The proposer is recorded as the first approval. Returns `proposal_id`.
+
+```bash
+export DEPLOYER_IDENTITY=alice
+./scripts/invoke.sh create_proposal add_admin "$(soroban keys address dave)"
+./scripts/invoke.sh get_proposal 1
+```
+
+Equivalent raw invoke:
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source alice \
+  --network testnet \
+  -- create_proposal \
+  --proposer <ALICE_ADDRESS> \
+  --payload '{"AddAdmin":"<DAVE_ADDRESS>"}'
+```
+
+Supported helper payloads: `add_admin`, `remove_admin`, `set_threshold`, `set_fee`, `approve_verification`, `reject_verification`, `revoke_verification`.
+
+**Step 3 — Approve** (`approve_proposal`) with a *different* admin until the threshold is met. Duplicate approval by the same admin fails.
+
+```bash
+export DEPLOYER_IDENTITY=bob
+./scripts/invoke.sh approve_proposal 1
+```
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source bob \
+  --network testnet \
+  -- approve_proposal \
+  --admin <BOB_ADDRESS> \
+  --proposal_id 1
+```
+
+**Step 4 — Execute** (`execute_proposal`) once status is `Approved`. This applies the payload and sets status to `Executed`.
+
+```bash
+export DEPLOYER_IDENTITY=carol
+./scripts/invoke.sh execute_proposal 1
+./scripts/invoke.sh is_admin "$(soroban keys address dave)"
+```
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source carol \
+  --network testnet \
+  -- execute_proposal \
+  --caller <CAROL_ADDRESS> \
+  --proposal_id 1
+```
+
+If the threshold is `1`, skip step 3: creating the proposal already satisfies the threshold, so any admin can `execute_proposal` immediately.
+
+A full deploy-then-govern walkthrough lives in the root [Deployment Documentation](../DEPLOYMENT.md#post-deploy-governance-operations).
 
 #### Check Admin Status
 
@@ -1461,7 +1547,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_category \
   --category "DeFi" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1473,7 +1559,7 @@ soroban contract invoke \
   --network testnet \
   -- list_projects_by_tag \
   --tag "nft" \
-  --start_id 0 \
+  --start_index 0 \
   --limit 10
 ```
 
@@ -1573,6 +1659,20 @@ soroban contract invoke \
   -- get_admin_count
 ```
 
+#### Get Public Contract Configuration
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --network testnet \
+  -- get_config
+```
+
+Returns a stable configuration snapshot for frontends and indexers, including
+fee settings, treasury, admin count, pause state, version, and public limits.
+`paused` is currently `false` because the contract does not yet include a pause
+feature.
+
 #### Get Admin List
 
 ```bash
@@ -1656,6 +1756,10 @@ The contract implements comprehensive TTL management for Soroban persistent stor
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_project_ttl --project_id 1
 
+# Extend TTL for many projects; missing project IDs are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_projects_ttl --project_ids '[1,2,3]'
+
 # Extend TTL for critical configuration
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_critical_config_ttl
@@ -1668,10 +1772,17 @@ soroban contract invoke --id <CONTRACT_ID> --network testnet \
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_review_ttl --project_id 1 --reviewer <REVIEWER_ADDRESS>
 
+# Extend TTL for many reviews; missing reviews are skipped
+soroban contract invoke --id <CONTRACT_ID> --network testnet \
+  -- extend_reviews_ttl --review_ids '[[1,"<REVIEWER_ADDRESS>"],[2,"<REVIEWER_ADDRESS>"]]'
+
 # Extend TTL for verification data
 soroban contract invoke --id <CONTRACT_ID> --network testnet \
   -- extend_verification_ttl --project_id 1
 ```
+
+Batch TTL calls accept up to 100 records and return the number of existing
+records refreshed.
 
 ---
 
@@ -1730,10 +1841,10 @@ src/
 
 ## Schemas & References
 
-- **Event Reference:** [EVENTS_SCHEMA.md](../EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
-- **Threat Model:** [THREAT_MODEL.md](../THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
-- **Review CID Schema:** [review-cid.schema.json](../review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
-- **Review Example:** [review-cid.example.json](../review-cid.example.json) provides a valid off-chain review document matching the schema.
+- **Event Reference:** [EVENTS_SCHEMA.md](../docs/EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
+- **Threat Model:** [THREAT_MODEL.md](../docs/THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
+- **Review CID Schema:** [review-cid.schema.json](../docs/review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
+- **Review Example:** [review-cid.example.json](../docs/review-cid.example.json) provides a valid off-chain review document matching the schema.
 
 ## Contributing
 

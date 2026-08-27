@@ -1,4 +1,4 @@
-use crate::types::{AdminActionType, ReviewAction, ReviewEventData};
+use crate::types::{AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -27,6 +27,27 @@ pub struct ProjectRegisteredEvent {
 pub struct ProjectUpdatedEvent {
     pub project_id: u64,
     pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectLifecycleStatusUpdatedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub previous_status: ProjectLifecycleStatus,
+    pub new_status: ProjectLifecycleStatus,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationStatusResetEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub previous_status: VerificationStatus,
+    pub new_status: VerificationStatus,
+    pub fields: Vec<String>,
     pub timestamp: u64,
 }
 
@@ -177,6 +198,36 @@ pub struct VerificationRevokedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a Verified project's expiry is checked and found to be expired.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiredEvent {
+    pub project_id: u64,
+    pub expired_at: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when an admin renews (resets the expiry of) a verified project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRenewedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub new_expires_at: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when project ownership is transferred.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceUpdatedEvent {
+    pub project_id: u64,
+    pub requester: Address,
+    pub old_evidence_cid: String,
+    pub new_evidence_cid: String,
+    pub timestamp: u64,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationHistoryClearedEvent {
@@ -198,7 +249,7 @@ pub struct RenewalHistoryClearedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerificationRenewalRequestedEvent {
+pub struct VerificationRenewalReqEvent {
     pub project_id: u64,
     pub requester: Address,
     pub evidence_cid: String,
@@ -273,6 +324,17 @@ pub struct FeeConsumedEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeCancelledEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub payer: Address,
+    pub operation: FeeOperation,
+    pub amount: u128,
+    pub timestamp: u64,
+}
+
 // ── Publish helpers ───────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
@@ -300,11 +362,41 @@ pub fn publish_review_event(
     let action_sym = match action {
         ReviewAction::Submitted => symbol_short!("SUBMITTED"),
         ReviewAction::Updated => symbol_short!("UPDATED"),
+        ReviewAction::Revised => symbol_short!("REVISED"),
         ReviewAction::Deleted => symbol_short!("DELETED"),
     };
 
     env.events()
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
+}
+
+pub fn publish_review_revision_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    revision_index: u32,
+    previous_rating: u32,
+    previous_content_cid: Option<String>,
+    new_rating: u32,
+    new_content_cid: Option<String>,
+) {
+    use crate::types::ReviewRevisionEvent;
+
+    let event_data = ReviewRevisionEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        revision_index,
+        previous_rating,
+        previous_content_cid,
+        new_rating,
+        new_content_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+
+    env.events().publish(
+        (REVIEW, symbol_short!("REVISED"), project_id, reviewer),
+        event_data,
+    );
 }
 
 pub fn publish_project_registered_event(
@@ -343,6 +435,51 @@ pub fn publish_project_updated_event(env: &Env, project_id: u64, owner: Address)
             symbol_short!("UPDATED"),
             project_id,
         ),
+        event_data,
+    );
+}
+
+pub fn publish_project_lifecycle_status_updated_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    previous_status: ProjectLifecycleStatus,
+    new_status: ProjectLifecycleStatus,
+) {
+    let event_data = ProjectLifecycleStatusUpdatedEvent {
+        project_id,
+        owner,
+        previous_status,
+        new_status,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("LCSCHED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_status_reset_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    previous_status: VerificationStatus,
+    fields: Vec<String>,
+) {
+    let event_data = VerificationStatusResetEvent {
+        project_id,
+        caller,
+        previous_status,
+        new_status: VerificationStatus::Unverified,
+        fields,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RESET"), project_id),
         event_data,
     );
 }
@@ -456,6 +593,39 @@ pub fn publish_project_social_links_updated_event(
         event_data,
     );
 }
+
+pub fn publish_verification_expired_event(env: &Env, project_id: u64, expired_at: u64) {
+    let now = env.ledger().timestamp();
+    let event_data = VerificationExpiredEvent {
+        project_id,
+        expired_at,
+        timestamp: now,
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("EXPRD"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_renewed_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    new_expires_at: u64,
+) {
+    let event_data = VerificationRenewedEvent {
+        project_id,
+        admin,
+        new_expires_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RENEWD"), project_id),
+        event_data,
+    );
+}
+
+// ── Admin events ──────────────────────────────────────────────────────────────
 
 pub fn publish_ownership_transferred_event(
     env: &Env,
@@ -656,6 +826,26 @@ pub fn publish_verification_revoked_event(
     );
 }
 
+pub fn publish_verification_evidence_updated_event(
+    env: &Env,
+    project_id: u64,
+    requester: Address,
+    old_evidence_cid: String,
+    new_evidence_cid: String,
+) {
+    let event_data = VerificationEvidenceUpdatedEvent {
+        project_id,
+        requester,
+        old_evidence_cid,
+        new_evidence_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("EV_UPD"), project_id),
+        event_data,
+    );
+}
+
 pub fn publish_verification_history_cleared_event(
     env: &Env,
     project_id: u64,
@@ -705,7 +895,7 @@ pub fn publish_verification_renewal_requested_event(
     evidence_cid: String,
     fee_amount: u128,
 ) {
-    let event_data = VerificationRenewalRequestedEvent {
+    let event_data = VerificationRenewalReqEvent {
         project_id,
         requester,
         evidence_cid,
@@ -798,6 +988,28 @@ pub fn publish_fee_consumed_event(
     );
 }
 
+pub fn publish_fee_cancelled_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    payer: Address,
+    operation: FeeOperation,
+    amount: u128,
+) {
+    let event_data = FeeCancelledEvent {
+        project_id,
+        caller,
+        payer,
+        operation,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("CANCEL"), project_id),
+        event_data,
+    );
+}
+
 pub fn publish_fee_set_event(
     env: &Env,
     admin: Address,
@@ -884,6 +1096,34 @@ pub struct ClaimRequestRejectedEvent {
     pub claim_request_id: u64,
     pub project_id: u64,
     pub claimant: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimSubmittedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub claimant: Address,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimApprovedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractClaimRejectedEvent {
+    pub project_id: u64,
+    pub contract_address: String,
     pub admin: Address,
     pub timestamp: u64,
 }
@@ -985,6 +1225,74 @@ pub fn publish_claim_request_rejected_event(
     );
 }
 
+pub fn publish_contract_claim_submitted_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    claimant: Address,
+    proof_cid: String,
+) {
+    let event_data = ContractClaimSubmittedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        claimant: claimant.clone(),
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("SUBMITTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_contract_claim_approved_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    admin: Address,
+) {
+    let event_data = ContractClaimApprovedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("APPROVED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_contract_claim_rejected_event(
+    env: &Env,
+    project_id: u64,
+    contract_address: String,
+    admin: Address,
+) {
+    let event_data = ContractClaimRejectedEvent {
+        project_id,
+        contract_address: contract_address.clone(),
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CCLAIM"),
+            symbol_short!("REJECTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_min_project_age_set_event(
     env: &Env,
     admin: Address,
@@ -1076,7 +1384,7 @@ pub struct ProjectAddedToCollectionEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectRemovedFromCollectionEvent {
+pub struct ProjRemovedFromCollectionEvent {
     pub collection_id: u64,
     pub project_id: u64,
     pub admin: Address,
@@ -1166,7 +1474,7 @@ pub fn publish_project_removed_from_collection_event(
     project_id: u64,
     admin: Address,
 ) {
-    let event_data = ProjectRemovedFromCollectionEvent {
+    let event_data = ProjRemovedFromCollectionEvent {
         collection_id,
         project_id,
         admin,
@@ -1632,6 +1940,143 @@ pub fn publish_fee_refunded_event(
     );
 }
 
+// ── Verification Assignment Events ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignedEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assigned_admin: Address,
+    pub assigner: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_verification_assigned_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    assigned_admin: Address,
+    assigner: Address,
+) {
+    let event_data = VerificationAssignedEvent {
+        project_id,
+        request_id,
+        assigned_admin,
+        assigner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ASSIGNED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+// ── Reserved Name Events ──────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReservedNameAddedEvent {
+    pub name: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReservedNameRemovedEvent {
+    pub name: String,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_reserved_name_added_event(env: &Env, name: String, admin: Address) {
+    let event_data = ReservedNameAddedEvent {
+        name,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("RSVD_ADD")),
+        event_data,
+    );
+}
+
+pub fn publish_reserved_name_removed_event(env: &Env, name: String, admin: Address) {
+    let event_data = ReservedNameRemovedEvent {
+        name,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONFIG"), symbol_short!("RSVD_REM")),
+        event_data,
+    );
+}
+
+// ── Project Changelog Events ──────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogAddedEvent {
+    pub changelog_id: u64,
+    pub project_id: u64,
+    pub owner: Address,
+    pub cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogRemovedEvent {
+    pub changelog_id: u64,
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+// ── Contract Pause / Emergency Stop Events ─────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractPausedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractUnpausedEvent {
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_contract_paused_event(env: &Env, admin: Address) {
+    let event_data = ContractPausedEvent {
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("PAUSED")),
+        event_data,
+    );
+}
+
+pub fn publish_contract_unpaused_event(env: &Env, admin: Address) {
+    let event_data = ContractUnpausedEvent {
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("UNPAUSED")),
+        event_data,
+    );
+}
+
 pub fn publish_fee_payment_cleared_event(
     env: &Env,
     project_id: u64,
@@ -1647,6 +2092,54 @@ pub fn publish_fee_payment_cleared_event(
     };
     env.events().publish(
         (symbol_short!("FEE"), symbol_short!("CLEARED"), project_id),
+        event_data,
+    );
+}
+
+// ── Changelog Event Functions ───────────────────────────────────────
+
+pub fn publish_changelog_added_event(
+    env: &Env,
+    changelog_id: u64,
+    project_id: u64,
+    owner: Address,
+    cid: String,
+) {
+    let event_data = ChangelogAddedEvent {
+        changelog_id,
+        project_id,
+        owner,
+        cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("ADDED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_changelog_removed_event(
+    env: &Env,
+    changelog_id: u64,
+    project_id: u64,
+    owner: Address,
+) {
+    let event_data = ChangelogRemovedEvent {
+        changelog_id,
+        project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("REMOVED"),
+            project_id,
+        ),
         event_data,
     );
 }

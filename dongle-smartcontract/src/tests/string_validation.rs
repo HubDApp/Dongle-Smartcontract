@@ -68,7 +68,7 @@ fn name_over_max_len_invalid() {
     let name = repeat_byte(&e, b'a', MAX_NAME_LEN + 1);
     assert_eq!(
         Utils::validate_project_name(&name),
-        Err(ContractError::ProjectNameTooLong)
+        Err(ContractError::InvalidProjectName)
     );
 }
 
@@ -185,7 +185,7 @@ proptest! {
         let name = repeat_byte(&e, b'a', MAX_NAME_LEN + extra);
         prop_assert_eq!(
             Utils::validate_project_name(&name),
-            Err(ContractError::ProjectNameTooLong)
+            Err(ContractError::InvalidProjectName)
         );
     }
 }
@@ -199,7 +199,7 @@ fn desc_empty_is_invalid() {
     let e = mk_env();
     assert_eq!(
         Utils::validate_description(&s(&e, "")),
-        Err(ContractError::InvalidProjectDesc)
+        Err(ContractError::InvalidProjectData)
     );
 }
 
@@ -222,7 +222,7 @@ fn desc_over_max_len_invalid() {
     let d = repeat_byte(&e, b'a', MAX_DESCRIPTION_LEN + 1);
     assert_eq!(
         Utils::validate_description(&d),
-        Err(ContractError::ProjectDescTooLong)
+        Err(ContractError::InvalidProjectData)
     );
 }
 
@@ -249,7 +249,7 @@ fn category_empty_is_invalid() {
     let e = mk_env();
     assert_eq!(
         Utils::validate_category_field(&s(&e, "")),
-        Err(ContractError::InvalidCategory)
+        Err(ContractError::InvalidInput)
     );
 }
 
@@ -259,7 +259,7 @@ fn category_whitespace_only_invalid() {
     for ws in ["   ", "\t", "\n", "\r"] {
         assert_eq!(
             Utils::validate_category_field(&s(&e, ws)),
-            Err(ContractError::InvalidCategory),
+            Err(ContractError::InvalidInput),
             "ws={ws:?}"
         );
     }
@@ -289,7 +289,7 @@ fn category_over_max_len_invalid() {
     let cat = repeat_byte(&e, b'c', MAX_CATEGORY_LEN + 1);
     assert_eq!(
         Utils::validate_category_field(&cat),
-        Err(ContractError::InvalidCategory)
+        Err(ContractError::InvalidInput)
     );
 }
 
@@ -314,13 +314,13 @@ fn cid_empty_is_invalid() {
 }
 
 #[test]
-fn cid_too_short_at_45_invalid() {
+fn cid_too_short_at_39_invalid() {
     let e = mk_env();
-    // CID minimum is 46; 45 must be rejected even with valid prefix
+    // CID minimum is 40; 39 must be rejected even with valid prefix
     let short_cid = {
         let mut v = repeat_char('Q', 1);
         v.push('m');
-        v.push_str(&repeat_char('a', 43)); // 1 + 1 + 43 = 45
+        v.push_str(&repeat_char('a', 37)); // 1 + 1 + 37 = 39
         v
     };
     let cid = SorobanString::from_str(&e, &short_cid);
@@ -381,7 +381,7 @@ fn validate_logo_cid_empty_invalid() {
     let e = mk_env();
     assert_eq!(
         Utils::validate_logo_cid(&s(&e, "")),
-        Err(ContractError::InvalidLogoCid)
+        Err(ContractError::InvalidCid)
     );
 }
 
@@ -396,7 +396,7 @@ fn validate_metadata_cid_empty_invalid() {
     let e = mk_env();
     assert_eq!(
         Utils::validate_metadata_cid(&s(&e, "")),
-        Err(ContractError::InvalidMetaCid)
+        Err(ContractError::InvalidCid)
     );
 }
 
@@ -457,9 +457,9 @@ proptest! {
             "CIDv1 of len {len} should be valid");
     }
 
-    /// CIDs shorter than 46 must always be rejected.
+    /// CIDs shorter than 40 must always be rejected.
     #[test]
-    fn prop_cid_too_short_rejected(len in 0usize..=45usize) {
+    fn prop_cid_too_short_rejected(len in 0usize..=39usize) {
         let e = mk_env();
         let cid_str = repeat_char('b', len);
         let cid = SorobanString::from_str(&e, &cid_str);
@@ -487,7 +487,7 @@ fn url_empty_invalid() {
     let e = mk_env();
     assert_eq!(
         Utils::validate_website(&s(&e, "")),
-        Err(ContractError::InvalidWebsite)
+        Err(ContractError::InvalidInput)
     );
 }
 
@@ -509,7 +509,7 @@ fn url_missing_scheme_invalid() {
     for bad in ["example.com", "ftp://x.com", "//x.com", "www.x.com"] {
         assert_eq!(
             Utils::validate_website(&s(&e, bad)),
-            Err(ContractError::InvalidWebsite),
+            Err(ContractError::InvalidInput),
             "url {bad:?} should be invalid"
         );
     }
@@ -532,7 +532,7 @@ fn url_over_max_len_invalid() {
     let url = alloc::format!("{prefix}{fill}");
     assert_eq!(
         Utils::validate_website(&s(&e, &url)),
-        Err(ContractError::InvalidWebsite)
+        Err(ContractError::InvalidInput)
     );
 }
 
@@ -607,7 +607,7 @@ fn url_rejects_non_http_schemes() {
         let url = alloc::format!("{scheme}example.com");
         assert_eq!(
             Utils::validate_website(&s(&e, &url)),
-            Err(ContractError::InvalidWebsite),
+            Err(ContractError::InvalidInput),
             "scheme {scheme} should be rejected"
         );
     }
