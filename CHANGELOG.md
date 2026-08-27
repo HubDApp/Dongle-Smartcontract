@@ -99,6 +99,9 @@ for the full policy.
 
 ### Fixed
 
+- `AlreadyLinked` was returned for three unrelated conditions (duplicate link,
+  duplicate maintainer, missing linked project), so clients could not tell them
+  apart (#462).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
