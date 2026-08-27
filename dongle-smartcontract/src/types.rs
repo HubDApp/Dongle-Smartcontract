@@ -16,6 +16,7 @@ pub struct ProjectRegistrationParams {
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
 }
 
 #[contracttype]
@@ -35,6 +36,7 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
+    pub repository_url: Option<Option<String>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
     // event. A `lifecycle_status` field previously sat here but was never read
@@ -68,6 +70,10 @@ pub struct Review {
 
     /// Unix timestamp (seconds) of the most recent modification to this review.
     pub updated_at: u64,
+
+    /// Unix timestamp (seconds) of the most recent reviewer update.
+    /// Zero means the review has not been updated since submission.
+    pub last_updated_at: u64,
 
     /// Whether the review is hidden by moderation.
     pub hidden: bool,
@@ -217,6 +223,7 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
     pub security_contact: Option<String>,
     pub security_contact_proof_cid: Option<String>,
     pub security_contact_verified: bool,
@@ -347,18 +354,15 @@ pub struct FeeRefundRecord {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigHistoryEntry {
     pub admin: Address,
+    pub old_token: Option<Address>,
+    pub old_verification_fee: Option<u128>,
+    pub old_registration_fee: Option<u128>,
+    pub old_treasury: Option<Address>,
     pub token: Option<Address>,
     pub verification_fee: u128,
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Default)]
-pub struct ProjectAggregate {
-    pub total_rating: u64,
-    pub review_count: u64,
 }
 
 // ── Project dependencies ─────────────────────────────────────────────────────
@@ -564,7 +568,7 @@ pub struct AdminProposal {
     pub action_type: AdminActionType,
     pub payload_hash: soroban_sdk::BytesN<32>,
     pub payload: ProposalPayload,
-    pub approvals: Vec<Address>,
+    pub approvals: Map<Address, bool>,
     pub status: ProposalStatus,
     pub created_at: u64,
     /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
@@ -605,8 +609,8 @@ pub struct ReviewEligibilityConfig {
     pub review_fee: u128,
 }
 
-/// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
-/// For large projects this increases compute budget usage proportionally to review count.
+/// Sort order retained for `list_reviews_sorted` ABI compatibility.
+/// Sorting is performed client-side.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReviewSortMode {

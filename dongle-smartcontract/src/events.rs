@@ -1,4 +1,6 @@
-use crate::types::{AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus};
+use crate::types::{
+    AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus,
+};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
