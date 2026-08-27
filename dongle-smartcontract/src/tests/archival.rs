@@ -2,7 +2,37 @@
 
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use crate::types::{ProjectRegistrationParams, ProjectSortMode};
+use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+
+fn register_tagged_project(
+    client: &crate::DongleContractClient<'_>,
+    env: &Env,
+    owner: &Address,
+    name: &str,
+    tag: &str,
+) -> u64 {
+    let slug = name.to_lowercase().replace(' ', "-");
+    let mut tags = Vec::new(env);
+    tags.push_back(String::from_str(env, tag));
+    client
+        .mock_all_auths()
+        .register_project(&ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: String::from_str(env, name),
+            slug: String::from_str(env, &slug),
+            description: String::from_str(env, "Tagged project description"),
+            category: String::from_str(env, "DeFi"),
+            website: None,
+            license: None,
+            logo_cid: None,
+            metadata_cid: None,
+            tags: Some(tags),
+            social_links: None,
+            launch_timestamp: None,
+            bounty_url: None,
+        })
+}
 
 #[test]
 fn test_owner_can_archive_project() {
@@ -126,4 +156,42 @@ fn test_archive_nonexistent_project_fails() {
 
     let result = client.try_archive_project(&999, &caller);
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
+}
+
+/// Issue #171: `ARCHIVE_FEATURE.md` documents `list_projects_by_tag` as one of
+/// the discovery paths that filters out archived projects, but no test
+/// exercised it — only `list_projects`, `list_projects_by_status`, and
+/// `list_projects_by_category` were covered.
+#[test]
+fn test_archived_project_excluded_from_list_projects_by_tag() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let id1 = register_tagged_project(&client, &env, &owner, "TaggedOne", "defi");
+    let id2 = register_tagged_project(&client, &env, &owner, "TaggedTwo", "defi");
+
+    client.mock_all_auths().archive_project(&id1, &owner);
+
+    let tagged = client.list_projects_by_tag(&String::from_str(&env, "defi"), &0, &10);
+    assert_eq!(tagged.len(), 1);
+    assert_eq!(tagged.get(0).unwrap().id, id2);
+}
+
+/// Issue #171: same gap as above, but for `list_projects_sorted`.
+#[test]
+fn test_archived_project_excluded_from_list_projects_sorted() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let id1 = create_test_project(&client, &owner, "SortedOne");
+    let id2 = create_test_project(&client, &owner, "SortedTwo");
+
+    client.archive_project(&id1, &owner);
+
+    let sorted = client.list_projects_sorted(&ProjectSortMode::Newest, &0, &10);
+    assert_eq!(sorted.len(), 1);
+    assert_eq!(sorted.get(0).unwrap().id, id2);
 }

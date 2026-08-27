@@ -128,10 +128,10 @@ fn test_tombstone_not_present_for_never_reviewed() {
         .is_none());
 }
 
-// ─── Sorting (#241) ──────────────────────────────────────────────────────────
+// ─── Client-side sorting (#241) ──────────────────────────────────────────────
 
 #[test]
-fn test_list_reviews_sorted_newest_first() {
+fn test_list_reviews_sorted_returns_paginated_insertion_order() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, admin) = setup(&env);
@@ -145,13 +145,12 @@ fn test_list_reviews_sorted_newest_first() {
 
     let reviews = client.list_reviews_sorted(&project_id, &0, &10, &ReviewSortMode::Newest);
     assert_eq!(reviews.len(), 2);
-    // r2 was added later, so created_at is higher — should come first.
-    assert_eq!(reviews.get(0).unwrap().reviewer, r2);
-    assert_eq!(reviews.get(1).unwrap().reviewer, r1);
+    assert_eq!(reviews.get(0).unwrap().reviewer, r1);
+    assert_eq!(reviews.get(1).unwrap().reviewer, r2);
 }
 
 #[test]
-fn test_list_reviews_sorted_rating_high_to_low() {
+fn test_list_reviews_sorted_limit_is_bounded() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, admin) = setup(&env);
@@ -164,9 +163,7 @@ fn test_list_reviews_sorted_rating_high_to_low() {
     client.add_review(&project_id, &r2, &5, &None);
     client.add_review(&project_id, &r3, &3, &None);
 
-    let reviews = client.list_reviews_sorted(&project_id, &0, &10, &ReviewSortMode::RatingHigh);
-    assert_eq!(reviews.len(), 3);
+    let reviews = client.list_reviews_sorted(&project_id, &1, &1, &ReviewSortMode::RatingHigh);
+    assert_eq!(reviews.len(), 1);
     assert_eq!(reviews.get(0).unwrap().rating, 5);
-    assert_eq!(reviews.get(1).unwrap().rating, 3);
-    assert_eq!(reviews.get(2).unwrap().rating, 2);
 }

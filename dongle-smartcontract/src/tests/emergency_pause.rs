@@ -45,6 +45,7 @@ fn create_test_project(
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().try_register_project(&params).map(|r| r)
 }
@@ -64,6 +65,7 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     }
 }
 
