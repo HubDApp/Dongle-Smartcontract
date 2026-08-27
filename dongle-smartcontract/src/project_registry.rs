@@ -22,6 +22,7 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
+use alloc::vec;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -2454,9 +2455,9 @@ impl ProjectRegistry {
 
     fn append_string_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, s: &String) {
         let len = s.len() as usize;
-        let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
-        s.copy_into_slice(&mut scratch[..len]);
-        for &byte in scratch.iter().take(len) {
+        let mut scratch = vec![0u8; len];
+        s.copy_into_slice(&mut scratch);
+        for &byte in scratch.iter() {
             buf.push_back(byte);
         }
     }
