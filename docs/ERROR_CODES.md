@@ -8,6 +8,12 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 > of the on-chain ABI and must never be reused for a different meaning once
 > deployed.
 
+> **Coverage:** See [`ERROR_CODE_COVERAGE.md`](./ERROR_CODE_COVERAGE.md) for the
+> per-variant matrix of which errors are returned by production code and which
+> have test coverage. 15 variants are currently **reserved** (kept as stable ABI
+> slots but not returned by any code path) — the rationale for each is documented
+> there.
+
 ## Error Table
 
 | Code | Name | Meaning | Likely Fix |
