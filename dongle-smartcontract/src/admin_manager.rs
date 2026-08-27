@@ -48,11 +48,15 @@ impl AdminManager {
     }
 
     /// Add a new admin (only callable by existing admins)
+    /// 
+    /// # Errors
+    /// Returns `MultiSigRequired` when admin approval threshold > 1.
+    /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
     pub fn add_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
-            return Err(ContractError::Unauthorized);
+            return Err(ContractError::MultiSigRequired);
         }
 
         // Check if already an admin
@@ -90,6 +94,10 @@ impl AdminManager {
     }
 
     /// Remove an admin (only callable by existing admins)
+    /// 
+    /// # Errors
+    /// Returns `MultiSigRequired` when admin approval threshold > 1.
+    /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
     pub fn remove_admin(
         env: &Env,
         caller: Address,
@@ -98,7 +106,7 @@ impl AdminManager {
         require_admin_auth(env, &caller)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
-            return Err(ContractError::Unauthorized);
+            return Err(ContractError::MultiSigRequired);
         }
 
         // Check if the address is actually an admin first
