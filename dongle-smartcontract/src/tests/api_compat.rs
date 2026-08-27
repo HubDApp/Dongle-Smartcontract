@@ -14,19 +14,23 @@
 //!
 //! CI will fail if the snapshot drifts from the compiled WASM exports.
 
-// The crate is `#![no_std]`; this module reads a snapshot file off disk, so it
-// needs the real std. Test-only, exactly as `fixtures.rs` pulls in `alloc`.
+// `api_compat` uses `std::fs`, `std::process`, and `std::collections` which
+// are not available in the default `no_std` crate configuration.  The `#[test]`
+// harness links against std anyway, so explicitly importing it here is safe and
+// sufficient to make the `std::` paths below resolve during test compilation.
 extern crate std;
-
-// `no_std` removes the std prelude, so the types this module uses have to be
-// imported by name rather than assumed.
-use std::eprintln;
-use std::string::{String, ToString};
-use std::vec::Vec;
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
+use std::string::String;
+use std::vec::Vec;
+
+// Re-export std macros needed in this file (bare `eprintln!` is not in scope
+// under `#![no_std]` even when `extern crate std` is present).
+macro_rules! eprintln {
+    ($($arg:tt)*) => { std::eprintln!($($arg)*) };
+}
 
 /// Path to the API snapshot file, relative to the crate root.
 const SNAPSHOT_PATH: &str = "api_snapshot.txt";
@@ -57,7 +61,7 @@ fn extract_exported_functions(wasm_bytes: &[u8]) -> Vec<String> {
             }
             if let Ok(name) = std::str::from_utf8(&wasm_bytes[start..end]) {
                 if !name.is_empty() {
-                    names.insert(name.to_string());
+                    names.insert(String::from(name));
                 }
             }
             i = end;

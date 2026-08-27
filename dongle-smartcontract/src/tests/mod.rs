@@ -44,6 +44,9 @@ mod tags;
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
 
+// Full verification-fee payment lifecycle integration test
+mod fee_lifecycle;
+
 // Storage field size boundary tests
 mod field_limits;
 
