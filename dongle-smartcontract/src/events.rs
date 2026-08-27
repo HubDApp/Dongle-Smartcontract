@@ -171,6 +171,12 @@ pub struct VerificationRequestedEvent {
     pub requester: Address,
     pub evidence_cid: String,
     pub timestamp: u64,
+    /// Id of the newly created `VerificationRecord` for this request.
+    pub request_id: u64,
+    /// Id of the previous verification request for this project, if any.
+    /// `Some(_)` marks this request as a re-request (e.g. after rejection or
+    /// revocation) rather than the project's first verification request.
+    pub previous_request_id: Option<u64>,
 }
 
 #[contracttype]
@@ -757,12 +763,16 @@ pub fn publish_verification_requested_event(
     project_id: u64,
     requester: Address,
     evidence_cid: String,
+    request_id: u64,
+    previous_request_id: Option<u64>,
 ) {
     let event_data = VerificationRequestedEvent {
         project_id,
         requester,
         evidence_cid,
         timestamp: env.ledger().timestamp(),
+        request_id,
+        previous_request_id,
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),

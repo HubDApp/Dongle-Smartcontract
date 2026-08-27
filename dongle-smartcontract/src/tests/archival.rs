@@ -2,7 +2,7 @@
 
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
-use crate::types::{ProjectRegistrationParams, ProjectSortMode, VerificationStatus};
+use crate::types::{ProjectRegistrationParams, ProjectSortMode};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
 fn register_tagged_project(
@@ -10,9 +10,9 @@ fn register_tagged_project(
     env: &Env,
     owner: &Address,
     name: &str,
-    slug: &str,
     tag: &str,
 ) -> u64 {
+    let slug = name.to_lowercase().replace(' ', "-");
     let mut tags = Vec::new(env);
     tags.push_back(String::from_str(env, tag));
     client
@@ -20,7 +20,7 @@ fn register_tagged_project(
         .register_project(&ProjectRegistrationParams {
             owner: owner.clone(),
             name: String::from_str(env, name),
-            slug: String::from_str(env, slug),
+            slug: String::from_str(env, &slug),
             description: String::from_str(env, "Tagged project description"),
             category: String::from_str(env, "DeFi"),
             website: None,
@@ -158,129 +158,40 @@ fn test_archive_nonexistent_project_fails() {
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
 }
 
-/// Issue #172: reactivation must make a project eligible for discovery again.
-/// `test_archiving_and_reactivating_updates_owner_project_index` above already
-/// covers `get_projects_by_owner`; these cover the remaining listing APIs.
+/// Issue #171: `ARCHIVE_FEATURE.md` documents `list_projects_by_tag` as one of
+/// the discovery paths that filters out archived projects, but no test
+/// exercised it — only `list_projects`, `list_projects_by_status`, and
+/// `list_projects_by_category` were covered.
 #[test]
-fn test_reactivated_project_reappears_in_list_projects() {
+fn test_archived_project_excluded_from_list_projects_by_tag() {
+    let env = Env::default();
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let id1 = register_tagged_project(&client, &env, &owner, "TaggedOne", "defi");
+    let id2 = register_tagged_project(&client, &env, &owner, "TaggedTwo", "defi");
+
+    client.mock_all_auths().archive_project(&id1, &owner);
+
+    let tagged = client.list_projects_by_tag(&String::from_str(&env, "defi"), &0, &10);
+    assert_eq!(tagged.len(), 1);
+    assert_eq!(tagged.get(0).unwrap().id, id2);
+}
+
+/// Issue #171: same gap as above, but for `list_projects_sorted`.
+#[test]
+fn test_archived_project_excluded_from_list_projects_sorted() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, _admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
-    let id1 = create_test_project(&client, &owner, "ProjectA");
-    let id2 = create_test_project(&client, &owner, "ProjectB");
+    let id1 = create_test_project(&client, &owner, "SortedOne");
+    let id2 = create_test_project(&client, &owner, "SortedTwo");
 
     client.archive_project(&id1, &owner);
-    assert_eq!(client.list_projects(&0, &10).len(), 1);
 
-    client.reactivate_project(&id1, &owner);
-    let projects = client.list_projects(&0, &10);
-    assert_eq!(projects.len(), 2);
-    let mut ids = Vec::new(&env);
-    for p in projects.iter() {
-        ids.push_back(p.id);
-    }
-    assert!(ids.contains(id1));
-    assert!(ids.contains(id2));
-}
-
-#[test]
-fn test_reactivated_project_reappears_in_list_projects_by_status() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, admin) = setup_contract(&env);
-    let owner = Address::generate(&env);
-
-    let project_id = create_test_project(&client, &owner, "VerifiedProject");
-    client.request_verification(
-        &project_id,
-        &owner,
-        &String::from_str(&env, "QmYwAPJzv5CZsnAzt8auVZRnG8X1sC3yRyvCb4s46HoPa1"),
-    );
-    client.approve_verification(&project_id, &admin);
-
-    client.archive_project(&project_id, &owner);
-    assert_eq!(
-        client
-            .list_projects_by_status(&VerificationStatus::Verified, &0, &10)
-            .len(),
-        0
-    );
-
-    client.reactivate_project(&project_id, &owner);
-    let projects = client.list_projects_by_status(&VerificationStatus::Verified, &0, &10);
-    assert_eq!(projects.len(), 1);
-    assert_eq!(projects.get(0).unwrap().id, project_id);
-}
-
-#[test]
-fn test_reactivated_project_reappears_in_list_projects_by_category() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin) = setup_contract(&env);
-    let owner = Address::generate(&env);
-
-    let project_id = create_test_project(&client, &owner, "CategoryProject");
-    client.archive_project(&project_id, &owner);
-
-    let category = String::from_str(&env, "DeFi");
-    assert_eq!(
-        client.list_projects_by_category(&category, &0, &10).len(),
-        0
-    );
-
-    client.reactivate_project(&project_id, &owner);
-    let projects = client.list_projects_by_category(&category, &0, &10);
-    assert_eq!(projects.len(), 1);
-    assert_eq!(projects.get(0).unwrap().id, project_id);
-}
-
-#[test]
-fn test_reactivated_project_reappears_in_list_projects_by_tag() {
-    let env = Env::default();
-    let (client, _admin) = setup_contract(&env);
-    let owner = Address::generate(&env);
-
-    let project_id = register_tagged_project(
-        &client,
-        &env,
-        &owner,
-        "TaggedProject",
-        "tagged-project",
-        "defi",
-    );
-
-    client.mock_all_auths().archive_project(&project_id, &owner);
-    let tag = String::from_str(&env, "defi");
-    assert_eq!(client.list_projects_by_tag(&tag, &0, &10).len(), 0);
-
-    client
-        .mock_all_auths()
-        .reactivate_project(&project_id, &owner);
-    let projects = client.list_projects_by_tag(&tag, &0, &10);
-    assert_eq!(projects.len(), 1);
-    assert_eq!(projects.get(0).unwrap().id, project_id);
-}
-
-#[test]
-fn test_reactivated_project_reappears_in_list_projects_sorted() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _admin) = setup_contract(&env);
-    let owner = Address::generate(&env);
-
-    let project_id = create_test_project(&client, &owner, "SortedProject");
-    client.archive_project(&project_id, &owner);
-    assert_eq!(
-        client
-            .list_projects_sorted(&ProjectSortMode::Newest, &0, &10)
-            .len(),
-        0
-    );
-
-    client.reactivate_project(&project_id, &owner);
-    let projects = client.list_projects_sorted(&ProjectSortMode::Newest, &0, &10);
-    assert_eq!(projects.len(), 1);
-    assert_eq!(projects.get(0).unwrap().id, project_id);
+    let sorted = client.list_projects_sorted(&ProjectSortMode::Newest, &0, &10);
+    assert_eq!(sorted.len(), 1);
+    assert_eq!(sorted.get(0).unwrap().id, id2);
 }

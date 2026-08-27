@@ -32,6 +32,7 @@ mod security_contact;
 mod verification;
 mod verification_features;
 mod verification_lifecycle;
+mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;
