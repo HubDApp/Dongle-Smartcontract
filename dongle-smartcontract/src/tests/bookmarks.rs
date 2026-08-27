@@ -142,6 +142,18 @@ fn test_bookmark_nonexistent_project_returns_error() {
 }
 
 #[test]
+fn test_unbookmark_nonexistent_project_returns_project_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let user = Address::generate(&env);
+
+    let result = client.try_unbookmark_project(&999u64, &user);
+    assert_eq!(result, Err(Ok(crate::ContractError::ProjectNotFound)));
+}
+
+#[test]
 fn test_unbookmark_after_unbookmark_is_error() {
     let env = Env::default();
     env.mock_all_auths();

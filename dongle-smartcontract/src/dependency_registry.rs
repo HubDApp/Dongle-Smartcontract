@@ -42,14 +42,13 @@ impl DependencyRegistry {
     }
 
     fn validate_dependency_ref(env: &Env, dep: &DependencyRef) -> Result<(), ContractError> {
-        let has_pid = dep.project_id.is_some();
-        let has_cid = dep.external_cid.is_some();
-        let has_url = dep.external_url.is_some();
-        let has_contract = dep.external_contract.is_some();
-
         // Exactly one reference kind must be set.
-        let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8) + (has_contract as u8);
-        if cnt != 1 {
+        if !Utils::exactly_one_some([
+            dep.project_id.map(|_| ()),
+            dep.external_cid.as_ref().map(|_| ()),
+            dep.external_url.as_ref().map(|_| ()),
+            dep.external_contract.as_ref().map(|_| ()),
+        ]) {
             return Err(ContractError::InvalidProjectData);
         }
 

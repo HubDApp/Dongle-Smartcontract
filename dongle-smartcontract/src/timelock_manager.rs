@@ -344,18 +344,18 @@ impl TimelockManager {
             .get(&ExtensionKey::TimelockAction(action_id))
     }
 
-    pub fn list_scheduled_actions(env: &Env, start: u32, limit: u32) -> Vec<TimelockAction> {
+    pub fn list_scheduled_actions(env: &Env, start_index: u32, limit: u32) -> Vec<TimelockAction> {
         let ids = Self::get_action_ids(env);
         let total = ids.len();
 
-        if total == 0 || start >= total {
+        if total == 0 || start_index >= total {
             return Vec::new(env);
         }
 
-        let end = (start + limit).min(total);
+        let end = (start_index + limit).min(total);
         let mut actions = Vec::new(env);
 
-        for i in start..end {
+        for i in start_index..end {
             if let Some(id) = ids.get(i) {
                 if let Some(action) = Self::get_action(env, id) {
                     actions.push_back(action);

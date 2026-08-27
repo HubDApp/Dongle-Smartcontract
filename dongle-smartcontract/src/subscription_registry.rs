@@ -124,7 +124,7 @@ impl SubscriptionRegistry {
     pub fn get_project_followers(
         env: &Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Address> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
@@ -140,13 +140,13 @@ impl SubscriptionRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let len = followers.len();
-        if start >= len {
+        if start_index >= len {
             return Vec::new(env);
         }
 
-        let end = core::cmp::min(start.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
         let mut page = Vec::new(env);
-        for i in start..end {
+        for i in start_index..end {
             if let Some(f) = followers.get(i) {
                 page.push_back(f);
             }
@@ -154,7 +154,7 @@ impl SubscriptionRegistry {
         page
     }
 
-    pub fn get_user_subscriptions(env: &Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -168,13 +168,13 @@ impl SubscriptionRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let len = subscriptions.len();
-        if start >= len {
+        if start_index >= len {
             return Vec::new(env);
         }
 
-        let end = core::cmp::min(start.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
         let mut page = Vec::new(env);
-        for i in start..end {
+        for i in start_index..end {
             if let Some(pid) = subscriptions.get(i) {
                 page.push_back(pid);
             }

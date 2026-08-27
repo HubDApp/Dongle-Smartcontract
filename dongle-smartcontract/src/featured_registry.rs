@@ -68,13 +68,13 @@ impl FeaturedRegistry {
     }
 
     /// List featured projects with pagination.
-    pub fn list_featured_projects(env: &Env, start: u32, limit: u32) -> Vec<Project> {
+    pub fn list_featured_projects(env: &Env, start_index: u32, limit: u32) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StorageKey::FeaturedProjects)
             .unwrap_or(Vec::new(env));
-        let page_ids = paginate(env, &ids, start, limit);
+        let page_ids = paginate(env, &ids, start_index, limit);
         let mut result = Vec::new(env);
         for project_id in page_ids.iter() {
             if let Some(project) = env

@@ -670,8 +670,6 @@ impl ProjectRegistry {
                 major_fields,
             );
         }
-        StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
-
         Ok(project)
     }
 

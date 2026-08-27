@@ -14,6 +14,14 @@ use crate::storage_keys::StorageKey;
 pub struct Utils;
 
 impl Utils {
+    /// Return whether exactly one optional value is present.
+    pub fn exactly_one_some<T, I>(values: I) -> bool
+    where
+        I: IntoIterator<Item = Option<T>>,
+    {
+        values.into_iter().filter(Option::is_some).count() == 1
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // Vec helpers
     // ────────────────────────────────────────────────────────────────────

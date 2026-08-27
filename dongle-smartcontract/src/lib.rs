@@ -154,9 +154,9 @@ impl DongleContract {
 
     /// List admin proposals with pagination.
     ///
-    /// `start` is a zero-based offset and `limit` caps the page size.
-    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
-        AdminManager::list_proposals(&env, start, limit)
+    /// `start_index` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start_index: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start_index, limit)
     }
 
     // --- Contract Pause / Emergency Stop ---
@@ -464,8 +464,8 @@ impl DongleContract {
         FeaturedRegistry::set_featured(&env, admin, project_id, featured)
     }
 
-    pub fn list_featured_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
-        FeaturedRegistry::list_featured_projects(&env, start, limit)
+    pub fn list_featured_projects(env: Env, start_index: u32, limit: u32) -> Vec<Project> {
+        FeaturedRegistry::list_featured_projects(&env, start_index, limit)
     }
 
     // --- Review Registry ---
@@ -1126,18 +1126,18 @@ impl DongleContract {
     }
 
     /// List all collections with pagination.
-    pub fn list_collections(env: Env, start: u32, limit: u32) -> Vec<Collection> {
-        CollectionRegistry::list_collections(&env, start, limit)
+    pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
     /// List project IDs in a collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<u64> {
-        CollectionRegistry::list_collection_projects(&env, collection_id, start, limit)
+        CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.
@@ -1158,8 +1158,8 @@ impl DongleContract {
     }
 
     /// List admin action log entries with pagination (most recent first).
-    pub fn list_admin_actions(env: Env, start: u32, limit: u32) -> Vec<AdminActionEntry> {
-        AdminActionLog::list_admin_actions(&env, start, limit)
+    pub fn list_admin_actions(env: Env, start_index: u32, limit: u32) -> Vec<AdminActionEntry> {
+        AdminActionLog::list_admin_actions(&env, start_index, limit)
     }
 
     /// List admin action log entries filtered to a specific admin address (most recent first).
@@ -1169,10 +1169,10 @@ impl DongleContract {
     pub fn get_admin_action_log_by_admin(
         env: Env,
         admin: Address,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<AdminActionEntry> {
-        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start, limit)
+        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start_index, limit)
     }
 
     /// Get the total number of admin action log entries.
@@ -1391,11 +1391,11 @@ impl DongleContract {
     pub fn get_project_changelog(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
-        ChangelogRegistry::get_project_changelog(&env, project_id, start, limit, sort_mode)
+        ChangelogRegistry::get_project_changelog(&env, project_id, start_index, limit, sort_mode)
     }
 
     /// Get changelog entry count for a project.
@@ -1442,17 +1442,17 @@ impl DongleContract {
     pub fn get_project_followers(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Address> {
         crate::subscription_registry::SubscriptionRegistry::get_project_followers(
-            &env, project_id, start, limit,
+            &env, project_id, start_index, limit,
         )
     }
 
-    pub fn get_user_subscriptions(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
-            &env, user, start, limit,
+            &env, user, start_index, limit,
         )
     }
 
@@ -1474,8 +1474,8 @@ impl DongleContract {
         crate::bookmark_registry::BookmarkRegistry::is_bookmarked(&env, project_id, &user)
     }
 
-    pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
-        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
+    pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start_index, limit)
     }
 
     // --- Endorsement Registry ---
@@ -1576,8 +1576,8 @@ impl DongleContract {
         TimelockManager::get_action(&env, action_id)
     }
 
-    pub fn list_scheduled_actions(env: Env, start: u32, limit: u32) -> Vec<TimelockAction> {
-        TimelockManager::list_scheduled_actions(&env, start, limit)
+    pub fn list_scheduled_actions(env: Env, start_index: u32, limit: u32) -> Vec<TimelockAction> {
+        TimelockManager::list_scheduled_actions(&env, start_index, limit)
     }
 
     pub fn get_scheduled_action_count(env: Env) -> u64 {
