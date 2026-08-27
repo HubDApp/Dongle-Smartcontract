@@ -20,10 +20,6 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection and for
-    /// case-insensitive name lookups (`get_project_by_name`).
-    ProjectByNormalizedName(String),
     /// Project lifecycle status by project ID.
     ProjectLifecycleStatus(u64),
     /// Project count.

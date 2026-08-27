@@ -185,8 +185,7 @@ impl ProjectRegistry {
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
         // and for case-insensitive lookups via get_project_by_name.
         env.storage().persistent().set(
-            &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
-            &ExtensionKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
         );
 
@@ -797,7 +796,7 @@ impl ProjectRegistry {
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectByNormalizedName(normalized_name))?;
+            .get(&ExtensionKey::ProjectByNormalizedName(normalized_name))?;
 
         // Get project by ID
         Self::get_project(env, project_id)
