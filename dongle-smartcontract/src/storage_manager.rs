@@ -240,6 +240,11 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for project bounty url (removed - not part of core storage)
+    pub fn extend_project_bounty_url_ttl(_env: &Env, _project_id: u64) {
+        // Bounty URL storage removed - not part of core implementation
+    }
+
     // ── User Data TTL Management ──────────────────────────────────────────
 
     /// Extend TTL for owner projects list

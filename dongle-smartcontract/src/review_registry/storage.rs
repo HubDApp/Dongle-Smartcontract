@@ -17,7 +17,6 @@ use crate::types::{
     AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
     ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
-use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
@@ -95,19 +94,17 @@ impl ReviewRegistry {
         }
 
         // 2. Endorsement requirement check
-        if config.require_endorsement {
-            if !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
+        if config.require_endorsement
+            && !crate::endorsement_registry::EndorsementRegistry::has_endorsed(
                 env, project_id, reviewer,
-            ) {
-                return Err(ContractError::ReviewerNotEligible);
-            }
+            )
+        {
+            return Err(ContractError::ReviewerNotEligible);
         }
 
         // 3. Review fee check
-        if config.review_fee > 0 {
-            if !crate::fee_manager::FeeManager::is_fee_paid(env, project_id) {
-                return Err(ContractError::ReviewFeeRequired);
-            }
+        if config.review_fee > 0 && !crate::fee_manager::FeeManager::is_fee_paid(env, project_id) {
+            return Err(ContractError::ReviewFeeRequired);
         }
 
         Ok(())
@@ -133,8 +130,9 @@ impl ReviewRegistry {
             None => return Err(ContractError::ProjectNotFound),
         };
 
-        // Project owners cannot review their own project
-        ReviewValidation::ensure_not_owner(&project, &reviewer)?;
+        // Nobody who controls the project may review it (issue #478):
+        // owners and maintainers alike.
+        ReviewValidation::ensure_can_review(env, project_id, &project, &reviewer)?;
 
         // Check if reviews are enabled for this project
         if !Self::get_reviews_enabled(env, project_id) {
@@ -182,6 +180,7 @@ impl ReviewRegistry {
             owner_response: None,
             created_at: now,
             updated_at: now,
+            last_updated_at: 0,
             hidden: false,
             report_count: 0,
         };
@@ -270,9 +269,15 @@ impl ReviewRegistry {
         reviewer.require_auth();
 
         // Check if project exists
-        if ProjectRegistry::get_project(env, project_id).is_none() {
-            return Err(ContractError::ProjectNotFound);
-        }
+        let project = match ProjectRegistry::get_project(env, project_id) {
+            Some(p) => p,
+            None => return Err(ContractError::ProjectNotFound),
+        };
+
+        // Issue #478: re-check on update, not just on create. A reviewer who
+        // has since become the owner or a maintainer must not be able to keep
+        // editing their own rating.
+        ReviewValidation::ensure_can_review(env, project_id, &project, &reviewer)?;
 
         ReviewValidation::validate_rating(rating)?;
 
@@ -287,17 +292,12 @@ impl ReviewRegistry {
             return Err(ContractError::NotReviewOwner);
         }
 
-        // Cooldown: reject update if within REVIEW_UPDATE_COOLDOWN_SECONDS of the last update.
-        // Note: ContractError::InvalidStatus (9) is reused as the cooldown error because
-        // Soroban SDK 22 #[contracterror] is limited to 50 variants and this enum is full.
-        // A dedicated ReviewCooldownActive variant should be introduced when a variant slot
-        // is freed in a future refactor.
-        let cooldown_key = ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone());
-        if let Some(last_updated_at) = env.storage().persistent().get::<_, u64>(&cooldown_key) {
-            let now_ts = env.ledger().timestamp();
-            if now_ts.saturating_sub(last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS {
-                return Err(ContractError::InvalidStatus);
-            }
+        // Cooldown: reject update if within the cooldown window of the last update.
+        let now_ts = env.ledger().timestamp();
+        if review.last_updated_at > 0
+            && now_ts.saturating_sub(review.last_updated_at) < REVIEW_UPDATE_COOLDOWN_SECONDS
+        {
+            return Err(ContractError::InvalidStatus);
         }
 
         // Mutation phase — archive prior revision before applying changes
@@ -316,6 +316,7 @@ impl ReviewRegistry {
         review.rating = rating;
         review.content_cid = comment_cid.clone();
         review.updated_at = now;
+        review.last_updated_at = now;
 
         // Get current stats
         let stats: ProjectStats = env
@@ -345,12 +346,6 @@ impl ReviewRegistry {
                 review_count: stats.review_count,
                 average_rating: new_avg,
             },
-        );
-
-        // Record the update timestamp for cooldown enforcement on subsequent updates.
-        env.storage().persistent().set(
-            &ExtensionKey::ReviewLastUpdated(project_id, reviewer.clone()),
-            &now,
         );
 
         publish_review_event(
@@ -1154,65 +1149,17 @@ impl ReviewRegistry {
             .get(&ExtensionKey::ReviewTombstone(project_id, reviewer))
     }
 
-    /// List reviews sorted by the requested `sort_mode` with pagination.
+    /// List a bounded review page for client-side sorting.
     ///
-    /// # On-chain in-memory sort
-    /// This fetches all non-hidden reviews for the project, sorts them entirely
-    /// in the contract's working memory, then applies pagination. For projects
-    /// with many reviews this increases compute budget usage linearly with the
-    /// total review count. Use `list_reviews` (insertion-order) when sorting is
-    /// not required.
+    /// `sort_mode` is retained for ABI compatibility. Sorting must be performed
+    /// by the caller after fetching pages with `list_reviews` semantics.
     pub fn list_reviews_sorted(
         env: &Env,
         project_id: u64,
         start_index: u32,
         limit: u32,
-        sort_mode: ReviewSortMode,
+        _sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
-        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
-            MAX_PAGE_LIMIT
-        } else {
-            limit
-        };
-
-        let reviewers: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectReviews(project_id))
-            .unwrap_or_else(|| Vec::new(env));
-
-        // Collect all non-hidden reviews.
-        let mut all: Vec<Review> = Vec::new(env);
-        for i in 0..reviewers.len() {
-            if let Some(reviewer) = reviewers.get(i) {
-                if let Some(review) = Self::get_review(env, project_id, reviewer) {
-                    if !review.hidden {
-                        all.push_back(review);
-                    }
-                }
-            }
-        }
-
-        // Sort in-memory by the requested mode.
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ReviewSortMode::Newest => a.created_at < b.created_at,
-            ReviewSortMode::Oldest => a.created_at > b.created_at,
-            ReviewSortMode::RatingHigh => a.rating < b.rating,
-            ReviewSortMode::RatingLow => a.rating > b.rating,
-        });
-        let n = all.len();
-
-        // Apply pagination.
-        let mut out = Vec::new(env);
-        if start_index >= n {
-            return out;
-        }
-        let end = core::cmp::min(start_index.saturating_add(effective_limit), n);
-        for i in start_index..end {
-            if let Some(review) = all.get(i) {
-                out.push_back(review);
-            }
-        }
-        out
+        Self::list_reviews(env, project_id, start_index, limit)
     }
 }

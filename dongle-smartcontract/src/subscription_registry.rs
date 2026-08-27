@@ -69,7 +69,7 @@ impl SubscriptionRegistry {
             return Err(ContractError::NotFollowing);
         }
 
-        let mut followers: Vec<Address> = env
+        let followers: Vec<Address> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectFollowers(project_id))
@@ -85,7 +85,7 @@ impl SubscriptionRegistry {
             .persistent()
             .set(&ExtensionKey::FollowerCount(project_id), &count);
 
-        let mut subscriptions: Vec<u64> = env
+        let subscriptions: Vec<u64> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::UserSubscriptions(follower.clone()))

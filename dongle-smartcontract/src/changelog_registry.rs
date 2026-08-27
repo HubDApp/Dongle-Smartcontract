@@ -67,7 +67,10 @@ impl ChangelogRegistry {
 
         // Validate optional secondary changelog CID when provided
         if let Some(ref ccid) = changelog_cid {
-            if ccid.is_empty() || !Utils::is_valid_ipfs_cid(ccid) || ccid.len() as usize > MAX_CID_LEN {
+            if ccid.is_empty()
+                || !Utils::is_valid_ipfs_cid(ccid)
+                || ccid.len() as usize > MAX_CID_LEN
+            {
                 return Err(ContractError::InvalidCid);
             }
         }
@@ -164,7 +167,7 @@ impl ChangelogRegistry {
         }
 
         // Remove from project's changelog list
-        let mut project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
         let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
         env.storage().persistent().set(
             &ExtensionKey::ProjectChangelogEntries(entry.project_id),
