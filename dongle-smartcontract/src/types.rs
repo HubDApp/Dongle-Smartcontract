@@ -605,8 +605,8 @@ pub struct ReviewEligibilityConfig {
     pub review_fee: u128,
 }
 
-/// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
-/// For large projects this increases compute budget usage proportionally to review count.
+/// Sort order retained for `list_reviews_sorted` ABI compatibility.
+/// Sorting is performed client-side.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReviewSortMode {
