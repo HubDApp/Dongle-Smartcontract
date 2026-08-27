@@ -35,6 +35,8 @@ mod verification_lifecycle;
 mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
+// Issue #545: property-based fuzz tests for the CID and URL validators
+mod fuzz_validation;
 mod license_metadata;
 mod sorted_listing;
 mod string_validation;
