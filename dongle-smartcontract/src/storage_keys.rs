@@ -61,6 +61,8 @@ pub enum StorageKey {
     ProjectReportCount(u64),
     /// User report tracking (project_id, reporter).
     UserReport(u64, Address),
+    /// Total number of unique project reports filed by a user across all projects.
+    UserProjectReportCount(Address),
     /// List of project IDs reviewed by a user.
     UserReviews(Address),
     /// Treasury address.
@@ -158,4 +160,6 @@ pub enum ExtensionKey {
     RegistrationFeePaymentDetails(Address),
     /// List of reserved project names (admin-managed).
     ReservedNames,
+    /// List of project IDs currently in pending verification status.
+    PendingVerificationProjects,
 }

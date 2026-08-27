@@ -135,6 +135,13 @@ impl DongleContract {
         ProjectRegistry::register_project(&env, params)
     }
 
+    pub fn register_projects_batch(
+        env: Env,
+        params_list: Vec<ProjectRegistrationParams>,
+    ) -> Result<Vec<u64>, ContractError> {
+        ProjectRegistry::register_projects_batch(&env, params_list)
+    }
+
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
         ProjectRegistry::update_project(&env, params)
     }
@@ -221,6 +228,10 @@ impl DongleContract {
 
     pub fn list_projects(env: Env, start_id: u64, limit: u32) -> Vec<Project> {
         ProjectRegistry::list_projects(&env, start_id, limit)
+    }
+
+    pub fn get_pending_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
+        ProjectRegistry::get_pending_verification_projects(&env, start, limit)
     }
 
     pub fn get_projects_by_owner(env: Env, owner: Address) -> Vec<Project> {
@@ -679,6 +690,18 @@ impl DongleContract {
         token: Option<Address>,
     ) -> Result<(), ContractError> {
         FeeManager::pay_fee(&env, payer, project_id, token)
+    }
+
+    pub fn is_fee_paid(env: Env, project_id: u64) -> bool {
+        FeeManager::is_fee_paid(&env, project_id)
+    }
+
+    pub fn pay_registration_fee(
+        env: Env,
+        payer: Address,
+        token: Option<Address>,
+    ) -> Result<(), ContractError> {
+        FeeManager::pay_registration_fee(&env, payer, token)
     }
 
     pub fn get_fee_config(env: Env) -> Result<FeeConfig, ContractError> {

@@ -1,6 +1,7 @@
 //! Project reporting functionality for spam, scams, broken links, or abusive metadata.
 
 use crate::admin_action_log::AdminActionLog;
+use crate::constants::MAX_PROJECT_REPORTS_PER_USER;
 use crate::errors::ContractError;
 use crate::events::publish_project_reported_event;
 use crate::project_registry::ProjectRegistry;
@@ -37,6 +38,15 @@ impl ReportRegistry {
             return Err(ContractError::AlreadyReported);
         }
 
+        let user_report_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::UserProjectReportCount(reporter.clone()))
+            .unwrap_or(0);
+        if user_report_count >= MAX_PROJECT_REPORTS_PER_USER {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+
         let now = env.ledger().timestamp();
         let report = ProjectReport {
             project_id,
@@ -64,6 +74,10 @@ impl ReportRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::UserReport(project_id, reporter.clone()), &true);
+        env.storage().persistent().set(
+            &StorageKey::UserProjectReportCount(reporter.clone()),
+            &user_report_count.saturating_add(1),
+        );
 
         // Update report count
         let count = reports.len();

@@ -76,6 +76,9 @@ impl FeeManager {
         if project.owner != payer {
             return Err(ContractError::Unauthorized);
         }
+        if project.archived || project.verification_status != crate::types::VerificationStatus::Unverified {
+            return Err(ContractError::InvalidStatus);
+        }
 
         let config = Self::get_fee_config(env)?;
         let treasury: Address = env

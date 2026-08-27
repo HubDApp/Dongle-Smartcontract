@@ -256,6 +256,7 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::add_pending_verification_project(env, project_id);
 
         publish_verification_requested_event(env, project_id, requester, evidence_cid);
         Ok(())
@@ -354,6 +355,7 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::remove_pending_verification_project(env, project_id);
 
         publish_verification_approved_event(env, project_id, admin.clone(), now);
 
@@ -412,6 +414,7 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::remove_pending_verification_project(env, project_id);
 
         publish_verification_rejected_event(env, project_id, admin.clone(), now);
 

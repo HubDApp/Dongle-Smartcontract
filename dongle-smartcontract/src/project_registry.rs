@@ -24,6 +24,73 @@ use soroban_sdk::{Address, Env, String, Vec};
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    fn pending_verification_projects(env: &Env) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::PendingVerificationProjects)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn add_pending_verification_project(env: &Env, project_id: u64) {
+        let mut ids = Self::pending_verification_projects(env);
+        for i in 0..ids.len() {
+            if ids.get(i) == Some(project_id) {
+                return;
+            }
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::PendingVerificationProjects, &ids);
+    }
+
+    pub fn remove_pending_verification_project(env: &Env, project_id: u64) {
+        let ids = Self::pending_verification_projects(env);
+        let mut updated = Vec::new(env);
+        for i in 0..ids.len() {
+            if let Some(id) = ids.get(i) {
+                if id != project_id {
+                    updated.push_back(id);
+                }
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::PendingVerificationProjects, &updated);
+    }
+
+    pub fn get_pending_verification_projects(
+        env: &Env,
+        start: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let ids = Self::pending_verification_projects(env);
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let start_index = start as usize;
+        let mut out = Vec::new(env);
+        let mut collected: u32 = 0;
+        for i in start_index..ids.len() as usize {
+            if collected >= effective_limit {
+                break;
+            }
+            if let Some(project_id) = ids.get(i as u32) {
+                if let Some(project) = Self::get_project(env, project_id) {
+                    if !project.archived
+                        && project.verification_status == VerificationStatus::Pending
+                    {
+                        out.push_back(project);
+                        collected += 1;
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
@@ -208,6 +275,20 @@ impl ProjectRegistry {
         );
 
         Ok(count)
+    }
+
+    pub fn register_projects_batch(
+        env: &Env,
+        params_list: Vec<ProjectRegistrationParams>,
+    ) -> Result<Vec<u64>, ContractError> {
+        let mut ids = Vec::new(env);
+        for i in 0..params_list.len() {
+            if let Some(params) = params_list.get(i) {
+                let id = Self::register_project(env, params)?;
+                ids.push_back(id);
+            }
+        }
+        Ok(ids)
     }
 
     pub fn update_project(

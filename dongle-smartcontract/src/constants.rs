@@ -19,6 +19,9 @@ pub const MAX_REVIEWS_PER_USER: u32 = 200;
 /// Maximum items returned per paginated read query across list endpoints.
 pub const MAX_PAGE_LIMIT: u32 = 100;
 
+/// Maximum unique project reports a single user can file across all projects.
+pub const MAX_PROJECT_REPORTS_PER_USER: u32 = 100;
+
 /// Minimum length for name, description, category (must be non-empty after trim in validation).
 #[allow(dead_code)]
 pub const MIN_STRING_LEN: usize = 1;
