@@ -16,6 +16,7 @@ pub struct ProjectRegistrationParams {
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
 }
 
 #[contracttype]
@@ -35,6 +36,7 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
+    pub repository_url: Option<Option<String>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
     // event. A `lifecycle_status` field previously sat here but was never read
@@ -221,6 +223,7 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
     pub security_contact: Option<String>,
     pub security_contact_proof_cid: Option<String>,
     pub security_contact_verified: bool,
