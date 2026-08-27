@@ -154,8 +154,24 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Admins can override this via set_verification_duration.
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
 /// Minimum timelock delay in seconds (1 day).
-/// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
-pub const TIMELOCK_MIN_DELAY: u64 = 86400;
+///
+/// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,
+/// `schedule_remove_admin`) must have
+/// `execution_timestamp >= now + TIMELOCK_MIN_DELAY`. A delay of `0` (execute
+/// immediately) is therefore **not** allowed — it would defeat the purpose of
+/// the timelock, which is to give the community and the other admins a
+/// guaranteed window to react to a pending change. See `docs/TIMELOCK.md`.
+pub const TIMELOCK_MIN_DELAY: u64 = 86_400;
+
+/// Maximum timelock delay in seconds (90 days).
+///
+/// Scheduled admin actions must have
+/// `execution_timestamp <= now + TIMELOCK_MAX_DELAY`. The upper bound keeps
+/// the scheduled-action queue bounded and prevents "zombie" actions that sit
+/// executable far into the future after their context (admin set, fee model,
+/// threat model) has changed. Re-schedule instead of scheduling years out.
+/// See `docs/TIMELOCK.md`.
+pub const TIMELOCK_MAX_DELAY: u64 = 90 * 24 * 60 * 60;
 
 /// Fee payment validity window in seconds (7 days).
 /// After this window, the payment record is considered expired and the

@@ -4111,6 +4111,13 @@ let endorsed = has_endorsed(env, project_id, user_address);
 
 ## Admin Timelock
 
+> **Scheduling delay window.** Every `schedule_*` call validates
+> `execution_timestamp` against the current ledger time: it must be at least
+> `TIMELOCK_MIN_DELAY` (1 day) and at most `TIMELOCK_MAX_DELAY` (90 days) in
+> the future. A past, equal, too-soon, or too-far timestamp returns
+> `InvalidInput`. See [`TIMELOCK.md`](./TIMELOCK.md) for the full rules and
+> edge cases.
+
 ### `schedule_set_fee`
 
 **Purpose**: Schedule a fee configuration change to be executed at a future timestamp (admin-only).
@@ -4132,6 +4139,7 @@ let endorsed = has_endorsed(env, project_id, user_address);
 
 **Possible Errors**:
 - `AdminOnly` - Caller is not an admin
+- `InvalidInput` - `execution_timestamp` is outside the allowed delay window (`< now + TIMELOCK_MIN_DELAY` or `> now + TIMELOCK_MAX_DELAY`)
 
 **Example**:
 ```rust
@@ -4157,6 +4165,7 @@ let action_id = schedule_set_fee(env, admin_address, None, 1000000, 500000, trea
 
 **Possible Errors**:
 - `AdminOnly` - Caller is not an admin
+- `InvalidInput` - `execution_timestamp` is outside the allowed delay window (`< now + TIMELOCK_MIN_DELAY` or `> now + TIMELOCK_MAX_DELAY`)
 
 **Example**:
 ```rust
@@ -4182,6 +4191,7 @@ let action_id = schedule_add_admin(env, admin_address, new_admin_address, future
 
 **Possible Errors**:
 - `AdminOnly` - Caller is not an admin
+- `InvalidInput` - `execution_timestamp` is outside the allowed delay window (`< now + TIMELOCK_MIN_DELAY` or `> now + TIMELOCK_MAX_DELAY`)
 
 **Example**:
 ```rust
