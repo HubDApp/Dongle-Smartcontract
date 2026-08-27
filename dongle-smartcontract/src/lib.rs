@@ -723,6 +723,14 @@ impl DongleContract {
         VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
+    pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_records_batch(env: Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
     /// Read the refund recorded after a rejected verification (issue #472).
     ///
     /// Returns `None` if the project has no refund on record. A record with
