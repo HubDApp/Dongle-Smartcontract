@@ -86,6 +86,7 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 72 | `ArithmeticOverflow` | A checked arithmetic operation overflowed. | Reduce the magnitude of the input values; this indicates an unexpectedly large accumulated amount or count. |
 | 73 | `NotInCollection` | Project is not a member of this collection. | Add the project to the collection via `add_project_to_collection` before attempting to remove it. |
 | 74 | `ThresholdDowngradeRequiresSupermajority` | A `SetThreshold` proposal that would lower the current approval threshold does not have enough approvals. The number of approvals must be **strictly greater than** the proposed new threshold (supermajority rule). | Gather additional admin approvals before executing the downgrade proposal. The required count is `new_threshold + 1`. |
+| 77 | `MultiSigRequired` | A direct single-admin governance call (`add_admin` / `remove_admin`) was attempted while the admin approval threshold is greater than 1. | Use the proposal workflow instead: `create_proposal` → `approve_proposal` (×threshold) → `execute_proposal`. See [`APPROVAL_THRESHOLD_AUDIT.md`](./APPROVAL_THRESHOLD_AUDIT.md). |
 
 ## Adding New Error Codes
 

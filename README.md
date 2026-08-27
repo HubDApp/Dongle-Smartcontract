@@ -31,6 +31,7 @@ For detailed information, refer to:
 - **[Admin Rotation & Security](docs/ADMIN_ROTATION_PLAYBOOK.md)** — Operational security guidelines
 - **[Event Schema](docs/EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
 - **[Threat Model](docs/THREAT_MODEL.md)** — Security analysis and risk mitigation
+- **[Approval Threshold Audit](docs/APPROVAL_THRESHOLD_AUDIT.md)** — Multi-sig quorum enforcement review across all proposal types
 - **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
 - **[Data Export Guide](docs/DATA_EXPORT_GUIDE.md)** — How indexers reconstruct contract state
 - **[Contributing Guidelines](docs/CONTRIBUTING.md)** — How to contribute, test, and submit PRs

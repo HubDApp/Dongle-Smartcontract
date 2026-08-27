@@ -155,6 +155,15 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
+    /// A direct single-admin governance action (`add_admin` / `remove_admin`)
+    /// was attempted while the admin approval threshold is greater than 1.
+    /// Multi-sig is active: route the change through `create_proposal` /
+    /// `approve_proposal` / `execute_proposal` instead.
+    //
+    // Note: codes 75/76 are reserved by PR #644 (dependency-graph errors). This
+    // variant takes 77 to avoid a merge collision; renumber to the next free
+    // value if that PR does not land.
+    MultiSigRequired = 77,
 }
 
 pub type Error = ContractError;
