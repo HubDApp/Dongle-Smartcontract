@@ -32,6 +32,7 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -232,11 +233,11 @@ fn test_list_reviews_basic_pagination() {
         .mock_all_auths()
         .add_review(&project_id, &reviewer3, &3, &None);
 
-    // First page: start=0, limit=2
+    // First page: start_index=0, limit=2
     let page1 = client.list_reviews(&project_id, &0, &2);
     assert_eq!(page1.len(), 2);
 
-    // Second page: start=2, limit=2
+    // Second page: start_index=2, limit=2
     let page2 = client.list_reviews(&project_id, &2, &2);
     assert_eq!(page2.len(), 1);
 }
@@ -290,7 +291,7 @@ fn test_list_reviews_start_beyond_count_returns_empty() {
         .mock_all_auths()
         .add_review(&project_id, &reviewer, &5, &None);
 
-    // start=100 is beyond the single review
+    // start_index=100 is beyond the single review
     let result = client.list_reviews(&project_id, &100, &10);
     assert_eq!(result.len(), 0);
 }
@@ -384,12 +385,12 @@ fn test_list_reviews_all_pages_cover_all_reviews() {
             .add_review(&project_id, &reviewer, &4, &None);
     }
 
-    // Collect all reviews via pagination
+    // Collect all reviews via pagination (start_index is a list offset, not a review ID)
     let mut all_reviews = soroban_sdk::Vec::new(&env);
-    let mut start = 0u32;
+    let mut start_index = 0u32;
     let page_size = 2u32;
     loop {
-        let page = client.list_reviews(&project_id, &start, &page_size);
+        let page = client.list_reviews(&project_id, &start_index, &page_size);
         let page_len = page.len();
         for r in page.iter() {
             all_reviews.push_back(r);
@@ -397,7 +398,7 @@ fn test_list_reviews_all_pages_cover_all_reviews() {
         if page_len < page_size {
             break;
         }
-        start += page_size;
+        start_index += page_size;
     }
 
     assert_eq!(
@@ -437,6 +438,7 @@ fn test_list_projects_by_category_basic() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params1);
 
@@ -453,6 +455,7 @@ fn test_list_projects_by_category_basic() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params2);
 
@@ -490,6 +493,7 @@ fn test_list_projects_by_category_update_moves_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
 
@@ -513,6 +517,8 @@ fn test_list_projects_by_category_update_moves_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().update_project(&update_params);
 
@@ -553,6 +559,7 @@ fn test_list_projects_by_category_pagination() {
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         };
         client.mock_all_auths().register_project(&params);
     }

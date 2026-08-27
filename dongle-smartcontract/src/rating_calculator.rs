@@ -5,7 +5,6 @@
 /// For example, a rating of 4.50 is stored as 450.
 pub struct RatingCalculator;
 
-#[allow(dead_code)]
 impl RatingCalculator {
     /// Calculate average rating from sum and count.
     /// Returns 0 if review_count is 0 (handles division by zero).
@@ -32,7 +31,6 @@ impl RatingCalculator {
     ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
-    #[allow(dead_code)]
     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (new_rating as u64) * 100;
         let new_sum = current_sum + scaled_rating;
@@ -51,7 +49,6 @@ impl RatingCalculator {
     ///
     /// # Returns
     /// Tuple of (new_sum, new_count, new_average)
-    #[allow(dead_code)]
     pub fn update_rating(
         current_sum: u64,
         current_count: u32,
@@ -82,6 +79,31 @@ impl RatingCalculator {
         let new_count = current_count.saturating_sub(1);
         let new_average = Self::calculate_average(new_sum, new_count);
         (new_sum, new_count, new_average)
+    }
+
+    /// Calculate Bayesian weighted rating using stored aggregates.
+    ///
+    /// Formula (result scaled by 100, same as `average_rating`):
+    /// ```text
+    /// weighted = (C * m + rating_sum) / (C + review_count)
+    /// ```
+    /// Where `C` = `WEIGHTED_RATING_PRIOR_COUNT`, `m` = `WEIGHTED_RATING_PRIOR_MEAN`,
+    /// and `rating_sum` is the sum of individual ratings each scaled by 100.
+    ///
+    /// Edge cases:
+    /// - `review_count == 0` → returns prior mean `m`
+    /// - `review_count == 1` → blends prior with the single review
+    /// - large `review_count` → converges toward the arithmetic mean
+    pub fn calculate_weighted(rating_sum: u64, review_count: u32) -> u32 {
+        use crate::constants::{WEIGHTED_RATING_PRIOR_COUNT, WEIGHTED_RATING_PRIOR_MEAN};
+        let c = WEIGHTED_RATING_PRIOR_COUNT as u64;
+        let m = WEIGHTED_RATING_PRIOR_MEAN as u64;
+        let numerator = c.saturating_mul(m).saturating_add(rating_sum);
+        let denominator = c.saturating_add(review_count as u64);
+        if denominator == 0 {
+            return WEIGHTED_RATING_PRIOR_MEAN;
+        }
+        (numerator / denominator) as u32
     }
 }
 

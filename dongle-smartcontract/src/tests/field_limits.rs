@@ -79,6 +79,7 @@ fn base_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationPar
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     }
 }
 
@@ -111,7 +112,7 @@ fn reg_name_over_max_rejected() {
     p.name = ss_rep(&e, 'a', MAX_NAME_LEN + 1);
     p.slug = ss(&e, "valid-slug");
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::ProjectNameTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectName.into())));
     let _ = admin;
 }
 
@@ -140,7 +141,7 @@ fn reg_slug_over_max_rejected() {
     let mut p = base_params(&e, &owner, "Short2");
     p.slug = ss_rep(&e, 'a', MAX_SLUG_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectSlug.into())));
     let _ = admin;
 }
 
@@ -169,7 +170,7 @@ fn reg_description_over_max_rejected() {
     let mut p = base_params(&e, &owner, "DescOver");
     p.description = ss_rep(&e, 'x', MAX_DESCRIPTION_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::ProjectDescTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
     let _ = admin;
 }
 
@@ -198,7 +199,7 @@ fn reg_category_over_max_rejected() {
     let mut p = base_params(&e, &owner, "CatOver");
     p.category = ss_rep(&e, 'c', MAX_CATEGORY_LEN + 1);
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidCategory.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
     let _ = admin;
 }
 
@@ -231,7 +232,7 @@ fn reg_website_over_max_rejected() {
     let mut p = base_params(&e, &owner, "WebOver");
     p.website = Some(ss(&e, &url));
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidWebsite.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
     let _ = admin;
 }
 
@@ -261,7 +262,7 @@ fn reg_logo_cid_over_max_rejected() {
     // 129 bytes starting with 'b' — is_valid_ipfs_cid returns false (len > 128)
     p.logo_cid = Some(cidv1_of_len(&e, 129));
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidLogoCid.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
     let _ = admin;
 }
 
@@ -284,9 +285,9 @@ fn reg_logo_cid_below_min_rejected() {
     let (client, admin) = setup_contract(&e);
     let owner = Address::generate(&e);
     let mut p = base_params(&e, &owner, "LogoShort");
-    p.logo_cid = Some(cid_of_len(&e, 45)); // one below minimum
+    p.logo_cid = Some(cid_of_len(&e, 39)); // one below minimum
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidLogoCid.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
     let _ = admin;
 }
 
@@ -315,7 +316,7 @@ fn reg_metadata_cid_over_max_rejected() {
     let mut p = base_params(&e, &owner, "MetaOver");
     p.metadata_cid = Some(cidv1_of_len(&e, 129));
     let result = client.try_register_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidMetaCid.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
     let _ = admin;
 }
 
@@ -339,6 +340,8 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     }
 }
 
@@ -362,7 +365,7 @@ fn update_description_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.description = Some(ss_rep(&e, 'x', MAX_DESCRIPTION_LEN + 1));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::ProjectDescTooLong.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
 }
 
 #[test]
@@ -385,7 +388,7 @@ fn update_category_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.category = Some(ss_rep(&e, 'c', MAX_CATEGORY_LEN + 1));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidCategory.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]
@@ -412,7 +415,7 @@ fn update_website_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.website = Some(Some(ss(&e, &url)));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidWebsite.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]
@@ -435,7 +438,7 @@ fn update_logo_cid_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.logo_cid = Some(Some(cidv1_of_len(&e, 129)));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidLogoCid.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
 }
 
 #[test]
@@ -458,7 +461,7 @@ fn update_metadata_cid_over_max_rejected() {
     let mut p = update_params(&e, pid, &admin);
     p.metadata_cid = Some(Some(cidv1_of_len(&e, 129)));
     let result = client.try_update_project(&p);
-    assert_eq!(result, Err(Ok(ContractError::InvalidMetaCid.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidCid.into())));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

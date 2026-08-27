@@ -20,6 +20,8 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
+    /// Project lifecycle status by project ID.
+    ProjectLifecycleStatus(u64),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -71,6 +73,8 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
     /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
     ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
@@ -97,6 +101,9 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    ContractPaused,
+    /// List of non-archived project IDs registered by owner.
+    ActiveOwnerProjects(Address),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -138,14 +145,51 @@ pub enum ExtensionKey {
     AdminProposal(u64),
     /// Admin governance: list of all proposal IDs.
     AdminProposalIds,
+    /// Changelog: next changelog entry ID counter.
+    NextChangelogEntryId,
+    /// Changelog: entry by ID.
+    ProjectChangelogEntry(u64),
+    /// Changelog: list of changelog entry IDs for a project.
+    ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
     /// Endorsement count for a project.
     EndorsementCount(u64),
-    /// Fee refund record keyed by verification request_id.
-    FeeRefundRecord(u64),
-    /// Fee config history entry count.
-    FeeConfigHistoryCount,
-    /// Fee config history entry by index (oldest = 0).
-    FeeConfigHistoryEntry(u32),
+    /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
+    ReviewTombstone(u64, Address),
+    /// Timestamp of the last successful update for a review (project_id, reviewer). Used for cooldown enforcement.
+    ReviewLastUpdated(u64, Address),
+    /// Fee payment details for a project (payer, amount, token, timestamp).
+    FeePaymentDetails(u64),
+    /// Fee payment details for a registration (payer, amount, token, timestamp).
+    RegistrationFeePaymentDetails(Address),
+    /// Claimable refund owed after a rejected verification (issue #472).
+    FeeRefund(u64),
+    /// List of reserved project names (admin-managed).
+    ReservedNames,
+    /// Optional region/market metadata for a project.
+    ProjectRegion(u64),
+    /// Integrity hash of key project metadata fields.
+    ProjectIntegrityHash(u64),
+    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
+    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ///
+    /// Declared here rather than in `StorageKey`: Soroban caps a `#[contracttype]`
+    /// union at 50 cases and `StorageKey` was at 51, which panics the macro. The
+    /// key encoding is the variant name plus payload and is identical either way,
+    /// so relocating it needs no storage migration. An unused duplicate of this
+    /// variant already existed here.
+    ProjectByNormalizedName(String),
+    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
+    /// pause state across mutating entry points is intentionally out of scope for the
+    /// config-view feature; see `set_pause` for the toggle.
+    Paused,
+    ContractClaim(u64, String),
+    ProjectContracts(u64),
+    ReviewEligibilityConfig,
+    FirstInteraction(Address),
+    ReviewRevisionCount(u64, Address),
+    ReviewRevision(u64, Address, u32),
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
 }

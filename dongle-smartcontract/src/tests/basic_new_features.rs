@@ -41,6 +41,7 @@ fn test_basic_project_with_tags_and_social_links() {
         social_links: Some(social_links.clone()),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -48,6 +49,41 @@ fn test_basic_project_with_tags_and_social_links() {
 
     assert_eq!(project.tags, Some(tags));
     assert_eq!(project.social_links, Some(social_links));
+}
+
+#[test]
+fn test_social_link_platform_key_format_is_validated() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let mut social_links = Map::new(&env);
+    social_links.set(
+        String::from_str(&env, "github profile"),
+        String::from_str(&env, "https://github.com/example/project"),
+    );
+
+    let params = ProjectRegistrationParams {
+        owner,
+        name: String::from_str(&env, "InvalidSocialPlatformKey"),
+        slug: String::from_str(&env, "invalid-social-platform-key"),
+        description: String::from_str(&env, "A project with an invalid social platform key"),
+        category: String::from_str(&env, "Social"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: Some(social_links),
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+
+    assert_eq!(
+        client.try_register_project(&params),
+        Err(Ok(ContractError::InvalidInput.into()))
+    );
 }
 
 #[test]
@@ -77,6 +113,7 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(initial_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -105,6 +142,8 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(Some(updated_links.clone())),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let updated_project = client.update_project(&update_params);
@@ -124,6 +163,8 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(None),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let final_project = client.update_project(&remove_params);
@@ -157,10 +198,11 @@ fn test_invalid_social_link_url_format_is_rejected() {
         social_links: Some(invalid_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]
@@ -193,10 +235,11 @@ fn test_social_link_url_length_is_rejected() {
         social_links: Some(invalid_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let result = client.try_register_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::InvalidSocialLink.into())));
+    assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
 }
 
 #[test]

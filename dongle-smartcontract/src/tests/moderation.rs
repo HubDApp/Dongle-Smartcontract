@@ -63,7 +63,7 @@ fn test_report_review_duplicate_reporter_fails() {
     client.report_review(&project_id, &reviewer, &reporter);
 
     let result = client.try_report_review(&project_id, &reviewer, &reporter);
-    assert_eq!(result, Err(Ok(ContractError::ReviewAlreadyReported.into())));
+    assert_eq!(result, Err(Ok(ContractError::AlreadyReported.into())));
 }
 
 #[test]
