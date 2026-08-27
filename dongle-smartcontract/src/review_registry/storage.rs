@@ -17,7 +17,6 @@ use crate::types::{
     AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
     ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
-use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
@@ -1154,65 +1153,17 @@ impl ReviewRegistry {
             .get(&ExtensionKey::ReviewTombstone(project_id, reviewer))
     }
 
-    /// List reviews sorted by the requested `sort_mode` with pagination.
+    /// List a bounded review page for client-side sorting.
     ///
-    /// # On-chain in-memory sort
-    /// This fetches all non-hidden reviews for the project, sorts them entirely
-    /// in the contract's working memory, then applies pagination. For projects
-    /// with many reviews this increases compute budget usage linearly with the
-    /// total review count. Use `list_reviews` (insertion-order) when sorting is
-    /// not required.
+    /// `sort_mode` is retained for ABI compatibility. Sorting must be performed
+    /// by the caller after fetching pages with `list_reviews` semantics.
     pub fn list_reviews_sorted(
         env: &Env,
         project_id: u64,
         start_index: u32,
         limit: u32,
-        sort_mode: ReviewSortMode,
+        _sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
-        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
-            MAX_PAGE_LIMIT
-        } else {
-            limit
-        };
-
-        let reviewers: Vec<Address> = env
-            .storage()
-            .persistent()
-            .get(&StorageKey::ProjectReviews(project_id))
-            .unwrap_or_else(|| Vec::new(env));
-
-        // Collect all non-hidden reviews.
-        let mut all: Vec<Review> = Vec::new(env);
-        for i in 0..reviewers.len() {
-            if let Some(reviewer) = reviewers.get(i) {
-                if let Some(review) = Self::get_review(env, project_id, reviewer) {
-                    if !review.hidden {
-                        all.push_back(review);
-                    }
-                }
-            }
-        }
-
-        // Sort in-memory by the requested mode.
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ReviewSortMode::Newest => a.created_at < b.created_at,
-            ReviewSortMode::Oldest => a.created_at > b.created_at,
-            ReviewSortMode::RatingHigh => a.rating < b.rating,
-            ReviewSortMode::RatingLow => a.rating > b.rating,
-        });
-        let n = all.len();
-
-        // Apply pagination.
-        let mut out = Vec::new(env);
-        if start_index >= n {
-            return out;
-        }
-        let end = core::cmp::min(start_index.saturating_add(effective_limit), n);
-        for i in start_index..end {
-            if let Some(review) = all.get(i) {
-                out.push_back(review);
-            }
-        }
-        out
+        Self::list_reviews(env, project_id, start_index, limit)
     }
 }
