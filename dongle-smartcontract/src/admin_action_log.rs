@@ -1,5 +1,5 @@
 use crate::constants::MAX_ADMIN_ACTION_LOG_PAGE;
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{AdminActionEntry, AdminActionType};
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -17,7 +17,7 @@ impl AdminActionLog {
         let id = Self::get_next_id(env);
         let entry = AdminActionEntry {
             id,
-            admin,
+            admin: admin.clone(),
             action_type,
             target_id,
             target_address,
@@ -30,6 +30,18 @@ impl AdminActionLog {
         env.storage()
             .persistent()
             .set(&StorageKey::AdminActionLogCount, &id);
+
+        // Maintain per-admin index so `get_admin_action_log_by_admin` can filter
+        // without scanning every entry.
+        let mut admin_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::AdminActionLogByAdmin(admin.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        admin_ids.push_back(id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::AdminActionLogByAdmin(admin), &admin_ids);
     }
 
     pub fn get_log_entry(env: &Env, log_id: u64) -> Option<AdminActionEntry> {
@@ -69,6 +81,65 @@ impl AdminActionLog {
                 entries.push_back(entry);
             }
             i += 1;
+        }
+        entries
+    }
+
+    /// Return paginated action log entries filtered to a specific admin address.
+    ///
+    /// Results are returned in reverse-insertion order (most recent first).
+    /// `start` is a zero-based offset into the filtered result set; `limit` caps
+    /// the page size at `MAX_ADMIN_ACTION_LOG_PAGE`.
+    pub fn get_admin_action_log_by_admin(
+        env: &Env,
+        admin: Address,
+        start: u32,
+        limit: u32,
+    ) -> Vec<AdminActionEntry> {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::AdminActionLogByAdmin(admin))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let total = ids.len();
+        if total == 0 {
+            return Vec::new(env);
+        }
+
+        let effective_limit = if limit == 0 || limit > MAX_ADMIN_ACTION_LOG_PAGE {
+            MAX_ADMIN_ACTION_LOG_PAGE
+        } else {
+            limit
+        };
+
+        // The index is in insertion (ascending) order; iterate from the end for
+        // most-recent-first ordering.
+        let mut entries = Vec::new(env);
+        let mut skipped = 0u32;
+        let mut collected = 0u32;
+
+        // Walk backwards through the per-admin ID list.
+        let mut pos = total;
+        while pos > 0 {
+            pos -= 1;
+            if let Some(log_id) = ids.get(pos) {
+                if skipped < start {
+                    skipped += 1;
+                    continue;
+                }
+                if collected >= effective_limit {
+                    break;
+                }
+                if let Some(entry) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, AdminActionEntry>(&StorageKey::AdminActionLog(log_id))
+                {
+                    entries.push_back(entry);
+                    collected += 1;
+                }
+            }
         }
         entries
     }

@@ -289,4 +289,18 @@ impl DependencyRegistry {
         StorageManager::extend_project_dependency_ttl(env, project_id);
         out
     }
+
+    /// Returns the number of dependencies registered for a project.
+    ///
+    /// This is a cheap O(1) operation — it reads only the key-list length
+    /// without fetching individual dependency records, making it suitable for
+    /// displaying a dependency-count badge in UIs.
+    pub fn get_dependency_count(env: &Env, project_id: u64) -> u32 {
+        let keys: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        keys.len()
+    }
 }

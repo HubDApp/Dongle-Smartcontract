@@ -21,6 +21,8 @@ impl ChangelogRegistry {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -31,6 +33,8 @@ impl ChangelogRegistry {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         // Authentication check
         owner.require_auth();
@@ -43,7 +47,7 @@ impl ChangelogRegistry {
             return Err(ContractError::Unauthorized);
         }
 
-        // Validate CID
+        // Validate primary CID
         if cid.is_empty() {
             return Err(ContractError::InvalidCid);
         }
@@ -52,6 +56,23 @@ impl ChangelogRegistry {
         }
         if cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidCid);
+        }
+
+        // Validate optional version string (must be non-empty when provided)
+        if let Some(ref v) = version {
+            if v.is_empty() {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        // Validate optional secondary changelog CID when provided
+        if let Some(ref ccid) = changelog_cid {
+            if ccid.is_empty()
+                || !Utils::is_valid_ipfs_cid(ccid)
+                || ccid.len() as usize > MAX_CID_LEN
+            {
+                return Err(ContractError::InvalidCid);
+            }
         }
 
         // Check for duplicate CID in existing changelog entries
@@ -81,6 +102,8 @@ impl ChangelogRegistry {
             cid: cid.clone(),
             created_at: now,
             description,
+            version,
+            changelog_cid,
         };
 
         // Store changelog entry

@@ -104,12 +104,12 @@ impl StorageManager {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(
+            .has(&ExtensionKey::ProjectByNormalizedName(
                 normalized_name.clone(),
             ))
         {
             env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
+                &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
                 LEDGER_THRESHOLD_PROJECT,
                 LEDGER_BUMP_PROJECT,
             );
