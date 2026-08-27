@@ -71,6 +71,8 @@ mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
 mod linked_projects;
+// Issues #458, #463, #465, #466: typed-error and admin-log regressions
+mod typed_error_regressions;
 mod multisig_and_history;
 mod proposal_threshold;
 mod report_registry;

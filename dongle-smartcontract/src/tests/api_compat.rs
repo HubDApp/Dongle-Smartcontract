@@ -14,6 +14,16 @@
 //!
 //! CI will fail if the snapshot drifts from the compiled WASM exports.
 
+// The crate is `#![no_std]`; this module reads a snapshot file off disk, so it
+// needs the real std. Test-only, exactly as `fixtures.rs` pulls in `alloc`.
+extern crate std;
+
+// `no_std` removes the std prelude, so the types this module uses have to be
+// imported by name rather than assumed.
+use std::eprintln;
+use std::string::{String, ToString};
+use std::vec::Vec;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
