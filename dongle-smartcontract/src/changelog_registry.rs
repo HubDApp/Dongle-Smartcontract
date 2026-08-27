@@ -21,6 +21,8 @@ impl ChangelogRegistry {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -31,19 +33,21 @@ impl ChangelogRegistry {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         // Authentication check
         owner.require_auth();
 
         // Verify project exists and caller is owner
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
-        
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
 
-        // Validate CID
+        // Validate primary CID
         if cid.is_empty() {
             return Err(ContractError::InvalidCid);
         }
@@ -52,6 +56,20 @@ impl ChangelogRegistry {
         }
         if cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidCid);
+        }
+
+        // Validate optional version string (must be non-empty when provided)
+        if let Some(ref v) = version {
+            if v.is_empty() {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        // Validate optional secondary changelog CID when provided
+        if let Some(ref ccid) = changelog_cid {
+            if ccid.is_empty() || !Utils::is_valid_ipfs_cid(ccid) || ccid.len() as usize > MAX_CID_LEN {
+                return Err(ContractError::InvalidCid);
+            }
         }
 
         // Check for duplicate CID in existing changelog entries
@@ -81,6 +99,8 @@ impl ChangelogRegistry {
             cid: cid.clone(),
             created_at: now,
             description,
+            version,
+            changelog_cid,
         };
 
         // Store changelog entry
@@ -105,13 +125,7 @@ impl ChangelogRegistry {
         StorageManager::extend_project_ttl(env, project_id);
 
         // Publish event
-        publish_changelog_added_event(
-            env,
-            changelog_id,
-            project_id,
-            owner,
-            cid,
-        );
+        publish_changelog_added_event(env, changelog_id, project_id, owner, cid);
 
         Ok(changelog_id)
     }
@@ -144,7 +158,7 @@ impl ChangelogRegistry {
         // Verify caller is project owner
         let project = ProjectRegistry::get_project(env, entry.project_id)
             .ok_or(ContractError::ProjectNotFound)?;
-        
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
@@ -227,7 +241,7 @@ impl ChangelogRegistry {
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at < b.created_at);
             }
             crate::types::ChangelogSortMode::Oldest => {
-                // For oldest first (ascending), swap when a.created_at > b.created_at  
+                // For oldest first (ascending), swap when a.created_at > b.created_at
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at > b.created_at);
             }
         }
@@ -235,7 +249,7 @@ impl ChangelogRegistry {
         // Apply pagination
         let end = (start + effective_limit).min(total);
         let mut paginated = Vec::new(env);
-        
+
         for i in start..end {
             if let Some(entry) = entries.get(i) {
                 paginated.push_back(entry.clone());

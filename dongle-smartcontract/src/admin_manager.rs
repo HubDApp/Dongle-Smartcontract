@@ -192,6 +192,8 @@ impl AdminManager {
 
         // Keep this config entry alive as long as critical data.
         StorageManager::extend_critical_config_ttl(env);
+
+        Ok(())
     }
 
     pub fn get_admin_approval_threshold(env: &Env) -> u32 {
@@ -235,6 +237,7 @@ impl AdminManager {
         env: &Env,
         proposer: Address,
         payload: ProposalPayload,
+        expires_at: u64,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::require_admin(env, &proposer)?;
@@ -243,7 +246,7 @@ impl AdminManager {
             .storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
-            .unwrap_or(1);
+            .unwrap_or(0);
 
         let action_type = match &payload {
             ProposalPayload::AddAdmin(_) => AdminActionType::AdminAdded,
@@ -276,6 +279,7 @@ impl AdminManager {
             approvals,
             status,
             created_at: env.ledger().timestamp(),
+            expires_at,
         };
 
         env.storage().persistent().set(
@@ -355,6 +359,22 @@ impl AdminManager {
                 proposal_id,
             ))
             .ok_or(ContractError::InvalidStatus)?;
+
+        // Re-compute the payload hash and verify it matches the hash stored at
+        // proposal creation time. This prevents a proposal whose stored payload
+        // has been corrupted (e.g. storage corruption) from being silently
+        // executed with unintended effects.
+        let computed_hash = Self::compute_payload_hash(env, &proposal.payload);
+        if computed_hash != proposal.payload_hash {
+            return Err(ContractError::PayloadHashMismatch);
+        }
+
+        // Reject stale proposals: if expires_at is non-zero and the current
+        // ledger time has reached or passed it, the proposal can no longer be
+        // executed regardless of its approval status.
+        if proposal.expires_at != 0 && env.ledger().timestamp() >= proposal.expires_at {
+            return Err(ContractError::ProposalExpired);
+        }
 
         if proposal.status == ProposalStatus::Executed {
             return Err(ContractError::InvalidStatus);
@@ -562,6 +582,34 @@ impl AdminManager {
             .get(&crate::storage_keys::ExtensionKey::AdminProposal(
                 proposal_id,
             ))
+    }
+
+    /// List admin proposals with pagination.
+    ///
+    /// `start` is a zero-based offset into the proposal ID list and `limit`
+    /// caps how many proposals are returned (clamped to `MAX_PAGE_LIMIT`).
+    /// Returns the corresponding `AdminProposal` structs for the paginated
+    /// slice of IDs, skipping any that are missing from storage.
+    pub fn list_proposals(env: &Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&crate::storage_keys::ExtensionKey::AdminProposalIds)
+            .unwrap_or_else(|| Vec::new(env));
+        let page_ids = crate::pagination::paginate(env, &ids, start, limit);
+        let mut result = Vec::new(env);
+        for proposal_id in page_ids.iter() {
+            if let Some(proposal) = env
+                .storage()
+                .persistent()
+                .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                    proposal_id,
+                ))
+            {
+                result.push_back(proposal);
+            }
+        }
+        result
     }
 }
 

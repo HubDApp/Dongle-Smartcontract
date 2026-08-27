@@ -156,6 +156,8 @@ fn verified_project_update_name_resets_verification() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let project = client.update_project(&params);
     assert_eq!(project.name, SorobanString::from_str(&env, "NewName"));
@@ -186,6 +188,8 @@ fn verified_project_update_slug_blocked() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -214,6 +218,8 @@ fn verified_project_update_category_blocked() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -245,6 +251,8 @@ fn verified_project_update_logo_cid_blocked() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -276,6 +284,8 @@ fn verified_project_update_metadata_cid_resets_verification() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let project = client.update_project(&params);
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
@@ -311,6 +321,8 @@ fn verified_project_update_description_allowed() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -350,6 +362,8 @@ fn verified_project_update_website_resets_verification() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let project = client.update_project(&params);
     assert_eq!(project.verification_status, VerificationStatus::Unverified);
@@ -384,6 +398,8 @@ fn verified_project_no_change_to_frozen_fields_allowed() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -430,6 +446,8 @@ fn after_revoke_frozen_fields_become_mutable() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -465,6 +483,8 @@ fn unverified_project_all_fields_mutable() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -506,6 +526,8 @@ fn pending_verification_project_fields_are_mutable() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(

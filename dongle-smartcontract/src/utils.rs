@@ -4,16 +4,63 @@ use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
-    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_WEBSITE_LEN,
+    MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_TAGS_PER_PROJECT,
+    MAX_TAG_LENGTH, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
 
 impl Utils {
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Push `item` into `vec` only if it is not already present.
+    pub fn add_unique_to_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
+        vec: &mut Vec<T>,
+        item: &T,
+    ) -> bool {
+        for i in 0..vec.len() {
+            if let Some(existing) = vec.get(i) {
+                if &existing == item {
+                    return false;
+                }
+            }
+        }
+        vec.push_back(item.clone());
+        true
+    }
+
+    /// Return a new Vec containing all items from `vec` except those equal to `item`.
+    pub fn remove_item_from_vec<
+        T: PartialEq
+            + Clone
+            + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>
+            + soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>,
+    >(
+        env: &Env,
+        vec: &Vec<T>,
+        item: &T,
+    ) -> Vec<T> {
+        let mut result = Vec::new(env);
+        for i in 0..vec.len() {
+            if let Some(v) = vec.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // Name normalization
     // ────────────────────────────────────────────────────────────────────
@@ -100,7 +147,6 @@ impl Utils {
         let s = core::str::from_utf8(&out[..out_len]).unwrap_or("");
         String::from_str(env, s)
     }
-
 
     // ────────────────────────────────────────────────────────────────────
     // Name / slug / field validation
@@ -284,25 +330,70 @@ impl Utils {
         Ok(())
     }
 
-    /// Validate the tags list (each tag must be non-empty ASCII alphanumeric/hyphen/underscore).
+    /// Validate the tags list.
+    ///
+    /// Rules:
+    /// - At most `MAX_TAGS_PER_PROJECT` tags.
+    /// - Each tag is non-empty, at most `MAX_TAG_LENGTH` bytes, and ASCII
+    ///   alphanumeric / hyphen / underscore only.
+    /// - Values must be unique after ASCII-lowercase normalization
+    ///   (e.g. `DeFi` and `defi` are duplicates).
     pub fn validate_tags(tags: &Vec<String>) -> Result<(), ContractError> {
+        if tags.len() > MAX_TAGS_PER_PROJECT {
+            return Err(ContractError::InvalidTags);
+        }
+
         for i in 0..tags.len() {
             if let Some(tag) = tags.get(i) {
-                let len = tag.len() as usize;
-                if len == 0 {
-                    return Err(ContractError::InvalidInput);
-                }
-                let mut buf = [0u8; 64];
-                let cap = if len < buf.len() { len } else { buf.len() };
-                tag.copy_into_slice(&mut buf[..cap]);
-                for &b in buf[..cap].iter() {
-                    if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
-                        return Err(ContractError::InvalidInput);
+                Self::validate_single_tag(&tag)?;
+                for j in 0..i {
+                    if let Some(prev) = tags.get(j) {
+                        if Self::tags_equal_normalized(&tag, &prev) {
+                            return Err(ContractError::InvalidTags);
+                        }
                     }
                 }
             }
         }
         Ok(())
+    }
+
+    fn validate_single_tag(tag: &String) -> Result<(), ContractError> {
+        let len = tag.len() as usize;
+        if len == 0 || len > MAX_TAG_LENGTH {
+            return Err(ContractError::InvalidTags);
+        }
+
+        let mut buf = [0u8; MAX_TAG_LENGTH];
+        tag.copy_into_slice(&mut buf[..len]);
+        for &b in buf[..len].iter() {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+                return Err(ContractError::InvalidTags);
+            }
+        }
+        Ok(())
+    }
+
+    /// Case-insensitive equality after ASCII-lowercase normalization.
+    /// Callers must already have validated each tag length is `<= MAX_TAG_LENGTH`.
+    fn tags_equal_normalized(a: &String, b: &String) -> bool {
+        let a_len = a.len() as usize;
+        let b_len = b.len() as usize;
+        if a_len != b_len {
+            return false;
+        }
+
+        let mut a_buf = [0u8; MAX_TAG_LENGTH];
+        let mut b_buf = [0u8; MAX_TAG_LENGTH];
+        a.copy_into_slice(&mut a_buf[..a_len]);
+        b.copy_into_slice(&mut b_buf[..b_len]);
+
+        for i in 0..a_len {
+            if a_buf[i].to_ascii_lowercase() != b_buf[i].to_ascii_lowercase() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Validate the social links map (each value must be a valid URL).
@@ -312,6 +403,20 @@ impl Utils {
         let keys = links.keys();
         for i in 0..keys.len() {
             if let Some(key) = keys.get(i) {
+                let key_len = key.len() as usize;
+                if key_len == 0 || key_len > MAX_SOCIAL_LINK_PLATFORM_LEN {
+                    return Err(ContractError::InvalidInput);
+                }
+
+                let mut key_buf = [0u8; MAX_SOCIAL_LINK_PLATFORM_LEN];
+                key.copy_into_slice(&mut key_buf[..key_len]);
+                if key_buf[..key_len]
+                    .iter()
+                    .any(|&b| !b.is_ascii_alphanumeric() && b != b'-' && b != b'_')
+                {
+                    return Err(ContractError::InvalidInput);
+                }
+
                 if let Some(url) = links.get(key) {
                     Self::validate_website(&url)?;
                 }

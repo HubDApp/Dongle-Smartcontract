@@ -20,7 +20,7 @@ Responsible disclosure for the Dongle smart contract (Stellar / Soroban).
 - IPFS / CID content availability or off-chain data integrity
 - Theoretical gas / fee griefing without a concrete permanent impact
 - Reports without a clear reproduction path
-- Issues already disclosed in [THREAT_MODEL.md](../THREAT_MODEL.md) as accepted residual risk
+- Issues already disclosed in [THREAT_MODEL.md](../docs/THREAT_MODEL.md) as accepted residual risk
 
 ## How to report
 

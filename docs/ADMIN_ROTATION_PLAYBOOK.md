@@ -21,7 +21,7 @@ Goals:
 | Insider collusion | Threshold admins bypass controls | Separate key custody, monitoring, incident runbooks |
 | Rotation mistake (remove before add) | Zero admins; irreversible without upgrade | Always add-before-remove checklist |
 
-See also [THREAT_MODEL.md](../THREAT_MODEL.md) for broader contract assumptions.
+See also [THREAT_MODEL.md](THREAT_MODEL.md) for broader contract assumptions.
 
 ## 3. Safe Rotation Procedure
 
@@ -155,4 +155,4 @@ Run on testnet before mainnet rotation:
 
 ---
 
-**Related docs:** [INITIALIZATION_DEPLOYMENT_CHECKLIST.md](./INITIALIZATION_DEPLOYMENT_CHECKLIST.md), [THREAT_MODEL.md](../THREAT_MODEL.md), [CONTRACT_INTERFACE.md](../CONTRACT_INTERFACE.md)
+**Related docs:** [INITIALIZATION_DEPLOYMENT_CHECKLIST.md](./INITIALIZATION_DEPLOYMENT_CHECKLIST.md), [THREAT_MODEL.md](THREAT_MODEL.md), [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md)

@@ -16,6 +16,7 @@ pub struct ProjectRegistrationParams {
     pub social_links: Option<Map<String, String>>,
     pub launch_timestamp: Option<u64>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
 }
 
 #[contracttype]
@@ -35,6 +36,15 @@ pub struct ProjectUpdateParams {
     pub social_links: Option<Option<Map<String, String>>>,
     pub launch_timestamp: Option<Option<u64>>,
     pub bounty_url: Option<Option<String>>,
+    pub repository_url: Option<Option<String>>,
+    // NOTE: lifecycle status is deliberately not updatable here. It has its own
+    // entry point, `set_project_lifecycle_status`, which emits a dedicated
+    // event. A `lifecycle_status` field previously sat here but was never read
+    // by `update_project`, so it silently did nothing — while its
+    // `Option<unit-enum>` type broke every `testutils` build (soroban-sdk 22
+    // generates only `TryFrom<T> for ScVal` on unit enums, and `Option<T>`
+    // needs the by-value `From`). That is why `cargo build` passed while
+    // `cargo test` could not compile at all.
 }
 
 #[contracttype]
@@ -178,6 +188,10 @@ pub struct ContractClaimRequest {
     pub proof_cid: String,
     pub status: ClaimStatus,
     pub created_at: u64,
+    /// Unix timestamp (seconds) after which this pending claim is considered expired.
+    /// A value of 0 means no expiry (legacy). New claims always set this to
+    /// `created_at + CLAIM_EXPIRY_SECONDS`.
+    pub expires_at: u64,
 }
 
 #[contracttype]
@@ -197,6 +211,7 @@ pub struct Project {
     pub current_verification_id: Option<u64>,
     pub archived: bool,
     pub claimable: bool,
+    pub lifecycle_status: ProjectLifecycleStatus,
     pub created_at: u64,
     pub updated_at: u64,
     pub tags: Option<Vec<String>>,
@@ -204,6 +219,7 @@ pub struct Project {
     pub launch_timestamp: Option<u64>,
     pub maintainers: Option<Vec<Address>>,
     pub bounty_url: Option<String>,
+    pub repository_url: Option<String>,
     pub security_contact: Option<String>,
     pub security_contact_proof_cid: Option<String>,
     pub security_contact_verified: bool,
@@ -226,8 +242,6 @@ pub struct ProjectReport {
     pub timestamp: u64,
 }
 
-
-
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
@@ -235,6 +249,23 @@ pub enum VerificationStatus {
     Pending,
     Verified,
     Rejected,
+}
+
+/// Project lifecycle status for managing project activity state.
+/// Allows project owners to signal project maturity, stability, and maintenance status.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectLifecycleStatus {
+    /// Active development - project is regularly maintained
+    Active,
+    /// Beta/experimental - not yet stable for production use
+    Beta,
+    /// Paused - temporarily not maintained
+    Paused,
+    /// Deprecated - no longer recommended for new use
+    Deprecated,
+    /// Sunset - officially discontinued
+    Sunset,
 }
 
 #[contracttype]
@@ -249,9 +280,6 @@ pub struct VerificationRecord {
     pub decided_at: u64,
     pub fee_amount: u128,
     pub revoke_reason: Option<String>,
-    /// Unix timestamp (seconds) after which the Verified status is considered expired.
-    /// Set when the verification is approved; None for non-approved records.
-    pub expires_at: Option<u64>,
     /// Unix timestamp when verification expires (0 = no expiry)
     pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
@@ -284,25 +312,6 @@ pub struct FeeConfig {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ContractConfig {
-    pub fee_config: Option<FeeConfig>,
-    pub treasury: Option<Address>,
-    pub admin_count: u32,
-    pub paused: bool,
-    pub version: String,
-    pub max_projects_per_user: u32,
-    pub max_reviews_per_project: u32,
-    pub max_reviews_per_user: u32,
-    pub max_page_limit: u32,
-    pub max_tags_per_project: u32,
-    pub max_social_links: u32,
-    pub verification_validity_period: u64,
-    pub fee_payment_expiry_seconds: u64,
-    pub review_update_cooldown_seconds: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
     pub paid_at: u64,
     pub payer: Address,
@@ -310,6 +319,32 @@ pub struct FeePaymentRecord {
     pub token: Option<Address>,
 }
 
+/// A refund owed to a project owner after their verification request was
+/// rejected (issue #472).
+///
+/// Rejection records the debt rather than transferring immediately: paying out
+/// requires the treasury's authorization, and the rejecting admin cannot be
+/// expected to hold the treasury key. The payer (or an admin acting for them)
+/// settles it later via `claim_fee_refund`, and that transaction carries the
+/// treasury signature.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeRefundRecord {
+    /// Project whose verification fee is being refunded.
+    pub project_id: u64,
+    /// Verification request that was rejected.
+    pub request_id: u64,
+    /// Address that paid the fee and is owed the refund.
+    pub payer: Address,
+    /// Amount owed, in the smallest unit of `token`.
+    pub amount: u128,
+    /// Token the fee was paid in. `None` when the fee was configured as free.
+    pub token: Option<Address>,
+    /// Ledger timestamp at which the refund became claimable.
+    pub created_at: u64,
+    /// Ledger timestamp of the payout, or `None` while still outstanding.
+    pub claimed_at: Option<u64>,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -320,11 +355,6 @@ pub struct FeeConfigHistoryEntry {
     pub registration_fee: u128,
     pub treasury: Address,
     pub timestamp: u64,
-}#[contracttype]
-#[derive(Clone, Debug, Default)]
-pub struct ProjectAggregate {
-    pub total_rating: u64,
-    pub review_count: u64,
 }
 
 // ── Project dependencies ─────────────────────────────────────────────────────
@@ -533,6 +563,10 @@ pub struct AdminProposal {
     pub approvals: Map<Address, bool>,
     pub status: ProposalStatus,
     pub created_at: u64,
+    /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
+    /// will reject the proposal if the current ledger time is at or past this value.
+    /// Zero means no expiry (legacy / always executable once approved).
+    pub expires_at: u64,
 }
 
 /// Tombstone stored when a review is deleted so indexers can distinguish
@@ -611,6 +645,12 @@ pub struct ChangelogEntry {
     pub created_at: u64,
     /// Optional description/title for the changelog entry
     pub description: Option<String>,
+    /// Optional semantic version string for this release (e.g. "1.2.3").
+    /// Allows indexers to correlate changelog entries with project releases.
+    pub version: Option<String>,
+    /// Optional IPFS CID pointing to a structured release-notes document.
+    /// Complements `cid` when separate machine-readable release metadata is needed.
+    pub changelog_cid: Option<String>,
 }
 
 /// Changelog sort order for paginated reads

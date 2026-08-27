@@ -46,6 +46,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     })
 }
 
@@ -247,7 +248,7 @@ fn test_owner_can_cancel_pending_fee_payment() {
 
     // Verify token balance of treasury (should be 100)
     let token_client = soroban_sdk::token::Client::new(&env, &token);
-    let treasury = client.get_config().treasury.unwrap();
+    let treasury = client.get_config().unwrap().treasury.unwrap();
     assert_eq!(token_client.balance(&treasury), 100);
     assert_eq!(token_client.balance(&owner), 0);
 
