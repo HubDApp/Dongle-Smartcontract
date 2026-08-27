@@ -50,7 +50,7 @@ impl AdminActionLog {
             .get(&StorageKey::AdminActionLog(log_id))
     }
 
-    pub fn list_admin_actions(env: &Env, start: u32, limit: u32) -> Vec<AdminActionEntry> {
+    pub fn list_admin_actions(env: &Env, start_index: u32, limit: u32) -> Vec<AdminActionEntry> {
         let count: u64 = env
             .storage()
             .persistent()
@@ -67,7 +67,7 @@ impl AdminActionLog {
             limit
         };
 
-        let start_idx = count.saturating_sub(start as u64);
+        let start_idx = count.saturating_sub(start_index as u64);
 
         let mut entries = Vec::new(env);
         let mut i = 0u32;
@@ -88,12 +88,12 @@ impl AdminActionLog {
     /// Return paginated action log entries filtered to a specific admin address.
     ///
     /// Results are returned in reverse-insertion order (most recent first).
-    /// `start` is a zero-based offset into the filtered result set; `limit` caps
+    /// `start_index` is a zero-based offset into the filtered result set; `limit` caps
     /// the page size at `MAX_ADMIN_ACTION_LOG_PAGE`.
     pub fn get_admin_action_log_by_admin(
         env: &Env,
         admin: Address,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<AdminActionEntry> {
         let ids: Vec<u64> = env
@@ -124,7 +124,7 @@ impl AdminActionLog {
         while pos > 0 {
             pos -= 1;
             if let Some(log_id) = ids.get(pos) {
-                if skipped < start {
+                if skipped < start_index {
                     skipped += 1;
                     continue;
                 }

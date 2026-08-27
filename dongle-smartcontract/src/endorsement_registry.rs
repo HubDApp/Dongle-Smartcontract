@@ -48,6 +48,8 @@ impl EndorsementRegistry {
     ) -> Result<(), ContractError> {
         user.require_auth();
 
+        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
         if !Self::has_endorsed(env, project_id, &user) {
             return Err(ContractError::NotEndorsed);
         }
