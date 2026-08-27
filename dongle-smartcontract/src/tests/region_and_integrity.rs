@@ -42,6 +42,7 @@ fn register_project(client: &DongleContractClient<'_>, env: &Env, owner: &Addres
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         })
 }
 
@@ -158,6 +159,7 @@ fn test_integrity_hash_changes_on_update() {
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         });
 
     let hash_after = client.get_project_integrity_hash(&project_id).unwrap();
