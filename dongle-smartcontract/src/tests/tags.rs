@@ -89,7 +89,6 @@ fn update_params(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     }
 }
 
