@@ -192,8 +192,6 @@ pub enum ExtensionKey {
     ReviewRevision(u64, Address, u32),
     /// Per-admin log index: list of action log IDs authored by a specific admin.
     AdminActionLogByAdmin(Address),
-    /// Inverted tag index: tag -> list of project IDs carrying that tag (issue #485).
-    /// Maintained by `register_project` and `update_project` so tag lookups do not
-    /// have to scan the whole project ID space.
-    TagProjects(String),
+    /// Global index of pending verification request IDs, in creation order.
+    PendingVerificationRequests,
 }

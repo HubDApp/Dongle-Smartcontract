@@ -111,34 +111,19 @@ impl ProjectRegistry {
         }
     }
 
-    pub fn register_project(
+    /// Validate all registration fields and uniqueness constraints.
+    ///
+    /// Called **before** any storage mutation begins so that the function
+    /// is purely read-only (aside from auth checks). This keeps the
+    /// validate-then-mutate boundary clean.
+    fn validate_registration_fields(
         env: &Env,
-        params: ProjectRegistrationParams,
-    ) -> Result<u64, ContractError> {
-        // Validation phase
-        params.owner.require_auth();
-
-        // Validate inputs - return typed errors instead of panicking
+        params: &ProjectRegistrationParams,
+    ) -> Result<(), ContractError> {
+        // Field format validation
         Utils::validate_project_name(&params.name)?;
         Utils::validate_project_slug(&params.slug)?;
-
-        // Check reserved names
-        Self::check_reserved_name(env, &params.name)?;
-
-        // Check registration fee payment
-        if let Ok(config) = FeeManager::get_fee_config(env) {
-            if config.registration_fee > 0 {
-                FeeManager::consume_registration_fee_payment(
-                    env,
-                    &params.owner,
-                    config.registration_fee,
-                )?;
-            }
-        }
-
-        // Validate description with comprehensive checks
         Utils::validate_description(&params.description)?;
-
         Utils::validate_category_field(&params.category)?;
 
         if let Some(website) = &params.website {
@@ -146,7 +131,6 @@ impl ProjectRegistry {
         }
         if let Some(value) = &params.bounty_url {
             Utils::validate_website(value)?;
-            // Bounty URL storage removed - not part of core StorageKey
         }
         if let Some(logo_cid) = &params.logo_cid {
             Utils::validate_logo_cid(logo_cid)?;
@@ -154,20 +138,23 @@ impl ProjectRegistry {
         if let Some(metadata_cid) = &params.metadata_cid {
             Utils::validate_metadata_cid(metadata_cid)?;
         }
-
-        // Validate tags if provided
+        if let Some(repo_url) = &params.repository_url {
+            Utils::validate_website(repo_url)?;
+        }
         if let Some(tags) = &params.tags {
             Utils::validate_tags(tags)?;
         }
-
-        // Validate social links if provided
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
         }
 
+        // Reserved-name check
+        Self::check_reserved_name(env, &params.name)?;
+
+        // Owner capacity check
         Self::ensure_owner_capacity(env, &params.owner)?;
 
-        // Check if project name already exists (exact match)
+        // Name uniqueness (exact match)
         if env
             .storage()
             .persistent()
@@ -176,7 +163,7 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
-        // Check normalized name for case/whitespace/punctuation duplicate
+        // Name uniqueness (normalized – case / whitespace / punctuation)
         let normalized_name = Utils::normalize_project_name(env, &params.name);
         if env
             .storage()
@@ -188,7 +175,7 @@ impl ProjectRegistry {
             return Err(ContractError::DuplicateProjectName);
         }
 
-        // Check if project slug already exists
+        // Slug uniqueness
         if env
             .storage()
             .persistent()
@@ -197,7 +184,31 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
-        // Mutation phase
+        Ok(())
+    }
+
+    pub fn register_project(
+        env: &Env,
+        params: ProjectRegistrationParams,
+    ) -> Result<u64, ContractError> {
+        // ── Auth ────────────────────────────────────────────────────────────
+        params.owner.require_auth();
+
+        // ── Validation (read-only, no storage writes) ──────────────────────
+        Self::validate_registration_fields(env, &params)?;
+
+        // ── Fee payment ────────────────────────────────────────────────────
+        if let Ok(config) = FeeManager::get_fee_config(env) {
+            if config.registration_fee > 0 {
+                FeeManager::consume_registration_fee_payment(
+                    env,
+                    &params.owner,
+                    config.registration_fee,
+                )?;
+            }
+        }
+
+        // ── Mutation phase ─────────────────────────────────────────────────
         let mut count: u64 = env
             .storage()
             .persistent()
@@ -229,6 +240,7 @@ impl ProjectRegistry {
             launch_timestamp: params.launch_timestamp,
             maintainers: Some(Vec::new(env)),
             bounty_url: params.bounty_url.clone(),
+            repository_url: params.repository_url.clone(),
             security_contact: None,
             security_contact_proof_cid: None,
             security_contact_verified: false,
@@ -255,6 +267,7 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
             &ExtensionKey::ProjectByNormalizedName(normalized_name),
             &count,
@@ -614,6 +627,12 @@ impl ProjectRegistry {
                     .remove(&StorageKey::ProjectBountyUrl(params.project_id));
             }
             project.bounty_url = value;
+        }
+        if let Some(value) = params.repository_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+            }
+            project.repository_url = value;
         }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings

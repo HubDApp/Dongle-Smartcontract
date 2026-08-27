@@ -63,6 +63,7 @@ fn registration_params(
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     }
 }
 
@@ -87,6 +88,7 @@ fn update_params(
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     }
 }
 

@@ -41,6 +41,7 @@ fn test_basic_project_with_tags_and_social_links() {
         social_links: Some(social_links.clone()),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -76,6 +77,7 @@ fn test_social_link_platform_key_format_is_validated() {
         social_links: Some(social_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     assert_eq!(
@@ -111,6 +113,7 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(initial_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let project_id = client.register_project(&params);
@@ -139,6 +142,8 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(Some(updated_links.clone())),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let updated_project = client.update_project(&update_params);
@@ -158,6 +163,8 @@ fn test_project_social_links_can_be_updated_and_removed() {
         social_links: Some(None),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let final_project = client.update_project(&remove_params);
@@ -191,6 +198,7 @@ fn test_invalid_social_link_url_format_is_rejected() {
         social_links: Some(invalid_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let result = client.try_register_project(&params);
@@ -227,6 +235,7 @@ fn test_social_link_url_length_is_rejected() {
         social_links: Some(invalid_links),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let result = client.try_register_project(&params);

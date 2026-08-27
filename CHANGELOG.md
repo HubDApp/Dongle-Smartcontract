@@ -42,12 +42,26 @@ for the full policy.
 
 - Tag validation now rejects duplicate values (case-insensitive after ASCII
   lowercase normalization) with `InvalidTags` (#526).
-- **BREAKING (error codes):** `AlreadyMaintainerAdded` (74) and
-  `LinkedProjectNotFound` (75) so maintainer and link failures no longer share
-  `AlreadyLinked` (#462).
-- Inverted tag index (`TagProjects`) maintained by `register_project` and
-  `update_project`, so `list_projects_by_tag` no longer scans every project
-  (#485).
+- **Governance: threshold-downgrade supermajority rule.** A
+  `ProposalPayload::SetThreshold` proposal that would *lower* the current
+  approval threshold now requires strictly more approvals than the proposed new
+  threshold before it can execute. This prevents a colluding group of exactly
+  `new_threshold` admins from using the proposal path to silently dismantle the
+  multi-sig quorum. Raises new error `ThresholdDowngradeRequiresSupermajority`
+  (code 74) when the guard is violated. Threshold *increases* and no-ops are
+  unaffected and still require only the live threshold.
+- **Integration test: full verification-fee payment lifecycle**
+  (`src/tests/fee_lifecycle.rs`). Nine tests covering: pre-payment rejection,
+  `pay_fee` sets flag and records details, token balances correct, flag cleared
+  after `request_verification`, second request without re-payment rejected with
+  `InsufficientFee`, re-payment restores the flag, payment-details audit record
+  retained after consumption, treasury balance accounting.
+- **Architecture documentation** (`docs/ARCHITECTURE.md`). A new contributor
+  reference covering: four-layer ASCII module map, Mermaid dependency graph for
+  all 20+ modules, two annotated Mermaid sequence diagrams (`request_verification`
+  happy path and multi-sig proposal lifecycle), complete storage-key tables for
+  `StorageKey` and `ExtensionKey`, event taxonomy table, and a full module
+  reference. Linked from `README.md` Quick Links and Documentation sections.
 
 ### Changed
 
@@ -64,15 +78,19 @@ for the full policy.
   (#514).
 - Timelocked admin proposals now verify the proposal payload hash before
   execution.
-- `list_projects_by_tag` now returns the projects matching the tag from
-  `start_index` onwards. It previously treated `start_index` as an offset into
-  the project ID space, which could return a short page while matches remained
-  (#485).
-- `list_projects_sorted` no longer bubble sorts the whole registry on-chain.
-  `Newest`/`Oldest` read the page directly off the project ID space, and the
-  rated modes read each project's review stats once and resolve only the ranks
-  the requested page needs. Ordering, tie-breaks, and archived filtering are
-  unchanged (#484).
+- **Governance: `set_admin_approval_threshold` documentation clarified.** The
+  function is intentionally blocked (returns `Unauthorized`) once the threshold
+  exceeds 1. All threshold changes while multi-sig is active — including
+  lowering — must go through `create_proposal` / `execute_proposal` and are
+  subject to the supermajority rule described above.
+- **Git hygiene: removed stale snapshot files from index.** Six Soroban test
+  environment snapshots under `dongle-smartcontract/test_snapshots/` were
+  tracked despite the `test_snapshots/` ignore rule in
+  `dongle-smartcontract/.gitignore`. They were untracked via
+  `git rm --cached` (the files remain on disk for any local snapshot test
+  runner). The root `.gitignore` now also carries an explicit
+  `dongle-smartcontract/test_snapshots/` entry so the rule is honoured
+  regardless of which directory git is invoked from.
 
 ### Removed
 

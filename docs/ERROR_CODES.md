@@ -85,6 +85,7 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 71 | `RefundAlreadyClaimed` | The recorded refund has already been paid out. | No action needed; the refund was already claimed. |
 | 72 | `ArithmeticOverflow` | A checked arithmetic operation overflowed. | Reduce the magnitude of the input values; this indicates an unexpectedly large accumulated amount or count. |
 | 73 | `NotInCollection` | Project is not a member of this collection. | Add the project to the collection via `add_project_to_collection` before attempting to remove it. |
+| 74 | `ThresholdDowngradeRequiresSupermajority` | A `SetThreshold` proposal that would lower the current approval threshold does not have enough approvals. The number of approvals must be **strictly greater than** the proposed new threshold (supermajority rule). | Gather additional admin approvals before executing the downgrade proposal. The required count is `new_threshold + 1`. |
 
 ## Adding New Error Codes
 

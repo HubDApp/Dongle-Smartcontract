@@ -150,10 +150,11 @@ pub enum ContractError {
     ArithmeticOverflow = 72,
     /// Project is not in the collection
     NotInCollection = 73,
-    /// Address is already a maintainer of this project
-    AlreadyMaintainerAdded = 74,
-    /// The referenced linked project does not exist or is not linked
-    LinkedProjectNotFound = 75,
+    /// A SetThreshold proposal that would lower the threshold must be approved
+    /// by strictly more admins than the proposed new threshold (supermajority
+    /// rule). This prevents the multi-sig quorum from being silently dismantled
+    /// by exactly the number of colluding admins it is meant to require.
+    ThresholdDowngradeRequiresSupermajority = 74,
 }
 
 pub type Error = ContractError;

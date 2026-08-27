@@ -14,7 +14,7 @@ use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Env, Map, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -203,6 +203,38 @@ impl AdminManager {
             .unwrap_or(1)
     }
 
+    /// Directly set the admin approval threshold (single-admin fast-path).
+    ///
+    /// # Purpose
+    /// This function is the *bootstrap* path for enabling multi-sig governance.
+    /// It lets a single admin raise the threshold from the default of 1 to any
+    /// value up to the current admin count.
+    ///
+    /// # Why it is intentionally locked once multi-sig is active
+    /// Once the threshold is above 1 (multi-sig mode), this direct setter
+    /// returns `Unauthorized` for every caller. This is deliberate: changing the
+    /// governance quorum must itself pass through the same quorum.  Any future
+    /// threshold change — including *lowering* it — must be submitted as a
+    /// `ProposalPayload::SetThreshold` proposal and approved by the required
+    /// number of admins before it can execute.
+    ///
+    /// # Threshold-downgrade protection in the proposal path
+    /// A `SetThreshold` proposal that would lower the current threshold is
+    /// subject to a supermajority rule enforced inside `execute_proposal`:
+    /// the number of approvals on the proposal must be **strictly greater than**
+    /// the proposed new threshold.  This prevents exactly `new_threshold`
+    /// colluding admins from using the proposal system to silently dismantle the
+    /// multi-sig quorum that was designed to stop them.
+    ///
+    /// Example: threshold is currently 3 and a proposal wants to reduce it to 2.
+    /// The proposal must collect at least 3 approvals (> 2) before it can
+    /// execute. A threshold increase has no additional requirement beyond the
+    /// live threshold.
+    ///
+    /// # Errors
+    /// - `InvalidProjectData` – `threshold` is 0 or exceeds the current admin count.
+    /// - `Unauthorized`       – the current threshold is already above 1; use the
+    ///                          proposal system instead.
     pub fn set_admin_approval_threshold(
         env: &Env,
         caller: Address,
@@ -260,8 +292,8 @@ impl AdminManager {
 
         let payload_hash = Self::compute_payload_hash(env, &payload);
 
-        let mut approvals = Vec::new(env);
-        approvals.push_back(proposer.clone());
+        let mut approvals = Map::new(env);
+        approvals.set(proposer.clone(), true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         let status = if approvals.len() >= threshold {
@@ -325,13 +357,11 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
-        for existing in proposal.approvals.iter() {
-            if existing == admin {
-                return Err(ContractError::Unauthorized);
-            }
+        if proposal.approvals.contains_key(&admin) {
+            return Err(ContractError::Unauthorized);
         }
 
-        proposal.approvals.push_back(admin);
+        proposal.approvals.set(admin, true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         if proposal.approvals.len() >= threshold {
@@ -444,6 +474,29 @@ impl AdminManager {
                 if new_threshold == 0 || new_threshold > Self::get_admin_count(env) {
                     return Err(ContractError::InvalidProjectData);
                 }
+
+                // Supermajority rule for threshold downgrades:
+                //
+                // If this proposal would *lower* the current threshold, the number
+                // of approvals must be strictly greater than the *current* threshold
+                // — not merely greater than the proposed new threshold.
+                //
+                // Rationale: the quorum that is being dismantled must itself be
+                // exceeded, not just the smaller quorum being installed. With a
+                // guard of `> new_threshold` only, exactly `current_threshold`
+                // colluding admins could create a proposal that passes the live
+                // threshold check and yet immediately reduces future quorum.
+                // Requiring `> current_threshold` means at least one admin beyond
+                // the current quorum must sign off on any reduction.
+                //
+                // For threshold *increases* or no-ops the normal threshold check
+                // (approvals.len() >= current_threshold) already performed above
+                // is sufficient; no additional requirement is added.
+                let current_threshold = Self::get_admin_approval_threshold(env);
+                if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
+                    return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
+                }
+
                 env.storage().persistent().set(
                     &crate::storage_keys::ExtensionKey::AdminApprovalThreshold,
                     &new_threshold,
