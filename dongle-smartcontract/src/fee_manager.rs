@@ -8,9 +8,10 @@ use crate::events::{
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, StorageKey};
-use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
-use crate::types::{AdminActionType, FeeConfig, FeePaymentRecord};
-use soroban_sdk::{Address, Env};
+use crate::types::{
+    AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
+};
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeeManager;
 
@@ -30,6 +31,15 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        let old_config = env
+            .storage()
+            .persistent()
+            .get::<_, FeeConfig>(&StorageKey::FeeConfig);
+        let old_treasury = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&StorageKey::Treasury);
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -41,6 +51,31 @@ impl FeeManager {
         env.storage()
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
+
+        let history_id = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
+            .unwrap_or(0);
+        let history_entry = FeeConfigHistoryEntry {
+            admin: admin.clone(),
+            old_token: old_config.as_ref().and_then(|config| config.token.clone()),
+            old_verification_fee: old_config.as_ref().map(|config| config.verification_fee),
+            old_registration_fee: old_config.as_ref().map(|config| config.registration_fee),
+            old_treasury,
+            token: config.token.clone(),
+            verification_fee,
+            registration_fee,
+            treasury: treasury.clone(),
+            timestamp: env.ledger().timestamp(),
+        };
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::FeeConfigHistoryEntry(history_id), &history_entry);
+        env.storage().persistent().set(
+            &ExtensionKey::FeeConfigHistoryCount,
+            &(history_id + 1u32),
+        );
 
         publish_fee_set_event(
             env,
@@ -172,9 +207,7 @@ impl FeeManager {
         operation: FeeOperation,
         amount: u128,
     ) -> Result<(), ContractError> {
-        env.storage()
-            .persistent()
-            .remove(&paid_key);
+        env.storage().persistent().remove(&paid_key);
         publish_fee_consumed_event(env, event_project_id, caller, operation, amount);
         Ok(())
     }
@@ -211,37 +244,6 @@ impl FeeManager {
             .persistent()
             .get(&StorageKey::FeeConfig)
             .ok_or(ContractError::FeeConfigNotSet)
-    }
-
-    /// Set the treasury address (admin only)
-    #[allow(dead_code)]
-    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
-        require_admin_auth(env, &admin)?;
-
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Treasury, &treasury);
-        Ok(())
-    }
-
-    /// Get the current treasury address
-    #[allow(dead_code)]
-    pub fn get_treasury(env: &Env) -> Result<Address, ContractError> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)
-    }
-
-    /// Get fee for a specific operation
-    #[allow(dead_code)]
-    pub fn get_operation_fee(env: &Env, operation_type: &str) -> Result<u128, ContractError> {
-        let config = Self::get_fee_config(env)?;
-        match operation_type {
-            "verification" => Ok(config.verification_fee),
-            "registration" => Ok(config.registration_fee),
-            _ => Err(ContractError::InvalidProjectData),
-        }
     }
 
     /// Pay the registration fee for a project.
@@ -339,8 +341,8 @@ impl FeeManager {
             return Err(ContractError::InsufficientFee);
         }
 
-        let record = Self::get_fee_payment_details(env, project_id)
-            .ok_or(ContractError::InsufficientFee)?;
+        let record =
+            Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
 
         // Authorization: Payer or Admin only
         let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
@@ -360,8 +362,12 @@ impl FeeManager {
         // Process refund if fee amount > 0 and token is configured
         if record.amount > 0 {
             let token_address = record.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
-            let treasury = Self::get_treasury(env)?;
-            
+            let treasury: Address = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::Treasury)
+                .ok_or(ContractError::TreasuryNotSet)?;
+
             // Treasury authorization is required to transfer tokens out of the treasury
             treasury.require_auth();
             let token_client = soroban_sdk::token::Client::new(env, &token_address);
@@ -387,6 +393,148 @@ impl FeeManager {
         );
 
         // Record admin action if cancelled by an admin
+        if is_admin {
+            AdminActionLog::record_action(
+                env,
+                caller,
+                AdminActionType::FeeRefunded,
+                Some(project_id),
+                None,
+                None,
+            );
+        }
+
+        Ok(())
+    }
+
+    // ── Verification fee refunds (issue #472) ────────────────────────────────
+
+    /// Record a claimable refund for a rejected verification request.
+    ///
+    /// Called by `reject_verification`. The payout is *recorded*, not executed:
+    /// moving tokens out of the treasury needs `treasury.require_auth()`, and
+    /// the rejecting admin is generally not the treasury signer. Forcing an
+    /// immediate transfer would make every rejection require a second
+    /// signature, so a rejection that could not pay out would either fail
+    /// outright or leave the project rejected with the fee silently kept.
+    ///
+    /// `amount` comes from `VerificationRecord::fee_amount` rather than the
+    /// live payment record: `request_verification` already *consumed* the
+    /// payment (it removes `FeePaidForProject`), so by the time a request is
+    /// rejected there is no outstanding payment left to inspect. The
+    /// verification record is the durable statement of what this request cost.
+    ///
+    /// Returns `Ok(None)` when there is nothing to refund — a zero fee, or no
+    /// payment details on record — so rejection still succeeds on a fee-free
+    /// deployment.
+    pub fn record_verification_refund(
+        env: &Env,
+        project_id: u64,
+        request_id: u64,
+        payer: Address,
+        amount: u128,
+    ) -> Result<Option<FeeRefundRecord>, ContractError> {
+        if amount == 0 {
+            return Ok(None);
+        }
+
+        // Prefer the token actually paid in; fall back to the configured token
+        // so a refund is still expressible if the payment details were pruned.
+        let token = match Self::get_fee_payment_details(env, project_id) {
+            Some(record) => record.token,
+            None => Self::get_fee_config(env)
+                .ok()
+                .and_then(|config| config.token),
+        };
+
+        // A project may be rejected more than once (Rejected -> Pending is a
+        // legal transition, so the owner can pay and re-request). An unclaimed
+        // refund from an earlier rejection must not be overwritten — that would
+        // silently erase a real debt — and it must not block the admin from
+        // rejecting either. Accumulate instead.
+        let amount = match Self::get_fee_refund(env, project_id) {
+            Some(existing) if existing.claimed_at.is_none() => existing
+                .amount
+                .checked_add(amount)
+                .ok_or(ContractError::ArithmeticOverflow)?,
+            _ => amount,
+        };
+
+        let refund = FeeRefundRecord {
+            project_id,
+            request_id,
+            payer,
+            amount,
+            token,
+            created_at: env.ledger().timestamp(),
+            claimed_at: None,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::FeeRefund(project_id), &refund);
+
+        Ok(Some(refund))
+    }
+
+    /// Read the refund recorded for `project_id`, claimed or not.
+    pub fn get_fee_refund(env: &Env, project_id: u64) -> Option<FeeRefundRecord> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::FeeRefund(project_id))
+    }
+
+    /// Pay out a recorded refund.
+    ///
+    /// Callable by the payer or any admin; the tokens always go to the
+    /// recorded payer regardless of who calls, so an admin settling on
+    /// someone's behalf cannot redirect the funds.
+    pub fn claim_fee_refund(
+        env: &Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let mut refund =
+            Self::get_fee_refund(env, project_id).ok_or(ContractError::NoRefundAvailable)?;
+
+        if refund.claimed_at.is_some() {
+            return Err(ContractError::RefundAlreadyClaimed);
+        }
+
+        let is_admin = crate::admin_manager::AdminManager::is_admin(env, &caller);
+        if caller != refund.payer && !is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let token_address = refund.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
+
+        // Mark claimed before transferring. If the transfer panics the whole
+        // invocation reverts, so this cannot leave a claimed-but-unpaid
+        // record — but it does close the door on re-entrant double claims.
+        refund.claimed_at = Some(env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::FeeRefund(project_id), &refund);
+
+        treasury.require_auth();
+        let token_client = soroban_sdk::token::Client::new(env, &token_address);
+        token_client.transfer(&treasury, &refund.payer, &(refund.amount as i128));
+
+        crate::events::publish_fee_refunded_event(
+            env,
+            project_id,
+            refund.request_id,
+            refund.payer.clone(),
+            refund.amount,
+        );
+
         if is_admin {
             AdminActionLog::record_action(
                 env,

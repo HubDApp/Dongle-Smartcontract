@@ -4,12 +4,14 @@
 mod admin;
 mod admin_action_log;
 mod archival;
+mod collection_registry_crud;
 mod collections;
 mod error_handling_tests;
 mod featured;
 // mod fee;
 // mod indexer;
 mod review;
+mod transfer;
 
 // New test modules
 // mod authorization;
@@ -21,6 +23,7 @@ mod moderation;
 mod claim;
 mod config;
 mod dependencies;
+mod lifecycle_status;
 mod maintainers;
 mod renewal;
 mod review_history;
@@ -28,16 +31,24 @@ mod review_settings;
 mod security_contact;
 mod verification;
 mod verification_features;
+mod verification_lifecycle;
+mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 mod license_metadata;
+mod sorted_listing;
 mod string_validation;
+mod tag_index;
+mod tags;
 
 // Metadata freeze policy for verified projects
 // mod verified_freeze;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
+
+// Full verification-fee payment lifecycle integration test
+mod fee_lifecycle;
 
 // Storage field size boundary tests
 mod field_limits;
@@ -57,14 +68,20 @@ mod fee_boundary;
 mod review_features;
 
 // Test infrastructure
+mod bookmark_pagination;
 mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
 mod linked_projects;
+// Issues #458, #463, #465, #466: typed-error and admin-log regressions
+mod typed_error_regressions;
 mod multisig_and_history;
+mod proposal_threshold;
+mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;
@@ -75,5 +92,5 @@ mod ttl_batch;
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
 
-// Contract-level configuration view (`get_config`, pause toggle)
-mod config;
+// Contract API compatibility (issue #257)
+mod api_compat;

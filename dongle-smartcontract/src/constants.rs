@@ -49,6 +49,9 @@ pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
 /// Maximum length for any CID (logo, metadata, comment, evidence).
 pub const MAX_CID_LEN: usize = 128;
 
+/// Minimum length for a valid IPFS CID (46 = shortest CIDv0 "Qm..." string).
+pub const MIN_CID_LEN: usize = 46;
+
 /// Maximum stored edit revisions per review (oldest dropped when exceeded).
 pub const MAX_REVIEW_REVISIONS: u32 = 50;
 
@@ -159,6 +162,11 @@ pub const TIMELOCK_MIN_DELAY: u64 = 86400;
 /// verification request is rejected until the owner re-pays.
 pub const FEE_PAYMENT_EXPIRY_SECONDS: u64 = 7 * 24 * 60 * 60;
 
+/// Validity window for a pending contract-address claim in seconds (30 days).
+/// After this window, a pending claim is treated as expired and a new claim
+/// may be submitted for the same address.
+pub const CLAIM_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
+
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
@@ -178,7 +186,3 @@ pub const DEFAULT_REVIEW_FEE: u128 = 0;
 /// Bump when a non-backwards-compatible change to the public contract surface
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
-
-pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
-pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
-pub const DEFAULT_REVIEW_FEE: u128 = 0;

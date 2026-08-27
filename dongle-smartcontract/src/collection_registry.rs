@@ -240,7 +240,7 @@ impl CollectionRegistry {
             .unwrap_or(Vec::new(env));
 
         if !project_ids.iter().any(|id| id == project_id) {
-            return Err(ContractError::AlreadyInCollection);
+            return Err(ContractError::NotInCollection);
         }
 
         let updated = Utils::remove_item_from_vec(env, &project_ids, &project_id);
