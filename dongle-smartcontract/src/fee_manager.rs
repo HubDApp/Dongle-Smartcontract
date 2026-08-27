@@ -240,57 +240,6 @@ impl FeeManager {
             .ok_or(ContractError::FeeConfigNotSet)
     }
 
-    /// Get all fee configuration changes in chronological order.
-    pub fn get_fee_config_history(env: &Env) -> Vec<FeeConfigHistoryEntry> {
-        let count = env
-            .storage()
-            .persistent()
-            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
-            .unwrap_or(0);
-        let mut history = Vec::new(env);
-        for id in 0..count {
-            if let Some(entry) = env
-                .storage()
-                .persistent()
-                .get(&ExtensionKey::FeeConfigHistoryEntry(id))
-            {
-                history.push_back(entry);
-            }
-        }
-        history
-    }
-
-    /// Set the treasury address (admin only)
-    #[allow(dead_code)]
-    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
-        require_admin_auth(env, &admin)?;
-
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Treasury, &treasury);
-        Ok(())
-    }
-
-    /// Get the current treasury address
-    #[allow(dead_code)]
-    pub fn get_treasury(env: &Env) -> Result<Address, ContractError> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)
-    }
-
-    /// Get fee for a specific operation
-    #[allow(dead_code)]
-    pub fn get_operation_fee(env: &Env, operation_type: &str) -> Result<u128, ContractError> {
-        let config = Self::get_fee_config(env)?;
-        match operation_type {
-            "verification" => Ok(config.verification_fee),
-            "registration" => Ok(config.registration_fee),
-            _ => Err(ContractError::InvalidProjectData),
-        }
-    }
-
     /// Pay the registration fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
     ///
@@ -401,7 +350,11 @@ impl FeeManager {
         // Process refund if fee amount > 0 and token is configured
         if record.amount > 0 {
             let token_address = record.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
-            let treasury = Self::get_treasury(env)?;
+            let treasury: Address = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::Treasury)
+                .ok_or(ContractError::TreasuryNotSet)?;
 
             // Treasury authorization is required to transfer tokens out of the treasury
             treasury.require_auth();
@@ -544,7 +497,11 @@ impl FeeManager {
         }
 
         let token_address = refund.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
-        let treasury = Self::get_treasury(env)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
 
         // Mark claimed before transferring. If the transfer panics the whole
         // invocation reverts, so this cannot leave a claimed-but-unpaid

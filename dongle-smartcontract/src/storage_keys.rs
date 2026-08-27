@@ -192,8 +192,6 @@ pub enum ExtensionKey {
     ReviewRevision(u64, Address, u32),
     /// Per-admin log index: list of action log IDs authored by a specific admin.
     AdminActionLogByAdmin(Address),
-    /// Fee configuration history entry by sequential ID (oldest = 0).
-    FeeConfigHistoryEntry(u32),
-    /// Number of fee configuration history entries.
-    FeeConfigHistoryCount,
+    /// Global index of pending verification request IDs, in creation order.
+    PendingVerificationRequests,
 }

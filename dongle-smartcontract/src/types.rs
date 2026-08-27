@@ -361,13 +361,6 @@ pub struct FeeConfigHistoryEntry {
     pub timestamp: u64,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Default)]
-pub struct ProjectAggregate {
-    pub total_rating: u64,
-    pub review_count: u64,
-}
-
 // ── Project dependencies ─────────────────────────────────────────────────────
 
 /// External dependency reference can point to an internal project id,
@@ -571,7 +564,7 @@ pub struct AdminProposal {
     pub action_type: AdminActionType,
     pub payload_hash: soroban_sdk::BytesN<32>,
     pub payload: ProposalPayload,
-    pub approvals: Vec<Address>,
+    pub approvals: Map<Address, bool>,
     pub status: ProposalStatus,
     pub created_at: u64,
     /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
