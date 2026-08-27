@@ -18,6 +18,8 @@ mod transfer;
 // mod basic_new_features;
 mod cleanup;
 mod events;
+// Issue #628: pause/unpause cycles preserve data integrity
+mod pause_state_recovery;
 mod moderation;
 // mod pagination;
 mod claim;

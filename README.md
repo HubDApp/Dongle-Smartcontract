@@ -29,6 +29,7 @@ For detailed information, refer to:
 - **[Contract Interface Specification](docs/CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
 - **[Storage Schema & Keys](docs/STORAGE_SCHEMA.md)** — Storage architecture and persistence management
 - **[Admin Rotation & Security](docs/ADMIN_ROTATION_PLAYBOOK.md)** — Operational security guidelines
+- **[Emergency Pause & Recovery](docs/EMERGENCY_PAUSE_RECOVERY.md)** — Pause/unpause state machine, incident recovery checklist, and post-unpause state validation
 - **[Event Schema](docs/EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
 - **[Threat Model](docs/THREAT_MODEL.md)** — Security analysis and risk mitigation
 - **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
