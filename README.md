@@ -24,6 +24,7 @@ This repository contains the smart contract logic only. Frontend interfaces and 
 
 For detailed information, refer to:
 
+- **[Architecture Overview](docs/ARCHITECTURE.md)** — Module dependency diagram, data flows, storage layout, and event taxonomy — start here as a new contributor
 - **[Smart Contract API & Usage](dongle-smartcontract/README.md)** — Complete API reference, usage examples, and deployment guide
 - **[Contract Interface Specification](docs/CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
 - **[Storage Schema & Keys](docs/STORAGE_SCHEMA.md)** — Storage architecture and persistence management
@@ -282,6 +283,7 @@ Dongle promotes:
 
 ## Documentation
 
+- [Architecture Overview](docs/ARCHITECTURE.md) - Module structure, dependency diagram, data flows, storage layout, event taxonomy
 - [Smart Contract README](dongle-smartcontract/README.md) - Comprehensive API documentation and usage examples
 - [EVENTS_SCHEMA.md](docs/EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
 - [THREAT_MODEL.md](docs/THREAT_MODEL.md) - Security threat model and mitigation reference
