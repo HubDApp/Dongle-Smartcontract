@@ -40,6 +40,11 @@ for the full policy.
 
 ### Added
 
+- **Approval-threshold consistency audit** (`docs/APPROVAL_THRESHOLD_AUDIT.md`).
+  Confirms every `ProposalPayload` variant is gated by the same live
+  quorum check in `execute_proposal`, documents the `SetThreshold` downgrade
+  supermajority exception, the non-snapshotted-threshold consequences, and the
+  `reject_proposal` single-admin veto model (#630).
 - Tag validation now rejects duplicate values (case-insensitive after ASCII
   lowercase normalization) with `InvalidTags` (#526).
 - **Governance: threshold-downgrade supermajority rule.** A
@@ -65,6 +70,12 @@ for the full policy.
 
 ### Changed
 
+- **Timelock: enforced maximum scheduling delay.** Scheduled admin actions
+  (`schedule_set_fee`, `schedule_add_admin`, `schedule_remove_admin`) now reject
+  an `execution_timestamp` more than `TIMELOCK_MAX_DELAY` (90 days) in the
+  future, in addition to the existing `TIMELOCK_MIN_DELAY` (1 day) lower bound.
+  Zero-delay / past timestamps were already rejected. Both bounds are now
+  documented in `constants.rs` and `docs/TIMELOCK.md` (#631).
 - **Repository hygiene:** Consolidated repository-root documentation. Reference
   documentation now lives in `docs/` (`CONTRACT_INTERFACE.md`,
   `CONTRIBUTING.md`, `DATA_EXPORT_GUIDE.md`, `ERROR_CODES.md`,
@@ -99,6 +110,12 @@ for the full policy.
 
 ### Fixed
 
+- **Governance: added the missing `MultiSigRequired` error variant** (code 77).
+  `AdminManager::add_admin` / `remove_admin` returned
+  `ContractError::MultiSigRequired` when the approval threshold is > 1, but the
+  variant was never defined in `errors.rs` — a compile error contributing to
+  the broken build. Surfaced by the approval-threshold consistency audit
+  (`docs/APPROVAL_THRESHOLD_AUDIT.md`, #630).
 - `AlreadyLinked` was returned for three unrelated conditions (duplicate link,
   duplicate maintainer, missing linked project), so clients could not tell them
   apart (#462).

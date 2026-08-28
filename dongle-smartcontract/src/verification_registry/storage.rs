@@ -464,18 +464,37 @@ impl VerificationRegistry {
 
     /// Batch-fetch verification records for multiple project IDs.
     /// Silently skips IDs with no record. Clamped to 100 entries.
+    ///
+    /// `StorageKey::Verification(project_id)` holds the *request id*, not the
+    /// record, so this performs the same two-hop lookup as
+    /// [`Self::get_verification`].
     pub fn get_verifications_batch(env: &Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
-        const MAX_PAGE_LIMIT: u32 = 100;
-        let len = core::cmp::min(ids.len(), MAX_PAGE_LIMIT);
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_BATCH);
         let mut out = Vec::new(env);
         for i in 0..len {
             if let Some(id) = ids.get(i) {
-                if let Some(record) = env
-                    .storage()
-                    .persistent()
-                    .get(&StorageKey::Verification(id))
-                {
+                if let Some(record) = Self::get_verification(env, id) {
                     out.push_back((id, record));
+                }
+            }
+        }
+        out
+    }
+
+    /// Batch-fetch verification records by verification request ID.
+    /// Silently skips request IDs with no record. Clamped to 100 entries.
+    pub fn get_verification_records_batch(
+        env: &Env,
+        request_ids: Vec<u64>,
+    ) -> Vec<(u64, VerificationRecord)> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(request_ids.len(), MAX_BATCH);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(request_id) = request_ids.get(i) {
+                if let Some(record) = Self::get_verification_record(env, request_id) {
+                    out.push_back((request_id, record));
                 }
             }
         }
