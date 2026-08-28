@@ -171,6 +171,12 @@ pub struct VerificationRequestedEvent {
     pub requester: Address,
     pub evidence_cid: String,
     pub timestamp: u64,
+    /// Id of the newly created `VerificationRecord` for this request.
+    pub request_id: u64,
+    /// Id of the previous verification request for this project, if any.
+    /// `Some(_)` marks this request as a re-request (e.g. after rejection or
+    /// revocation) rather than the project's first verification request.
+    pub previous_request_id: Option<u64>,
 }
 
 #[contracttype]
@@ -372,6 +378,7 @@ pub fn publish_review_event(
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn publish_review_revision_event(
     env: &Env,
     project_id: u64,
@@ -757,12 +764,16 @@ pub fn publish_verification_requested_event(
     project_id: u64,
     requester: Address,
     evidence_cid: String,
+    request_id: u64,
+    previous_request_id: Option<u64>,
 ) {
     let event_data = VerificationRequestedEvent {
         project_id,
         requester,
         evidence_cid,
         timestamp: env.ledger().timestamp(),
+        request_id,
+        previous_request_id,
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
@@ -1493,19 +1504,43 @@ pub fn publish_project_removed_from_collection_event(
     );
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectLinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnlinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 pub fn publish_project_linked_event(
     env: &Env,
     project_id: u64,
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectLinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("LINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 
@@ -1515,13 +1550,19 @@ pub fn publish_project_unlinked_event(
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectUnlinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("UNLINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 

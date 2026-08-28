@@ -1629,7 +1629,7 @@ set_featured(env, admin_address, project_id, true)?;
 
 **Parameters**:
 - `env` (Env): The contract environment
-- `start` (u32): The starting index for pagination
+- `start_index` (u32): The starting index for pagination
 - `limit` (u32): Maximum number of projects to return
 
 **Return Value**: `Vec<Project>`
@@ -3320,7 +3320,7 @@ let collection = get_collection(env, collection_id);
 
 **Parameters**:
 - `env` (Env): The contract environment
-- `start` (u32): Starting index
+- `start_index` (u32): Starting index
 - `limit` (u32): Maximum collections to return
 
 **Return Value**: `Vec<Collection>`
@@ -3346,7 +3346,7 @@ let collections = list_collections(env, 0, 20);
 **Parameters**:
 - `env` (Env): The contract environment
 - `collection_id` (u64): The collection ID
-- `start` (u32): Starting index
+- `start_index` (u32): Starting index
 - `limit` (u32): Maximum project IDs to return
 
 **Return Value**: `Vec<u64>`
@@ -3454,7 +3454,7 @@ if let Some(entry) = get_admin_action_log_entry(env, log_id) {
 
 **Parameters**:
 - `env` (Env): The contract environment
-- `start` (u32): Starting index
+- `start_index` (u32): Starting index
 - `limit` (u32): Maximum entries to return
 
 **Return Value**: `Vec<AdminActionEntry>`
@@ -3860,7 +3860,7 @@ let following = is_following(env, project_id, user_address);
 **Parameters**:
 - `env` (Env): The contract environment
 - `project_id` (u64): The project ID
-- `start` (u32): Starting index for pagination
+- `start_index` (u32): Starting index for pagination
 - `limit` (u32): Maximum followers to return
 
 **Return Value**: `Vec<Address>`
@@ -3886,7 +3886,7 @@ let followers = get_project_followers(env, project_id, 0, 20);
 **Parameters**:
 - `env` (Env): The contract environment
 - `user` (Address): The user address
-- `start` (u32): Starting index for pagination
+- `start_index` (u32): Starting index for pagination
 - `limit` (u32): Maximum subscriptions to return
 
 **Return Value**: `Vec<u64>`
@@ -3916,7 +3916,7 @@ let subscriptions = get_user_subscriptions(env, user_address, 0, 50);
 - `project_id` (u64): The project ID to bookmark
 - `user` (Address): The user bookmarking the project
 
-**Return Value**: `Result<(), BookmarkError>`
+**Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
 - User must authorize (self-authenticated)
@@ -3941,13 +3941,14 @@ bookmark_project(env, project_id, user_address)?;
 - `project_id` (u64): The project ID to unbookmark
 - `user` (Address): The user unbookmarking
 
-**Return Value**: `Result<(), BookmarkError>`
+**Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
 - User must authorize (self-authenticated)
 
 **Possible Errors**:
-- `BookmarkNotFound` - Project is not bookmarked by this user
+- `ProjectNotFound` - Project ID does not exist
+- `NotBookmarked` - Project is not bookmarked by this user
 
 **Example**:
 ```rust
@@ -3988,7 +3989,7 @@ let bookmarked = is_bookmarked(env, project_id, user_address);
 **Parameters**:
 - `env` (Env): The contract environment
 - `user` (Address): The user address
-- `start` (u32): Starting index for pagination
+- `start_index` (u32): Starting index for pagination
 - `limit` (u32): Maximum bookmarks to return
 
 **Return Value**: `Vec<u64>`
@@ -4018,7 +4019,7 @@ let bookmarks = get_user_bookmarks(env, user_address, 0, 50);
 - `project_id` (u64): The project ID to endorse
 - `user` (Address): The user endorsing
 
-**Return Value**: `Result<(), EndorsementError>`
+**Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
 - User must authorize (self-authenticated)
@@ -4043,13 +4044,14 @@ endorse_project(env, project_id, user_address)?;
 - `project_id` (u64): The project ID
 - `user` (Address): The user unendorsing
 
-**Return Value**: `Result<(), EndorsementError>`
+**Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
 - User must authorize (self-authenticated)
 
 **Possible Errors**:
-- `EndorsementNotFound` - User has not endorsed this project
+- `ProjectNotFound` - Project ID does not exist
+- `NotEndorsed` - User has not endorsed this project
 
 **Example**:
 ```rust
@@ -4321,7 +4323,7 @@ if let Some(action) = get_scheduled_action(env, action_id) {
 
 **Parameters**:
 - `env` (Env): The contract environment
-- `start` (u32): Starting index for pagination
+- `start_index` (u32): Starting index for pagination
 - `limit` (u32): Maximum actions to return
 
 **Return Value**: `Vec<TimelockAction>`

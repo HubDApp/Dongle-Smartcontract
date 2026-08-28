@@ -365,7 +365,7 @@ fn test_remove_project_not_in_collection() {
         &project_id,
     );
 
-    assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
+    assert_eq!(result, Err(Ok(ContractError::NotInCollection)));
 }
 
 #[test]

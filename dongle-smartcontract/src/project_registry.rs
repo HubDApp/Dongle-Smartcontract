@@ -1,4 +1,5 @@
 use crate::admin_manager::AdminManager;
+use crate::auth::require_admin_auth;
 use crate::constants::{
     CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
     MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
@@ -21,11 +22,83 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{Address, Bytes, Env, String, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    /// Project IDs carrying `tag`, per the inverted tag index (issue #485).
+    fn tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Add `project_id` to the index entry for `tag`, ignoring duplicates.
+    fn tag_index_insert(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Drop `project_id` from the index entry for `tag`, removing the entry when it empties.
+    fn tag_index_remove(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::tag_index(env, tag);
+        let mut remaining: Vec<u64> = Vec::new(env);
+        for i in 0..ids.len() {
+            if let Some(id) = ids.get(i) {
+                if id != project_id {
+                    remaining.push_back(id);
+                }
+            }
+        }
+        if remaining.is_empty() {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::TagProjects(tag.clone()));
+        } else {
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::TagProjects(tag.clone()), &remaining);
+        }
+    }
+
+    /// Index every tag in `tags` for `project_id`.
+    fn tag_index_insert_all(env: &Env, tags: &Vec<String>, project_id: u64) {
+        for tag in tags.iter() {
+            Self::tag_index_insert(env, &tag, project_id);
+        }
+    }
+
+    /// Reconcile the index after a tag change: drop the tags that went away, add the new ones.
+    fn tag_index_sync(
+        env: &Env,
+        project_id: u64,
+        previous: &Option<Vec<String>>,
+        current: &Option<Vec<String>>,
+    ) {
+        if let Some(old_tags) = previous {
+            for tag in old_tags.iter() {
+                let still_present = match current {
+                    Some(new_tags) => new_tags.contains(&tag),
+                    None => false,
+                };
+                if !still_present {
+                    Self::tag_index_remove(env, &tag, project_id);
+                }
+            }
+        }
+        if let Some(new_tags) = current {
+            Self::tag_index_insert_all(env, new_tags, project_id);
+        }
+    }
+
     /// Shared status-transition helper for both ownership and contract-address claims.
     fn apply_claim_decision(
         status: &mut ClaimStatus,
@@ -39,34 +112,19 @@ impl ProjectRegistry {
         }
     }
 
-    pub fn register_project(
+    /// Validate all registration fields and uniqueness constraints.
+    ///
+    /// Called **before** any storage mutation begins so that the function
+    /// is purely read-only (aside from auth checks). This keeps the
+    /// validate-then-mutate boundary clean.
+    fn validate_registration_fields(
         env: &Env,
-        params: ProjectRegistrationParams,
-    ) -> Result<u64, ContractError> {
-        // Validation phase
-        params.owner.require_auth();
-
-        // Validate inputs - return typed errors instead of panicking
+        params: &ProjectRegistrationParams,
+    ) -> Result<(), ContractError> {
+        // Field format validation
         Utils::validate_project_name(&params.name)?;
         Utils::validate_project_slug(&params.slug)?;
-
-        // Check reserved names
-        Self::check_reserved_name(env, &params.name)?;
-
-        // Check registration fee payment
-        if let Ok(config) = FeeManager::get_fee_config(env) {
-            if config.registration_fee > 0 {
-                FeeManager::consume_registration_fee_payment(
-                    env,
-                    &params.owner,
-                    config.registration_fee,
-                )?;
-            }
-        }
-
-        // Validate description with comprehensive checks
         Utils::validate_description(&params.description)?;
-
         Utils::validate_category_field(&params.category)?;
 
         if let Some(website) = &params.website {
@@ -74,7 +132,6 @@ impl ProjectRegistry {
         }
         if let Some(value) = &params.bounty_url {
             Utils::validate_website(value)?;
-            // Bounty URL storage removed - not part of core StorageKey
         }
         if let Some(logo_cid) = &params.logo_cid {
             Utils::validate_logo_cid(logo_cid)?;
@@ -82,20 +139,23 @@ impl ProjectRegistry {
         if let Some(metadata_cid) = &params.metadata_cid {
             Utils::validate_metadata_cid(metadata_cid)?;
         }
-
-        // Validate tags if provided
+        if let Some(repo_url) = &params.repository_url {
+            Utils::validate_website(repo_url)?;
+        }
         if let Some(tags) = &params.tags {
             Utils::validate_tags(tags)?;
         }
-
-        // Validate social links if provided
         if let Some(social_links) = &params.social_links {
             Utils::validate_social_links(social_links)?;
         }
 
+        // Reserved-name check
+        Self::check_reserved_name(env, &params.name)?;
+
+        // Owner capacity check
         Self::ensure_owner_capacity(env, &params.owner)?;
 
-        // Check if project name already exists (exact match)
+        // Name uniqueness (exact match)
         if env
             .storage()
             .persistent()
@@ -104,7 +164,7 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
-        // Check normalized name for case/whitespace/punctuation duplicate
+        // Name uniqueness (normalized – case / whitespace / punctuation)
         let normalized_name = Utils::normalize_project_name(env, &params.name);
         if env
             .storage()
@@ -116,7 +176,7 @@ impl ProjectRegistry {
             return Err(ContractError::DuplicateProjectName);
         }
 
-        // Check if project slug already exists
+        // Slug uniqueness
         if env
             .storage()
             .persistent()
@@ -125,7 +185,31 @@ impl ProjectRegistry {
             return Err(ContractError::ProjectAlreadyExists);
         }
 
-        // Mutation phase
+        Ok(())
+    }
+
+    pub fn register_project(
+        env: &Env,
+        params: ProjectRegistrationParams,
+    ) -> Result<u64, ContractError> {
+        // ── Auth ────────────────────────────────────────────────────────────
+        params.owner.require_auth();
+
+        // ── Validation (read-only, no storage writes) ──────────────────────
+        Self::validate_registration_fields(env, &params)?;
+
+        // ── Fee payment ────────────────────────────────────────────────────
+        if let Ok(config) = FeeManager::get_fee_config(env) {
+            if config.registration_fee > 0 {
+                FeeManager::consume_registration_fee_payment(
+                    env,
+                    &params.owner,
+                    config.registration_fee,
+                )?;
+            }
+        }
+
+        // ── Mutation phase ─────────────────────────────────────────────────
         let mut count: u64 = env
             .storage()
             .persistent()
@@ -157,6 +241,7 @@ impl ProjectRegistry {
             launch_timestamp: params.launch_timestamp,
             maintainers: Some(Vec::new(env)),
             bounty_url: params.bounty_url.clone(),
+            repository_url: params.repository_url.clone(),
             security_contact: None,
             security_contact_proof_cid: None,
             security_contact_verified: false,
@@ -173,6 +258,14 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(count), &project);
+
+        // Issue #483: keep the inverted tag index current from registration.
+        Self::index_project_tags(env, count, &project.tags);
+        // Ids are handed out sequentially, so a new project extends the covered
+        // range by exactly one whenever it lands directly after the watermark.
+        if count == Self::get_tag_index_watermark(env).saturating_add(1) {
+            Self::set_tag_index_watermark(env, count);
+        }
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectCount, &count);
@@ -184,6 +277,7 @@ impl ProjectRegistry {
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
         // and for case-insensitive lookups via get_project_by_name.
+        let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
             &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
@@ -220,6 +314,7 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectTags(count), tags);
+            Self::tag_index_insert_all(env, tags, count);
         }
         if let Some(social_links) = &params.social_links {
             env.storage()
@@ -461,10 +556,16 @@ impl ProjectRegistry {
         }
 
         // Handle tags update
+        let previous_tags = project.tags.clone();
         if let Some(value) = params.tags {
             if let Some(ref tags) = value {
                 Utils::validate_tags(tags)?;
             }
+            // Issue #483: move the project between tag entries so the index does
+            // not keep pointing at it under tags it no longer carries.
+            let previous_tags = project.tags.clone();
+            Self::unindex_project_tags(env, params.project_id, &previous_tags);
+            Self::index_project_tags(env, params.project_id, &value);
             project.tags = value;
         }
         if let Some(value) = params.social_links {
@@ -478,6 +579,7 @@ impl ProjectRegistry {
 
         // Handle tags update
         if let Some(value) = tags_update {
+            Self::tag_index_sync(env, params.project_id, &previous_tags, &value);
             if let Some(tags) = &value {
                 env.storage()
                     .persistent()
@@ -541,6 +643,12 @@ impl ProjectRegistry {
                     .remove(&StorageKey::ProjectBountyUrl(params.project_id));
             }
             project.bounty_url = value;
+        }
+        if let Some(value) = params.repository_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+            }
+            project.repository_url = value;
         }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
@@ -653,8 +761,6 @@ impl ProjectRegistry {
                 major_fields,
             );
         }
-        StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
-
         Ok(project)
     }
 
@@ -1234,12 +1340,130 @@ impl ProjectRegistry {
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(
-        env: &Env,
-        tag: String,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<Project> {
+
+    // ===== Tag index (issue #483) =====
+    //
+    // `list_projects_by_tag` loads every project from id 1 to ProjectCount on
+    // every call, so a tag lookup costs O(total projects) regardless of how few
+    // carry the tag. These maintain an inverted index, tag -> project ids.
+    //
+    // The index is only authoritative for ids at or below the watermark.
+    // Projects registered before the index existed are absent from it, and an
+    // absent entry is indistinguishable from "no project has this tag" — so a
+    // lookup serves the covered range from the index and scans only the tail.
+
+    /// Project ids known to carry `tag`.
+    pub fn get_tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Highest project id guaranteed to be represented in the tag index.
+    pub fn get_tag_index_watermark(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagIndexWatermark)
+            .unwrap_or(0)
+    }
+
+    fn set_tag_index_watermark(env: &Env, value: u64) {
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagIndexWatermark, &value);
+    }
+
+    /// Add `project_id` to the index entry for `tag`, if not already present.
+    fn index_tag(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::get_tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Remove `project_id` from the index entry for `tag`.
+    fn unindex_tag(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::get_tag_index(env, tag);
+        let mut remaining = Vec::new(env);
+        let mut changed = false;
+        for id in ids.iter() {
+            if id == project_id {
+                changed = true;
+            } else {
+                remaining.push_back(id);
+            }
+        }
+        if !changed {
+            return;
+        }
+        let key = ExtensionKey::TagProjects(tag.clone());
+        if remaining.is_empty() {
+            env.storage().persistent().remove(&key);
+        } else {
+            env.storage().persistent().set(&key, &remaining);
+        }
+    }
+
+    /// Index every tag on a project.
+    fn index_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::index_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    /// Remove a project from every tag entry it was indexed under.
+    fn unindex_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::unindex_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    /// Backfill the tag index for projects registered before it existed.
+    ///
+    /// Processes at most `limit` ids past the watermark and advances it, so the
+    /// backfill can be driven in bounded batches rather than one unbounded call.
+    /// Returns the watermark after this batch.
+    pub fn reindex_tags(env: &Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        require_admin_auth(env, &caller)?;
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut watermark = Self::get_tag_index_watermark(env);
+        let batch = if limit == 0 { 1u64 } else { limit as u64 };
+        let target = core::cmp::min(watermark.saturating_add(batch), count);
+
+        while watermark < target {
+            let id = watermark + 1;
+            if let Some(project) = Self::get_project(env, id) {
+                Self::index_project_tags(env, id, &project.tags);
+            }
+            watermark = id;
+        }
+
+        Self::set_tag_index_watermark(env, watermark);
+        Ok(watermark)
+    }
+
+    /// Look projects up by tag using the inverted index (issue #483).
+    ///
+    /// Serves ids within the indexed range directly. Any range not yet covered
+    /// by the watermark is scanned, so results are correct before a backfill has
+    /// finished — the index makes it fast, it does not make it correct.
+    /// Archived projects are excluded, matching `list_projects_by_tag`.
+    pub fn get_projects_by_tag_batch(env: &Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -1252,33 +1476,110 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
+        let watermark = Self::get_tag_index_watermark(env);
         let mut projects = Vec::new(env);
-        if count == 0 {
-            return projects;
-        }
+        let mut seen: Vec<u64> = Vec::new(env);
 
-        let mut collected: u32 = 0;
-
-        // Iterate through all projects; start_index is a 0-based offset into the project ID space.
-        for id in (start_index as u64 + 1)..=count {
-            if collected >= effective_limit {
-                break;
-            }
-
-            if let Some(project) = Self::get_project(env, id) {
-                if project.archived {
+        // Indexed range: straight lookups, no full scan.
+        for tag in tags.iter() {
+            for id in Self::get_tag_index(env, &tag).iter() {
+                if projects.len() >= effective_limit {
+                    return projects;
+                }
+                if id > watermark || seen.contains(&id) {
                     continue;
                 }
-                if let Some(tags) = &project.tags {
-                    for project_tag in tags.iter() {
-                        if project_tag == tag {
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    seen.push_back(id);
+                    projects.push_back(project);
+                }
+            }
+        }
+
+        // Uncovered tail: scan until a backfill catches up.
+        if watermark < count {
+            for id in (watermark + 1)..=count {
+                if projects.len() >= effective_limit {
+                    break;
+                }
+                if seen.contains(&id) {
+                    continue;
+                }
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    if let Some(project_tags) = &project.tags {
+                        let mut matched = false;
+                        for project_tag in project_tags.iter() {
+                            for tag in tags.iter() {
+                                if project_tag == tag {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            if matched {
+                                break;
+                            }
+                        }
+                        if matched {
+                            seen.push_back(id);
                             projects.push_back(project);
-                            collected += 1;
-                            break;
                         }
                     }
                 }
             }
+        }
+
+        projects
+    }
+
+    pub fn list_projects_by_tag(
+        env: &Env,
+        tag: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        // Read the inverted tag index rather than scanning the whole ID space (issue #485).
+        let ids = Self::tag_index(env, &tag);
+
+        let mut projects = Vec::new(env);
+        if ids.is_empty() {
+            return projects;
+        }
+
+        let mut skipped: u32 = 0;
+        let mut collected: u32 = 0;
+
+        // `start_index` is a 0-based offset into the projects matching this tag.
+        for i in 0..ids.len() {
+            if collected >= effective_limit {
+                break;
+            }
+            let Some(id) = ids.get(i) else {
+                continue;
+            };
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+            if project.archived {
+                continue;
+            }
+            if skipped < start_index {
+                skipped += 1;
+                continue;
+            }
+            projects.push_back(project);
+            collected += 1;
         }
 
         projects
@@ -1592,7 +1893,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -1659,7 +1960,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::LinkedProjectNotFound);
         }
 
         env.storage()
@@ -1710,7 +2011,7 @@ impl ProjectRegistry {
 
         let mut maintainers = Self::get_maintainers(env, project_id);
         if maintainers.contains(&maintainer) {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::AlreadyMaintainerAdded);
         }
 
         maintainers.push_back(maintainer.clone());
@@ -2053,41 +2354,114 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut all: Vec<Project> = Vec::new(env);
-        for id in 1..=count {
-            if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
-                    all.push_back(project);
-                }
-            }
+        let mut result: Vec<Project> = Vec::new(env);
+        if count == 0 {
+            return result;
         }
 
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ProjectSortMode::Newest => a.created_at < b.created_at,
-            ProjectSortMode::Oldest => a.created_at > b.created_at,
-            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                if sort_mode == ProjectSortMode::HighestRated {
-                    stats_a.average_rating < stats_b.average_rating
-                        || (stats_a.average_rating == stats_b.average_rating
-                            && stats_a.review_count < stats_b.review_count)
-                } else {
-                    stats_a.review_count < stats_b.review_count
-                        || (stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating)
+        match sort_mode {
+            // Project IDs are handed out in registration order and `created_at` is
+            // non-decreasing across them, so the ID space is already the sort order.
+            // Walking it directly reads only the requested page instead of loading
+            // and ordering the whole registry (issue #484).
+            ProjectSortMode::Newest | ProjectSortMode::Oldest => {
+                let newest_first = sort_mode == ProjectSortMode::Newest;
+                let mut skipped: u64 = 0;
+                let mut collected: u32 = 0;
+
+                for step in 0..count {
+                    if collected >= effective_limit {
+                        break;
+                    }
+                    let id = if newest_first { count - step } else { step + 1 };
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    if skipped < start_index {
+                        skipped += 1;
+                        continue;
+                    }
+                    result.push_back(project);
+                    collected += 1;
                 }
             }
-        });
-        let n = all.len();
+            // Rating order cannot be derived from the ID space. Read each project's
+            // review stats once - the previous bubble sort re-read them inside every
+            // comparison, which made the call O(N^2) in storage reads - and then select
+            // just the requested page rather than ordering the entire registry.
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let mut candidates: Vec<Project> = Vec::new(env);
+                let mut averages: Vec<u32> = Vec::new(env);
+                let mut review_counts: Vec<u32> = Vec::new(env);
 
-        let mut result = Vec::new(env);
-        let start = start_index as u32;
-        if start < n {
-            let end = core::cmp::min(start.saturating_add(effective_limit), n);
-            for i in start..end {
-                if let Some(project) = all.get(i) {
-                    result.push_back(project);
+                for id in 1..=count {
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    let stats = crate::review_registry::ReviewRegistry::get_project_stats(env, id);
+                    candidates.push_back(project);
+                    averages.push_back(stats.average_rating);
+                    review_counts.push_back(stats.review_count);
+                }
+
+                let total = candidates.len();
+                let start = start_index as u32;
+                if start >= total {
+                    return result;
+                }
+                let wanted = core::cmp::min(start.saturating_add(effective_limit), total);
+
+                let highest_rated = sort_mode == ProjectSortMode::HighestRated;
+                let mut taken: Vec<bool> = Vec::new(env);
+                for _ in 0..total {
+                    taken.push_back(false);
+                }
+
+                // Partial selection: only `wanted` ranks are resolved, so the work is
+                // bounded by the page the caller asked for.
+                for rank in 0..wanted {
+                    let mut best: Option<u32> = None;
+                    for i in 0..total {
+                        if taken.get(i).unwrap_or(false) {
+                            continue;
+                        }
+                        let Some(best_index) = best else {
+                            best = Some(i);
+                            continue;
+                        };
+                        let (primary, secondary) = if highest_rated {
+                            (&averages, &review_counts)
+                        } else {
+                            (&review_counts, &averages)
+                        };
+                        let candidate_primary = primary.get(i).unwrap_or(0);
+                        let best_primary = primary.get(best_index).unwrap_or(0);
+                        let candidate_secondary = secondary.get(i).unwrap_or(0);
+                        let best_secondary = secondary.get(best_index).unwrap_or(0);
+
+                        if candidate_primary > best_primary
+                            || (candidate_primary == best_primary
+                                && candidate_secondary > best_secondary)
+                        {
+                            best = Some(i);
+                        }
+                    }
+
+                    let Some(best_index) = best else {
+                        break;
+                    };
+                    taken.set(best_index, true);
+                    if rank >= start {
+                        if let Some(project) = candidates.get(best_index) {
+                            result.push_back(project);
+                        }
+                    }
                 }
             }
         }
@@ -2099,8 +2473,8 @@ impl ProjectRegistry {
         let len = s.len() as usize;
         let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
         s.copy_into_slice(&mut scratch[..len]);
-        for i in 0..len {
-            buf.push_back(scratch[i]);
+        for &byte in scratch.iter().take(len) {
+            buf.push_back(byte);
         }
     }
     /// Set the optional region tag for a project (owner only).

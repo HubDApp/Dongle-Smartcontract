@@ -34,7 +34,7 @@ impl DependencyRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         for &c in buf.iter() {
-            if !(c.is_ascii_uppercase() || (c >= b'2' && c <= b'7')) {
+            if !(c.is_ascii_uppercase() || (b'2'..=b'7').contains(&c)) {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -42,14 +42,13 @@ impl DependencyRegistry {
     }
 
     fn validate_dependency_ref(env: &Env, dep: &DependencyRef) -> Result<(), ContractError> {
-        let has_pid = dep.project_id.is_some();
-        let has_cid = dep.external_cid.is_some();
-        let has_url = dep.external_url.is_some();
-        let has_contract = dep.external_contract.is_some();
-
         // Exactly one reference kind must be set.
-        let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8) + (has_contract as u8);
-        if cnt != 1 {
+        if !Utils::exactly_one_some([
+            dep.project_id.map(|_| ()),
+            dep.external_cid.as_ref().map(|_| ()),
+            dep.external_url.as_ref().map(|_| ()),
+            dep.external_contract.as_ref().map(|_| ()),
+        ]) {
             return Err(ContractError::InvalidProjectData);
         }
 
@@ -253,7 +252,7 @@ impl DependencyRegistry {
             .persistent()
             .remove(&ExtensionKey::ProjectDependency(project_id, key.clone()));
 
-        let mut keys: Vec<String> = env
+        let keys: Vec<String> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))

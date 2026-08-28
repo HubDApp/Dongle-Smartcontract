@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(warnings)]
 
 mod admin_action_log;
 mod admin_manager;
@@ -45,13 +44,13 @@ use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
-use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
     AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, FeeRefundRecord, Project,
+    DisputeStatus, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
@@ -140,6 +139,14 @@ impl DongleContract {
         AdminManager::approve_proposal(&env, admin, proposal_id)
     }
 
+    pub fn reject_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::reject_proposal(&env, admin, proposal_id)
+    }
+
     pub fn execute_proposal(
         env: Env,
         caller: Address,
@@ -154,9 +161,9 @@ impl DongleContract {
 
     /// List admin proposals with pagination.
     ///
-    /// `start` is a zero-based offset and `limit` caps the page size.
-    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
-        AdminManager::list_proposals(&env, start, limit)
+    /// `start_index` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start_index: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start_index, limit)
     }
 
     // --- Contract Pause / Emergency Stop ---
@@ -325,16 +332,12 @@ impl DongleContract {
 
     /// Returns the region tag for a project, if set.
     pub fn get_project_region(env: Env, project_id: u64) -> Option<String> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectRegion(project_id))
+        ProjectRegistry::get_project_region(&env, project_id)
     }
 
     /// Returns the stored integrity hash for a project, if any.
     pub fn get_project_integrity_hash(env: Env, project_id: u64) -> Option<soroban_sdk::Bytes> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectIntegrityHash(project_id))
+        ProjectRegistry::get_project_integrity_hash(&env, project_id)
     }
 
     pub fn list_projects_by_status(
@@ -468,8 +471,8 @@ impl DongleContract {
         FeaturedRegistry::set_featured(&env, admin, project_id, featured)
     }
 
-    pub fn list_featured_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
-        FeaturedRegistry::list_featured_projects(&env, start, limit)
+    pub fn list_featured_projects(env: Env, start_index: u32, limit: u32) -> Vec<Project> {
+        FeaturedRegistry::list_featured_projects(&env, start_index, limit)
     }
 
     // --- Review Registry ---
@@ -632,8 +635,7 @@ impl DongleContract {
         ReviewRegistry::get_review_tombstone(&env, project_id, reviewer)
     }
 
-    /// List reviews sorted by the given sort mode with pagination.
-    /// Sorting is performed on-chain in-memory; compute cost scales with review count.
+    /// List a bounded review page. Sort the returned pages client-side.
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,
@@ -716,8 +718,24 @@ impl DongleContract {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
+    pub fn get_pending_verifications(
+        env: Env,
+        start: u32,
+        limit: u32,
+    ) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_pending_verifications(&env, start, limit)
+    }
+
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_records_batch(env: Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verification_records_batch(&env, request_ids)
     }
 
     /// Read the refund recorded after a rejected verification (issue #472).
@@ -924,6 +942,10 @@ impl DongleContract {
         FeeManager::get_fee_config(&env)
     }
 
+    pub fn get_fee_config_history(env: Env) -> Vec<FeeConfigHistoryEntry> {
+        FeeManager::get_fee_config_history(&env)
+    }
+
     /// Get fee payment details for a project (payer, amount, token, timestamp).
     pub fn get_fee_payment_details(env: Env, project_id: u64) -> Option<FeePaymentRecord> {
         FeeManager::get_fee_payment_details(&env, project_id)
@@ -1063,6 +1085,27 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
+    /// Look projects up by one or more tags using the inverted index (issue #483).
+    ///
+    /// `list_projects_by_tag` scans every project id on every call. This serves
+    /// the indexed range directly and scans only the range a backfill has not
+    /// reached yet, so a single call can also cover several tags at once instead
+    /// of one round trip per tag.
+    pub fn get_projects_by_tag_batch(env: Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_tag_batch(&env, tags, limit)
+    }
+
+    /// Backfill the tag index for projects registered before it existed.
+    /// Admin only. Processes at most `limit` ids and returns the new watermark.
+    pub fn reindex_tags(env: Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        ProjectRegistry::reindex_tags(&env, caller, limit)
+    }
+
+    /// Highest project id guaranteed to be present in the tag index.
+    pub fn get_tag_index_watermark(env: Env) -> u64 {
+        ProjectRegistry::get_tag_index_watermark(&env)
+    }
+
     pub fn list_projects_by_tag(
         env: Env,
         tag: String,
@@ -1130,18 +1173,18 @@ impl DongleContract {
     }
 
     /// List all collections with pagination.
-    pub fn list_collections(env: Env, start: u32, limit: u32) -> Vec<Collection> {
-        CollectionRegistry::list_collections(&env, start, limit)
+    pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
     /// List project IDs in a collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<u64> {
-        CollectionRegistry::list_collection_projects(&env, collection_id, start, limit)
+        CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.
@@ -1162,8 +1205,8 @@ impl DongleContract {
     }
 
     /// List admin action log entries with pagination (most recent first).
-    pub fn list_admin_actions(env: Env, start: u32, limit: u32) -> Vec<AdminActionEntry> {
-        AdminActionLog::list_admin_actions(&env, start, limit)
+    pub fn list_admin_actions(env: Env, start_index: u32, limit: u32) -> Vec<AdminActionEntry> {
+        AdminActionLog::list_admin_actions(&env, start_index, limit)
     }
 
     /// List admin action log entries filtered to a specific admin address (most recent first).
@@ -1173,10 +1216,10 @@ impl DongleContract {
     pub fn get_admin_action_log_by_admin(
         env: Env,
         admin: Address,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<AdminActionEntry> {
-        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start, limit)
+        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start_index, limit)
     }
 
     /// Get the total number of admin action log entries.
@@ -1395,11 +1438,11 @@ impl DongleContract {
     pub fn get_project_changelog(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
-        ChangelogRegistry::get_project_changelog(&env, project_id, start, limit, sort_mode)
+        ChangelogRegistry::get_project_changelog(&env, project_id, start_index, limit, sort_mode)
     }
 
     /// Get changelog entry count for a project.
@@ -1446,17 +1489,17 @@ impl DongleContract {
     pub fn get_project_followers(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Address> {
         crate::subscription_registry::SubscriptionRegistry::get_project_followers(
-            &env, project_id, start, limit,
+            &env, project_id, start_index, limit,
         )
     }
 
-    pub fn get_user_subscriptions(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
-            &env, user, start, limit,
+            &env, user, start_index, limit,
         )
     }
 
@@ -1478,8 +1521,8 @@ impl DongleContract {
         crate::bookmark_registry::BookmarkRegistry::is_bookmarked(&env, project_id, &user)
     }
 
-    pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
-        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
+    pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start_index, limit)
     }
 
     // --- Endorsement Registry ---
@@ -1580,8 +1623,8 @@ impl DongleContract {
         TimelockManager::get_action(&env, action_id)
     }
 
-    pub fn list_scheduled_actions(env: Env, start: u32, limit: u32) -> Vec<TimelockAction> {
-        TimelockManager::list_scheduled_actions(&env, start, limit)
+    pub fn list_scheduled_actions(env: Env, start_index: u32, limit: u32) -> Vec<TimelockAction> {
+        TimelockManager::list_scheduled_actions(&env, start_index, limit)
     }
 
     pub fn get_scheduled_action_count(env: Env) -> u64 {

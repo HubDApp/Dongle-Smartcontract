@@ -102,6 +102,59 @@ fn test_non_admin_cannot_approve() {
     assert_eq!(client.get_proposal(&id).unwrap().approvals.len(), 1);
 }
 
+#[test]
+fn test_admin_can_reject_pending_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, _admin2, admin3) = setup_two_of_three(&env);
+
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+
+    client.reject_proposal(&admin3, &id);
+
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Rejected
+    );
+    assert!(client.try_approve_proposal(&admin3, &id).is_err());
+    assert!(client.try_execute_proposal(&admin3, &id).is_err());
+}
+
+#[test]
+fn test_non_admin_cannot_reject_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, _admin2, _admin3) = setup_two_of_three(&env);
+
+    let outsider = Address::generate(&env);
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+
+    assert!(client.try_reject_proposal(&outsider, &id).is_err());
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Pending
+    );
+}
+
+#[test]
+fn test_approved_proposal_cannot_be_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, admin2, _admin3) = setup_two_of_three(&env);
+
+    let target = Address::generate(&env);
+    let id = client.create_proposal(&admin1, &ProposalPayload::AddAdmin(target), &0u64);
+    client.approve_proposal(&admin2, &id);
+
+    assert!(client.try_reject_proposal(&admin1, &id).is_err());
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Approved
+    );
+}
+
 // ─── Execution gating ────────────────────────────────────────────────────────
 
 #[test]
@@ -371,4 +424,145 @@ fn test_raising_threshold_blocks_an_already_approved_proposal() {
     // status recorded when it was approved.
     assert!(client.try_execute_proposal(&admin3, &pending).is_err());
     assert!(!client.is_admin(&target));
+}
+
+// ─── Threshold downgrade supermajority protection ────────────────────────────
+
+/// Exact-majority attempt: threshold is 3, proposal wants to lower to 2,
+/// but only 3 admins approved (== current_threshold). Must be rejected because
+/// the guard requires strictly MORE than current_threshold approvals.
+#[test]
+fn test_downgrade_threshold_rejected_when_approvals_equal_new_threshold() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Four admins, threshold = 3.
+    let (client, admin1) = crate::tests::fixtures::setup_contract(&env);
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    let admin4 = Address::generate(&env);
+    client.add_admin(&admin1, &admin2);
+    client.add_admin(&admin1, &admin3);
+    client.add_admin(&admin1, &admin4);
+    client.set_admin_approval_threshold(&admin1, &3);
+    assert_eq!(client.get_admin_approval_threshold(), 3);
+
+    // Propose lowering from 3 to 2.
+    let id = client.create_proposal(&admin1, &ProposalPayload::SetThreshold(2), &0u64);
+    // admin1 (proposer) + admin2 + admin3 = 3 approvals, which equals the
+    // current threshold of 3 but does NOT exceed it.  The supermajority guard
+    // requires strictly more than current_threshold, so execution must be refused.
+    client.approve_proposal(&admin2, &id);
+    client.approve_proposal(&admin3, &id); // 3 approvals == current_threshold → Approved
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Approved
+    );
+
+    let result = client.try_execute_proposal(&admin4, &id);
+    assert_eq!(
+        result,
+        Err(Ok(
+            crate::errors::ContractError::ThresholdDowngradeRequiresSupermajority
+        ))
+    );
+    // Threshold must remain unchanged.
+    assert_eq!(client.get_admin_approval_threshold(), 3);
+}
+/// have approved (> current_threshold of 3). Must succeed.
+#[test]
+fn test_downgrade_threshold_succeeds_with_supermajority() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Five admins, threshold = 3.
+    let (client, admin1) = crate::tests::fixtures::setup_contract(&env);
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    let admin4 = Address::generate(&env);
+    let admin5 = Address::generate(&env);
+    client.add_admin(&admin1, &admin2);
+    client.add_admin(&admin1, &admin3);
+    client.add_admin(&admin1, &admin4);
+    client.add_admin(&admin1, &admin5);
+    client.set_admin_approval_threshold(&admin1, &3);
+    assert_eq!(client.get_admin_approval_threshold(), 3);
+
+    // Propose lowering from 3 to 2.
+    let id = client.create_proposal(&admin1, &ProposalPayload::SetThreshold(2), &0u64);
+    // admin1 (proposer) + admin2 + admin3 + admin4 = 4 approvals > current_threshold of 3.
+    client.approve_proposal(&admin2, &id);
+    client.approve_proposal(&admin3, &id);
+    client.approve_proposal(&admin4, &id);
+
+    // Execute — should succeed because 4 > current_threshold(3).
+    client.execute_proposal(&admin5, &id);
+    assert_eq!(client.get_admin_approval_threshold(), 2);
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Executed
+    );
+}
+
+/// Raising the threshold via a proposal does not trigger the supermajority
+/// rule — only the live threshold needs to be met.
+#[test]
+fn test_raise_threshold_via_proposal_needs_only_current_threshold() {
+    let env = Env::default();
+    env.mock_all_auths();
+    // Two-of-three setup from the helper.
+    let (client, admin1, admin2, admin3) = setup_two_of_three(&env);
+
+    // Propose raising threshold from 2 to 3 — only 2 approvals needed.
+    let id = client.create_proposal(&admin1, &ProposalPayload::SetThreshold(3), &0u64);
+    client.approve_proposal(&admin2, &id);
+    // 2 approvals == current threshold of 2 → Approved; execute.
+    client.execute_proposal(&admin3, &id);
+
+    assert_eq!(client.get_admin_approval_threshold(), 3);
+}
+
+/// Threshold stays at 1 (single-admin). A SetThreshold(1) no-op via proposal
+/// is allowed because new_threshold == current_threshold is not a downgrade.
+#[test]
+fn test_set_threshold_noop_via_proposal_is_allowed() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = crate::tests::fixtures::setup_contract(&env);
+
+    // With threshold == 1 a proposal is immediately auto-approved on creation.
+    let id = client.create_proposal(&admin, &ProposalPayload::SetThreshold(1), &0u64);
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Approved
+    );
+    // Executing the no-op must succeed without triggering the supermajority guard.
+    client.execute_proposal(&admin, &id);
+    assert_eq!(client.get_admin_approval_threshold(), 1);
+}
+
+/// Verify that `set_admin_approval_threshold` (direct path) is blocked once
+/// the threshold is already above 1, forcing all future changes through
+/// the proposal system.
+#[test]
+fn test_direct_set_threshold_blocked_after_multisig_enabled() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin1, admin2, _admin3) = setup_two_of_three(&env);
+
+    // Attempting to lower via the direct path must fail.
+    let result = client.try_set_admin_approval_threshold(&admin1, &1);
+    assert!(
+        result.is_err(),
+        "direct set_admin_approval_threshold must be blocked once threshold > 1"
+    );
+    assert_eq!(client.get_admin_approval_threshold(), 2);
+
+    // Attempting to raise via the direct path must also fail.
+    let result = client.try_set_admin_approval_threshold(&admin2, &3);
+    assert!(
+        result.is_err(),
+        "even raising the threshold directly must go through the proposal system"
+    );
+    assert_eq!(client.get_admin_approval_threshold(), 2);
 }
