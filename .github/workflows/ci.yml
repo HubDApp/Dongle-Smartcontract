@@ -1,3 +1,24 @@
+# Dongle Smart Contract — Continuous Integration
+#
+# Full prose documentation for this pipeline lives in docs/CI_CD.md: the job
+# graph, what each job checks and why, the build targets covered, caching, and
+# how to reproduce every step locally. Keep docs/CI_CD.md §3 and §4 in sync
+# with this file in the same PR whenever a job is added, removed, or changed.
+#
+# Job overview (all start in parallel unless a `needs:` says otherwise):
+#   validate-manifest   - schema-check deployments.json
+#   validate-changelog  - Keep a Changelog conventions + validator self-tests
+#   fmt                 - cargo fmt --all -- --check
+#   wasm-check          - early no_std compile to wasm32-unknown-unknown
+#   clippy              - cargo clippy (WASM target, --all-features, -D warnings)
+#   test               - cargo test on the native host (soroban testutils host)
+#   build              - release WASM build            [needs fmt, clippy, test, wasm-check]
+#   optimize           - wasm-opt + upload artifact    [needs build]
+#
+# Toolchain is pinned by rust-toolchain.toml (1.85.0). The global
+# RUSTFLAGS: "-D warnings" below promotes every rustc warning to an error for
+# EVERY job, not just clippy.
+
 name: CI
 
 on:

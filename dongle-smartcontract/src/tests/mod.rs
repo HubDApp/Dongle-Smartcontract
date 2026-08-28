@@ -35,6 +35,8 @@ mod verification_lifecycle;
 mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
+// Issue #545: property-based fuzz tests for the CID and URL validators
+mod fuzz_validation;
 mod license_metadata;
 mod sorted_listing;
 mod string_validation;
@@ -49,6 +51,9 @@ mod fee_token_rotation;
 
 // Full verification-fee payment lifecycle integration test
 mod fee_lifecycle;
+
+// Issue #617: multi-step end-to-end workflow integration suite
+mod integration_workflows;
 
 // Storage field size boundary tests
 mod field_limits;
@@ -95,6 +100,11 @@ mod region_and_integrity;
 // Contract API compatibility (issue #257)
 mod api_compat;
 
-// Issues #658, #659, #660, #661: hidden review filtering, action log coverage,
-// maintainer permissions, and featured projects limit enforcement.
-mod issues_658_659_660_661;
+// Issue #620: Project metadata validation gaps (https-only, CID charset)
+mod validation_620;
+
+// Issue #622: Fee payment state machine enforcement
+mod fee_state_machine_622;
+
+// Issue #623: Admin threshold downgrade supermajority edge cases
+mod supermajority_623;

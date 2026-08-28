@@ -2,10 +2,12 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::errors::ContractError;
 use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{
@@ -52,11 +54,6 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
 
-        let history_id = env
-            .storage()
-            .persistent()
-            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
-            .unwrap_or(0);
         let history_entry = FeeConfigHistoryEntry {
             admin: admin.clone(),
             old_token: old_config.as_ref().and_then(|config| config.token.clone()),
@@ -69,13 +66,15 @@ impl FeeManager {
             treasury: treasury.clone(),
             timestamp: env.ledger().timestamp(),
         };
+        let mut history: Vec<FeeConfigHistoryEntry> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env));
+        history.push_back(history_entry);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::FeeConfigHistoryEntry(history_id), &history_entry);
-        env.storage().persistent().set(
-            &ExtensionKey::FeeConfigHistoryCount,
-            &(history_id + 1u32),
-        );
+            .set(&ExtensionKey::FeeConfigHistory, &history);
 
         publish_fee_set_event(
             env,
@@ -247,6 +246,14 @@ impl FeeManager {
             .ok_or(ContractError::FeeConfigNotSet)
     }
 
+    /// Get all fee configuration changes in chronological order (oldest first).
+    pub fn get_fee_config_history(env: &Env) -> Vec<FeeConfigHistoryEntry> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
     /// Pay the registration fee for a project.
     /// Only the project owner may pay; third-party payments are rejected.
     ///
@@ -369,19 +376,34 @@ impl FeeManager {
                 .get(&StorageKey::Treasury)
                 .ok_or(ContractError::TreasuryNotSet)?;
 
+            // Remove payment records from storage BEFORE executing the token transfer.
+            // This follows the checks-effects-interactions pattern: the state
+            // transition (Pending → Cancelled) is written atomically before the
+            // outbound transfer, so that even if re-entrant logic were possible
+            // in a future Soroban version the payment flag could never be
+            // consumed a second time.  In the current Soroban WASM sandbox,
+            // re-entrancy is not possible, but the ordering is preserved here
+            // for correctness and consistency with `claim_fee_refund`.
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::FeePaidForProject(project_id));
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::FeePaymentDetails(project_id));
+
             // Treasury authorization is required to transfer tokens out of the treasury
             treasury.require_auth();
             let token_client = soroban_sdk::token::Client::new(env, &token_address);
             token_client.transfer(&treasury, &record.payer, &(record.amount as i128));
+        } else {
+            // Zero-fee cancellation: just remove the storage flags.
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::FeePaidForProject(project_id));
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::FeePaymentDetails(project_id));
         }
-
-        // Remove payment records from storage
-        env.storage()
-            .persistent()
-            .remove(&StorageKey::FeePaidForProject(project_id));
-        env.storage()
-            .persistent()
-            .remove(&ExtensionKey::FeePaymentDetails(project_id));
 
         // Publish event
         crate::events::publish_fee_cancelled_event(
