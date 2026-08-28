@@ -153,6 +153,10 @@ pub enum ExtensionKey {
     ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
+    /// Endorser at a zero-based project position.
+    EndorsementAt(u64, u32),
+    /// Zero-based position of an endorser in a project's index.
+    EndorsementIndex(u64, Address),
     /// Endorsement count for a project.
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
