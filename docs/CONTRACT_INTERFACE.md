@@ -965,6 +965,9 @@ let maintainers = get_maintainers(env, project_id);
 
 ---
 
+> **See also:** [`RESERVED_NAMES.md`](./RESERVED_NAMES.md) — feature overview,
+> matching semantics, enforcement paths, use cases, and events.
+
 ### `add_reserved_name`
 
 **Purpose**: Add a name to the reserved project names list (admin-only).
@@ -977,10 +980,14 @@ let maintainers = get_maintainers(env, project_id);
 **Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
-- Caller must be an admin
+- Caller must be an admin (via `require_admin_auth`; honours multi-sig quorum)
+
+**Behaviour**:
+- Case-insensitive. Idempotent: if an equal name is already reserved the call is a no-op and returns `Ok(())` without emitting an event.
+- On success emits `(Symbol("CONFIG"), Symbol("RSVD_ADD"))` and records `ReservedNameAdded` in the admin action log.
 
 **Possible Errors**:
-- `AdminOnly` - Caller is not an admin
+- `Unauthorized` / `AdminOnly` - Caller is not an admin
 
 **Example**:
 ```rust
@@ -1001,10 +1008,14 @@ add_reserved_name(env, admin_address, String::from_slice(&env, "reserved-name"))
 **Return Value**: `Result<(), ContractError>`
 
 **Authorization**: 
-- Caller must be an admin
+- Caller must be an admin (via `require_admin_auth`; honours multi-sig quorum)
+
+**Behaviour**:
+- Case-insensitive. Idempotent: if the name is not present the call is a no-op and returns `Ok(())` without emitting an event.
+- On success emits `(Symbol("CONFIG"), Symbol("RSVD_REM"))` and records `ReservedNameRemoved` in the admin action log.
 
 **Possible Errors**:
-- `AdminOnly` - Caller is not an admin
+- `Unauthorized` / `AdminOnly` - Caller is not an admin
 
 **Example**:
 ```rust
@@ -4541,7 +4552,7 @@ The contract uses these error codes consistently (from `ContractError` enum):
 | `ProjectNotArchived` | 52 | Project not archived |
 | `TransferNotFound` | 53 | No pending transfer found |
 | `NotTransferRecip` | 54 | Caller is not transfer recipient |
-| `ReservedName` | 55 | Project name is reserved |
+| `ReservedName` | 43 | Project name is reserved (see [`RESERVED_NAMES.md`](./RESERVED_NAMES.md); canonical codes in [`ERROR_CODES.md`](./ERROR_CODES.md)) |
 | `FeeMissing` | 56 | Required fee has not been paid |
 | `FeeInvalid` | 57 | Fee configuration is invalid |
 | `FeeAlreadyPaid` | 58 | Fee has already been paid |
