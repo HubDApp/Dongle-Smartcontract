@@ -3462,9 +3462,16 @@ if let Some(entry) = get_admin_action_log_entry(env, log_id) {
 
 **Purpose**: List admin action log entries with pagination (most recent first).
 
+**Pagination convention**: reverse / most-recent-first offset. `start_index` counts
+back from the newest entry, so `start_index = 0` returns the newest `limit` entries
+and `start_index = limit` returns the page before that. This differs from the
+ID-cursor endpoints (`list_projects`) and the forward index-offset endpoints
+(`list_featured_projects`, `list_reviews`); see
+[ARCHITECTURE.md §8 Pagination conventions](ARCHITECTURE.md#8-pagination-conventions).
+
 **Parameters**:
 - `env` (Env): The contract environment
-- `start_index` (u32): Starting index
+- `start_index` (u32): Offset back from the newest entry (0 = newest page)
 - `limit` (u32): Maximum entries to return
 
 **Return Value**: `Vec<AdminActionEntry>`
