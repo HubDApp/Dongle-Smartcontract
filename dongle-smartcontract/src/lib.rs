@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
