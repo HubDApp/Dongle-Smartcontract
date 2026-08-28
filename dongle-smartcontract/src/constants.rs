@@ -104,9 +104,19 @@ pub const MIN_CID_LEN: usize = 46;
 pub const MAX_REVIEW_REVISIONS: u32 = 50;
 
 /// Bayesian prior review count for weighted rating (see RatingCalculator::calculate_weighted).
+/// Represents the "strength" of the prior belief vs actual data.
+/// A value of 5 means the prior is treated as if it were 5 hypothetical reviews.
+/// Higher values give more weight to the prior (more conservative ratings).
+/// Lower values give more weight to actual reviews (more volatile ratings).
+/// Chosen as 5 to balance stability with responsiveness to genuine feedback.
 pub const WEIGHTED_RATING_PRIOR_COUNT: u32 = 5;
 
 /// Bayesian prior mean rating scaled by 100 (350 = 3.50 stars).
+/// Represents the baseline rating for an "average" project.
+/// Set to 3.50 (middle of 1-5 scale, slightly above midpoint) to assume
+/// most projects are decent but not perfect.
+/// Prevents new projects from starting at the extremes (1.0 or 5.0).
+/// As review count grows, the actual average dominates this prior.
 pub const WEIGHTED_RATING_PRIOR_MEAN: u32 = 350;
 
 /// Project metadata fields whose changes invalidate an existing verification.
