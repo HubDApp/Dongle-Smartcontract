@@ -15,6 +15,7 @@ how the codebase fits together before diving into individual files.
 5. [Storage layout](#5-storage-layout)
 6. [Event taxonomy](#6-event-taxonomy)
 7. [Module reference](#7-module-reference)
+8. [Pagination conventions](#8-pagination-conventions)
 
 ---
 
@@ -407,3 +408,36 @@ Quick-reference for every source file.
 | `pagination.rs` | `paginate` (free fn) | Slice a `Vec` with start + limit; clamps to `MAX_PAGE_LIMIT` | `constants` |
 | `utils.rs` | `Utils` | String validation, name normalization, vec ops, field-freeze checks | `constants`, `errors`, `storage_keys` |
 | `validation.rs` | — (free fns) | Cross-field registration param validation | `errors`, `types`, `utils` |
+
+---
+
+## 8. Pagination conventions
+
+List endpoints in this crate use **one of three** pagination conventions. The
+convention is fixed per endpoint and reflects the shape of the underlying data,
+not an accident of history. New list endpoints should reuse the closest existing
+convention rather than inventing a fourth.
+
+| Convention | Cursor parameter | How it advances | When it is used | Example endpoints |
+|---|---|---|---|---|
+| **ID cursor** | `start_id: u64` | Caller passes the last ID seen + 1; the endpoint scans forward from that ID over a dense, monotonic ID space | Collections keyed directly by a sequential entity ID, where an entry is never removed from the middle | `list_projects`, `list_projects_by_status` |
+| **Index offset** (forward) | `start_index: u32` | Zero-based offset into an ascending `Vec`; delegated to [`pagination::paginate`](../dongle-smartcontract/src/pagination.rs), which clamps `limit` to `MAX_PAGE_LIMIT` | Endpoints backed by an explicit index `Vec` (featured list, per-project review list, per-tag/category ID list) where the natural read order is oldest-first | `list_featured_projects`, `list_reviews`, `list_projects_by_tag`, `list_collections` |
+| **Reverse offset** (most-recent-first) | `start_index: u32` | `start_idx = count - start_index`, then walks **backward** over descending IDs; `start_index = 0` is the newest page | Append-only audit trails where the default page must be the most recent entries | `list_admin_actions`, `get_admin_action_log_by_admin` |
+
+### Why `list_admin_actions` diverges
+
+The admin action log (`admin_action_log.rs`) is an append-only audit trail with a
+dense, monotonic ID space (`1..=count`). Incident responders and operators
+almost always want the *latest* actions first, so:
+
+* Offset `0` returns the newest `limit` entries (a forward offset would make the
+  first page the genesis actions).
+* `count - start_index` is an O(1) seek — no cursor bookkeeping is needed
+  because IDs are dense.
+* Page boundaries stay stable as new actions are appended (a forward offset
+  would shift every boundary on each new entry).
+
+Both admin-log endpoints (`list_admin_actions` and the per-admin
+`get_admin_action_log_by_admin`) share this convention so the module is
+internally consistent. The rationale is also recorded in the rustdoc on
+`AdminActionLog::list_admin_actions`.

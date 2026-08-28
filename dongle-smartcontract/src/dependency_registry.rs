@@ -139,6 +139,85 @@ impl DependencyRegistry {
         Err(ContractError::InvalidProjectData)
     }
 
+    /// Collect the `project_id` targets of a project's registered
+    /// dependencies. External references (cid / url / contract) are ignored
+    /// because they cannot form a cycle inside this contract's graph.
+    fn dependency_project_ids(env: &Env, project_id: u64) -> Vec<u64> {
+        let mut out = Vec::new(env);
+        let keys: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        for i in 0..keys.len() {
+            if let Some(k) = keys.get(i) {
+                if let Some(dep) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, ProjectDependency>(&ExtensionKey::ProjectDependency(project_id, k))
+                {
+                    if let Some(pid) = dep.reference.project_id {
+                        out.push_back(pid);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Guard against circular references and excessive nesting before a
+    /// project-to-project dependency edge (`dependent` -> `new_dep`) is stored.
+    ///
+    /// The edge `dependent -> new_dep` is treated as level 1. Starting from
+    /// `new_dep`, the transitive dependency graph is walked breadth-first:
+    /// - reaching `dependent` again means the edge would close a cycle
+    ///   (`CircularDependency`);
+    /// - a walk that still has unexplored nodes beyond
+    ///   `MAX_DEPENDENCY_DEPTH` levels means the chain is too deep
+    ///   (`DependencyDepthExceeded`).
+    fn check_project_dependency_graph(
+        env: &Env,
+        dependent: u64,
+        new_dep: u64,
+    ) -> Result<(), ContractError> {
+        if new_dep == dependent {
+            return Err(ContractError::CannotLinkToSelf);
+        }
+
+        let mut frontier: Vec<u64> = Vec::new(env);
+        frontier.push_back(new_dep);
+        let mut visited: Vec<u64> = Vec::new(env);
+        visited.push_back(new_dep);
+
+        let mut level: u32 = 1;
+        while frontier.len() > 0 {
+            if level > crate::constants::MAX_DEPENDENCY_DEPTH {
+                return Err(ContractError::DependencyDepthExceeded);
+            }
+            let mut next: Vec<u64> = Vec::new(env);
+            for i in 0..frontier.len() {
+                if let Some(node) = frontier.get(i) {
+                    if node == dependent {
+                        return Err(ContractError::CircularDependency);
+                    }
+                    let children = Self::dependency_project_ids(env, node);
+                    for j in 0..children.len() {
+                        if let Some(child) = children.get(j) {
+                            if !visited.contains(child) {
+                                visited.push_back(child);
+                                next.push_back(child);
+                            }
+                        }
+                    }
+                }
+            }
+            frontier = next;
+            level += 1;
+        }
+
+        Ok(())
+    }
+
     pub fn add_dependency(
         env: &Env,
         project_id: u64,
@@ -152,6 +231,10 @@ impl DependencyRegistry {
             return Err(ContractError::Unauthorized);
         }
         Self::validate_dependency_ref(env, &dependency.reference)?;
+
+        if let Some(dep_pid) = dependency.reference.project_id {
+            Self::check_project_dependency_graph(env, project_id, dep_pid)?;
+        }
 
         let key = Self::dependency_key(env, &dependency.reference)?;
 
