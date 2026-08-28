@@ -1,6 +1,6 @@
 use crate::admin_manager::AdminManager;
 use crate::auth::require_admin_auth;
-use crate::constants::TIMELOCK_MIN_DELAY;
+use crate::constants::{TIMELOCK_MAX_DELAY, TIMELOCK_MIN_DELAY};
 use crate::errors::ContractError;
 use crate::events::{
     publish_timelock_action_cancelled_event, publish_timelock_action_executed_event,
@@ -43,12 +43,24 @@ impl TimelockManager {
             .unwrap_or(Vec::new(env))
     }
 
+    /// Validate that a requested execution time sits within the allowed
+    /// timelock window: `now + TIMELOCK_MIN_DELAY <= execution_timestamp <=
+    /// now + TIMELOCK_MAX_DELAY`.
+    ///
+    /// Edge cases:
+    /// - `execution_timestamp <= now` (including a zero-delay "execute now"
+    ///   request) is rejected.
+    /// - Anything shorter than `TIMELOCK_MIN_DELAY` (1 day) is rejected.
+    /// - Anything longer than `TIMELOCK_MAX_DELAY` (90 days) is rejected.
     fn validate_timelock(env: &Env, execution_timestamp: u64) -> Result<(), ContractError> {
         let now = env.ledger().timestamp();
         if execution_timestamp <= now {
             return Err(ContractError::InvalidInput);
         }
         if execution_timestamp < now.saturating_add(TIMELOCK_MIN_DELAY) {
+            return Err(ContractError::InvalidInput);
+        }
+        if execution_timestamp > now.saturating_add(TIMELOCK_MAX_DELAY) {
             return Err(ContractError::InvalidInput);
         }
         Ok(())
