@@ -2,6 +2,12 @@
 
 **Dongle** is an open-source smart contract built on the **Stellar network** that enables decentralized project discovery and verification on-chain.
 
+## ⚠️ Build Status
+
+**Current Status:** 🔴 **NOT READY FOR DEPLOYMENT** — Build is broken, see [BUILD_STATUS.md](BUILD_STATUS.md) for details.
+
+For deployment readiness assessment, consult [BUILD_STATUS.md](BUILD_STATUS.md) — this is the authoritative source for current project status. Do not rely on other completion/status documents.
+
 ## Overview
 
 Dongle serves as a foundational protocol for building transparent, on-chain project registries. It enables:
@@ -18,13 +24,17 @@ This repository contains the smart contract logic only. Frontend interfaces and 
 
 For detailed information, refer to:
 
+- **[Architecture Overview](docs/ARCHITECTURE.md)** — Module dependency diagram, data flows, storage layout, and event taxonomy — start here as a new contributor
 - **[Smart Contract API & Usage](dongle-smartcontract/README.md)** — Complete API reference, usage examples, and deployment guide
 - **[Contract Interface Specification](docs/CONTRACT_INTERFACE.md)** — Detailed function documentation with parameters and error codes
 - **[Storage Schema & Keys](docs/STORAGE_SCHEMA.md)** — Storage architecture and persistence management
 - **[Admin Rotation & Security](docs/ADMIN_ROTATION_PLAYBOOK.md)** — Operational security guidelines
+- **[Admin Timelock](docs/TIMELOCK.md)** — Scheduled admin actions, delay bounds (1–90 days), and edge cases
 - **[Event Schema](docs/EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
 - **[Threat Model](docs/THREAT_MODEL.md)** — Security analysis and risk mitigation
+- **[Approval Threshold Audit](docs/APPROVAL_THRESHOLD_AUDIT.md)** — Multi-sig quorum enforcement review across all proposal types
 - **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
+- **[Dependency Registry](docs/DEPENDENCY_REGISTRY.md)** — Project dependency references, circular-reference protection, and depth limits
 - **[Data Export Guide](docs/DATA_EXPORT_GUIDE.md)** — How indexers reconstruct contract state
 - **[Contributing Guidelines](docs/CONTRIBUTING.md)** — How to contribute, test, and submit PRs
 - **[Changelog](CHANGELOG.md)** — Release history, breaking changes and feature additions ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + SemVer)
@@ -235,6 +245,8 @@ See [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md) for complete documenta
 
 ## Development Status
 
+⚠️ **See [BUILD_STATUS.md](BUILD_STATUS.md) for current build and deployment readiness.**
+
 ✅ Contract structure defined  
 ✅ Core storage models implemented  
 ✅ Extended features (reviews, verification, collections, etc.)  
@@ -244,6 +256,8 @@ See [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md) for complete documenta
 ✅ Ongoing improvements and testing  
 
 This is an **actively evolving open-source project**.
+
+**Note:** Any "completion" or "ready" documents in the repo history are stale and potentially misleading. Consult [BUILD_STATUS.md](BUILD_STATUS.md) for the actual current state.
 
 ## Deployments
 
@@ -272,6 +286,7 @@ Dongle promotes:
 
 ## Documentation
 
+- [Architecture Overview](docs/ARCHITECTURE.md) - Module structure, dependency diagram, data flows, storage layout, event taxonomy
 - [Smart Contract README](dongle-smartcontract/README.md) - Comprehensive API documentation and usage examples
 - [EVENTS_SCHEMA.md](docs/EVENTS_SCHEMA.md) - Event topic and data schema reference for indexers
 - [THREAT_MODEL.md](docs/THREAT_MODEL.md) - Security threat model and mitigation reference

@@ -21,6 +21,8 @@ impl ChangelogRegistry {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -31,6 +33,8 @@ impl ChangelogRegistry {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         // Authentication check
         owner.require_auth();
@@ -43,7 +47,7 @@ impl ChangelogRegistry {
             return Err(ContractError::Unauthorized);
         }
 
-        // Validate CID
+        // Validate primary CID
         if cid.is_empty() {
             return Err(ContractError::InvalidCid);
         }
@@ -52,6 +56,23 @@ impl ChangelogRegistry {
         }
         if cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidCid);
+        }
+
+        // Validate optional version string (must be non-empty when provided)
+        if let Some(ref v) = version {
+            if v.is_empty() {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        // Validate optional secondary changelog CID when provided
+        if let Some(ref ccid) = changelog_cid {
+            if ccid.is_empty()
+                || !Utils::is_valid_ipfs_cid(ccid)
+                || ccid.len() as usize > MAX_CID_LEN
+            {
+                return Err(ContractError::InvalidCid);
+            }
         }
 
         // Check for duplicate CID in existing changelog entries
@@ -81,6 +102,8 @@ impl ChangelogRegistry {
             cid: cid.clone(),
             created_at: now,
             description,
+            version,
+            changelog_cid,
         };
 
         // Store changelog entry
@@ -144,7 +167,7 @@ impl ChangelogRegistry {
         }
 
         // Remove from project's changelog list
-        let mut project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
         let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
         env.storage().persistent().set(
             &ExtensionKey::ProjectChangelogEntries(entry.project_id),
@@ -170,7 +193,7 @@ impl ChangelogRegistry {
     /// # Arguments
     /// - `env`: The Soroban environment
     /// - `project_id`: The project ID to get changelog for
-    /// - `start`: Starting index for pagination
+    /// - `start_index`: Starting index for pagination
     /// - `limit`: Maximum number of entries to return (capped at MAX_PAGE_LIMIT)
     /// - `sort_mode`: Sort order (Newest or Oldest)
     ///
@@ -179,7 +202,7 @@ impl ChangelogRegistry {
     pub fn get_project_changelog(
         env: &Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: crate::types::ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
@@ -200,7 +223,7 @@ impl ChangelogRegistry {
         let changelog_ids = Self::get_project_changelog_entries(env, project_id);
         let total = changelog_ids.len();
 
-        if total == 0 || start >= total {
+        if total == 0 || start_index >= total {
             return Vec::new(env);
         }
 
@@ -227,10 +250,10 @@ impl ChangelogRegistry {
         }
 
         // Apply pagination
-        let end = (start + effective_limit).min(total);
+        let end = (start_index + effective_limit).min(total);
         let mut paginated = Vec::new(env);
 
-        for i in start..end {
+        for i in start_index..end {
             if let Some(entry) = entries.get(i) {
                 paginated.push_back(entry.clone());
             }

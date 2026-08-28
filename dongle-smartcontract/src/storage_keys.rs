@@ -20,9 +20,8 @@ pub enum StorageKey {
     ProjectByName(String),
     /// Project by slug (for URL lookups).
     ProjectBySlug(String),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
+    /// Project lifecycle status by project ID.
+    ProjectLifecycleStatus(u64),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -164,6 +163,8 @@ pub enum ExtensionKey {
     FeePaymentDetails(u64),
     /// Fee payment details for a registration (payer, amount, token, timestamp).
     RegistrationFeePaymentDetails(Address),
+    /// Claimable refund owed after a rejected verification (issue #472).
+    FeeRefund(u64),
     /// List of reserved project names (admin-managed).
     ReservedNames,
     /// Optional region/market metadata for a project.
@@ -172,7 +173,28 @@ pub enum ExtensionKey {
     ProjectIntegrityHash(u64),
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ///
+    /// Declared here rather than in `StorageKey`: Soroban caps a `#[contracttype]`
+    /// union at 50 cases and `StorageKey` was at 51, which panics the macro. The
+    /// key encoding is the variant name plus payload and is identical either way,
+    /// so relocating it needs no storage migration. An unused duplicate of this
+    /// variant already existed here.
     ProjectByNormalizedName(String),
+    /// Inverted tag index: tag -> project ids carrying it (issue #483).
+    ///
+    /// Declared here rather than in `StorageKey` for the reason recorded on
+    /// `ProjectByNormalizedName` above: Soroban caps a `#[contracttype]` union at
+    /// 50 cases and `StorageKey` is already at exactly 50. The issue suggested
+    /// `StorageKey::TagProjects`, which cannot compile.
+    TagProjects(String),
+    /// Watermark for the tag index: every project id `<= n` is represented in
+    /// `TagProjects` (issue #483).
+    ///
+    /// Projects registered before the index existed are not in it, and an empty
+    /// index entry is indistinguishable from "no project has this tag". The
+    /// watermark makes the covered range explicit, so a lookup can serve indexed
+    /// ids directly and scan only the uncovered tail. `reindex_tags` advances it.
+    TagIndexWatermark,
     /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
     /// pause state across mutating entry points is intentionally out of scope for the
     /// config-view feature; see `set_pause` for the toggle.
@@ -183,7 +205,15 @@ pub enum ExtensionKey {
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
-    /// Admin-configured maximum number of reviews per project.
-    /// Falls back to `MAX_REVIEWS_PER_PROJECT` (500) when absent.
-    MaxReviewsPerProject,
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
+    /// Global index of pending verification request IDs, in creation order.
+    PendingVerificationRequests,
+    /// Fee configuration change history, appended oldest-first.
+    ///
+    /// Stored as a single `Vec<FeeConfigHistoryEntry>` rather than one key per
+    /// entry because `ExtensionKey` is a `#[contracttype]` union and Soroban
+    /// caps those at 50 cases; a per-entry key plus a separate count key would
+    /// need two slots and push the enum over the limit.
+    FeeConfigHistory,
 }

@@ -104,12 +104,12 @@ impl StorageManager {
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(
+            .has(&ExtensionKey::ProjectByNormalizedName(
                 normalized_name.clone(),
             ))
         {
             env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
+                &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
                 LEDGER_THRESHOLD_PROJECT,
                 LEDGER_BUMP_PROJECT,
             );
@@ -241,7 +241,7 @@ impl StorageManager {
     }
 
     /// Extend TTL for project bounty url (removed - not part of core storage)
-    pub fn extend_project_bounty_url_ttl(env: &Env, project_id: u64) {
+    pub fn extend_project_bounty_url_ttl(_env: &Env, _project_id: u64) {
         // Bounty URL storage removed - not part of core implementation
     }
 

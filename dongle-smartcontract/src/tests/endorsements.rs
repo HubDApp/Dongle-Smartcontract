@@ -84,6 +84,18 @@ fn endorse_nonexistent_project_returns_exact_error() {
 }
 
 #[test]
+fn unendorse_nonexistent_project_returns_exact_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let user = Address::generate(&env);
+
+    let result = client.try_unendorse_project(&999u64, &user);
+    assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
+}
+
+#[test]
 fn endorse_project_requires_user_authorization() {
     let env = Env::default();
 

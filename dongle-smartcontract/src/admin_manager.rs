@@ -14,7 +14,7 @@ use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{xdr::ToXdr, Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Env, Map, Vec};
 
 pub struct AdminManager;
 impl AdminManager {
@@ -48,11 +48,16 @@ impl AdminManager {
     }
 
     /// Add a new admin (only callable by existing admins)
+    /// 
+    /// # Errors
+    /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
+    /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
+    /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
     pub fn add_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
-            return Err(ContractError::Unauthorized);
+            return Err(ContractError::MultiSigRequired);
         }
 
         // Check if already an admin
@@ -90,6 +95,11 @@ impl AdminManager {
     }
 
     /// Remove an admin (only callable by existing admins)
+    /// 
+    /// # Errors
+    /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
+    /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
+    /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
     pub fn remove_admin(
         env: &Env,
         caller: Address,
@@ -98,7 +108,7 @@ impl AdminManager {
         require_admin_auth(env, &caller)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
-            return Err(ContractError::Unauthorized);
+            return Err(ContractError::MultiSigRequired);
         }
 
         // Check if the address is actually an admin first
@@ -203,6 +213,38 @@ impl AdminManager {
             .unwrap_or(1)
     }
 
+    /// Directly set the admin approval threshold (single-admin fast-path).
+    ///
+    /// # Purpose
+    /// This function is the *bootstrap* path for enabling multi-sig governance.
+    /// It lets a single admin raise the threshold from the default of 1 to any
+    /// value up to the current admin count.
+    ///
+    /// # Why it is intentionally locked once multi-sig is active
+    /// Once the threshold is above 1 (multi-sig mode), this direct setter
+    /// returns `Unauthorized` for every caller. This is deliberate: changing the
+    /// governance quorum must itself pass through the same quorum.  Any future
+    /// threshold change — including *lowering* it — must be submitted as a
+    /// `ProposalPayload::SetThreshold` proposal and approved by the required
+    /// number of admins before it can execute.
+    ///
+    /// # Threshold-downgrade protection in the proposal path
+    /// A `SetThreshold` proposal that would lower the current threshold is
+    /// subject to a supermajority rule enforced inside `execute_proposal`:
+    /// the number of approvals on the proposal must be **strictly greater than**
+    /// the proposed new threshold.  This prevents exactly `new_threshold`
+    /// colluding admins from using the proposal system to silently dismantle the
+    /// multi-sig quorum that was designed to stop them.
+    ///
+    /// Example: threshold is currently 3 and a proposal wants to reduce it to 2.
+    /// The proposal must collect at least 3 approvals (> 2) before it can
+    /// execute. A threshold increase has no additional requirement beyond the
+    /// live threshold.
+    ///
+    /// # Errors
+    /// - `InvalidProjectData` – `threshold` is 0 or exceeds the current admin count.
+    /// - `Unauthorized`       – the current threshold is already above 1; use the
+    ///                          proposal system instead.
     pub fn set_admin_approval_threshold(
         env: &Env,
         caller: Address,
@@ -237,11 +279,12 @@ impl AdminManager {
         env: &Env,
         proposer: Address,
         payload: ProposalPayload,
+        expires_at: u64,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::require_admin(env, &proposer)?;
 
-        let mut id: u64 = env
+        let id: u64 = env
             .storage()
             .persistent()
             .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
@@ -259,8 +302,8 @@ impl AdminManager {
 
         let payload_hash = Self::compute_payload_hash(env, &payload);
 
-        let mut approvals = Vec::new(env);
-        approvals.push_back(proposer.clone());
+        let mut approvals = Map::new(env);
+        approvals.set(proposer.clone(), true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         let status = if approvals.len() >= threshold {
@@ -278,6 +321,7 @@ impl AdminManager {
             approvals,
             status,
             created_at: env.ledger().timestamp(),
+            expires_at,
         };
 
         env.storage().persistent().set(
@@ -323,19 +367,46 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
-        for existing in proposal.approvals.iter() {
-            if existing == admin {
-                return Err(ContractError::Unauthorized);
-            }
+        if proposal.approvals.contains_key(admin.clone()) {
+            return Err(ContractError::Unauthorized);
         }
 
-        proposal.approvals.push_back(admin);
+        proposal.approvals.set(admin, true);
 
         let threshold = Self::get_admin_approval_threshold(env);
         if proposal.approvals.len() >= threshold {
             proposal.status = ProposalStatus::Approved;
         }
 
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            &proposal,
+        );
+
+        Ok(())
+    }
+
+    pub fn reject_proposal(
+        env: &Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::require_admin(env, &admin)?;
+
+        let mut proposal = env
+            .storage()
+            .persistent()
+            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
+            .ok_or(ContractError::InvalidStatus)?;
+
+        if proposal.status != ProposalStatus::Pending {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        proposal.status = ProposalStatus::Rejected;
         env.storage().persistent().set(
             &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
             &proposal,
@@ -369,7 +440,14 @@ impl AdminManager {
             return Err(ContractError::PayloadHashMismatch);
         }
 
-        if proposal.status == ProposalStatus::Executed {
+        // Reject stale proposals: if expires_at is non-zero and the current
+        // ledger time has reached or passed it, the proposal can no longer be
+        // executed regardless of its approval status.
+        if proposal.expires_at != 0 && env.ledger().timestamp() >= proposal.expires_at {
+            return Err(ContractError::ProposalExpired);
+        }
+
+        if proposal.status != ProposalStatus::Approved {
             return Err(ContractError::InvalidStatus);
         }
 
@@ -435,6 +513,29 @@ impl AdminManager {
                 if new_threshold == 0 || new_threshold > Self::get_admin_count(env) {
                     return Err(ContractError::InvalidProjectData);
                 }
+
+                // Supermajority rule for threshold downgrades:
+                //
+                // If this proposal would *lower* the current threshold, the number
+                // of approvals must be strictly greater than the *current* threshold
+                // — not merely greater than the proposed new threshold.
+                //
+                // Rationale: the quorum that is being dismantled must itself be
+                // exceeded, not just the smaller quorum being installed. With a
+                // guard of `> new_threshold` only, exactly `current_threshold`
+                // colluding admins could create a proposal that passes the live
+                // threshold check and yet immediately reduces future quorum.
+                // Requiring `> current_threshold` means at least one admin beyond
+                // the current quorum must sign off on any reduction.
+                //
+                // For threshold *increases* or no-ops the normal threshold check
+                // (approvals.len() >= current_threshold) already performed above
+                // is sufficient; no additional requirement is added.
+                let current_threshold = Self::get_admin_approval_threshold(env);
+                if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
+                    return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
+                }
+
                 env.storage().persistent().set(
                     &crate::storage_keys::ExtensionKey::AdminApprovalThreshold,
                     &new_threshold,
@@ -579,26 +680,22 @@ impl AdminManager {
 
     /// List admin proposals with pagination.
     ///
-    /// `start` is a zero-based offset into the proposal ID list and `limit`
+    /// `start_index` is a zero-based offset into the proposal ID list and `limit`
     /// caps how many proposals are returned (clamped to `MAX_PAGE_LIMIT`).
     /// Returns the corresponding `AdminProposal` structs for the paginated
     /// slice of IDs, skipping any that are missing from storage.
-    pub fn list_proposals(env: &Env, start: u32, limit: u32) -> Vec<AdminProposal> {
+    pub fn list_proposals(env: &Env, start_index: u32, limit: u32) -> Vec<AdminProposal> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
             .get::<_, Vec<u64>>(&crate::storage_keys::ExtensionKey::AdminProposalIds)
             .unwrap_or_else(|| Vec::new(env));
-        let page_ids = crate::pagination::paginate(env, &ids, start, limit);
+        let page_ids = crate::pagination::paginate(env, &ids, start_index, limit);
         let mut result = Vec::new(env);
         for proposal_id in page_ids.iter() {
-            if let Some(proposal) = env
-                .storage()
-                .persistent()
-                .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
-                    proposal_id,
-                ))
-            {
+            if let Some(proposal) = env.storage().persistent().get::<_, AdminProposal>(
+                &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            ) {
                 result.push_back(proposal);
             }
         }

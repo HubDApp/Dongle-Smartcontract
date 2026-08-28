@@ -46,6 +46,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     })
 }
 
@@ -180,7 +181,7 @@ fn test_zero_fee_no_token_succeeds() {
 // --- Native fee rejection ---
 
 /// Configuring a non-zero fee without a token address (i.e. native asset) must
-/// be rejected at set_fee time with NativeFeeNotSupported.
+/// be rejected at set_fee time with FeeConfigNotSet.
 #[test]
 fn test_native_fee_rejected_at_config() {
     let env = Env::default();

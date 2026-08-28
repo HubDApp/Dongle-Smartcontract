@@ -7,6 +7,7 @@ use crate::events::publish_featured_project_event;
 use crate::pagination::paginate;
 use crate::storage_keys::StorageKey;
 use crate::types::{AdminActionType, Project};
+use crate::utils::Utils;
 use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeaturedRegistry;
@@ -44,12 +45,7 @@ impl FeaturedRegistry {
                 .persistent()
                 .set(&StorageKey::FeaturedProjects, &ids);
         } else if !featured && already_featured {
-            let mut updated = Vec::new(env);
-            for id in ids.iter() {
-                if id != project_id {
-                    updated.push_back(id);
-                }
-            }
+            let updated = Utils::remove_item_from_vec(env, &ids, &project_id);
             env.storage()
                 .persistent()
                 .set(&StorageKey::FeaturedProjects, &updated);
@@ -68,13 +64,13 @@ impl FeaturedRegistry {
     }
 
     /// List featured projects with pagination.
-    pub fn list_featured_projects(env: &Env, start: u32, limit: u32) -> Vec<Project> {
+    pub fn list_featured_projects(env: &Env, start_index: u32, limit: u32) -> Vec<Project> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StorageKey::FeaturedProjects)
             .unwrap_or(Vec::new(env));
-        let page_ids = paginate(env, &ids, start, limit);
+        let page_ids = paginate(env, &ids, start_index, limit);
         let mut result = Vec::new(env);
         for project_id in page_ids.iter() {
             if let Some(project) = env

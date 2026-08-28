@@ -50,6 +50,10 @@ impl BookmarkRegistry {
     ) -> Result<(), ContractError> {
         user.require_auth();
 
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
         if !Self::is_bookmarked(env, project_id, &user) {
             return Err(ContractError::NotBookmarked);
         }
@@ -81,7 +85,7 @@ impl BookmarkRegistry {
         bookmarks.contains(project_id)
     }
 
-    pub fn get_user_bookmarks(env: &Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_bookmarks(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -95,13 +99,13 @@ impl BookmarkRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let len = bookmarks.len();
-        if start >= len {
+        if start_index >= len {
             return Vec::new(env);
         }
 
-        let end = core::cmp::min(start.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
         let mut page = Vec::new(env);
-        for i in start..end {
+        for i in start_index..end {
             if let Some(pid) = bookmarks.get(i) {
                 page.push_back(pid);
             }

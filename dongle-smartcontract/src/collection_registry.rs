@@ -240,7 +240,7 @@ impl CollectionRegistry {
             .unwrap_or(Vec::new(env));
 
         if !project_ids.iter().any(|id| id == project_id) {
-            return Err(ContractError::AlreadyInCollection);
+            return Err(ContractError::NotInCollection);
         }
 
         let updated = Utils::remove_item_from_vec(env, &project_ids, &project_id);
@@ -273,13 +273,13 @@ impl CollectionRegistry {
             .get(&StorageKey::Collection(collection_id))
     }
 
-    pub fn list_collections(env: &Env, start: u32, limit: u32) -> Vec<Collection> {
+    pub fn list_collections(env: &Env, start_index: u32, limit: u32) -> Vec<Collection> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StorageKey::CollectionList)
             .unwrap_or(Vec::new(env));
-        let page_ids = paginate(env, &ids, start, limit);
+        let page_ids = paginate(env, &ids, start_index, limit);
         let mut result = Vec::new(env);
         for collection_id in page_ids.iter() {
             if let Some(collection) = env
@@ -296,7 +296,7 @@ impl CollectionRegistry {
     pub fn list_collection_projects(
         env: &Env,
         collection_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<u64> {
         let ids: Vec<u64> = env
@@ -304,7 +304,7 @@ impl CollectionRegistry {
             .persistent()
             .get(&StorageKey::CollectionProjectIds(collection_id))
             .unwrap_or(Vec::new(env));
-        paginate(env, &ids, start, limit)
+        paginate(env, &ids, start_index, limit)
     }
 
     pub fn get_collection_project_count(env: &Env, collection_id: u64) -> u32 {

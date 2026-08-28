@@ -40,11 +40,42 @@ for the full policy.
 
 ### Added
 
+- **Approval-threshold consistency audit** (`docs/APPROVAL_THRESHOLD_AUDIT.md`).
+  Confirms every `ProposalPayload` variant is gated by the same live
+  quorum check in `execute_proposal`, documents the `SetThreshold` downgrade
+  supermajority exception, the non-snapshotted-threshold consequences, and the
+  `reject_proposal` single-admin veto model (#630).
 - Tag validation now rejects duplicate values (case-insensitive after ASCII
   lowercase normalization) with `InvalidTags` (#526).
+- **Governance: threshold-downgrade supermajority rule.** A
+  `ProposalPayload::SetThreshold` proposal that would *lower* the current
+  approval threshold now requires strictly more approvals than the proposed new
+  threshold before it can execute. This prevents a colluding group of exactly
+  `new_threshold` admins from using the proposal path to silently dismantle the
+  multi-sig quorum. Raises new error `ThresholdDowngradeRequiresSupermajority`
+  (code 74) when the guard is violated. Threshold *increases* and no-ops are
+  unaffected and still require only the live threshold.
+- **Integration test: full verification-fee payment lifecycle**
+  (`src/tests/fee_lifecycle.rs`). Nine tests covering: pre-payment rejection,
+  `pay_fee` sets flag and records details, token balances correct, flag cleared
+  after `request_verification`, second request without re-payment rejected with
+  `InsufficientFee`, re-payment restores the flag, payment-details audit record
+  retained after consumption, treasury balance accounting.
+- **Architecture documentation** (`docs/ARCHITECTURE.md`). A new contributor
+  reference covering: four-layer ASCII module map, Mermaid dependency graph for
+  all 20+ modules, two annotated Mermaid sequence diagrams (`request_verification`
+  happy path and multi-sig proposal lifecycle), complete storage-key tables for
+  `StorageKey` and `ExtensionKey`, event taxonomy table, and a full module
+  reference. Linked from `README.md` Quick Links and Documentation sections.
 
 ### Changed
 
+- **Timelock: enforced maximum scheduling delay.** Scheduled admin actions
+  (`schedule_set_fee`, `schedule_add_admin`, `schedule_remove_admin`) now reject
+  an `execution_timestamp` more than `TIMELOCK_MAX_DELAY` (90 days) in the
+  future, in addition to the existing `TIMELOCK_MIN_DELAY` (1 day) lower bound.
+  Zero-delay / past timestamps were already rejected. Both bounds are now
+  documented in `constants.rs` and `docs/TIMELOCK.md` (#631).
 - **Repository hygiene:** Consolidated repository-root documentation. Reference
   documentation now lives in `docs/` (`CONTRACT_INTERFACE.md`,
   `CONTRIBUTING.md`, `DATA_EXPORT_GUIDE.md`, `ERROR_CODES.md`,
@@ -58,6 +89,19 @@ for the full policy.
   (#514).
 - Timelocked admin proposals now verify the proposal payload hash before
   execution.
+- **Governance: `set_admin_approval_threshold` documentation clarified.** The
+  function is intentionally blocked (returns `Unauthorized`) once the threshold
+  exceeds 1. All threshold changes while multi-sig is active — including
+  lowering — must go through `create_proposal` / `execute_proposal` and are
+  subject to the supermajority rule described above.
+- **Git hygiene: removed stale snapshot files from index.** Six Soroban test
+  environment snapshots under `dongle-smartcontract/test_snapshots/` were
+  tracked despite the `test_snapshots/` ignore rule in
+  `dongle-smartcontract/.gitignore`. They were untracked via
+  `git rm --cached` (the files remain on disk for any local snapshot test
+  runner). The root `.gitignore` now also carries an explicit
+  `dongle-smartcontract/test_snapshots/` entry so the rule is honoured
+  regardless of which directory git is invoked from.
 
 ### Removed
 
@@ -66,6 +110,15 @@ for the full policy.
 
 ### Fixed
 
+- **Governance: added the missing `MultiSigRequired` error variant** (code 77).
+  `AdminManager::add_admin` / `remove_admin` returned
+  `ContractError::MultiSigRequired` when the approval threshold is > 1, but the
+  variant was never defined in `errors.rs` — a compile error contributing to
+  the broken build. Surfaced by the approval-threshold consistency audit
+  (`docs/APPROVAL_THRESHOLD_AUDIT.md`, #630).
+- `AlreadyLinked` was returned for three unrelated conditions (duplicate link,
+  duplicate maintainer, missing linked project), so clients could not tell them
+  apart (#462).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing
