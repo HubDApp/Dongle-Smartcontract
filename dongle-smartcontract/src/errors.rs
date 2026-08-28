@@ -155,6 +155,13 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
+    /// A fee payment record exists but has expired (paid too long ago to use).
+    /// The payer must re-pay before submitting a verification or registration request.
+    FeePaymentExpired = 75,
+    /// Dispute is not in Pending state; no further state transitions are allowed.
+    /// Disputes follow a strict one-way state machine: Pending → Resolved or Pending → Rejected.
+    /// Attempting to resolve or reject an already-resolved/rejected dispute returns this error.
+    DisputeNotPending = 76,
 }
 
 pub type Error = ContractError;

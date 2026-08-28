@@ -86,6 +86,8 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 72 | `ArithmeticOverflow` | A checked arithmetic operation overflowed. | Reduce the magnitude of the input values; this indicates an unexpectedly large accumulated amount or count. |
 | 73 | `NotInCollection` | Project is not a member of this collection. | Add the project to the collection via `add_project_to_collection` before attempting to remove it. |
 | 74 | `ThresholdDowngradeRequiresSupermajority` | A `SetThreshold` proposal that would lower the current approval threshold does not have enough approvals. The number of approvals must be **strictly greater than** the proposed new threshold (supermajority rule). | Gather additional admin approvals before executing the downgrade proposal. The required count is `new_threshold + 1`. |
+| 75 | `FeePaymentExpired` | A fee payment record exists but has expired (the payment was made too long ago). The fee expiry window is `FEE_PAYMENT_EXPIRY_SECONDS` (7 days). | Re-pay the fee via `pay_fee` or `pay_registration_fee` before submitting a verification or registration request. |
+| 76 | `DisputeNotPending` | The dispute is not in `Pending` state; no further state transitions are permitted. `Resolved` and `Rejected` are terminal states — once a dispute reaches either, it cannot be re-resolved or re-rejected. | Open a new dispute via `open_duplicate_dispute` if the issue still needs to be addressed. |
 
 ## Adding New Error Codes
 

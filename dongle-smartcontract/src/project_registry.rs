@@ -1121,6 +1121,21 @@ impl ProjectRegistry {
     }
 
     /// Step 1: Current owner proposes a transfer to `new_owner`.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// Soroban transactions execute atomically: every storage write in a single
+    /// invocation either all commits or all reverts. There is therefore no risk
+    /// of a partial state (e.g. PendingTransfer written but TTL not extended).
+    ///
+    /// # Concurrent transfer attempts
+    ///
+    /// If the owner calls `initiate_transfer` a second time before the first is
+    /// accepted, the new recipient **overwrites** the old one atomically.
+    /// The first recipient can no longer accept — they will receive `Unauthorized`.
+    /// This is intentional: the owner retains full control over the pending
+    /// transfer until `accept_transfer` is called.
+    ///
     /// Overwrites any existing pending transfer for this project.
     pub fn initiate_transfer(
         env: &Env,
@@ -1170,6 +1185,33 @@ impl ProjectRegistry {
     }
 
     /// Step 2: Designated new owner accepts the transfer.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// All storage mutations in this function execute within a single Soroban
+    /// transaction and are committed or reverted together:
+    ///
+    /// 1. Remove `project_id` from the old owner's `OwnerProjects` index.
+    /// 2. Remove from the old owner's active-projects index.
+    /// 3. Capacity check for the new owner (returns error if at limit — no
+    ///    partial state is written in that case).
+    /// 4. Add `project_id` to the new owner's `OwnerProjects` index.
+    /// 5. Add to the new owner's active-projects index (if not archived).
+    /// 6. Update `project.owner` and `project.updated_at`.
+    /// 7. Remove the `PendingTransfer` storage entry.
+    ///
+    /// If any step panics or returns an error, every preceding write in this
+    /// invocation reverts. There is no intermediate state that can be observed
+    /// by a concurrent reader: ownership is either fully on the old owner or
+    /// fully on the new owner.
+    ///
+    /// # No concurrent two-way transfers
+    ///
+    /// A project can only have one pending transfer at a time (stored under
+    /// `StorageKey::PendingTransfer(project_id)`). A second `initiate_transfer`
+    /// replaces the first atomically. Two parties racing to `accept_transfer` on
+    /// the same project_id: the second one will find `TransferNotFound` because
+    /// step 7 removes the pending record on the first successful accept.
     pub fn accept_transfer(
         env: &Env,
         project_id: u64,
