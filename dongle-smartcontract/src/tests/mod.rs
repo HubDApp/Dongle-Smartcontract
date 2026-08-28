@@ -99,3 +99,12 @@ mod region_and_integrity;
 
 // Contract API compatibility (issue #257)
 mod api_compat;
+
+// Issue #620: Project metadata validation gaps (https-only, CID charset)
+mod validation_620;
+
+// Issue #622: Fee payment state machine enforcement
+mod fee_state_machine_622;
+
+// Issue #623: Admin threshold downgrade supermajority edge cases
+mod supermajority_623;

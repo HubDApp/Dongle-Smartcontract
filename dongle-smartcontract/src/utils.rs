@@ -5,7 +5,7 @@ use soroban_sdk::{Env, String, Vec};
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_TAGS_PER_PROJECT,
-    MAX_TAG_LENGTH, MAX_WEBSITE_LEN,
+    MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_LEN,
 };
 use crate::errors::ContractError;
 
@@ -264,7 +264,14 @@ impl Utils {
         Ok(())
     }
 
-    /// Validate a website URL (must start with `http://` or `https://`, within byte limit).
+    /// Validate a website URL.
+    ///
+    /// Rules:
+    /// - Non-empty, at most `MAX_WEBSITE_LEN` bytes.
+    /// - Must use the `https://` scheme only. Plain `http://` is rejected to
+    ///   enforce encrypted transport on all project websites.
+    /// - Must have a non-empty host component after the `https://` prefix
+    ///   (i.e. the URL cannot be just `https://`).
     pub fn validate_website(url: &String) -> Result<(), ContractError> {
         let len = url.len() as usize;
         if len == 0 || len > MAX_WEBSITE_LEN {
@@ -274,9 +281,18 @@ impl Utils {
         let mut buf = [0u8; MAX_WEBSITE_LEN];
         url.copy_into_slice(&mut buf[..len]);
 
-        if !buf[..len].starts_with(b"http://") && !buf[..len].starts_with(b"https://") {
+        // Only https:// is accepted; http:// and any other scheme are rejected.
+        const SCHEME: &[u8] = b"https://";
+        if !buf[..len].starts_with(SCHEME) {
             return Err(ContractError::InvalidInput);
         }
+
+        // There must be at least one character after the scheme — a bare
+        // `https://` with no host is not a useful or valid URL.
+        if len <= SCHEME.len() {
+            return Err(ContractError::InvalidInput);
+        }
+
         Ok(())
     }
 
@@ -303,16 +319,20 @@ impl Utils {
     }
 
     /// Validate a logo CID.
+    ///
+    /// Uses the strict charset validator (base58btc for CIDv0, base32 for CIDv1).
     pub fn validate_logo_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid_strict(cid) {
             return Err(ContractError::InvalidCid);
         }
         Ok(())
     }
 
     /// Validate a metadata CID.
+    ///
+    /// Uses the strict charset validator (base58btc for CIDv0, base32 for CIDv1).
     pub fn validate_metadata_cid(cid: &String) -> Result<(), ContractError> {
-        if cid.is_empty() || !Self::is_valid_ipfs_cid(cid) {
+        if cid.is_empty() || !Self::is_valid_ipfs_cid_strict(cid) {
             return Err(ContractError::InvalidCid);
         }
         Ok(())
@@ -434,26 +454,114 @@ impl Utils {
     // CID helpers
     // ────────────────────────────────────────────────────────────────────
 
+    /// Return `true` if `cid` is a structurally valid IPFS CID.
+    ///
+    /// This is the **lenient** validator used for evidence CIDs where we only
+    /// enforce the prefix and length window but do **not** validate the character
+    /// set. Use [`is_valid_ipfs_cid_strict`] for project metadata fields (logo,
+    /// metadata CID) where full structural validation is required.
+    ///
+    /// # CIDv0 (`Qm…`)
+    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - First two bytes must be `Q` and `m`.
+    ///
+    /// # CIDv1 (`b…`)
+    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - First byte must be `b`.
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if !(40..=MAX_CID_LEN).contains(&len) {
+        if !(MIN_CID_LEN..=MAX_CID_LEN).contains(&len) {
             return false;
         }
 
-        // Read first two bytes safely. Soroban copy_into_slice requires the target slice
-        // to have the exact same length as the string, so we must size the slice to len.
         let mut buf = [0u8; MAX_CID_LEN];
         cid.copy_into_slice(&mut buf[..len]);
 
         if buf[0] == b'Q' && buf[1] == b'm' {
-            // CIDv0: historically exactly 46 characters, but we allow larger for test flexibility
             true
         } else if buf[0] == b'b' {
-            // CIDv1
             true
         } else {
             false
         }
+    }
+
+    /// Return `true` if `cid` is a structurally valid IPFS CID with full
+    /// character-set validation (issue #620).
+    ///
+    /// Used for project metadata fields (logo CID, metadata CID) where the
+    /// stored value is a real IPFS address and must conform to the encoding
+    /// alphabet.
+    ///
+    /// # CIDv0 (`Qm…`)
+    /// - Exactly 46 characters (the canonical base58btc SHA2-256 multihash).
+    /// - All characters must be in the base58btc alphabet:
+    ///   `123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz`
+    ///   (digits 1–9, uppercase A–Z excluding I O, lowercase a–z excluding l).
+    ///
+    /// # CIDv1 (`b…`)
+    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - After the leading `b` multibase prefix, all remaining characters must
+    ///   be in the base32 lower-case alphabet: `a-z` and `2-7`.
+    ///
+    /// This validation is structural (prefix + charset + length); it does not
+    /// decode or verify any embedded multihash digest.
+    pub fn is_valid_ipfs_cid_strict(cid: &String) -> bool {
+        let len = cid.len() as usize;
+        if !(MIN_CID_LEN..=MAX_CID_LEN).contains(&len) {
+            return false;
+        }
+
+        let mut buf = [0u8; MAX_CID_LEN];
+        cid.copy_into_slice(&mut buf[..len]);
+
+        if buf[0] == b'Q' && buf[1] == b'm' {
+            // CIDv0: must be exactly 46 chars, base58btc alphabet throughout.
+            if len != 46 {
+                return false;
+            }
+            for &b in buf[..len].iter() {
+                if !Self::is_base58btc_char(b) {
+                    return false;
+                }
+            }
+            true
+        } else if buf[0] == b'b' {
+            // CIDv1 multibase-base32: leading 'b' + base32 lowercase body.
+            for &b in buf[1..len].iter() {
+                if !Self::is_base32_lower_char(b) {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Return `true` if `b` is in the base58btc alphabet.
+    ///
+    /// Base58btc omits `0` (zero), `O` (uppercase-o), `I` (uppercase-i), and
+    /// `l` (lowercase-L) from the standard alphanumeric set.
+    #[inline]
+    fn is_base58btc_char(b: u8) -> bool {
+        matches!(b,
+            b'1'..=b'9'
+            | b'A'..=b'H'   // A–H (skips I)
+            | b'J'..=b'N'   // J–N (skips O)
+            | b'P'..=b'Z'   // P–Z
+            | b'a'..=b'k'   // a–k (skips l)
+            | b'm'..=b'z'   // m–z
+        )
+    }
+
+    /// Return `true` if `b` is in the RFC 4648 base32 lowercase alphabet.
+    ///
+    /// Base32 lowercase uses `a-z` and `2-7`.  Padding (`=`) is intentionally
+    /// excluded because CIDv1 strings do not include padding characters.
+    #[inline]
+    fn is_base32_lower_char(b: u8) -> bool {
+        matches!(b, b'a'..=b'z' | b'2'..=b'7')
     }
 
     // ────────────────────────────────────────────────────────────────────

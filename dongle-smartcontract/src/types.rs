@@ -321,6 +321,85 @@ pub struct FeeConfig {
     pub registration_fee: u128,
 }
 
+/// The lifecycle state of a fee payment for a single operation.
+///
+/// # State Machine
+///
+/// ```text
+/// [Unpaid]
+///     │  pay_fee() / pay_registration_fee()
+///     ▼
+/// [Pending]   ← FeePaidForProject flag set, FeePaymentRecord stored
+///     │  request_verification() / register_project()
+///     │  (consume_fee_payment / consume_registration_fee_payment)
+///     ├──────────────────────────────────────────────┐
+///     ▼                                              ▼
+/// [Consumed]                                   [Cancelled]
+///     │  (flag cleared, record retained)            │  cancel_fee_payment()
+///     │  reject_verification()                      │  (flag cleared, refund transferred)
+///     │  record_verification_refund()               ▼
+///     ▼                                         [terminal]
+/// [RefundPending]  ← FeeRefundRecord { claimed_at: None }
+///     │  claim_fee_refund()
+///     ▼
+/// [Refunded]       ← FeeRefundRecord { claimed_at: Some(ts) }
+/// ```
+///
+/// # Transition Rules
+///
+/// | From          | To            | Trigger                             | Guard                          |
+/// |---------------|---------------|-------------------------------------|-------------------------------|
+/// | Unpaid        | Pending       | `pay_fee` / `pay_registration_fee`  | Token transfer succeeds        |
+/// | Pending       | Consumed      | `consume_fee_payment`               | Paid flag set, not expired     |
+/// | Pending       | Cancelled     | `cancel_fee_payment`                | Payer or admin; not Pending/Verified |
+/// | Consumed      | RefundPending | `record_verification_refund`        | Verification rejected; amount > 0 |
+/// | RefundPending | Refunded      | `claim_fee_refund`                  | Payer or admin; not already claimed |
+///
+/// Any transition not listed above is invalid and returns `InvalidStatus` or
+/// `RefundAlreadyClaimed`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeePaymentStatus {
+    /// No fee has been paid yet for this operation.
+    Unpaid,
+    /// Fee has been paid and is waiting to be consumed by the operation.
+    Pending,
+    /// Fee was consumed when the operation was submitted for review.
+    Consumed,
+    /// Fee payment was cancelled and funds were returned to the payer.
+    Cancelled,
+    /// Verification was rejected; a refund is recorded but not yet claimed.
+    RefundPending,
+    /// Refund has been paid out to the original payer.
+    Refunded,
+}
+
+impl FeePaymentStatus {
+    /// Validate that a state transition is permitted.
+    ///
+    /// Returns `Ok(())` for all valid transitions; `Err(InvalidStatus)` for
+    /// any invalid transition.  This is the single source of truth for which
+    /// transitions are legal in the fee state machine.
+    pub fn validate_transition(
+        from: FeePaymentStatus,
+        to: FeePaymentStatus,
+    ) -> Result<(), crate::errors::ContractError> {
+        let valid = matches!(
+            (from, to),
+            (Self::Unpaid, Self::Pending)
+                | (Self::Pending, Self::Consumed)
+                | (Self::Pending, Self::Cancelled)
+                | (Self::Consumed, Self::RefundPending)
+                | (Self::RefundPending, Self::Refunded)
+        );
+        if valid {
+            Ok(())
+        } else {
+            Err(crate::errors::ContractError::InvalidStatus)
+        }
+    }
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
