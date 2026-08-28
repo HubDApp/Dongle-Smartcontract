@@ -94,3 +94,7 @@ mod region_and_integrity;
 
 // Contract API compatibility (issue #257)
 mod api_compat;
+
+// Issues #658, #659, #660, #661: hidden review filtering, action log coverage,
+// maintainer permissions, and featured projects limit enforcement.
+mod issues_658_659_660_661;

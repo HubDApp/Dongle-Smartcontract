@@ -17,8 +17,8 @@ use crate::admin_action_log::AdminActionLog;
 use crate::auth;
 use crate::constants::{
     CONTRACT_VERSION, LEDGER_BUMP_CRITICAL, LEDGER_THRESHOLD_CRITICAL, MAX_DESCRIPTION_LEN,
-    MAX_NAME_LEN, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT,
-    VERIFICATION_VALIDITY_PERIOD,
+    MAX_FEATURED_PROJECTS, MAX_NAME_LEN, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    MAX_REVIEWS_PER_PROJECT, VERIFICATION_VALIDITY_PERIOD,
 };
 use crate::errors::ContractError;
 use crate::storage_keys::{ExtensionKey, StorageKey};
@@ -143,6 +143,7 @@ impl ConfigRegistry {
                 max_name_len: MAX_NAME_LEN as u32,
                 max_description_len: MAX_DESCRIPTION_LEN as u32,
                 verification_validity_period: VERIFICATION_VALIDITY_PERIOD,
+                max_featured_projects: MAX_FEATURED_PROJECTS,
             },
         })
     }
