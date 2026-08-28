@@ -40,7 +40,48 @@ for the full policy.
 
 ### Added
 
-- **Approval-threshold consistency audit** (`docs/APPROVAL_THRESHOLD_AUDIT.md`).
+- **#666: Batch TTL extension fail-fast and error reporting.** `extend_projects_ttl`
+  and `extend_reviews_ttl` now return `BatchTtlResult` (new type in `types.rs`)
+  instead of a bare `u32`. The struct carries `refreshed` (count of items
+  extended) and `skipped_ids` (IDs not found in storage). Missing items are
+  skipped with continue semantics; oversized batches are still rejected
+  immediately with `InvalidInput`. Callers that need all-or-nothing semantics
+  assert `result.skipped_ids.len() == 0`. Tests in `tests::ttl_batch` verify
+  all-or-nothing detection, partial-failure reporting, empty batches, and
+  oversized-batch rejection.
+- **#665: Storage key collision detection and capacity guards.** New test module
+  `tests::storage_key_uniqueness` verifies: `StorageKey` stays within the
+  Soroban 50-variant cap; `ExtensionKey` stays within the cap; both enums emit
+  a loud warning when they reach 45 variants (a new-variant-free capacity
+  threshold); `StorageKey` and `ExtensionKey` produce distinct XDR for the same
+  discriminant index (cross-enum isolation); same-name variants in different
+  enums (`VerificationDuration`) never share a ledger entry. Module-level docs
+  in `storage_keys.rs` document the overflow model, the 50-variant cap, and the
+  `ExtensionKey` / future `ExtensionKey2` split strategy.
+- **#664: Pause/unpause state machine documentation and recovery tests.** New
+  test module `tests::pause_state_machine` adds: state-machine transition tests
+  (RUNNING→PAUSED→RUNNING, idempotent pause/unpause); data-integrity tests
+  verifying that projects, reviews, admin list, fee config, and follower lists
+  are unchanged after pause/unpause cycles; a full-recovery test confirming all
+  mutating operations resume after unpause. `emergency_pause.rs` module docs
+  now include the state-machine diagram, allowed-operations table, and a
+  step-by-step recovery checklist for the operations team.
+- **#663: Follow/subscribe relationship clarity.** New test module
+  `tests::follow_subscribe_relationship` verifies all six consistency invariants:
+  `is_following` mirrors `ProjectFollowers` and `UserSubscriptions` atomically;
+  `get_follower_count` equals `ProjectFollowers` length; duplicate follows return
+  `AlreadyFollowing`; unfollowing without prior follow returns `NotFollowing`;
+  following a non-existent project returns `ProjectNotFound`; pause guard applies
+  to `follow_project` and `unfollow_project`. `subscription_registry.rs` docs
+  now clearly state that "follow" and "subscribe" are synonymous — there is no
+  separate subscribe operation.
+
+### Changed
+
+- **`extend_projects_ttl` / `extend_reviews_ttl` return type changed from `u32`
+  to `BatchTtlResult`.** Callers that previously compared the return value to a
+  count must now read `result.refreshed`. **BREAKING**: any off-chain client
+  that pattern-matches on the `u32` return must update to the new struct shape.
   Confirms every `ProposalPayload` variant is gated by the same live
   quorum check in `execute_proposal`, documents the `SetThreshold` downgrade
   supermajority exception, the non-snapshotted-threshold consequences, and the

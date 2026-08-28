@@ -108,3 +108,12 @@ mod fee_state_machine_622;
 
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
+
+// Issue #663: Follow/subscribe relationship clarity
+mod follow_subscribe_relationship;
+
+// Issue #664: Pause/unpause state machine documentation and recovery tests
+mod pause_state_machine;
+
+// Issue #665: ExtensionKey collision detection and storage key uniqueness
+mod storage_key_uniqueness;

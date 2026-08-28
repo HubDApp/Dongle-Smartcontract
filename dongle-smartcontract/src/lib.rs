@@ -49,14 +49,13 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest,
-    Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
-    FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction, VerificationRecord,
-    VerificationStatus,
+    AdminActionEntry, AdminProposal, BatchTtlResult, ChangelogEntry, ChangelogSortMode,
+    ClaimRequest, Collection, ContractClaimRequest, ContractConfigView, DependencyRef,
+    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
+    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -962,22 +961,48 @@ impl DongleContract {
         }
     }
 
-    /// Extend TTL for many project IDs. Missing projects are skipped.
-    pub fn extend_projects_ttl(env: Env, project_ids: Vec<u64>) -> Result<u32, ContractError> {
+    /// Extend TTL for many project IDs.
+    ///
+    /// ## Semantics (closes #666)
+    ///
+    /// - **Batch size guard**: returns `InvalidInput` immediately when the input
+    ///   exceeds `MAX_TTL_BATCH_SIZE` — no work is done.
+    /// - **Continue on missing**: a project ID that does not exist in storage is
+    ///   recorded in `BatchTtlResult::skipped_ids`; processing continues for the
+    ///   rest of the batch. This is *not* a failure — the caller can inspect
+    ///   `skipped_ids` to see which IDs were not found.
+    /// - **Fail-fast on hard errors**: if the underlying storage layer panics
+    ///   (budget exhausted, ledger entry too large, etc.) the transaction is
+    ///   aborted atomically. Partial-state is only possible across separate
+    ///   invocations, never within a single call.
+    ///
+    /// Use `result.skipped_ids.len() == 0` to confirm all-or-nothing success.
+    pub fn extend_projects_ttl(
+        env: Env,
+        project_ids: Vec<u64>,
+    ) -> Result<BatchTtlResult, ContractError> {
         if project_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
             return Err(ContractError::InvalidInput);
         }
 
         let mut refreshed = 0u32;
+        let mut skipped_ids: Vec<u64> = Vec::new(&env);
+
         for i in 0..project_ids.len() {
             if let Some(project_id) = project_ids.get(i) {
                 if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
                     StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
                     refreshed = refreshed.saturating_add(1);
+                } else {
+                    skipped_ids.push_back(project_id);
                 }
             }
         }
-        Ok(refreshed)
+
+        Ok(BatchTtlResult {
+            refreshed,
+            skipped_ids,
+        })
     }
 
     /// Extend TTL for a specific review
@@ -985,16 +1010,27 @@ impl DongleContract {
         StorageManager::extend_review_ttl(&env, project_id, &reviewer);
     }
 
-    /// Extend TTL for many review records. Missing reviews are skipped.
+    /// Extend TTL for many review records.
+    ///
+    /// ## Semantics (closes #666)
+    ///
+    /// Same continue-on-missing / fail-fast rules as `extend_projects_ttl`.
+    /// `BatchTtlResult::skipped_ids` contains the **project IDs** of reviews
+    /// that could not be found (the reviewer index within the input slice is
+    /// discarded because `Vec<u64>` cannot carry `Address` values).
+    ///
+    /// Use `result.skipped_ids.len() == 0` to confirm all-or-nothing success.
     pub fn extend_reviews_ttl(
         env: Env,
         review_ids: Vec<(u64, Address)>,
-    ) -> Result<u32, ContractError> {
+    ) -> Result<BatchTtlResult, ContractError> {
         if review_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
             return Err(ContractError::InvalidInput);
         }
 
         let mut refreshed = 0u32;
+        let mut skipped_ids: Vec<u64> = Vec::new(&env);
+
         for i in 0..review_ids.len() {
             if let Some((project_id, reviewer)) = review_ids.get(i) {
                 if ReviewRegistry::get_review(&env, project_id, reviewer.clone()).is_some() {
@@ -1003,10 +1039,16 @@ impl DongleContract {
                     StorageManager::extend_project_stats_ttl(&env, project_id);
                     StorageManager::extend_user_reviews_ttl(&env, &reviewer);
                     refreshed = refreshed.saturating_add(1);
+                } else {
+                    skipped_ids.push_back(project_id);
                 }
             }
         }
-        Ok(refreshed)
+
+        Ok(BatchTtlResult {
+            refreshed,
+            skipped_ids,
+        })
     }
 
     /// Extend TTL for all admin-related data

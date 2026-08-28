@@ -1,3 +1,39 @@
+//! Subscription (follow) registry (closes #663).
+//!
+//! ## Follow vs. Subscribe — they are the same thing
+//!
+//! The contract uses the term **"follow"** for the user-facing action
+//! (`follow_project`, `unfollow_project`) and **"subscription"** for the
+//! per-user index (`UserSubscriptions`).  These two concepts are identical:
+//!
+//! - Calling `follow_project(project_id, follower)` **subscribes** the follower
+//!   to the project.  Both `ProjectFollowers(project_id)` and
+//!   `UserSubscriptions(follower)` are updated atomically in the same call.
+//! - Calling `unfollow_project(project_id, follower)` **unsubscribes** the
+//!   follower.  Both indexes are cleaned up atomically.
+//! - There is **no separate "subscribe" entry point**.  A user's subscription
+//!   list is exactly the set of projects they follow.
+//!
+//! ## Storage layout
+//!
+//! | Key | Type | Description |
+//! |-----|------|-------------|
+//! | `ExtensionKey::ProjectFollowers(project_id)` | `Vec<Address>` | Ordered list of followers |
+//! | `ExtensionKey::FollowerCount(project_id)` | `u32` | Cached follower count |
+//! | `ExtensionKey::UserSubscriptions(address)` | `Vec<u64>` | Project IDs the user follows |
+//!
+//! ## Consistency invariants
+//!
+//! 1. `is_following(project_id, user) == true` ⟺ `user ∈ ProjectFollowers(project_id)`
+//! 2. `is_following(project_id, user) == true` ⟺ `project_id ∈ UserSubscriptions(user)`
+//! 3. `get_follower_count(project_id) == len(ProjectFollowers(project_id))`
+//! 4. A user cannot follow the same project twice (`AlreadyFollowing`).
+//! 5. Unfollowing a project that is not followed returns `NotFollowing`.
+//! 6. Following a non-existent project returns `ProjectNotFound`.
+//!
+//! Tests that verify these invariants live in
+//! `tests::follow_subscribe_relationship`.
+
 use crate::errors::ContractError;
 use crate::events::{publish_project_followed_event, publish_project_unfollowed_event};
 use crate::project_registry::ProjectRegistry;

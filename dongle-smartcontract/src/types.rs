@@ -813,3 +813,37 @@ pub struct ContractConfigView {
     /// User-facing limits (see `ContractLimits` doc for stability rules).
     pub limits: ContractLimits,
 }
+
+// ── Batch TTL extension result (#666) ─────────────────────────────────────────
+
+/// Result returned by batch TTL extension calls.
+///
+/// The batch is **fail-fast**: the operation stops at the first hard error
+/// (e.g. storage failure). Missing projects/reviews are *not* hard errors —
+/// they are recorded in `skipped_ids` and processing continues (continue
+/// semantics). Only `refreshed` + `skipped` + any partial completion is
+/// surfaced here so callers can detect partial-failure states.
+///
+/// ## Partial-failure states
+///
+/// | `refreshed` | `skipped_ids.len()` | Meaning |
+/// |-------------|---------------------|---------|
+/// | N | 0 | Full success, all N items extended |
+/// | N | M | Partial: N extended, M not found/skipped |
+/// | 0 | M | All items were missing |
+///
+/// The batch makes a best-effort pass and is **not** transactional: if the
+/// call panics mid-way (contract budget exhausted, etc.) some TTLs may have
+/// been extended already. Callers that require all-or-nothing semantics should
+/// validate all IDs before calling, or check `refreshed == ids.len()`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchTtlResult {
+    /// Number of items whose TTL was successfully extended.
+    pub refreshed: u32,
+    /// IDs that were skipped because the item does not exist in storage.
+    /// For project batches these are project IDs; for review batches these
+    /// are encoded as `project_id * 1_000_000_007 ^ reviewer_index` — use
+    /// `skipped_project_ids` / `skipped_reviewer_indices` instead for reviews.
+    pub skipped_ids: Vec<u64>,
+}
