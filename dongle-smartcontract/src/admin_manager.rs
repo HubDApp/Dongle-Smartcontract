@@ -69,8 +69,9 @@ impl AdminManager {
     ///   address is already an admin) or raise a typed error.
     ///
     /// # Errors
-    /// Returns `MultiSigRequired` when admin approval threshold > 1.
+    /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
     /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
+    /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
     pub fn add_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
 
@@ -132,8 +133,9 @@ impl AdminManager {
     /// corresponding `Admin(addr)` mapping entry (or vice-versa).
     ///
     /// # Errors
-    /// Returns `MultiSigRequired` when admin approval threshold > 1.
+    /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
     /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
+    /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
     pub fn remove_admin(
         env: &Env,
         caller: Address,

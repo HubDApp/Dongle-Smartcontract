@@ -155,14 +155,13 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
-    /// Multi-signature approval is required for this action; use the proposal system.
-    MultiSigRequired = 75,
-    /// The fee payment has expired and can no longer be consumed.
-    FeePaymentExpired = 76,
-    /// The linked project was not found.
-    LinkedProjectNotFound = 77,
-    /// The maintainer has already been added to this project.
-    AlreadyMaintainerAdded = 78,
+    /// Adding this dependency would create a circular reference in the
+    /// transitive project-dependency graph (project A depends on B which
+    /// depends back on A, directly or indirectly).
+    CircularDependency = 75,
+    /// Adding this dependency would make the transitive project-dependency
+    /// chain deeper than `MAX_DEPENDENCY_DEPTH` levels.
+    DependencyDepthExceeded = 76,
 }
 
 pub type Error = ContractError;

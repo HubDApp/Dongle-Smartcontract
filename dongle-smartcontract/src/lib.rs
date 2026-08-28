@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
@@ -47,9 +49,9 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
+    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest,
     Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
     FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
@@ -726,7 +728,10 @@ impl DongleContract {
         VerificationRegistry::get_verifications_batch(&env, ids)
     }
 
-    pub fn get_verification_records_batch(env: Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+    pub fn get_verification_records_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+    ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
     }
 
