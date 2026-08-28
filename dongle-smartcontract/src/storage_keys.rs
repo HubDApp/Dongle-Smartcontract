@@ -209,4 +209,11 @@ pub enum ExtensionKey {
     AdminActionLogByAdmin(Address),
     /// Global index of pending verification request IDs, in creation order.
     PendingVerificationRequests,
+    /// Fee configuration change history, appended oldest-first.
+    ///
+    /// Stored as a single `Vec<FeeConfigHistoryEntry>` rather than one key per
+    /// entry because `ExtensionKey` is a `#[contracttype]` union and Soroban
+    /// caps those at 50 cases; a per-entry key plus a separate count key would
+    /// need two slots and push the enum over the limit.
+    FeeConfigHistory,
 }

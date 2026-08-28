@@ -367,7 +367,7 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
-        if proposal.approvals.contains_key(&admin) {
+        if proposal.approvals.contains_key(admin.clone()) {
             return Err(ContractError::Unauthorized);
         }
 
