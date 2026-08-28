@@ -50,6 +50,9 @@ mod fee_token_rotation;
 // Full verification-fee payment lifecycle integration test
 mod fee_lifecycle;
 
+// Issue #617: multi-step end-to-end workflow integration suite
+mod integration_workflows;
+
 // Storage field size boundary tests
 mod field_limits;
 

@@ -115,6 +115,13 @@ pub struct ReviewRevision {
     pub revised_at: u64,
 }
 
+/// Audit trail event emitted when a reviewer updates their review rating or content.
+/// This provides transparency for all rating changes, allowing tracking of:
+/// - When a rating was changed (timestamp)
+/// - Who changed it (reviewer)
+/// - What the previous rating was (previous_rating)
+/// - What the new rating is (new_rating)
+/// - The revision index for ordering changes (revision_index)
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewRevisionEvent {

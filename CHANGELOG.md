@@ -65,6 +65,12 @@ for the full policy.
 
 ### Changed
 
+- **Timelock: enforced maximum scheduling delay.** Scheduled admin actions
+  (`schedule_set_fee`, `schedule_add_admin`, `schedule_remove_admin`) now reject
+  an `execution_timestamp` more than `TIMELOCK_MAX_DELAY` (90 days) in the
+  future, in addition to the existing `TIMELOCK_MIN_DELAY` (1 day) lower bound.
+  Zero-delay / past timestamps were already rejected. Both bounds are now
+  documented in `constants.rs` and `docs/TIMELOCK.md` (#631).
 - **Repository hygiene:** Consolidated repository-root documentation. Reference
   documentation now lives in `docs/` (`CONTRACT_INTERFACE.md`,
   `CONTRIBUTING.md`, `DATA_EXPORT_GUIDE.md`, `ERROR_CODES.md`,
