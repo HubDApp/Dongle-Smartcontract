@@ -122,6 +122,16 @@ pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 
+/// Maximum depth of the transitive project-dependency graph.
+///
+/// When a project owner adds a dependency that points at another registered
+/// project (`DependencyRef::project_id`), the registry walks the transitive
+/// dependency graph starting from the new target. Adding an edge that would
+/// let the chain reach more than this many levels deep — or that would close
+/// a cycle back to the dependent project — is rejected. See
+/// `docs/DEPENDENCY_REGISTRY.md`.
+pub const MAX_DEPENDENCY_DEPTH: u32 = 5;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

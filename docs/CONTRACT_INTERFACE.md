@@ -1498,8 +1498,14 @@ let claims = get_claim_requests_for_project(env, project_id);
 - Caller must be the project owner
 
 **Possible Errors**:
-- `ProjectNotFound` - Project ID does not exist
+- `ProjectNotFound` - Project ID does not exist (dependent project, or a `project_id` reference target)
 - `Unauthorized` - Caller is not the project owner
+- `CannotLinkToSelf` - The `project_id` reference points at the dependent project itself
+- `CircularDependency` - The target project already depends (directly or transitively) on this project
+- `DependencyDepthExceeded` - The resulting transitive dependency chain would be deeper than `MAX_DEPENDENCY_DEPTH` (5) levels
+- `AlreadyLinked` - An identical dependency reference is already registered for this project
+
+**Dependency graph rules**: See [`DEPENDENCY_REGISTRY.md`](./DEPENDENCY_REGISTRY.md) for the circular-reference and depth-limit rules that apply to `project_id` references.
 
 **Example**:
 ```rust

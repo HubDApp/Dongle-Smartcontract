@@ -32,6 +32,7 @@ For detailed information, refer to:
 - **[Event Schema](docs/EVENTS_SCHEMA.md)** — Emitted events for indexing and monitoring
 - **[Threat Model](docs/THREAT_MODEL.md)** — Security analysis and risk mitigation
 - **[Error Code Reference](docs/ERROR_CODES.md)** — Contract error codes and their meanings
+- **[Dependency Registry](docs/DEPENDENCY_REGISTRY.md)** — Project dependency references, circular-reference protection, and depth limits
 - **[Data Export Guide](docs/DATA_EXPORT_GUIDE.md)** — How indexers reconstruct contract state
 - **[Contributing Guidelines](docs/CONTRIBUTING.md)** — How to contribute, test, and submit PRs
 - **[Changelog](CHANGELOG.md)** — Release history, breaking changes and feature additions ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + SemVer)
