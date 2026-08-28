@@ -6,6 +6,7 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{
@@ -52,11 +53,6 @@ impl FeeManager {
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
 
-        let history_id = env
-            .storage()
-            .persistent()
-            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
-            .unwrap_or(0);
         let history_entry = FeeConfigHistoryEntry {
             admin: admin.clone(),
             old_token: old_config.as_ref().and_then(|config| config.token.clone()),
@@ -69,13 +65,15 @@ impl FeeManager {
             treasury: treasury.clone(),
             timestamp: env.ledger().timestamp(),
         };
+        let mut history: Vec<FeeConfigHistoryEntry> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env));
+        history.push_back(history_entry);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::FeeConfigHistoryEntry(history_id), &history_entry);
-        env.storage().persistent().set(
-            &ExtensionKey::FeeConfigHistoryCount,
-            &(history_id + 1u32),
-        );
+            .set(&ExtensionKey::FeeConfigHistory, &history);
 
         publish_fee_set_event(
             env,
@@ -245,6 +243,14 @@ impl FeeManager {
             .persistent()
             .get(&StorageKey::FeeConfig)
             .ok_or(ContractError::FeeConfigNotSet)
+    }
+
+    /// Get all fee configuration changes in chronological order (oldest first).
+    pub fn get_fee_config_history(env: &Env) -> Vec<FeeConfigHistoryEntry> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env))
     }
 
     /// Pay the registration fee for a project.
