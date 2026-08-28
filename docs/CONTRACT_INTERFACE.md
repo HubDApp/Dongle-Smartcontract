@@ -4,6 +4,8 @@
 
 This document provides comprehensive documentation of all public contract functions in the Dongle smart contract. Each function includes its purpose, parameters, return values, authorization requirements, and possible errors.
 
+**Coverage**: all **198** `pub fn` entry points in [`lib.rs`](../dongle-smartcontract/src/lib.rs) are documented here. See [Appendix A: Interface Completeness Audit](#appendix-a-interface-completeness-audit) for the verification method and `scripts/verify-contract-interface.sh` for the automated check.
+
 **Contract**: `DongleContract` (Soroban/Rust)  
 **Network**: Stellar  
 **Language**: Rust  
@@ -34,6 +36,8 @@ All single-entity lookup functions (such as `get_project`, `get_collection`, `ge
 13. [Dispute Resolution](#dispute-resolution)
 14. [TTL Management](#ttl-management)
 15. [Contract Configuration](#contract-configuration)
+16. [Appendix A: Interface Completeness Audit](#appendix-a-interface-completeness-audit)
+17. [Appendix B: Additional Public Functions](#appendix-b-additional-public-functions)
 
 ---
 
@@ -4748,3 +4752,567 @@ println!("paused = {}", cfg.paused);
 ```rust
 let _previous = set_pause(env, admin_address, true)?;
 ```
+
+---
+
+## Appendix A: Interface Completeness Audit
+
+`DongleContract` exposes **198** `pub fn` entry points in
+[`lib.rs`](../dongle-smartcontract/src/lib.rs). Prior to this audit, 165 had a
+`### \`name\`` section in this file. The remaining 33 are documented in
+[Appendix B](#appendix-b-additional-public-functions) below, bringing coverage
+to **100%**.
+
+### Verifying coverage
+
+Run the checker (also wired into CI):
+
+```sh
+./scripts/verify-contract-interface.sh
+```
+
+It fails if any `pub fn` in `lib.rs` lacks a matching `### \`fn\`` heading here,
+or if a heading refers to a function that no longer exists. Every documented
+function lists its **Parameters**, **Return Value**, **Authorization**,
+**Possible Errors**, and (where behaviour is non-obvious) an **Example** and
+**Events**.
+
+### Regenerating rustdoc
+
+Structured API docs can also be generated straight from the source doc-comments:
+
+```sh
+cargo doc -p dongle-smartcontract --no-deps --document-private-items
+# output: target/doc/dongle_smartcontract/struct.DongleContract.html
+```
+
+This Markdown file remains the canonical **integrator-facing** reference
+(authorization + error semantics + events), which rustdoc does not capture.
+
+---
+
+## Appendix B: Additional Public Functions
+
+These entry points were previously undocumented. Format matches the rest of this
+file.
+
+### Multi-Sig Governance (proposals)
+
+See [Multi-Sig Governance Workflow](#multi-sig-governance-workflow) for the
+end-to-end flow. The proposal API is an alternative to the direct `add_admin` /
+`remove_admin` / `set_fee` calls and is required once the approval threshold is
+> 1.
+
+### `create_proposal`
+
+**Purpose**: Open a new admin proposal for a governance action.
+
+**Parameters**:
+- `env` (Env)
+- `proposer` (Address): must be a current admin; auto-records the proposer's approval
+- `payload` (ProposalPayload): one of `AddAdmin(Address)`, `RemoveAdmin(Address)`, `SetFee(Option<Address>, u128, u128, Address)`, `SetThreshold(u32)`, `ApproveVerification(u64)`, `RejectVerification(u64)`, `RevokeVerification(u64, String)`
+- `expires_at` (u64): Unix seconds; `0` means no expiry. When non-zero, `execute_proposal` rejects the proposal at/after this time
+
+**Return Value**: `Result<u64, ContractError>` — the new proposal ID
+
+**Authorization**: `proposer` must be an admin (`require_auth`)
+
+**Possible Errors**:
+- `AdminOnly` / `Unauthorized` — proposer is not an admin
+- `InvalidInput` — malformed payload (e.g. `SetThreshold(0)`)
+
+**Events**: `ProposalCreated { proposal_id, proposer, action_type }`
+
+**Example**:
+```rust
+let id = create_proposal(env, admin, ProposalPayload::AddAdmin(new_admin), 0)?;
+```
+
+### `approve_proposal`
+
+**Purpose**: Record an admin's approval of an open proposal.
+
+**Parameters**: `env`, `admin` (Address), `proposal_id` (u64)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `admin` must be a current admin (`require_auth`)
+
+**Possible Errors**:
+- `AdminOnly` / `Unauthorized` — caller is not an admin
+- `ProposalExpired` — proposal past `expires_at`
+- `InvalidStatus` — proposal is not in the `Pending` state
+- `NotFound`-class — no proposal with that ID
+
+**Events**: `ProposalApproved { proposal_id, admin, approvals }`
+
+### `reject_proposal`
+
+**Purpose**: Record an admin's rejection; moves the proposal to `Rejected`.
+
+**Parameters**: `env`, `admin` (Address), `proposal_id` (u64)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `admin` must be a current admin
+
+**Possible Errors**: `AdminOnly` / `Unauthorized`, `InvalidStatus` (already resolved), proposal-not-found
+
+**Events**: `ProposalRejected { proposal_id, admin }`
+
+### `execute_proposal`
+
+**Purpose**: Execute a proposal once it has enough approvals; applies the payload action atomically.
+
+**Parameters**: `env`, `caller` (Address, must be admin), `proposal_id` (u64)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `caller` must be an admin
+
+**Possible Errors**:
+- `AdminOnly` / `Unauthorized`
+- `InvalidStatus` — not enough approvals, or already executed/rejected
+- `ProposalExpired` — past `expires_at`
+- `PayloadHashMismatch` — stored payload does not match its recorded hash
+- `ThresholdDowngradeRequiresSupermajority` — a `SetThreshold` lowering the threshold needs strictly more approvals than the new threshold
+- `CannotRemoveLastAdmin` — `RemoveAdmin` payload would remove the final admin
+- any error the underlying action can raise (e.g. `VerificationNotFound` for `ApproveVerification`)
+
+**Events**: `ProposalExecuted { proposal_id, caller }` plus the action's own event
+
+### `get_proposal`
+
+**Purpose**: Fetch a single proposal.
+
+**Parameters**: `env`, `proposal_id` (u64)
+
+**Return Value**: `Option<AdminProposal>` — `None` if the ID is unknown
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `list_proposals`
+
+**Purpose**: Paginated list of proposals.
+
+**Parameters**: `env`, `start_index` (u32, zero-based offset), `limit` (u32, clamped to `MAX_PAGE_LIMIT` = 100)
+
+**Return Value**: `Vec<AdminProposal>` (empty when the offset is past the end)
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_admin_approval_threshold`
+
+**Purpose**: Current number of admin approvals required to execute a proposal.
+
+**Parameters**: `env`
+
+**Return Value**: `u32` (defaults to `1`)
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `set_admin_approval_threshold`
+
+**Purpose**: Directly set the multi-sig approval threshold. Only usable while the current threshold is `1`; once > 1 use a `SetThreshold` proposal instead.
+
+**Parameters**: `env`, `caller` (Address, admin), `threshold` (u32, `1..=admin_count`)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `caller` must be an admin
+
+**Possible Errors**:
+- `AdminOnly` / `Unauthorized`
+- `InvalidInput` — `threshold` is `0` or exceeds the current admin count
+- `InvalidStatus` — current threshold is already > 1 (must go through a proposal)
+
+**Events**: `ThresholdChanged { old, new }`
+
+---
+
+### Contract Pause / Emergency Stop
+
+### `pause`
+
+**Purpose**: Halt all non-admin mutating operations.
+
+**Parameters**: `env`, `admin` (Address)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `admin` must be a current admin (`require_auth`)
+
+**Possible Errors**: `AdminOnly` / `Unauthorized`
+
+**Events**: `ContractPaused { admin }`; also records `AdminActionType::ContractPaused` in the admin action log
+
+**Note**: `pause` / `unpause` are the emergency-stop pair. `set_pause` (documented above) is the newer audited toggle that returns the previous state; both write the same flag.
+
+### `unpause`
+
+**Purpose**: Resume normal operation.
+
+**Parameters**: `env`, `admin` (Address)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `admin` must be a current admin
+
+**Possible Errors**: `AdminOnly` / `Unauthorized`
+
+**Events**: `ContractUnpaused { admin }`; records `AdminActionType::ContractResumed`
+
+### `is_paused`
+
+**Purpose**: Whether the contract is currently paused.
+
+**Parameters**: `env`
+
+**Return Value**: `bool`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+---
+
+### Project Registry (additional)
+
+### `set_project_lifecycle_status`
+
+**Purpose**: Set a project's lifecycle stage (independent of verification status).
+
+**Parameters**:
+- `env`, `project_id` (u64)
+- `caller` (Address): must be the project owner or a maintainer
+- `status` (ProjectLifecycleStatus): `Active` | `Beta` | `Paused` | `Deprecated` | `Sunset`
+
+**Return Value**: `Result<Project, ContractError>` — the updated project
+
+**Authorization**: `caller` must be the owner or a maintainer (`require_auth`)
+
+**Possible Errors**:
+- `ProjectNotFound`
+- `Unauthorized` — caller is neither owner nor maintainer
+- `ContractPaused`
+
+**Events**: `ProjectLifecycleStatusChanged { project_id, status }`
+
+### `list_projects_by_lifecycle`
+
+**Purpose**: Paginated list of projects filtered by lifecycle status.
+
+**Parameters**: `env`, `status` (ProjectLifecycleStatus), `start_id` (u64), `limit` (u32, clamped to `MAX_PAGE_LIMIT`)
+
+**Return Value**: `Vec<Project>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_projects_by_tag_batch`
+
+**Purpose**: Fetch projects that carry **any** of the supplied tags, de-duplicated.
+
+**Parameters**: `env`, `tags` (Vec<String>, each validated against `MAX_TAG_LENGTH`), `limit` (u32, clamped to `MAX_PAGE_LIMIT`)
+
+**Return Value**: `Vec<Project>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None (invalid tags are ignored rather than erroring)
+
+### `reindex_tags`
+
+**Purpose**: Incrementally (re)build the tag → project index for projects registered before the tag index existed, or after a bulk import.
+
+**Parameters**: `env`, `caller` (Address, admin), `limit` (u32): max projects to process this call
+
+**Return Value**: `Result<u64, ContractError>` — the new watermark (last project ID processed)
+
+**Authorization**: `caller` must be an admin
+
+**Possible Errors**: `AdminOnly` / `Unauthorized`
+
+### `get_tag_index_watermark`
+
+**Purpose**: Highest project ID that `reindex_tags` has processed. When it equals `get_project_count`, the tag index is fully built.
+
+**Parameters**: `env`
+
+**Return Value**: `u64`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+---
+
+### Verification Registry (additional)
+
+### `get_pending_verifications`
+
+**Purpose**: Paginated list of verification records still awaiting an admin decision.
+
+**Parameters**: `env`, `start` (u32), `limit` (u32, clamped to `MAX_PAGE_LIMIT`)
+
+**Return Value**: `Vec<VerificationRecord>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_verification_records_batch`
+
+**Purpose**: Fetch multiple verification records by request ID in one call.
+
+**Parameters**: `env`, `request_ids` (Vec<u64>)
+
+**Return Value**: `Vec<(u64, VerificationRecord)>` — only IDs that exist are returned
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `is_verification_active`
+
+**Purpose**: Whether a project currently holds a non-expired `Verified` status.
+
+**Parameters**: `env`, `project_id` (u64)
+
+**Return Value**: `bool` — `false` for unknown projects, unverified, or expired
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None (infallible variant of `is_verification_expired`, which returns `Result`)
+
+### `renew_verification`
+
+**Purpose**: Admin-driven renewal that extends an existing `Verified` status by the configured verification duration without a fresh request/evidence cycle.
+
+**Parameters**: `env`, `project_id` (u64), `admin` (Address)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `admin` must be a current admin (`require_auth`)
+
+**Possible Errors**:
+- `AdminOnly` / `Unauthorized`
+- `ProjectNotFound`
+- `VerificationNotFound` — no verification record
+- `InvalidStatus` — project is not `Verified` (use the renewal-request flow instead)
+
+**Events**: `VerificationRenewed { project_id, new_expiry }`; records `AdminActionType::VerificationRenewalApproved`
+
+---
+
+### Fee Manager (additional)
+
+### `cancel_fee_payment`
+
+**Purpose**: Cancel a fee payment that has been made but not yet consumed by `request_verification`, refunding the payer.
+
+**Parameters**: `env`, `caller` (Address): the original payer or an admin, `project_id` (u64)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `caller` must be the payer or an admin (`require_auth`)
+
+**Possible Errors**:
+- `Unauthorized` — caller is neither payer nor admin
+- `InvalidStatus` — no outstanding (unconsumed) payment to cancel
+- `FeeConfigNotSet`
+
+**Events**: `FeePaymentCancelled { project_id, payer, amount }`
+
+### `claim_fee_refund`
+
+**Purpose**: Withdraw a refund recorded when a verification request was rejected with a fee refund.
+
+**Parameters**: `env`, `caller` (Address): the project owner / original payer, `project_id` (u64)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `caller` must be the recorded refund recipient (`require_auth`)
+
+**Possible Errors**:
+- `Unauthorized`
+- `NoRefundAvailable` — no refund recorded for this project
+- `RefundAlreadyClaimed`
+- `ArithmeticOverflow` — checked-math failure computing the payout (defensive)
+
+**Events**: `FeeRefundClaimed { project_id, recipient, amount }`
+
+### `get_fee_refund`
+
+**Purpose**: Read the refund record for a project, if any.
+
+**Parameters**: `env`, `project_id` (u64)
+
+**Return Value**: `Option<FeeRefundRecord>` — `None` when no refund is recorded
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_fee_config_history`
+
+**Purpose**: Full ordered history of fee-configuration changes (each `set_fee` appends an entry).
+
+**Parameters**: `env`
+
+**Return Value**: `Vec<FeeConfigHistoryEntry>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+---
+
+### Reporting & Moderation / TTL (additional)
+
+### `extend_projects_ttl`
+
+**Purpose**: Batch-extend the ledger TTL of multiple project entries.
+
+**Parameters**: `env`, `project_ids` (Vec<u64>)
+
+**Return Value**: `Result<u32, ContractError>` — count of entries actually extended
+
+**Authorization**: None (anyone may pay to extend TTL)
+
+**Possible Errors**: `InvalidInput` — batch larger than `MAX_TTL_BATCH_SIZE` (100)
+
+### `extend_reviews_ttl`
+
+**Purpose**: Batch-extend the ledger TTL of multiple review entries.
+
+**Parameters**: `env`, `review_ids` (Vec<(u64, Address)>) — `(project_id, reviewer)` pairs
+
+**Return Value**: `Result<u32, ContractError>` — count extended
+
+**Authorization**: None
+
+**Possible Errors**: `InvalidInput` — batch larger than `MAX_TTL_BATCH_SIZE`
+
+### `get_admin_action_log_by_admin`
+
+**Purpose**: Paginated admin-action-log entries filtered to a single admin.
+
+**Parameters**: `env`, `admin` (Address), `start_index` (u32), `limit` (u32, clamped to `MAX_ADMIN_ACTION_LOG_PAGE` = 100)
+
+**Return Value**: `Vec<AdminActionEntry>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+---
+
+### Project Dependencies (additional)
+
+### `get_project_dependency_count`
+
+**Purpose**: Number of dependencies recorded for a project.
+
+**Parameters**: `env`, `project_id` (u64)
+
+**Return Value**: `u32` (`0` for unknown projects)
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+---
+
+### Changelog
+
+Project changelog entries are owner-managed pointers to off-chain (IPFS) release
+notes, correlated with an optional semantic version string.
+
+### `add_changelog_entry`
+
+**Purpose**: Append a changelog entry for a project.
+
+**Parameters**:
+- `env`, `project_id` (u64)
+- `owner` (Address): must be the project owner
+- `cid` (String): IPFS CID of the changelog content (`MIN_CID_LEN`..=`MAX_CID_LEN`)
+- `description` (Option<String>): short title/summary (≤ `MAX_CID_LEN`)
+- `version` (Option<String>): semantic version, e.g. `"1.2.3"`
+- `changelog_cid` (Option<String>): optional secondary CID (e.g. rendered notes)
+
+**Return Value**: `Result<u64, ContractError>` — the new changelog entry ID
+
+**Authorization**: `owner` must be the project owner (`require_auth`)
+
+**Possible Errors**:
+- `ProjectNotFound`
+- `Unauthorized` — caller is not the owner
+- `InvalidCid` — `cid` / `changelog_cid` fails CID validation
+- `InvalidInput` — `description` / `version` over length
+- `ContractPaused`
+
+**Events**: `ChangelogEntryAdded { project_id, changelog_id, version }`
+
+### `remove_changelog_entry`
+
+**Purpose**: Delete a changelog entry.
+
+**Parameters**: `env`, `changelog_id` (u64), `owner` (Address)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: `owner` must be the owner of the parent project (`require_auth`)
+
+**Possible Errors**:
+- `Unauthorized`
+- `NotFound`-class — no changelog entry with that ID
+- `ContractPaused`
+
+**Events**: `ChangelogEntryRemoved { project_id, changelog_id }`
+
+### `get_changelog_entry`
+
+**Purpose**: Fetch a single changelog entry.
+
+**Parameters**: `env`, `changelog_id` (u64)
+
+**Return Value**: `Option<ChangelogEntry>` — `None` if unknown
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_project_changelog`
+
+**Purpose**: Paginated changelog for a project, ordered by `sort_mode`.
+
+**Parameters**:
+- `env`, `project_id` (u64)
+- `start_index` (u32), `limit` (u32, clamped to `MAX_PAGE_LIMIT`)
+- `sort_mode` (ChangelogSortMode): `Newest` (default ordering) or `Oldest`
+
+**Return Value**: `Vec<ChangelogEntry>`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
+
+### `get_changelog_count`
+
+**Purpose**: Number of changelog entries for a project.
+
+**Parameters**: `env`, `project_id` (u64)
+
+**Return Value**: `u32`
+
+**Authorization**: None (public read)
+
+**Possible Errors**: None
