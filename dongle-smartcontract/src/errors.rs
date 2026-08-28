@@ -155,6 +155,12 @@ pub enum ContractError {
     /// rule). This prevents the multi-sig quorum from being silently dismantled
     /// by exactly the number of colluding admins it is meant to require.
     ThresholdDowngradeRequiresSupermajority = 74,
+    /// The fee payment record has expired (past the FEE_PAYMENT_EXPIRY_SECONDS window).
+    /// The owner must pay the fee again before requesting verification.
+    FeePaymentExpired = 75,
+    /// This action requires multi-signature approval via the proposal system.
+    /// The admin approval threshold is currently above 1; use create_proposal instead.
+    MultiSigRequired = 76,
 }
 
 pub type Error = ContractError;

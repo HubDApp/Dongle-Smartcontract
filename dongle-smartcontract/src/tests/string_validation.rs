@@ -492,9 +492,14 @@ fn url_empty_invalid() {
 }
 
 #[test]
-fn url_http_valid() {
+fn url_http_rejected() {
+    // http:// is no longer accepted — only https:// is allowed.
     let e = mk_env();
-    assert!(Utils::validate_website(&s(&e, "http://example.com")).is_ok());
+    assert_eq!(
+        Utils::validate_website(&s(&e, "http://example.com")),
+        Err(ContractError::InvalidInput),
+        "http:// scheme must be rejected; only https:// is permitted"
+    );
 }
 
 #[test]
