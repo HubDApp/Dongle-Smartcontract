@@ -178,7 +178,3 @@ pub const DEFAULT_REVIEW_FEE: u128 = 0;
 /// Bump when a non-backwards-compatible change to the public contract surface
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
-
-pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
-pub const DEFAULT_REQUIRE_ENDORSEMENT: bool = false;
-pub const DEFAULT_REVIEW_FEE: u128 = 0;

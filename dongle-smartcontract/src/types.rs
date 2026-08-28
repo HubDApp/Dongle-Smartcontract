@@ -252,8 +252,6 @@ pub struct VerificationRecord {
     /// Unix timestamp (seconds) after which the Verified status is considered expired.
     /// Set when the verification is approved; None for non-approved records.
     pub expires_at: Option<u64>,
-    /// Unix timestamp when verification expires (0 = no expiry)
-    pub expires_at: u64,
     /// Unix timestamp when verification was last renewed
     pub last_renewed_at: u64,
     /// Admin assigned to review this verification request
@@ -285,7 +283,14 @@ pub struct FeeConfig {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractConfig {
-    pub fee_config: Option<FeeConfig>,
+    /// Whether a fee configuration has been set.
+    pub has_fee_config: bool,
+    /// Fee token (meaningful only when has_fee_config is true).
+    pub fee_token: Option<Address>,
+    /// Verification fee amount (meaningful only when has_fee_config is true).
+    pub verification_fee: u128,
+    /// Registration fee amount (meaningful only when has_fee_config is true).
+    pub registration_fee: u128,
     pub treasury: Option<Address>,
     pub admin_count: u32,
     pub paused: bool,

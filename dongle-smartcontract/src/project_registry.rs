@@ -20,6 +20,7 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
+use crate::validation::validate_registration_params;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -45,9 +46,11 @@ impl ProjectRegistry {
         // Validation phase
         params.owner.require_auth();
 
-        // Validate inputs - return typed errors instead of panicking
-        Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
+        // Validate all registration fields via the canonical entry point in
+        // validation.rs.  This single call replaces the former scattered
+        // Utils::validate_* calls and eliminates the double-validation of
+        // bounty_url that was previously present in this function.
+        validate_registration_params(env, &params)?;
 
         // Check reserved names
         Self::check_reserved_name(env, &params.name)?;
@@ -61,38 +64,6 @@ impl ProjectRegistry {
                     config.registration_fee,
                 )?;
             }
-        }
-
-        // Validate description with comprehensive checks
-        Utils::validate_description(&params.description)?;
-
-        Utils::validate_category_field(&params.category)?;
-
-        if let Some(website) = &params.website {
-            Utils::validate_website(website)?;
-        }
-        if let Some(value) = &params.bounty_url {
-            Utils::validate_website(value)?;
-            // Bounty URL storage removed - not part of core StorageKey
-        }
-        if let Some(logo_cid) = &params.logo_cid {
-            Utils::validate_logo_cid(logo_cid)?;
-        }
-        if let Some(metadata_cid) = &params.metadata_cid {
-            Utils::validate_metadata_cid(metadata_cid)?;
-        }
-
-        // Validate tags if provided
-        if let Some(tags) = &params.tags {
-            Utils::validate_tags(tags)?;
-        }
-
-        // Validate social links if provided
-        if let Some(social_links) = &params.social_links {
-            Utils::validate_social_links(social_links)?;
-        }
-        if let Some(bounty_url) = &params.bounty_url {
-            Utils::validate_website(bounty_url)?;
         }
 
         Self::ensure_owner_capacity(env, &params.owner)?;

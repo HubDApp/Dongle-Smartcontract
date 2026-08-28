@@ -76,4 +76,4 @@ mod ttl_batch;
 mod region_and_integrity;
 
 // Contract-level configuration view (`get_config`, pause toggle)
-mod config;
+// (mod config is already declared above)

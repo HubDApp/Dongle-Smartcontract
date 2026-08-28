@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, String, Vec};
+use soroban_sdk::{Env, Map, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -8,7 +8,6 @@ use crate::constants::{
 };
 use crate::errors::ContractError;
 use crate::storage_keys::StorageKey;
-use soroban_sdk::{Map, Vec};
 
 /// Utility struct — all methods are associated functions (no instance needed).
 pub struct Utils;
@@ -326,7 +325,7 @@ impl Utils {
 
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if len < 40 || len > MAX_CID_LEN {
+        if len < 46 || len > MAX_CID_LEN {
             return false;
         }
 
@@ -393,5 +392,48 @@ impl Utils {
                 }
             }
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Vec helpers
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Remove all occurrences of `item` from a Soroban `Vec` and return a
+    /// new `Vec` containing all remaining elements in their original order.
+    pub fn remove_item_from_vec<T>(env: &Env, items: &soroban_sdk::Vec<T>, item: &T) -> soroban_sdk::Vec<T>
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
+            + PartialEq,
+    {
+        let mut result = soroban_sdk::Vec::new(env);
+        for i in 0..items.len() {
+            if let Some(v) = items.get(i) {
+                if &v != item {
+                    result.push_back(v);
+                }
+            }
+        }
+        result
+    }
+
+    /// Append `item` to `items` only if it is not already present.
+    /// Returns `true` if the item was appended, `false` if it was already there.
+    pub fn add_unique_to_vec<T>(items: &mut soroban_sdk::Vec<T>, item: &T) -> bool
+    where
+        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
+            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
+            + PartialEq
+            + Clone,
+    {
+        for i in 0..items.len() {
+            if let Some(v) = items.get(i) {
+                if &v == item {
+                    return false;
+                }
+            }
+        }
+        items.push_back(item.clone());
+        true
     }
 }

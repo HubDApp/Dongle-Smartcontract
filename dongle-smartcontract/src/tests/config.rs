@@ -16,7 +16,7 @@ fn config_after_initialization_exposes_defaults_and_limits() {
     assert_eq!(config.admin_count, 1);
     assert!(!config.paused);
     assert_eq!(config.version, String::from_str(&env, "1.0.0"));
-    assert_eq!(config.fee_config, None);
+    assert!(!config.has_fee_config);
     assert_eq!(config.treasury, None);
     assert_eq!(config.max_projects_per_user, MAX_PROJECTS_PER_USER);
     assert_eq!(config.max_reviews_per_project, MAX_REVIEWS_PER_PROJECT);
@@ -52,11 +52,11 @@ fn config_reflects_fee_updates() {
     client.set_fee(&admin, &Some(token.clone()), &123u128, &45u128, &treasury);
 
     let config = client.get_config();
-    let fee_config = config.fee_config.expect("fee config should be set");
 
-    assert_eq!(fee_config.token, Some(token));
-    assert_eq!(fee_config.verification_fee, 123);
-    assert_eq!(fee_config.registration_fee, 45);
+    assert!(config.has_fee_config);
+    assert_eq!(config.fee_token, Some(token));
+    assert_eq!(config.verification_fee, 123);
+    assert_eq!(config.registration_fee, 45);
     assert_eq!(config.treasury, Some(treasury));
     assert_eq!(config.admin_count, 1);
     assert!(!config.paused);

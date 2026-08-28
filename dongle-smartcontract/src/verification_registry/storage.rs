@@ -97,7 +97,6 @@ impl VerificationRegistry {
             fee_amount,
             revoke_reason: None,
             expires_at: None,
-            expires_at: 0,
             last_renewed_at: 0,
             assigned_admin: None,
         };
@@ -217,7 +216,6 @@ impl VerificationRegistry {
         let duration = AdminManager::get_verification_duration(env);
         record.status = VerificationStatus::Verified;
         record.expires_at = Some(now.saturating_add(duration));
-        record.expires_at = now.saturating_add(Self::get_verification_duration(env));
         record.decided_at = now;
         env.storage()
             .persistent()
@@ -684,7 +682,7 @@ impl VerificationRegistry {
         let expires_at = now.saturating_add(Self::get_verification_duration(env));
 
         verification.status = VerificationStatus::Verified;
-        verification.expires_at = expires_at;
+        verification.expires_at = Some(expires_at);
         verification.last_renewed_at = now;
         env.storage().persistent().set(
             &StorageKey::Verification(project_id),
@@ -802,7 +800,10 @@ impl VerificationRegistry {
     pub fn is_verification_expired(env: &Env, project_id: u64) -> Result<bool, ContractError> {
         let verification = Self::get_verification(env, project_id)
             .ok_or(ContractError::VerificationNotFound)?;
-        Ok(verification.expires_at != 0 && env.ledger().timestamp() > verification.expires_at)
+        Ok(match verification.expires_at {
+            Some(expires_at) => expires_at != 0 && env.ledger().timestamp() > expires_at,
+            None => false,
+        })
     }
 
     /// Admin-only: prune verification history for a project, retaining only the
