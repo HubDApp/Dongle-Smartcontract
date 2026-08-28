@@ -129,11 +129,38 @@ pub struct ReviewRevisionEvent {
 }
 
 /// Shared three-state status for all claim workflows (ownership + contract-address).
+///
+/// ## State Machine
+///
+/// ```text
+///         submit_claim_request
+///              │
+///              ▼
+///           Pending  ──── approve ────► Approved  (terminal)
+///              │
+///              └──── reject ────────► Rejected  (terminal)
+/// ```
+///
+/// ### Valid transitions
+///
+/// | From    | To       | Triggered by                      |
+/// |---------|----------|-----------------------------------|
+/// | Pending | Approved | admin calls `approve_claim_request` |
+/// | Pending | Rejected | admin calls `reject_claim_request`  |
+///
+/// ### Terminal states
+///
+/// `Approved` and `Rejected` are terminal — once a claim reaches either state
+/// no further transition is permitted.  Attempts to transition out of a
+/// terminal state return [`crate::errors::ContractError::InvalidStatus`].
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
+    /// The claim has been submitted and is awaiting admin review.
     Pending,
+    /// The claim was approved by an admin. **Terminal state.**
     Approved,
+    /// The claim was rejected by an admin. **Terminal state.**
     Rejected,
 }
 
@@ -170,8 +197,32 @@ impl ClaimStatus {
         *self = Self::Rejected;
         Ok(())
     }
+
+    /// Returns `true` if this status is a terminal state (no further transitions allowed).
+    ///
+    /// Terminal states are `Approved` and `Rejected`.  Once a claim reaches
+    /// either of these states it cannot be transitioned further.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Approved | Self::Rejected)
+    }
+
+    /// Returns `true` if transitioning `self → next` is a valid state-machine step.
+    ///
+    /// Only `Pending → Approved` and `Pending → Rejected` are valid.
+    /// All other combinations (including self-transitions) return `false`.
+    pub fn can_transition_to(self, next: ClaimStatus) -> bool {
+        matches!(
+            (self, next),
+            (Self::Pending, Self::Approved) | (Self::Pending, Self::Rejected)
+        )
+    }
 }
 
+/// A pending or resolved ownership-claim request.
+///
+/// The `status` field follows the [`ClaimStatus`] state machine:
+/// `Pending` (initial) → `Approved` or `Rejected` (terminal).
+/// See [`ClaimStatus`] for the full state diagram and transition rules.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimRequest {

@@ -434,8 +434,42 @@ impl Utils {
     // CID helpers
     // ────────────────────────────────────────────────────────────────────
 
+    /// Validate an IPFS Content Identifier (CID) string.
+    ///
+    /// # Accepted formats
+    ///
+    /// | CID version | Multibase prefix | Typical length | Example                                    |
+    /// |-------------|-----------------|----------------|--------------------------------------------|
+    /// | v0          | `Qm`            | 46 chars       | `QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79…` |
+    /// | v1          | `b`             | 40–128 chars   | `bafybeigdyrzt5sfp7udm7hu76uh7y26nf3…`    |
+    ///
+    /// # Rejection rules (issue #667)
+    ///
+    /// The following inputs are always rejected:
+    ///
+    /// - Empty string (length 0)
+    /// - CID shorter than 40 bytes
+    /// - CID longer than [`crate::constants::MAX_CID_LEN`] (128 bytes)
+    /// - Any prefix other than `Qm` (CIDv0 base58btc) or `b` (CIDv1 base32)
+    ///
+    /// # Future-proofing
+    ///
+    /// CIDv1 supports many multibase encodings beyond base32 (`b` prefix):
+    ///
+    /// | Prefix | Encoding    |
+    /// |--------|-------------|
+    /// | `b`    | base32      |
+    /// | `u`    | base64url   |
+    /// | `m`    | base64      |
+    /// | `f`    | base16      |
+    ///
+    /// Prefixes `u`, `m`, and `f` are not currently accepted.  When support for
+    /// additional encodings is required, extend the prefix check below.  The
+    /// `cid_validation` test module documents these limitations and marks which
+    /// assertions must be updated.
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
+        // Reject empty strings and out-of-range lengths (issue #667)
         if !(40..=MAX_CID_LEN).contains(&len) {
             return false;
         }
@@ -446,10 +480,12 @@ impl Utils {
         cid.copy_into_slice(&mut buf[..len]);
 
         if buf[0] == b'Q' && buf[1] == b'm' {
-            // CIDv0: historically exactly 46 characters, but we allow larger for test flexibility
+            // CIDv0: base58btc multihash, historically exactly 46 characters.
+            // We allow any length in [40, MAX_CID_LEN] for forward compatibility.
             true
         } else if buf[0] == b'b' {
-            // CIDv1
+            // CIDv1: base32 lower (the most common CIDv1 encoding).
+            // Other CIDv1 multibase prefixes (u, m, f) are not yet accepted.
             true
         } else {
             false

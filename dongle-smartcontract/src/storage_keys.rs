@@ -210,3 +210,14 @@ pub enum ExtensionKey {
     /// Global index of pending verification request IDs, in creation order.
     PendingVerificationRequests,
 }
+
+/// Storage keys for fee configuration history, split into a separate enum to stay under
+/// Soroban's 50-variant limit per `#[contracttype]` enum.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeHistoryKey {
+    /// Counter for fee configuration change history entries.
+    FeeConfigHistoryCount,
+    /// Fee configuration history entry by index.
+    FeeConfigHistoryEntry(u32),
+}

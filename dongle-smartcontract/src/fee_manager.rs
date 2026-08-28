@@ -2,16 +2,17 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::errors::ContractError;
 use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, FeeHistoryKey, StorageKey};
 use crate::types::{
     AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
 };
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{Address, Env};
 
 pub struct FeeManager;
 
@@ -55,7 +56,7 @@ impl FeeManager {
         let history_id = env
             .storage()
             .persistent()
-            .get::<_, u32>(&ExtensionKey::FeeConfigHistoryCount)
+            .get::<_, u32>(&FeeHistoryKey::FeeConfigHistoryCount)
             .unwrap_or(0);
         let history_entry = FeeConfigHistoryEntry {
             admin: admin.clone(),
@@ -71,9 +72,9 @@ impl FeeManager {
         };
         env.storage()
             .persistent()
-            .set(&ExtensionKey::FeeConfigHistoryEntry(history_id), &history_entry);
+            .set(&FeeHistoryKey::FeeConfigHistoryEntry(history_id), &history_entry);
         env.storage().persistent().set(
-            &ExtensionKey::FeeConfigHistoryCount,
+            &FeeHistoryKey::FeeConfigHistoryCount,
             &(history_id + 1u32),
         );
 
@@ -245,6 +246,26 @@ impl FeeManager {
             .persistent()
             .get(&StorageKey::FeeConfig)
             .ok_or(ContractError::FeeConfigNotSet)
+    }
+
+    /// Read the fee configuration change history in chronological order.
+    pub fn get_fee_config_history(env: &Env) -> soroban_sdk::Vec<FeeConfigHistoryEntry> {
+        let count = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&FeeHistoryKey::FeeConfigHistoryCount)
+            .unwrap_or(0);
+        let mut out = soroban_sdk::Vec::new(env);
+        for i in 0..count {
+            if let Some(entry) = env
+                .storage()
+                .persistent()
+                .get::<_, FeeConfigHistoryEntry>(&FeeHistoryKey::FeeConfigHistoryEntry(i))
+            {
+                out.push_back(entry);
+            }
+        }
+        out
     }
 
     /// Pay the registration fee for a project.
