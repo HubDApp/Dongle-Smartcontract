@@ -108,3 +108,7 @@ mod fee_state_machine_622;
 
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
+
+// Issues #689, #690: threshold validation boundary cases and supermajority
+// rule verification at large admin counts (10+, 100+)
+mod threshold_boundary_scale;
