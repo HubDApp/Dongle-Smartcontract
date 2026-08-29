@@ -177,11 +177,13 @@ impl ProjectRegistry {
             return Err(ContractError::DuplicateProjectName);
         }
 
-        // Slug uniqueness
+        // Slug uniqueness: canonical slugs are stored lowercase so case-only
+        // variations are treated as duplicates of the same key.
+        let canonical_slug = Utils::to_lowercase(env, &params.slug);
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectBySlug(params.slug.clone()))
+            .has(&StorageKey::ProjectBySlug(canonical_slug.clone()))
         {
             return Err(ContractError::ProjectAlreadyExists);
         }
@@ -273,9 +275,10 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
+        let canonical_slug = Utils::to_lowercase(env, &project.slug);
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectBySlug(params.slug), &count);
+            .set(&StorageKey::ProjectBySlug(canonical_slug.clone()), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
         let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
@@ -477,22 +480,24 @@ impl ProjectRegistry {
         }
         if let Some(value) = params.slug {
             Utils::validate_project_slug(&value)?;
+            let canonical_slug = Utils::to_lowercase(env, &value);
 
-            // Check if new slug is different from current slug
-            if value != old_slug {
-                // Check if new slug already exists (assigned to a different project)
+            // Check if new slug is different from current slug.
+            // Canonicalized lowercase storage keys keep slug uniqueness consistent
+            // with the name normalization rules.
+            if canonical_slug != old_slug {
+                // Check if the canonical slug already exists on a different project.
                 if let Some(existing_id) = env
                     .storage()
                     .persistent()
-                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(value.clone()))
+                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(canonical_slug.clone()))
                 {
-                    // If the slug exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
                         return Err(ContractError::ProjectAlreadyExists);
                     }
                 }
 
-                project.slug = value;
+                project.slug = canonical_slug.clone();
                 slug_updated = true;
             }
         }
@@ -882,13 +887,12 @@ impl ProjectRegistry {
     }
 
     pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
-        // Get project ID from slug mapping
+        let canonical_slug = Utils::to_lowercase(env, &slug);
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectBySlug(slug))?;
+            .get(&StorageKey::ProjectBySlug(canonical_slug))?;
 
-        // Get project by ID
         Self::get_project(env, project_id)
     }
 

@@ -1,6 +1,7 @@
 //! Tests for project slug functionality.
 
 use crate::errors::ContractError;
+use crate::types::ProjectRegistrationParams;
 use soroban_sdk::{testutils::Address as _, Address, String};
 
 use super::fixtures::{create_test_project, setup_contract};
@@ -336,6 +337,101 @@ fn test_slug_ends_with_alphanumeric() {
     if let Some(last_char) = project.slug.to_string().chars().last() {
         assert!(last_char.is_ascii_lowercase() || last_char.is_ascii_digit());
     }
+}
+
+#[test]
+fn test_name_duplicate_case_insensitive() {
+    let env = soroban_sdk::Env::default();
+    let (client, _admin) = setup_contract(&env);
+
+    let owner = Address::generate(&env);
+    let first = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "Project Atlas"),
+        slug: String::from_str(&env, "project-atlas"),
+        description: String::from_str(&env, "First description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        license: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+    let second = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "project atlas"),
+        slug: String::from_str(&env, "project-atlas-2"),
+        description: String::from_str(&env, "Second description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        license: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+
+    let first_id = client.mock_all_auths().register_project(&first);
+    assert_eq!(first_id, 1);
+
+    let result = client.mock_all_auths().try_register_project(&second);
+    assert_eq!(result, Err(Ok(ContractError::DuplicateProjectName.into())));
+}
+
+#[test]
+fn test_slug_must_be_lowercase_and_unique_on_canonical_key() {
+    let env = soroban_sdk::Env::default();
+    let (client, _admin) = setup_contract(&env);
+
+    let owner = Address::generate(&env);
+    let first = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "Lowercase Slug"),
+        slug: String::from_str(&env, "lowercase-slug"),
+        description: String::from_str(&env, "First description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        license: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+    let uppercase_slug = ProjectRegistrationParams {
+        owner: owner.clone(),
+        name: String::from_str(&env, "Uppercase Slug"),
+        slug: String::from_str(&env, "Lowercase-Slug"),
+        description: String::from_str(&env, "Second description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        license: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+
+    let first_id = client.mock_all_auths().register_project(&first);
+    assert_eq!(first_id, 1);
+
+    let result = client.mock_all_auths().try_register_project(&uppercase_slug);
+    assert_eq!(result, Err(Ok(ContractError::InvalidProjectSlug.into())));
+
+    let project = client.get_project_by_slug(&String::from_str(&env, "lowercase-slug")).unwrap();
+    assert_eq!(project.id, first_id);
 }
 
 
