@@ -10,6 +10,7 @@
 
 extern crate alloc;
 use alloc::string::String as StdString;
+use alloc::string::ToString;
 
 use crate::errors::ContractError;
 use crate::utils::Utils;
@@ -150,8 +151,7 @@ proptest! {
         let url = alloc::format!("http://{host}");
         prop_assert_eq!(
             Utils::validate_website(&s(&e, &url)),
-            Err(ContractError::InvalidInput),
-            "http:// URL {url:?} should always be rejected"
+            Err(ContractError::InvalidInput)
         );
     }
 }

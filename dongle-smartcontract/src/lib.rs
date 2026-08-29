@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
@@ -807,6 +809,10 @@ impl DongleContract {
 
     pub fn is_verification_expired(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expired(&env, project_id)
+    }
+
+    pub fn process_verification_expiry(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry(&env, project_id)
     }
 
     /// Returns whether a non-expired verification will expire within the

@@ -162,6 +162,12 @@ pub enum ContractError {
     /// Adding this dependency would make the transitive project-dependency
     /// chain deeper than `MAX_DEPENDENCY_DEPTH` levels.
     DependencyDepthExceeded = 76,
+    /// Fee payment has expired
+    FeePaymentExpired = 77,
+    /// Maintainer has already been added
+    AlreadyMaintainerAdded = 78,
+    /// Multi-sig approval is required for this operation
+    MultiSigRequired = 79,
 }
 
 pub type Error = ContractError;
