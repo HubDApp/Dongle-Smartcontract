@@ -1,5 +1,7 @@
 //! Tests for project region metadata (#238) and project integrity hash (#250).
 
+use crate::constants::MAX_DESCRIPTION_LEN;
+use crate::project_registry::ProjectRegistry;
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
 use soroban_sdk::{
@@ -167,4 +169,20 @@ fn test_integrity_hash_changes_on_update() {
         hash_before, hash_after,
         "Hash must change when metadata changes"
     );
+}
+
+#[test]
+fn test_integrity_hash_accepts_description_longer_than_previous_scratch_buffer() {
+    let env = Env::default();
+    let description = "a".repeat(MAX_DESCRIPTION_LEN + 1);
+
+    let hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &String::from_str(&env, "Test-Project"),
+        &String::from_str(&env, "test-project"),
+        &String::from_str(&env, "DeFi"),
+        &String::from_str(&env, &description),
+    );
+
+    assert_eq!(hash.len(), 32, "SHA-256 hash must be 32 bytes");
 }

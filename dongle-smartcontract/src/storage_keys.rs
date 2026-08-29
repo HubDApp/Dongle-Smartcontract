@@ -153,6 +153,10 @@ pub enum ExtensionKey {
     ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
+    /// Endorser at a zero-based project position.
+    EndorsementAt(u64, u32),
+    /// Zero-based position of an endorser in a project's index.
+    EndorsementIndex(u64, Address),
     /// Endorsement count for a project.
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
@@ -209,4 +213,11 @@ pub enum ExtensionKey {
     AdminActionLogByAdmin(Address),
     /// Global index of pending verification request IDs, in creation order.
     PendingVerificationRequests,
+    /// Fee configuration change history, appended oldest-first.
+    ///
+    /// Stored as a single `Vec<FeeConfigHistoryEntry>` rather than one key per
+    /// entry because `ExtensionKey` is a `#[contracttype]` union and Soroban
+    /// caps those at 50 cases; a per-entry key plus a separate count key would
+    /// need two slots and push the enum over the limit.
+    FeeConfigHistory,
 }
