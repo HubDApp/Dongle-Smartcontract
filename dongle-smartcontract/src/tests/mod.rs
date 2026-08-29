@@ -108,3 +108,6 @@ mod fee_state_machine_622;
 
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
+
+// Issue #694: integer overflow/underflow audit
+mod arithmetic_overflow_694;
