@@ -1540,6 +1540,20 @@ impl DongleContract {
         crate::endorsement_registry::EndorsementRegistry::get_endorsement_count(&env, project_id)
     }
 
+    pub fn get_project_endorsements(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        crate::endorsement_registry::EndorsementRegistry::get_project_endorsements(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
+    }
+
     pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {
         crate::endorsement_registry::EndorsementRegistry::has_endorsed(&env, project_id, &user)
     }

@@ -331,6 +331,22 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for one indexed endorsement entry and its membership index.
+    pub fn extend_endorsement_entry_ttl(env: &Env, project_id: u64, user: &Address, index: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementAt(project_id, index),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementIndex(project_id, user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
     /// Extend TTL for user subscriptions list
     pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
         Self::extend_if_exists(
