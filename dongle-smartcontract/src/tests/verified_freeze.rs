@@ -8,18 +8,18 @@
 //!
 //! | Field         | Reason frozen                                         |
 //! |---------------|-------------------------------------------------------|
-//! | `name`        | Public identity anchor; users trust the verified name |
 //! | `slug`        | Stable URL identifier; changes break / enable spoofing|
 //! | `category`    | Verification may be category-specific                 |
 //! | `logo_cid`    | Visual identity audited during verification           |
-//! | `metadata_cid`| Evidence CID used during the verification review      |
 //!
-//! Major fields (`name`, `website`, `metadata_cid`) reset verification.
+//! Major fields (`name`, `website`, `metadata_cid`) reset verification to
+//! `Unverified` but are NOT outright rejected.
 //! Minor fields (`description`, `tags`, `social_links`, `launch_timestamp`)
 //! remain freely mutable after verification.
 //!
-//! To change a frozen field, an admin must first revoke verification;
-//! the project then returns to `Unverified` status and may be re-verified.
+//! To change a frozen field (`slug`, `category`, `logo_cid`), an admin must
+//! first revoke verification; the project then returns to `Unverified` status
+//! and may be re-verified.
 
 use crate::constants::MAJOR_METADATA_FIELDS;
 use crate::errors::ContractError;
@@ -85,7 +85,8 @@ fn unit_freeze_unverified_no_restriction() {
 }
 
 #[test]
-fn unit_freeze_verified_name_blocked() {
+fn unit_freeze_verified_name_not_blocked_by_freeze() {
+    // name is NOT in the hard-freeze set (it triggers a verification reset instead)
     let r = crate::utils::Utils::check_frozen_fields(true, true, false, false, false, false);
     assert!(r.is_ok());
 }
@@ -109,7 +110,8 @@ fn unit_freeze_verified_logo_cid_blocked() {
 }
 
 #[test]
-fn unit_freeze_verified_metadata_cid_blocked() {
+fn unit_freeze_verified_metadata_cid_not_blocked() {
+    // metadata_cid is a major-reset field, not a hard-freeze field
     let r = crate::utils::Utils::check_frozen_fields(true, false, false, false, false, true);
     assert!(r.is_ok());
 }
@@ -157,7 +159,6 @@ fn verified_project_update_name_resets_verification() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let project = client.update_project(&params);
     assert_eq!(project.name, SorobanString::from_str(&env, "NewName"));
@@ -189,10 +190,13 @@ fn verified_project_update_slug_blocked() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
-    assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::VerifiedFieldFrozen.into())),
+        "slug change on a verified project must return VerifiedFieldFrozen"
+    );
 }
 
 #[test]
@@ -218,7 +222,6 @@ fn verified_project_update_category_blocked() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
-        repository_url: None,
         repository_url: None,
     };
     let result = client.try_update_project(&params);
@@ -252,7 +255,6 @@ fn verified_project_update_logo_cid_blocked() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert_eq!(result, Err(Ok(ContractError::VerifiedFieldFrozen.into())));
@@ -284,7 +286,6 @@ fn verified_project_update_metadata_cid_resets_verification() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
-        repository_url: None,
         repository_url: None,
     };
     let project = client.update_project(&params);
@@ -322,7 +323,6 @@ fn verified_project_update_description_allowed() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -356,13 +356,13 @@ fn verified_project_update_website_resets_verification() {
             &env,
             "https://newsite.example.com",
         ))),
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
-        repository_url: None,
         repository_url: None,
     };
     let project = client.update_project(&params);
@@ -399,7 +399,6 @@ fn verified_project_no_change_to_frozen_fields_allowed() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
@@ -430,12 +429,12 @@ fn after_revoke_frozen_fields_become_mutable() {
     let p = client.get_project(&project_id).unwrap();
     assert_ne!(p.verification_status, VerificationStatus::Verified);
 
-    // Now changing the name should succeed
+    // Now changing the slug should succeed
     let params = ProjectUpdateParams {
         project_id,
         caller: admin.clone(),
-        name: Some(SorobanString::from_str(&env, "NewNameAfterRevoke")),
-        slug: None,
+        name: None,
+        slug: Some(SorobanString::from_str(&env, "new-slug-after-revoke")),
         description: None,
         category: None,
         website: None,
@@ -447,12 +446,11 @@ fn after_revoke_frozen_fields_become_mutable() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
         result.is_ok(),
-        "name change after revocation should succeed"
+        "slug change after revocation should succeed"
     );
 }
 
@@ -483,7 +481,6 @@ fn unverified_project_all_fields_mutable() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
-        repository_url: None,
         repository_url: None,
     };
     let result = client.try_update_project(&params);
@@ -527,11 +524,60 @@ fn pending_verification_project_fields_are_mutable() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     let result = client.try_update_project(&params);
     assert!(
         result.is_ok(),
         "fields should be mutable while verification is only Pending"
+    );
+}
+
+// ─── Documentation: slug is frozen ────────────────────────────────────────
+
+/// This test documents the expected behavior for slug immutability:
+/// a verified project's slug is permanently frozen until verification is revoked.
+/// Indexers and frontend applications can rely on slug stability for verified projects.
+#[test]
+fn verified_project_slug_is_frozen_documentation_test() {
+    let env = mk_env();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "SlugFreezeDoc");
+    approve_verification(&client, &admin, project_id, &env);
+
+    let verified_project = client.get_project(&project_id).unwrap();
+    assert_eq!(verified_project.verification_status, VerificationStatus::Verified);
+    let original_slug = verified_project.slug.clone();
+
+    // Attempt to change slug — must be rejected
+    let params = ProjectUpdateParams {
+        project_id,
+        caller: admin.clone(),
+        name: None,
+        slug: Some(SorobanString::from_str(&env, "attempted-slug-change")),
+        description: None,
+        category: None,
+        website: None,
+        license: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+    let result = client.try_update_project(&params);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::VerifiedFieldFrozen.into())),
+        "VerifiedFieldFrozen (error 42) must be returned when attempting to change slug on a verified project"
+    );
+
+    // Slug must be unchanged
+    let project_after = client.get_project(&project_id).unwrap();
+    assert_eq!(
+        project_after.slug, original_slug,
+        "slug must remain unchanged after rejected update"
     );
 }

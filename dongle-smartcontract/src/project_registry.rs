@@ -2542,6 +2542,64 @@ impl ProjectRegistry {
         soroban_sdk::Bytes::from_array(env, &hash.to_array())
     }
 
+    /// Validate a project lifecycle status transition.
+    ///
+    /// ## Valid Transition Matrix
+    ///
+    /// ```text
+    ///               │ Active │ Beta │ Paused │ Deprecated │ Sunset │
+    /// ──────────────┼────────┼──────┼────────┼────────────┼────────┤
+    /// Active        │   —    │  ✓   │   ✓    │     ✓      │   ✓    │
+    /// Beta          │   ✓    │  —   │   ✓    │     ✓      │   ✓    │
+    /// Paused        │   ✓    │  ✓   │   —    │     ✓      │   ✓    │
+    /// Deprecated    │   ✓    │  ✗   │   ✗    │     —      │   ✓    │
+    /// Sunset        │   ✓    │  ✗   │   ✗    │     ✗      │   —    │
+    /// ```
+    ///
+    /// - `Deprecated → Beta/Paused` is blocked: a deprecated project must
+    ///   first be un-deprecated (`→ Active`) before returning to Beta or Paused.
+    /// - `Sunset → Beta/Paused/Deprecated` is blocked: a sunset project must
+    ///   be fully revived (`→ Active`) before moving to any non-Active status.
+    ///
+    /// Same-state transitions are handled upstream (return early without error).
+    ///
+    /// # Errors
+    /// Returns `ContractError::InvalidStatusTransition` for any transition not
+    /// listed in the matrix above.
+    pub fn validate_lifecycle_transition(
+        from: ProjectLifecycleStatus,
+        to: ProjectLifecycleStatus,
+    ) -> Result<(), ContractError> {
+        let valid = matches!(
+            (from, to),
+            // From Active: any forward or lateral move is allowed
+            (ProjectLifecycleStatus::Active, ProjectLifecycleStatus::Beta)
+                | (ProjectLifecycleStatus::Active, ProjectLifecycleStatus::Paused)
+                | (ProjectLifecycleStatus::Active, ProjectLifecycleStatus::Deprecated)
+                | (ProjectLifecycleStatus::Active, ProjectLifecycleStatus::Sunset)
+                // From Beta: graduate to Active, or progress forward
+                | (ProjectLifecycleStatus::Beta, ProjectLifecycleStatus::Active)
+                | (ProjectLifecycleStatus::Beta, ProjectLifecycleStatus::Paused)
+                | (ProjectLifecycleStatus::Beta, ProjectLifecycleStatus::Deprecated)
+                | (ProjectLifecycleStatus::Beta, ProjectLifecycleStatus::Sunset)
+                // From Paused: resume or progress forward
+                | (ProjectLifecycleStatus::Paused, ProjectLifecycleStatus::Active)
+                | (ProjectLifecycleStatus::Paused, ProjectLifecycleStatus::Beta)
+                | (ProjectLifecycleStatus::Paused, ProjectLifecycleStatus::Deprecated)
+                | (ProjectLifecycleStatus::Paused, ProjectLifecycleStatus::Sunset)
+                // From Deprecated: revive fully, or finalize as Sunset
+                | (ProjectLifecycleStatus::Deprecated, ProjectLifecycleStatus::Active)
+                | (ProjectLifecycleStatus::Deprecated, ProjectLifecycleStatus::Sunset)
+                // From Sunset: only full revival to Active is permitted
+                | (ProjectLifecycleStatus::Sunset, ProjectLifecycleStatus::Active)
+        );
+        if valid {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidStatusTransition)
+        }
+    }
+
     /// Update a project's lifecycle status.
     /// Only the project owner can change the lifecycle status.
     pub fn set_project_lifecycle_status(
@@ -2563,6 +2621,9 @@ impl ProjectRegistry {
             // Status unchanged, no event needed
             return Ok(project);
         }
+
+        // Validate the requested transition against the permitted matrix.
+        Self::validate_lifecycle_transition(previous_status, new_status)?;
 
         project.lifecycle_status = new_status;
         project.updated_at = env.ledger().timestamp();

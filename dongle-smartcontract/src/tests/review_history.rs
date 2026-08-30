@@ -175,3 +175,172 @@ fn test_review_revision_history_pruning_at_max_limit() {
     let last = history.get(49).unwrap();
     assert_eq!(last.revision_index, 49);
 }
+
+// ─── Issue #672: delete operations must clear revision history ────────────
+
+#[test]
+fn test_delete_review_clears_revision_history() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Delete-Revision-Project");
+    let reviewer = Address::generate(&env);
+
+    let cid1 = String::from_str(&env, CID_V1);
+    client.submit_review(&project_id, &reviewer, &3, &cid1);
+
+    // Make a couple of edits to build up revision history
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    let cid2 = String::from_str(&env, CID_V2);
+    client.update_review(&project_id, &reviewer, &4, &Some(cid2));
+
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    let cid3 = String::from_str(&env, CID_V3);
+    client.update_review(&project_id, &reviewer, &5, &Some(cid3));
+
+    // Sanity: we now have 2 revisions
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 2);
+
+    // Delete the review
+    client.delete_review(&project_id, &reviewer);
+
+    // Revision count must be 0 after deletion
+    assert_eq!(
+        client.get_review_revision_count(&project_id, &reviewer),
+        0,
+        "revision count must be cleared when a review is deleted"
+    );
+
+    // Revision history must be empty after deletion
+    let history = client.get_review_history(&project_id, &reviewer, &0, &10);
+    assert_eq!(
+        history.len(),
+        0,
+        "revision history must be empty after review deletion"
+    );
+
+    // The review itself must no longer exist
+    assert!(
+        client.get_review(&project_id, &reviewer).is_none(),
+        "review must not be found after deletion"
+    );
+}
+
+#[test]
+fn test_admin_delete_review_clears_revision_history() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Admin-Delete-Revision-Project");
+    let reviewer = Address::generate(&env);
+
+    let cid1 = String::from_str(&env, CID_V1);
+    client.submit_review(&project_id, &reviewer, &3, &cid1);
+
+    // Build revision history with two edits
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    let cid2 = String::from_str(&env, CID_V2);
+    client.update_review(&project_id, &reviewer, &4, &Some(cid2));
+
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 1);
+
+    // Admin deletes the review
+    client.admin_delete_review(&project_id, &reviewer, &admin);
+
+    // Revision count must be 0 after admin deletion
+    assert_eq!(
+        client.get_review_revision_count(&project_id, &reviewer),
+        0,
+        "revision count must be cleared when admin deletes a review"
+    );
+
+    // Revision history must be empty after admin deletion
+    let history = client.get_review_history(&project_id, &reviewer, &0, &10);
+    assert_eq!(
+        history.len(),
+        0,
+        "revision history must be empty after admin review deletion"
+    );
+}
+
+#[test]
+fn test_revision_count_increments_on_every_update() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Increment-Count-Project");
+    let reviewer = Address::generate(&env);
+
+    let cid1 = String::from_str(&env, CID_V1);
+    client.submit_review(&project_id, &reviewer, &1, &cid1);
+
+    // Initial submit: no revisions yet
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 0);
+
+    // First update creates revision_index 0
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    client.update_review(&project_id, &reviewer, &2, &Some(String::from_str(&env, CID_V2)));
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 1);
+
+    // Second update creates revision_index 1
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    client.update_review(&project_id, &reviewer, &3, &Some(String::from_str(&env, CID_V3)));
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 2);
+
+    // Third update
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp().saturating_add(3601));
+    client.update_review(&project_id, &reviewer, &4, &Some(String::from_str(&env, CID_W1)));
+    assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 3);
+
+    // Verify history length matches count
+    let history = client.get_review_history(&project_id, &reviewer, &0, &100);
+    assert_eq!(
+        history.len() as u32,
+        client.get_review_revision_count(&project_id, &reviewer),
+        "history entries must equal revision count"
+    );
+}
+
+#[test]
+fn test_revision_count_matches_history_entries_tamper_resistance() {
+    // Tamper resistance: history length must always equal the stored count.
+    // An attacker cannot observe or modify more revisions than the count indicates.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup_contract(&env);
+    let project_id = create_test_project(&client, &admin, "Tamper-Resistance-Project");
+    let reviewer = Address::generate(&env);
+
+    let cid1 = String::from_str(&env, CID_V1);
+    client.submit_review(&project_id, &reviewer, &3, &cid1);
+
+    for (i, cid) in [CID_V2, CID_V3, CID_W1, CID_W2].iter().enumerate() {
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp().saturating_add((i as u64 + 1) * 3601));
+        client.update_review(&project_id, &reviewer, &((i as u32 % 5) + 1), &Some(String::from_str(&env, cid)));
+    }
+
+    let count = client.get_review_revision_count(&project_id, &reviewer);
+    let history = client.get_review_history(&project_id, &reviewer, &0, &100);
+
+    assert_eq!(
+        count,
+        history.len() as u32,
+        "revision count must equal the number of history entries"
+    );
+
+    // Each revision index must be sequential
+    for i in 0..history.len() {
+        let rev = history.get(i).unwrap();
+        assert_eq!(
+            rev.revision_index, i,
+            "revision_index must equal position in history"
+        );
+    }
+}

@@ -449,6 +449,32 @@ impl ReviewRegistry {
             .unwrap_or(0)
     }
 
+    /// Clear all stored revision entries and the revision count for a reviewer.
+    ///
+    /// Called during review deletion so that `get_review_revision_count` returns 0
+    /// and `get_review_history` returns an empty list after a review is removed.
+    /// This prevents stale revision data from persisting beyond the review's lifetime.
+    fn clear_review_revisions(env: &Env, project_id: u64, reviewer: &Address) {
+        let count_key = ExtensionKey::ReviewRevisionCount(project_id, reviewer.clone());
+        let revision_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&count_key)
+            .unwrap_or(0);
+
+        // Remove each stored revision entry (indices are always 0..count after pruning)
+        for i in 0..revision_count {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::ReviewRevision(project_id, reviewer.clone(), i));
+        }
+
+        // Remove the count key itself
+        if revision_count > 0 {
+            env.storage().persistent().remove(&count_key);
+        }
+    }
+
     /// Returns prior review revisions in ascending order (oldest revision first).
     pub fn get_review_history(
         env: &Env,
@@ -567,6 +593,8 @@ impl ReviewRegistry {
 
         // Perform all mutations
         env.storage().persistent().remove(&review_key);
+        // Clear revision history so deleted reviews leave no stale history entries.
+        Self::clear_review_revisions(env, project_id, &reviewer);
         // Store a tombstone so indexers can distinguish deleted vs never-existed.
         let now = env.ledger().timestamp();
         env.storage().persistent().set(
@@ -697,6 +725,8 @@ impl ReviewRegistry {
 
         // Apply all mutations
         env.storage().persistent().remove(&review_key);
+        // Clear revision history so deleted reviews leave no stale history entries.
+        Self::clear_review_revisions(env, project_id, &reviewer);
         // Store a tombstone so indexers can distinguish deleted vs never-existed.
         let now = env.ledger().timestamp();
         env.storage().persistent().set(

@@ -44,7 +44,8 @@ mod tag_index;
 mod tags;
 
 // Metadata freeze policy for verified projects
-// mod verified_freeze;
+// Issue #671: slug immutability on verified projects
+mod verified_freeze;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
@@ -108,3 +109,9 @@ mod fee_state_machine_622;
 
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
+
+// Issue #673: Category query performance with large datasets
+mod category_query_perf;
+
+// Issue #674: Lifecycle status transition matrix
+mod lifecycle_transitions;
