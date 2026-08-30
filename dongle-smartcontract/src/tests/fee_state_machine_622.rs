@@ -223,7 +223,7 @@ mod integration {
         use soroban_sdk::String;
         let cid = String::from_str(&env, "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG");
         client.request_verification(&project_id, &owner, &cid);
-        client.reject_verification(&admin, &project_id);
+        client.reject_verification(&project_id, &admin);
 
         // First claim: must succeed.
         client.claim_fee_refund(&owner, &project_id);

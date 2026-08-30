@@ -186,3 +186,106 @@ fn test_integrity_hash_accepts_description_longer_than_previous_scratch_buffer()
 
     assert_eq!(hash.len(), 32, "SHA-256 hash must be 32 bytes");
 }
+
+#[test]
+fn test_integrity_hash_is_deterministic_for_same_project() {
+    let env = Env::default();
+    let name = String::from_str(&env, "Test-Project");
+    let slug = String::from_str(&env, "test-project");
+    let category = String::from_str(&env, "DeFi");
+    let description = String::from_str(&env, "A test project description");
+
+    let first = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    let second = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+
+    assert_eq!(first, second, "Same project metadata must hash identically");
+}
+
+#[test]
+fn test_integrity_hash_changes_for_each_field() {
+    let env = Env::default();
+    let base_name = String::from_str(&env, "Test-Project");
+    let base_slug = String::from_str(&env, "test-project");
+    let base_category = String::from_str(&env, "DeFi");
+    let base_description = String::from_str(&env, "A test project description");
+
+    let base_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &base_category,
+        &base_description,
+    );
+
+    let name_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &String::from_str(&env, "Test-Project-2"),
+        &base_slug,
+        &base_category,
+        &base_description,
+    );
+    assert_ne!(base_hash, name_hash, "Changing name must change the integrity hash");
+
+    let slug_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &String::from_str(&env, "test-project-2"),
+        &base_category,
+        &base_description,
+    );
+    assert_ne!(base_hash, slug_hash, "Changing slug must change the integrity hash");
+
+    let category_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &String::from_str(&env, "AI"),
+        &base_description,
+    );
+    assert_ne!(base_hash, category_hash, "Changing category must change the integrity hash");
+
+    let description_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &base_category,
+        &String::from_str(&env, "A revised project description"),
+    );
+    assert_ne!(base_hash, description_hash, "Changing description must change the integrity hash");
+}
+
+#[test]
+fn test_integrity_hash_accepts_legacy_serialization() {
+    let env = Env::default();
+    let name = String::from_str(&env, "Legacy-Project");
+    let slug = String::from_str(&env, "legacy-project");
+    let category = String::from_str(&env, "DeFi");
+    let description = String::from_str(&env, "Legacy description");
+
+    let legacy_hash = ProjectRegistry::compute_integrity_hash_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+    );
+    assert!(ProjectRegistry::hash_matches_current_or_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+        &legacy_hash,
+    ));
+
+    let latest_hash = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    assert_ne!(legacy_hash, latest_hash, "The versioned hash must differ from the legacy hash");
+    assert!(ProjectRegistry::hash_matches_current_or_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+        &latest_hash,
+    ));
+}

@@ -37,7 +37,7 @@ impl ConfigRegistry {
     /// not bumped, since there is nothing to preserve yet — `set_pause`
     /// bumps TTL on the corresponding write.
     pub fn is_paused(env: &Env) -> bool {
-        let key = ExtensionKey::Paused;
+        let key = StorageKey::ContractPaused;
         let paused: bool = env.storage().persistent().get(&key).unwrap_or(false);
         if env.storage().persistent().has(&key) {
             env.storage().persistent().extend_ttl(
@@ -62,7 +62,7 @@ impl ConfigRegistry {
         auth::require_admin_auth(env, &admin)?;
 
         let previous = Self::is_paused(env);
-        let key = ExtensionKey::Paused;
+        let key = StorageKey::ContractPaused;
         env.storage().persistent().set(&key, &paused);
         env.storage().persistent().extend_ttl(
             &key,
@@ -101,7 +101,7 @@ impl ConfigRegistry {
     /// Composed from existing storage: fee config
     /// (`StorageKey::FeeConfig`), treasury address (`StorageKey::Treasury`),
     /// admin count + threshold (`AdminManager`), the pause flag
-    /// (`ExtensionKey::Paused`), and the static `ContractLimits` derived
+    /// (`StorageKey::ContractPaused`), and the static `ContractLimits` derived
     /// from `constants.rs`.
     ///
     /// # Behaviour absent `set_fee`
