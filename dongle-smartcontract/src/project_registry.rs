@@ -277,9 +277,10 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        // and for case-insensitive lookups via get_project_by_name.
         let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
-            &ExtensionKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
         );
 
@@ -304,6 +305,7 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(env, &normalized_name);
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
@@ -652,24 +654,20 @@ impl ProjectRegistry {
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
         if name_updated {
-            // Remove old name mapping
+            // Remove old name mappings
             env.storage()
                 .persistent()
                 .remove(&StorageKey::ProjectByName(old_name.clone()));
-
-            // Remove old normalized name mapping
             let old_normalized = Utils::normalize_project_name(env, &old_name);
             env.storage()
                 .persistent()
                 .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
 
-            // Create new exact name mapping
+            // Create new name mappings
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
                 &params.project_id,
             );
-
-            // Create new normalized name mapping
             let new_normalized = Utils::normalize_project_name(env, &project.name);
             env.storage().persistent().set(
                 &ExtensionKey::ProjectByNormalizedName(new_normalized),
@@ -730,6 +728,10 @@ impl ProjectRegistry {
         // Extend TTL for updated project data
         StorageManager::extend_project_ttl(env, params.project_id);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(
+            env,
+            &Utils::normalize_project_name(env, &project.name),
+        );
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Only extend stats TTL if stats exist (they may not exist for projects without reviews)
@@ -887,6 +889,21 @@ impl ProjectRegistry {
             .storage()
             .persistent()
             .get(&StorageKey::ProjectBySlug(slug))?;
+
+        // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
+    /// Looks up a project by name, case/whitespace/punctuation-insensitively, using the
+    /// ProjectByNormalizedName index rather than scanning all projects.
+    pub fn get_project_by_name(env: &Env, name: String) -> Option<Project> {
+        let normalized_name = Utils::normalize_project_name(env, &name);
+
+        // Get project ID from normalized name mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectByNormalizedName(normalized_name))?;
 
         // Get project by ID
         Self::get_project(env, project_id)

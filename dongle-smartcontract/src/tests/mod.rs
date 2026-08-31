@@ -19,6 +19,8 @@ mod transfer;
 mod cleanup;
 mod events;
 mod moderation;
+mod name_search;
+mod pagination;
 // mod pagination;
 mod claim;
 mod config;

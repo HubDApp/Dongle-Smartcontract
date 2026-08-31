@@ -269,6 +269,10 @@ impl DongleContract {
         ProjectRegistry::get_project_by_slug(&env, slug)
     }
 
+    pub fn get_project_by_name(env: Env, name: String) -> Option<Project> {
+        ProjectRegistry::get_project_by_name(&env, name)
+    }
+
     pub fn initiate_transfer(
         env: Env,
         project_id: u64,
