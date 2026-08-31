@@ -48,7 +48,26 @@ impl AdminManager {
     }
 
     /// Add a new admin (only callable by existing admins)
-    /// 
+    ///
+    /// # Atomicity and Concurrent-Operation Safety
+    ///
+    /// Soroban executes each transaction in **strict isolation**: only one
+    /// transaction may modify contract state at a time, and every transaction is
+    /// applied atomically — either all storage writes succeed or none do.
+    /// This means two "concurrent" admin mutations (e.g. add and remove of the
+    /// same address submitted by different callers in the same ledger close) are
+    /// **sequenced**, not interleaved.  One will execute first and the second
+    /// will observe the state left by the first.
+    ///
+    /// Consequently:
+    /// * The `Admin(addr)` mapping and the `AdminList` vec are **always
+    ///   consistent** with each other at the end of any committed transaction.
+    /// * There can be no "dead admin" (present in one data structure but absent
+    ///   from the other) as a result of concurrent execution.
+    /// * The last transaction to touch the admin set wins; earlier conflicting
+    ///   operations see either the pre-mutation state (idempotent no-op when the
+    ///   address is already an admin) or raise a typed error.
+    ///
     /// # Errors
     /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
     /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
@@ -95,7 +114,24 @@ impl AdminManager {
     }
 
     /// Remove an admin (only callable by existing admins)
-    /// 
+    ///
+    /// # Atomicity and Concurrent-Operation Safety
+    ///
+    /// Like `add_admin`, this function benefits from Soroban's per-transaction
+    /// atomicity guarantee.  The `Admin(addr)` key removal and the `AdminList`
+    /// vector update are both written in the same transaction and are therefore
+    /// committed together — or not at all.
+    ///
+    /// If two transactions attempt to remove the same admin concurrently:
+    /// * The first to execute will succeed and remove the admin.
+    /// * The second will find the address absent from the mapping and return
+    ///   `AdminNotFound`, leaving the state unchanged.
+    ///
+    /// This gives **explicit conflict handling**: the second caller receives a
+    /// typed error rather than silently corrupting state, and there is no
+    /// possibility of the address being stuck in `AdminList` without a
+    /// corresponding `Admin(addr)` mapping entry (or vice-versa).
+    ///
     /// # Errors
     /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
     /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
@@ -275,6 +311,24 @@ impl AdminManager {
         env.crypto().sha256(&payload_bytes).into()
     }
 
+    /// Create a new admin proposal.
+    ///
+    /// # Payload immutability commitment
+    ///
+    /// At creation time, `compute_payload_hash` serialises the `payload` and
+    /// records the resulting SHA-256 digest in `AdminProposal::payload_hash`.
+    /// This hash is stored alongside the payload and **cannot change** after
+    /// the proposal is written to storage:
+    ///
+    /// - `approve_proposal` and `reject_proposal` only modify `approvals` /
+    ///   `status`; they never touch `payload` or `payload_hash`.
+    /// - `execute_proposal` re-computes the hash from the stored payload before
+    ///   doing anything else, and returns `PayloadHashMismatch` (error 67) if
+    ///   the values diverge, blocking any execution with a corrupted payload.
+    ///
+    /// Together these guarantees ensure that a proposal's effect is fixed at
+    /// creation time and cannot be silently changed between proposal and
+    /// execution, preserving governance integrity.
     pub fn create_proposal(
         env: &Env,
         proposer: Address,
@@ -415,6 +469,18 @@ impl AdminManager {
         Ok(())
     }
 
+    /// Execute an approved proposal.
+    ///
+    /// # Payload integrity audit point
+    ///
+    /// Before performing any side-effects, `execute_proposal` re-computes the
+    /// SHA-256 hash of the stored `payload` and compares it against the
+    /// `payload_hash` committed at creation time.  If they differ it returns
+    /// `PayloadHashMismatch` (error 67) without modifying any state.
+    ///
+    /// A successful hash comparison is an on-chain audit point: it confirms
+    /// that the proposal payload has not been modified since the proposal was
+    /// created and is exactly what the approving admins voted on.
     pub fn execute_proposal(
         env: &Env,
         caller: Address,
@@ -439,6 +505,8 @@ impl AdminManager {
         if computed_hash != proposal.payload_hash {
             return Err(ContractError::PayloadHashMismatch);
         }
+        // Payload integrity verified: stored payload hash matches re-computed hash.
+        // This audit point confirms the proposal payload has not been modified since creation.
 
         // Reject stale proposals: if expires_at is non-zero and the current
         // ledger time has reached or passed it, the proposal can no longer be

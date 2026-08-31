@@ -122,7 +122,7 @@ fn test_admin_multisig_approval_threshold() {
     assert_eq!(proposal.proposer, admin1);
     assert_eq!(proposal.status, ProposalStatus::Pending);
     assert_eq!(proposal.approvals.len(), 1);
-    assert!(proposal.approvals.contains_key(&admin1));
+    assert!(proposal.approvals.contains_key(admin1.clone()));
 
     // Try to approve again by admin1 -> duplicate approval should fail
     let res = client.try_approve_proposal(&admin1, &proposal_id);
