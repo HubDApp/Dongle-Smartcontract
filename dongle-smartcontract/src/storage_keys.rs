@@ -73,8 +73,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
-    /// Admin-configured duration (in seconds) a verification stays active.
-    VerificationDuration,
     /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
     ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
@@ -101,7 +99,10 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Global pause flag (admin-controlled). Read by `get_config`.
     ContractPaused,
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
     /// List of non-archived project IDs registered by owner.
     ActiveOwnerProjects(Address),
 }
@@ -119,7 +120,6 @@ pub enum ExtensionKey {
     DuplicateDispute(u64),
     ProjectDuplicateDisputes(u64),
     NextDuplicateDisputeId,
-    VerificationDuration,
     ProjectFollowers(u64),
     UserSubscriptions(Address),
     FollowerCount(u64),
@@ -153,6 +153,10 @@ pub enum ExtensionKey {
     ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
+    /// Endorser at a zero-based project position.
+    EndorsementAt(u64, u32),
+    /// Zero-based position of an endorser in a project's index.
+    EndorsementIndex(u64, Address),
     /// Endorsement count for a project.
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
@@ -195,10 +199,6 @@ pub enum ExtensionKey {
     /// watermark makes the covered range explicit, so a lookup can serve indexed
     /// ids directly and scan only the uncovered tail. `reindex_tags` advances it.
     TagIndexWatermark,
-    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
-    /// pause state across mutating entry points is intentionally out of scope for the
-    /// config-view feature; see `set_pause` for the toggle.
-    Paused,
     ContractClaim(u64, String),
     ProjectContracts(u64),
     ReviewEligibilityConfig,

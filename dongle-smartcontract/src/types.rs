@@ -593,6 +593,8 @@ pub enum AdminActionType {
     ContractPaused,
     /// Admin toggled the global pause flag off (`false` was the new value).
     ContractResumed,
+    /// Admin updated the configurable maximum reviews per project.
+    MaxReviewsPerProjectSet,
 }
 
 #[contracttype]

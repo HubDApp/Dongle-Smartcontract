@@ -7,7 +7,6 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
-use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, FeeHistoryKey, StorageKey};
 use crate::types::{
