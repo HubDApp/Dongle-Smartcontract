@@ -99,6 +99,16 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for the slug-to-project-id index entry.
+    pub fn extend_project_by_slug_ttl(env: &Env, slug: &String) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ProjectBySlug(slug.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project by normalized name mapping.
     pub fn extend_project_by_normalized_name_ttl(env: &Env, normalized_name: &String) {
         Self::extend_if_exists(
