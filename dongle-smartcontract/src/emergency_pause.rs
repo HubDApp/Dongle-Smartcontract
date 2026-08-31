@@ -1,57 +1,27 @@
 //! Contract Pause / Emergency Stop module (closes #664).
 //!
-//! Allows an admin to pause all mutating operations during an incident.
+//! Allows an admin to halt a defined set of mutating operations during an
+//! incident by flipping a single flag (`StorageKey::ContractPaused`).
+//!
 //! When paused:
-//! - Mutating calls (registration, reviews, fees, verification, etc.) fail with
-//!   `ContractError::ContractPaused`.
+//! - The entry points guarded by [`EmergencyPause::require_not_paused`] fail with
+//!   `ContractError::ContractPaused`. That gate is currently applied to the
+//!   project lifecycle / links / transfer / region calls, `cancel_fee_payment`,
+//!   and the changelog write calls in `lib.rs`. It is **not** yet applied to
+//!   every mutating path (e.g. `pay_fee`, `add_review`, `request_verification`,
+//!   follow/bookmark/endorse) — see the enforcement-surface table in
+//!   `docs/EMERGENCY_PAUSE_RECOVERY.md`.
 //! - Read-only calls continue to work normally.
-//! - Admin recovery functions (pause, unpause, admin management, fee config,
-//!   verification approval/rejection/revocation, review moderation, TTL extensions)
-//!   are still allowed.
+//! - Admin-only recovery calls (pause, unpause, admin management, fee config,
+//!   verification and review moderation, TTL extensions, …) are never gated.
 //!
-//! Pause/unpause emit `ContractPaused` / `ContractUnpaused` events.
+//! Pause/unpause emit `CONTRACT/PAUSED` / `CONTRACT/UNPAUSED` events and do
+//! **not** write an `AdminActionLog` entry.
 //!
-//! ## State Machine
-//!
-//! ```text
-//!               pause(admin)
-//!   RUNNING ─────────────────► PAUSED
-//!      ▲                          │
-//!      └──────────────────────────┘
-//!           unpause(admin)
-//! ```
-//!
-//! | State   | `ContractPaused` storage value | Allowed mutations |
-//! |---------|--------------------------------|-------------------|
-//! | RUNNING | absent or `false`              | All |
-//! | PAUSED  | `true`                         | Admin-only recovery functions |
-//!
-//! Transitions are **idempotent**: pausing an already-paused contract and
-//! unpausing an already-running contract both succeed without error.
-//!
-//! ## Recovery checklist (for operations team)
-//!
-//! 1. Identify admin address(es) authorised to call `unpause`.
-//! 2. Call `is_paused()` to confirm the contract is currently paused.
-//! 3. Investigate the incident root cause before unpausing.
-//! 4. Call `unpause(admin)` with admin auth.
-//! 5. Call `is_paused()` again — must return `false`.
-//! 6. Spot-check state integrity: call `get_project`, `get_admin_list`,
-//!    `get_fee_config`.  The pause flag is the **only** thing changed by
-//!    pause/unpause; all other state is unaffected.
-//! 7. Monitor the ledger for a `ContractUnpaused` event (topics:
-//!    `["CONTRACT", "UNPAUSED"]`).
-//!
-//! ## State validation after unpause
-//!
-//! After calling `unpause`:
-//! - `is_paused()` returns `false`.
-//! - `get_config()` succeeds and reflects the unpaused state.
-//! - All project, review, admin, fee, and verification data is identical to
-//!   what it was before the pause — no data is modified by pause/unpause.
-//! - All mutating entry points accept calls again.
-//!
-//! See `tests::pause_state_machine` for automated verification of these guarantees.
+//! Operational runbook (state machine, recovery checklist, post-unpause state
+//! validation): `docs/EMERGENCY_PAUSE_RECOVERY.md`. Not to be confused with the
+//! separate, unenforced `ConfigRegistry::set_pause` flag surfaced by
+//! `get_config`.
 
 use crate::errors::ContractError;
 use crate::events::{publish_contract_paused_event, publish_contract_unpaused_event};

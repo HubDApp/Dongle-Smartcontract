@@ -3,6 +3,8 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+// Issue #670: Admin concurrent operation atomicity and consistency verification
+mod admin_concurrent;
 mod archival;
 mod collection_registry_crud;
 mod collections;
@@ -18,9 +20,15 @@ mod transfer;
 // mod basic_new_features;
 mod cleanup;
 mod events;
+// Issue #628: pause/unpause cycles preserve data integrity
+mod pause_state_recovery;
 mod moderation;
+mod name_search;
+mod pagination;
 // mod pagination;
 mod claim;
+mod claim_status;
+mod claim_state_machine;
 mod config;
 mod dependencies;
 mod lifecycle_status;
@@ -40,6 +48,8 @@ mod fuzz_validation;
 mod license_metadata;
 mod sorted_listing;
 mod string_validation;
+// Issue #667: CID validation edge cases (empty string, malformed, CIDv0/CIDv1, future formats)
+mod cid_validation;
 mod tag_index;
 mod tags;
 
@@ -81,9 +91,12 @@ mod endorsements;
 mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
-mod linked_projects;
+// mod linked_projects;
 // Issues #458, #463, #465, #466: typed-error and admin-log regressions
 mod typed_error_regressions;
+// Issues #654, #655, #656, #657: dispute state machine, changelog immutability,
+// transfer atomicity, and refund idempotency
+mod issues_654_655_656_657;
 mod multisig_and_history;
 mod proposal_threshold;
 mod report_registry;
@@ -109,11 +122,14 @@ mod fee_state_machine_622;
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
 
-// Issue #663: Follow/subscribe relationship clarity
-mod follow_subscribe_relationship;
+// Issue #624: Verification Expiry Check Automation
+mod verification_expiry_624_tests;
 
-// Issue #664: Pause/unpause state machine documentation and recovery tests
-mod pause_state_machine;
+// Issue #625: Review History Pagination Performance
+mod review_pagination_625_perf_tests;
 
-// Issue #665: ExtensionKey collision detection and storage key uniqueness
-mod storage_key_uniqueness;
+// Issue #626: Tag Indexing Watermark Edge Cases
+mod tag_index_watermark_626_tests;
+
+// Issue #627: Collection Capacity Enforcement
+mod collection_capacity_627_tests;

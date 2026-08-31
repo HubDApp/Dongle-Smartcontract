@@ -7,6 +7,7 @@ use soroban_sdk::{testutils::Address as _, Address, Env};
 #[test]
 fn test_set_featured_admin_only() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, _admin) = setup_contract(&env);
     let non_admin = Address::generate(&env);
     let owner = Address::generate(&env);
@@ -34,6 +35,7 @@ fn test_set_featured_project_not_found() {
 #[test]
 fn test_set_featured_and_list() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -56,6 +58,7 @@ fn test_set_featured_and_list() {
 #[test]
 fn test_unfeature_project() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 
@@ -74,6 +77,7 @@ fn test_unfeature_project() {
 #[test]
 fn test_set_featured_idempotent() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
     let id = create_test_project(&client, &owner, "Alpha");
@@ -88,6 +92,7 @@ fn test_set_featured_idempotent() {
 #[test]
 fn test_list_featured_pagination() {
     let env = Env::default();
+    env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
     let owner = Address::generate(&env);
 

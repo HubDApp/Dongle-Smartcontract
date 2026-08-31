@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
@@ -113,6 +115,26 @@ impl DongleContract {
 
     pub fn get_config(env: Env) -> Result<ContractConfigView, ContractError> {
         ConfigRegistry::get_config(&env)
+    }
+
+    /// Returns the current maximum number of reviews allowed per project.
+    ///
+    /// Falls back to the compile-time default of 500 if no value has been
+    /// configured by an admin.
+    pub fn get_max_reviews_per_project(env: Env) -> u32 {
+        ConfigRegistry::get_max_reviews_per_project(&env)
+    }
+
+    /// Admin-only: set the maximum number of reviews allowed per project.
+    ///
+    /// `max` must be ≥ 1. Affects all future review submissions; existing
+    /// reviews beyond a lowered limit are not removed.
+    pub fn set_max_reviews_per_project(
+        env: Env,
+        admin: Address,
+        max: u32,
+    ) -> Result<(), ContractError> {
+        ConfigRegistry::set_max_reviews_per_project(&env, admin, max)
     }
 
     pub fn set_admin_approval_threshold(
@@ -266,6 +288,10 @@ impl DongleContract {
 
     pub fn get_project_by_slug(env: Env, slug: String) -> Option<Project> {
         ProjectRegistry::get_project_by_slug(&env, slug)
+    }
+
+    pub fn get_project_by_name(env: Env, name: String) -> Option<Project> {
+        ProjectRegistry::get_project_by_name(&env, name)
     }
 
     pub fn initiate_transfer(
@@ -424,6 +450,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
@@ -432,6 +459,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
@@ -441,6 +469,7 @@ impl DongleContract {
         caller: Address,
         maintainer: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
@@ -481,6 +510,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
     }
 
@@ -651,6 +681,7 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
@@ -808,6 +839,10 @@ impl DongleContract {
         VerificationRegistry::is_verification_expired(&env, project_id)
     }
 
+    pub fn process_verification_expiry(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry(&env, project_id)
+    }
+
     /// Returns whether a non-expired verification will expire within the
     /// supplied threshold. This is a read-only renewal-warning helper.
     pub fn is_verification_expiring_soon(
@@ -908,6 +943,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -1096,6 +1132,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -1502,6 +1539,7 @@ impl DongleContract {
         project_id: u64,
         follower: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::subscription_registry::SubscriptionRegistry::follow_project(
             &env, project_id, follower,
         )
@@ -1545,6 +1583,7 @@ impl DongleContract {
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1567,6 +1606,7 @@ impl DongleContract {
     // --- Endorsement Registry ---
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1580,6 +1620,20 @@ impl DongleContract {
 
     pub fn get_endorsement_count(env: Env, project_id: u64) -> u32 {
         crate::endorsement_registry::EndorsementRegistry::get_endorsement_count(&env, project_id)
+    }
+
+    pub fn get_project_endorsements(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        crate::endorsement_registry::EndorsementRegistry::get_project_endorsements(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
     }
 
     pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {

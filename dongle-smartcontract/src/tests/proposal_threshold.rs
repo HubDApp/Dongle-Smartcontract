@@ -44,7 +44,7 @@ fn test_proposer_approval_counts_toward_threshold() {
     // Creating a proposal records the proposer's own approval.
     let proposal = client.get_proposal(&id).unwrap();
     assert_eq!(proposal.approvals.len(), 1);
-    assert_eq!(proposal.approvals.get(0).unwrap(), admin1);
+    assert_eq!(proposal.approvals.get(admin1.clone()).unwrap(), true);
     assert_eq!(proposal.status, ProposalStatus::Pending);
 }
 
