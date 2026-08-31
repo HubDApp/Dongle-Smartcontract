@@ -726,6 +726,59 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Admin-driven direct renewal: reset the expiry of an already-verified project
+    /// without requiring a pending renewal request.
+    pub fn renew_verification(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        let mut project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if project.verification_status != VerificationStatus::Verified {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        let mut verification =
+            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
+
+        let now = env.ledger().timestamp();
+        let duration = Self::get_verification_duration(env);
+        let new_expires_at = now.saturating_add(duration);
+
+        verification.expires_at = Some(new_expires_at);
+        verification.last_renewed_at = now;
+        env.storage().persistent().set(
+            &StorageKey::Verification(project_id),
+            &verification.request_id,
+        );
+        env.storage().persistent().set(
+            &StorageKey::VerificationRecord(verification.request_id),
+            &verification,
+        );
+
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        publish_verification_renewed_event(env, project_id, admin.clone(), new_expires_at);
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::VerificationRenewalApproved,
+            Some(project_id),
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
     pub fn request_renewal(
         env: &Env,
         project_id: u64,
@@ -806,7 +859,7 @@ impl VerificationRegistry {
         let expires_at = now.saturating_add(Self::get_verification_duration(env));
 
         verification.status = VerificationStatus::Verified;
-        verification.expires_at = expires_at;
+        verification.expires_at = Some(expires_at);
         verification.last_renewed_at = now;
         env.storage().persistent().set(
             &StorageKey::Verification(project_id),

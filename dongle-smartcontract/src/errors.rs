@@ -4,12 +4,12 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
-    /// Project not found
-    ProjectNotFound = 1,
+    /// Contract has already been initialized
+    AlreadyInitialized = 1,
     /// Unauthorized access - caller is not permitted
     Unauthorized = 2,
-    /// Project already exists
-    ProjectAlreadyExists = 3,
+    /// Project not found
+    ProjectNotFound = 3,
     /// Invalid rating - must be between 1 and 5
     InvalidRating = 4,
     /// Review not found

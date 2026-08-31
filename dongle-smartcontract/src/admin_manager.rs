@@ -625,11 +625,11 @@ impl AdminManager {
                 let now = env.ledger().timestamp();
                 record.status = VerificationStatus::Verified;
                 record.decided_at = now;
-                record.expires_at = now.saturating_add(
+                record.expires_at = Some(now.saturating_add(
                     crate::verification_registry::VerificationRegistry::get_verification_duration(
                         env,
                     ),
-                );
+                ));
                 env.storage()
                     .persistent()
                     .set(&StorageKey::Verification(project_id), &record.request_id);

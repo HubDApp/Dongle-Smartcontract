@@ -77,6 +77,9 @@ mod invariants;
 // Property-based pagination tests using proptest
 // mod proptest_pagination;
 mod proptest_pagination;
+
+// Property-based tests for all validation functions (issue #498)
+mod proptest_validation;
 // Issue #221: fee amount boundary tests
 mod fee_boundary;
 // Issues #240, #241, #246: review tombstones, sorting, cooldown
