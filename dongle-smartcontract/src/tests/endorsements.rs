@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+extern crate std;
+
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::ContractError;
 use crate::storage_keys::ExtensionKey;
