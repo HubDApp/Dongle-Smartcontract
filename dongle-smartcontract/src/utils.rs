@@ -196,8 +196,9 @@ impl Utils {
     ///
     /// Rules:
     /// - Non-empty, at most `MAX_SLUG_LEN` bytes.
-    /// - Lowercase alphanumeric plus `-` or `_`.
+    /// - Lowercase alphanumeric plus `-` or `_` only.
     /// - No leading or trailing `-`.
+    /// - Uppercase is rejected so the canonical storage key is always lowercase.
     pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
         let len = slug.len() as usize;
         if len == 0 {
@@ -212,7 +213,10 @@ impl Utils {
         slug.copy_into_slice(&mut buf[..cap]);
 
         for (i, &b) in buf[..cap].iter().enumerate() {
-            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'_' {
+            if b.is_ascii_uppercase() {
+                return Err(ContractError::InvalidProjectSlug);
+            }
+            if !b.is_ascii_lowercase() && !b.is_ascii_digit() && b != b'-' && b != b'_' {
                 return Err(ContractError::InvalidProjectSlug);
             }
             if b == b'-' && (i == 0 || i == cap - 1) {

@@ -51,7 +51,6 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
 
     // Generate slug from name: lowercase, replace spaces with hyphens
     extern crate alloc;
-    use alloc::string::ToString;
     let slug_str = name.to_lowercase().replace(" ", "-");
 
     let params = ProjectRegistrationParams {

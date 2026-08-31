@@ -99,21 +99,24 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for the slug-to-project-id index entry.
+    pub fn extend_project_by_slug_ttl(env: &Env, slug: &String) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ProjectBySlug(slug.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project by normalized name mapping.
     pub fn extend_project_by_normalized_name_ttl(env: &Env, normalized_name: &String) {
-        if env
-            .storage()
-            .persistent()
-            .has(&ExtensionKey::ProjectByNormalizedName(
-                normalized_name.clone(),
-            ))
-        {
-            env.storage().persistent().extend_ttl(
-                &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
-                LEDGER_THRESHOLD_PROJECT,
-                LEDGER_BUMP_PROJECT,
-            );
-        }
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
     }
 
     /// Extend TTL for category projects index
@@ -331,6 +334,22 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for one indexed endorsement entry and its membership index.
+    pub fn extend_endorsement_entry_ttl(env: &Env, project_id: u64, user: &Address, index: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementAt(project_id, index),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementIndex(project_id, user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
     /// Extend TTL for user subscriptions list
     pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
         Self::extend_if_exists(
@@ -356,6 +375,10 @@ impl StorageManager {
         Self::extend_project_ttl(env, project_id);
         Self::extend_project_stats_ttl(env, project_id);
         Self::extend_project_by_name_ttl(env, name);
+        Self::extend_project_by_normalized_name_ttl(
+            env,
+            &crate::utils::Utils::normalize_project_name(env, name),
+        );
         Self::extend_project_maintainers_ttl(env, project_id);
     }
 
