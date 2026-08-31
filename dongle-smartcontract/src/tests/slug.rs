@@ -4,6 +4,7 @@ extern crate alloc;
 use alloc::string::ToString;
 
 use crate::errors::ContractError;
+use crate::types::ProjectRegistrationParams;
 use soroban_sdk::{testutils::Address as _, Address, String};
 
 use super::fixtures::{create_test_project, setup_contract};

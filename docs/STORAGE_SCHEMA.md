@@ -8,8 +8,8 @@ A project is stored under the key `Project(u64)` and contains the following fiel
 |-------|------|-------------|----------|
 | `id` | `u64` | Project ID (assigned on registration) | No |
 | `owner` | `Address` | The project owner | No |
-| `name` | `String` | Project name (≤ `MAX_NAME_LEN` = 50 bytes) | No |
-| `slug` | `String` | URL-friendly identifier, unique (≤ `MAX_SLUG_LEN` = 64 bytes) | No |
+| `name` | `String` | Project name (≤ `MAX_NAME_LEN` = 50 bytes; uniqueness is case-insensitive) | No |
+| `slug` | `String` | URL-friendly identifier, stored in lowercase canonical form and unique (≤ `MAX_SLUG_LEN` = 64 bytes) | No |
 | `description` | `String` | Project description (≤ `MAX_DESCRIPTION_LEN` = 2048 bytes) | No |
 | `category` | `String` | Project category, e.g. "DeFi", "NFT" (≤ `MAX_CATEGORY_LEN` = 64 bytes) | No |
 | `website` | `String` | Project website URL (≤ `MAX_WEBSITE_LEN` = 256 bytes) | Yes |
@@ -31,6 +31,14 @@ A project is stored under the key `Project(u64)` and contains the following fiel
 | `security_contact_proof_cid` | `String` | CID proving control of the security contact (`MIN_CID_LEN`..=`MAX_CID_LEN`) | Yes |
 | `created_at` | `u64` | Timestamp of project creation | No |
 | `updated_at` | `u64` | Timestamp of last update | No |
+
+### Unique indexes
+
+The persistence layer enforces uniqueness for both display names and canonical slugs:
+
+- `StorageKey::ProjectByName(name)` stores the exact name for direct duplicate detection.
+- `ExtensionKey::ProjectByNormalizedName(normalized_name)` stores the normalized name and makes name duplicates case-insensitive across whitespace and punctuation changes.
+- `StorageKey::ProjectBySlug(slug)` stores the canonical lowercase slug so `my-project` and `My-Project` resolve to the same storage key and are rejected as duplicates.
 
 ## Review Entry
 

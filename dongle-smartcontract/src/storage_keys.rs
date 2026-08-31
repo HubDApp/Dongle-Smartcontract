@@ -18,7 +18,9 @@ pub enum StorageKey {
     OwnerProjects(Address),
     /// Project by name (for duplicate detection).
     ProjectByName(String),
-    /// Project by slug (for URL lookups).
+    /// Project by canonical lowercase slug (for URL lookups and uniqueness).
+    /// The key is normalized to lowercase so `Alpha` and `alpha` resolve to the
+    /// same unique storage entry and duplicate detection remains consistent.
     ProjectBySlug(String),
     /// Project lifecycle status by project ID.
     ProjectLifecycleStatus(u64),
