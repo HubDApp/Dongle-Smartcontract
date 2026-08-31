@@ -38,6 +38,7 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         })
 }
 
@@ -130,6 +131,8 @@ fn test_update_project_by_non_owner_fails() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -161,6 +164,8 @@ fn test_update_project_nonexistent_fails() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().try_update_project(&params);
@@ -331,7 +336,7 @@ fn test_request_verification_for_nonexistent_project_fails() {
     let result = client.try_request_verification(
         &999u64,
         &requester,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
@@ -350,7 +355,7 @@ fn test_approve_verification_by_non_admin_fails() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     let result = client.try_approve_verification(&project_id, &non_admin);
@@ -371,7 +376,7 @@ fn test_reject_verification_by_non_admin_fails() {
     client.request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     let result = client.try_reject_verification(&project_id, &non_admin);
@@ -437,7 +442,7 @@ fn test_request_verification_without_fee_payment_fails() {
     let result = client.try_request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"),
     );
 
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
@@ -469,6 +474,8 @@ fn test_unauthorized_update_does_not_mutate_state() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     let _ = client.mock_all_auths().try_update_project(&params);
 
@@ -521,6 +528,8 @@ fn test_owner_can_update_own_project() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.mock_all_auths().update_project(&params);

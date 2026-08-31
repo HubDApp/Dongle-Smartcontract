@@ -1,30 +1,105 @@
 use crate::admin_manager::AdminManager;
+use crate::auth::require_admin_auth;
 use crate::constants::{
-    MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME, MAJOR_METADATA_FIELD_WEBSITE,
-    MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
+    MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
 };
 use crate::errors::ContractError;
 use crate::events::{
     publish_claim_request_approved_event, publish_claim_request_rejected_event,
     publish_claim_request_submitted_event, publish_ownership_transferred_event,
     publish_project_archived_event, publish_project_claimable_set_event,
-    publish_project_reactivated_event, publish_project_registered_event,
-    publish_project_updated_event, publish_verification_status_reset_event,
+    publish_project_lifecycle_status_updated_event, publish_project_reactivated_event,
+    publish_project_registered_event, publish_project_updated_event,
+    publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
     ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
     VerificationStatus,
 };
 use crate::utils::Utils;
-use soroban_sdk::{Address, Bytes, Env, String, Vec};
+use alloc::vec;
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
+    /// Project IDs carrying `tag`, per the inverted tag index (issue #485).
+    fn tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Add `project_id` to the index entry for `tag`, ignoring duplicates.
+    fn tag_index_insert(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Drop `project_id` from the index entry for `tag`, removing the entry when it empties.
+    fn tag_index_remove(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::tag_index(env, tag);
+        let mut remaining: Vec<u64> = Vec::new(env);
+        for i in 0..ids.len() {
+            if let Some(id) = ids.get(i) {
+                if id != project_id {
+                    remaining.push_back(id);
+                }
+            }
+        }
+        if remaining.is_empty() {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::TagProjects(tag.clone()));
+        } else {
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::TagProjects(tag.clone()), &remaining);
+        }
+    }
+
+    /// Index every tag in `tags` for `project_id`.
+    fn tag_index_insert_all(env: &Env, tags: &Vec<String>, project_id: u64) {
+        for tag in tags.iter() {
+            Self::tag_index_insert(env, &tag, project_id);
+        }
+    }
+
+    /// Reconcile the index after a tag change: drop the tags that went away, add the new ones.
+    fn tag_index_sync(
+        env: &Env,
+        project_id: u64,
+        previous: &Option<Vec<String>>,
+        current: &Option<Vec<String>>,
+    ) {
+        if let Some(old_tags) = previous {
+            for tag in old_tags.iter() {
+                let still_present = match current {
+                    Some(new_tags) => new_tags.contains(&tag),
+                    None => false,
+                };
+                if !still_present {
+                    Self::tag_index_remove(env, &tag, project_id);
+                }
+            }
+        }
+        if let Some(new_tags) = current {
+            Self::tag_index_insert_all(env, new_tags, project_id);
+        }
+    }
+
     /// Shared status-transition helper for both ownership and contract-address claims.
     fn apply_claim_decision(
         status: &mut ClaimStatus,
@@ -38,21 +113,95 @@ impl ProjectRegistry {
         }
     }
 
+    /// Validate all registration fields and uniqueness constraints.
+    ///
+    /// Called **before** any storage mutation begins so that the function
+    /// is purely read-only (aside from auth checks). This keeps the
+    /// validate-then-mutate boundary clean.
+    fn validate_registration_fields(
+        env: &Env,
+        params: &ProjectRegistrationParams,
+    ) -> Result<(), ContractError> {
+        // Field format validation
+        Utils::validate_project_name(&params.name)?;
+        Utils::validate_project_slug(&params.slug)?;
+        Utils::validate_description(&params.description)?;
+        Utils::validate_category_field(&params.category)?;
+
+        if let Some(website) = &params.website {
+            Utils::validate_website(website)?;
+        }
+        if let Some(value) = &params.bounty_url {
+            Utils::validate_website(value)?;
+        }
+        if let Some(logo_cid) = &params.logo_cid {
+            Utils::validate_logo_cid(logo_cid)?;
+        }
+        if let Some(metadata_cid) = &params.metadata_cid {
+            Utils::validate_metadata_cid(metadata_cid)?;
+        }
+        if let Some(repo_url) = &params.repository_url {
+            Utils::validate_website(repo_url)?;
+        }
+        if let Some(tags) = &params.tags {
+            Utils::validate_tags(tags)?;
+        }
+        if let Some(social_links) = &params.social_links {
+            Utils::validate_social_links(social_links)?;
+        }
+
+        // Reserved-name check
+        Self::check_reserved_name(env, &params.name)?;
+
+        // Owner capacity check
+        Self::ensure_owner_capacity(env, &params.owner)?;
+
+        // Name uniqueness (exact match)
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectByName(params.name.clone()))
+        {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
+
+        // Name uniqueness (normalized – case / whitespace / punctuation)
+        let normalized_name = Utils::normalize_project_name(env, &params.name);
+        if env
+            .storage()
+            .persistent()
+            .has(&ExtensionKey::ProjectByNormalizedName(
+                normalized_name.clone(),
+            ))
+        {
+            return Err(ContractError::DuplicateProjectName);
+        }
+
+        // Slug uniqueness: canonical slugs are stored lowercase so case-only
+        // variations are treated as duplicates of the same key.
+        let canonical_slug = Utils::to_lowercase(env, &params.slug);
+        if env
+            .storage()
+            .persistent()
+            .has(&StorageKey::ProjectBySlug(canonical_slug.clone()))
+        {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
+
+        Ok(())
+    }
+
     pub fn register_project(
         env: &Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
-        // Validation phase
+        // ── Auth ────────────────────────────────────────────────────────────
         params.owner.require_auth();
 
-        // Validate inputs - return typed errors instead of panicking
-        Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
+        // ── Validation (read-only, no storage writes) ──────────────────────
+        Self::validate_registration_fields(env, &params)?;
 
-        // Check reserved names
-        Self::check_reserved_name(env, &params.name)?;
-
-        // Check registration fee payment
+        // ── Fee payment ────────────────────────────────────────────────────
         if let Ok(config) = FeeManager::get_fee_config(env) {
             if config.registration_fee > 0 {
                 FeeManager::consume_registration_fee_payment(
@@ -63,71 +212,7 @@ impl ProjectRegistry {
             }
         }
 
-        // Validate description with comprehensive checks
-        Utils::validate_description(&params.description)?;
-
-        Utils::validate_category_field(&params.category)?;
-
-        if let Some(website) = &params.website {
-            Utils::validate_website(website)?;
-        }
-        if let Some(value) = &params.bounty_url {
-            Utils::validate_website(value)?;
-            // Bounty URL storage removed - not part of core StorageKey
-        }
-        if let Some(logo_cid) = &params.logo_cid {
-            Utils::validate_logo_cid(logo_cid)?;
-        }
-        if let Some(metadata_cid) = &params.metadata_cid {
-            Utils::validate_metadata_cid(metadata_cid)?;
-        }
-
-        // Validate tags if provided
-        if let Some(tags) = &params.tags {
-            Utils::validate_tags(tags)?;
-        }
-
-        // Validate social links if provided
-        if let Some(social_links) = &params.social_links {
-            Utils::validate_social_links(social_links)?;
-        }
-        if let Some(bounty_url) = &params.bounty_url {
-            Utils::validate_website(bounty_url)?;
-        }
-
-        Self::ensure_owner_capacity(env, &params.owner)?;
-
-        // Check if project name already exists (exact match)
-        if env
-            .storage()
-            .persistent()
-            .has(&StorageKey::ProjectByName(params.name.clone()))
-        {
-            return Err(ContractError::ProjectAlreadyExists);
-        }
-
-        // Check normalized name for case/whitespace/punctuation duplicate
-        let normalized_name = Utils::normalize_project_name(env, &params.name);
-        if env
-            .storage()
-            .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(
-                normalized_name.clone(),
-            ))
-        {
-            return Err(ContractError::DuplicateProjectName);
-        }
-
-        // Check if project slug already exists
-        if env
-            .storage()
-            .persistent()
-            .has(&StorageKey::ProjectBySlug(params.slug.clone()))
-        {
-            return Err(ContractError::ProjectAlreadyExists);
-        }
-
-        // Mutation phase
+        // ── Mutation phase ─────────────────────────────────────────────────
         let mut count: u64 = env
             .storage()
             .persistent()
@@ -151,6 +236,7 @@ impl ProjectRegistry {
             current_verification_id: None,
             archived: false,
             claimable: false,
+            lifecycle_status: ProjectLifecycleStatus::Active,
             created_at: now,
             updated_at: now,
             tags: params.tags.clone(),
@@ -158,6 +244,7 @@ impl ProjectRegistry {
             launch_timestamp: params.launch_timestamp,
             maintainers: Some(Vec::new(env)),
             bounty_url: params.bounty_url.clone(),
+            repository_url: params.repository_url.clone(),
             security_contact: None,
             security_contact_proof_cid: None,
             security_contact_verified: false,
@@ -174,18 +261,29 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(count), &project);
+
+        // Issue #483: keep the inverted tag index current from registration.
+        Self::index_project_tags(env, count, &project.tags);
+        // Ids are handed out sequentially, so a new project extends the covered
+        // range by exactly one whenever it lands directly after the watermark.
+        if count == Self::get_tag_index_watermark(env).saturating_add(1) {
+            Self::set_tag_index_watermark(env, count);
+        }
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectCount, &count);
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
+        let canonical_slug = Utils::to_lowercase(env, &project.slug);
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectBySlug(params.slug), &count);
+            .set(&StorageKey::ProjectBySlug(canonical_slug.clone()), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        // and for case-insensitive lookups via get_project_by_name.
+        let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
-            &StorageKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
         );
 
@@ -194,6 +292,7 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(params.owner.clone()),
             &owner_projects,
         );
+        Self::add_active_owner_project(env, &params.owner, count);
 
         let mut category_projects: Vec<u64> = env
             .storage()
@@ -209,6 +308,7 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(env, &normalized_name);
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
@@ -218,6 +318,7 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectTags(count), tags);
+            Self::tag_index_insert_all(env, tags, count);
         }
         if let Some(social_links) = &params.social_links {
             env.storage()
@@ -366,8 +467,8 @@ impl ProjectRegistry {
                 let new_normalized = Utils::normalize_project_name(env, &value);
                 let old_normalized = Utils::normalize_project_name(env, &old_name);
                 if new_normalized != old_normalized {
-                    if let Some(existing_id) = env.storage().persistent().get::<StorageKey, u64>(
-                        &StorageKey::ProjectByNormalizedName(new_normalized.clone()),
+                    if let Some(existing_id) = env.storage().persistent().get::<ExtensionKey, u64>(
+                        &ExtensionKey::ProjectByNormalizedName(new_normalized.clone()),
                     ) {
                         if existing_id != params.project_id {
                             return Err(ContractError::DuplicateProjectName);
@@ -381,22 +482,24 @@ impl ProjectRegistry {
         }
         if let Some(value) = params.slug {
             Utils::validate_project_slug(&value)?;
+            let canonical_slug = Utils::to_lowercase(env, &value);
 
-            // Check if new slug is different from current slug
-            if value != old_slug {
-                // Check if new slug already exists (assigned to a different project)
+            // Check if new slug is different from current slug.
+            // Canonicalized lowercase storage keys keep slug uniqueness consistent
+            // with the name normalization rules.
+            if canonical_slug != old_slug {
+                // Check if the canonical slug already exists on a different project.
                 if let Some(existing_id) = env
                     .storage()
                     .persistent()
-                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(value.clone()))
+                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(canonical_slug.clone()))
                 {
-                    // If the slug exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
                         return Err(ContractError::ProjectAlreadyExists);
                     }
                 }
 
-                project.slug = value;
+                project.slug = canonical_slug.clone();
                 slug_updated = true;
             }
         }
@@ -459,7 +562,16 @@ impl ProjectRegistry {
         }
 
         // Handle tags update
+        let previous_tags = project.tags.clone();
         if let Some(value) = params.tags {
+            if let Some(ref tags) = value {
+                Utils::validate_tags(tags)?;
+            }
+            // Issue #483: move the project between tag entries so the index does
+            // not keep pointing at it under tags it no longer carries.
+            let previous_tags = project.tags.clone();
+            Self::unindex_project_tags(env, params.project_id, &previous_tags);
+            Self::index_project_tags(env, params.project_id, &value);
             project.tags = value;
         }
         if let Some(value) = params.social_links {
@@ -473,6 +585,7 @@ impl ProjectRegistry {
 
         // Handle tags update
         if let Some(value) = tags_update {
+            Self::tag_index_sync(env, params.project_id, &previous_tags, &value);
             if let Some(tags) = &value {
                 env.storage()
                     .persistent()
@@ -537,30 +650,32 @@ impl ProjectRegistry {
             }
             project.bounty_url = value;
         }
+        if let Some(value) = params.repository_url {
+            if let Some(ref url) = value {
+                Utils::validate_website(url)?;
+            }
+            project.repository_url = value;
+        }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
         if name_updated {
-            // Remove old name mapping
+            // Remove old name mappings
             env.storage()
                 .persistent()
                 .remove(&StorageKey::ProjectByName(old_name.clone()));
-
-            // Remove old normalized name mapping
             let old_normalized = Utils::normalize_project_name(env, &old_name);
             env.storage()
                 .persistent()
-                .remove(&StorageKey::ProjectByNormalizedName(old_normalized));
+                .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
 
-            // Create new exact name mapping
+            // Create new name mappings
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
                 &params.project_id,
             );
-
-            // Create new normalized name mapping
             let new_normalized = Utils::normalize_project_name(env, &project.name);
             env.storage().persistent().set(
-                &StorageKey::ProjectByNormalizedName(new_normalized),
+                &ExtensionKey::ProjectByNormalizedName(new_normalized),
                 &params.project_id,
             );
         }
@@ -618,6 +733,10 @@ impl ProjectRegistry {
         // Extend TTL for updated project data
         StorageManager::extend_project_ttl(env, params.project_id);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(
+            env,
+            &Utils::normalize_project_name(env, &project.name),
+        );
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Only extend stats TTL if stats exist (they may not exist for projects without reviews)
@@ -648,8 +767,6 @@ impl ProjectRegistry {
                 major_fields,
             );
         }
-        StorageManager::extend_project_bounty_url_ttl(env, params.project_id);
-
         Ok(project)
     }
 
@@ -772,13 +889,30 @@ impl ProjectRegistry {
     }
 
     pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
-        // Get project ID from slug mapping
+        let canonical_slug = Utils::to_lowercase(env, &slug);
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectBySlug(slug))?;
+            .get(&StorageKey::ProjectBySlug(slug.clone()))?;
+
+        // Extend the slug-index TTL so it stays alive as long as the project data.
+        StorageManager::extend_project_by_slug_ttl(env, &slug);
 
         // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
+    /// Looks up a project by name, case/whitespace/punctuation-insensitively, using the
+    /// ProjectByNormalizedName index rather than scanning all projects.
+    pub fn get_project_by_name(env: &Env, name: String) -> Option<Project> {
+        let normalized_name = Utils::normalize_project_name(env, &name);
+
+        // Get project ID from normalized name mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectByNormalizedName(normalized_name))?;
+
         Self::get_project(env, project_id)
     }
 
@@ -786,7 +920,7 @@ impl ProjectRegistry {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&StorageKey::OwnerProjects(owner))
+            .get(&StorageKey::ActiveOwnerProjects(owner))
             .unwrap_or_else(|| Vec::new(env));
 
         let mut projects = Vec::new(env);
@@ -794,9 +928,7 @@ impl ProjectRegistry {
         for i in 0..len {
             if let Some(project_id) = ids.get(i) {
                 if let Some(project) = Self::get_project(env, project_id) {
-                    if !project.archived {
-                        projects.push_back(project);
-                    }
+                    projects.push_back(project);
                 }
             }
         }
@@ -818,6 +950,43 @@ impl ProjectRegistry {
             return Err(ContractError::MaxProjectsExceeded);
         }
         Ok(())
+    }
+
+    fn add_active_owner_project(env: &Env, owner: &Address, project_id: u64) {
+        let mut active_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ActiveOwnerProjects(owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        if !active_projects.contains(&project_id) {
+            active_projects.push_back(project_id);
+            env.storage().persistent().set(
+                &StorageKey::ActiveOwnerProjects(owner.clone()),
+                &active_projects,
+            );
+        }
+        StorageManager::extend_active_owner_projects_ttl(env, owner);
+    }
+
+    fn remove_active_owner_project(env: &Env, owner: &Address, project_id: u64) {
+        let active_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ActiveOwnerProjects(owner.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut updated_active_projects: Vec<u64> = Vec::new(env);
+        for i in 0..active_projects.len() {
+            if let Some(id) = active_projects.get(i) {
+                if id != project_id {
+                    updated_active_projects.push_back(id);
+                }
+            }
+        }
+        env.storage().persistent().set(
+            &StorageKey::ActiveOwnerProjects(owner.clone()),
+            &updated_active_projects,
+        );
+        StorageManager::extend_active_owner_projects_ttl(env, owner);
     }
 
     pub fn get_owner_project_count(env: &Env, owner: &Address) -> u32 {
@@ -977,6 +1146,21 @@ impl ProjectRegistry {
     }
 
     /// Step 1: Current owner proposes a transfer to `new_owner`.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// Soroban transactions execute atomically: every storage write in a single
+    /// invocation either all commits or all reverts. There is therefore no risk
+    /// of a partial state (e.g. PendingTransfer written but TTL not extended).
+    ///
+    /// # Concurrent transfer attempts
+    ///
+    /// If the owner calls `initiate_transfer` a second time before the first is
+    /// accepted, the new recipient **overwrites** the old one atomically.
+    /// The first recipient can no longer accept — they will receive `Unauthorized`.
+    /// This is intentional: the owner retains full control over the pending
+    /// transfer until `accept_transfer` is called.
+    ///
     /// Overwrites any existing pending transfer for this project.
     pub fn initiate_transfer(
         env: &Env,
@@ -1026,6 +1210,33 @@ impl ProjectRegistry {
     }
 
     /// Step 2: Designated new owner accepts the transfer.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// All storage mutations in this function execute within a single Soroban
+    /// transaction and are committed or reverted together:
+    ///
+    /// 1. Remove `project_id` from the old owner's `OwnerProjects` index.
+    /// 2. Remove from the old owner's active-projects index.
+    /// 3. Capacity check for the new owner (returns error if at limit — no
+    ///    partial state is written in that case).
+    /// 4. Add `project_id` to the new owner's `OwnerProjects` index.
+    /// 5. Add to the new owner's active-projects index (if not archived).
+    /// 6. Update `project.owner` and `project.updated_at`.
+    /// 7. Remove the `PendingTransfer` storage entry.
+    ///
+    /// If any step panics or returns an error, every preceding write in this
+    /// invocation reverts. There is no intermediate state that can be observed
+    /// by a concurrent reader: ownership is either fully on the old owner or
+    /// fully on the new owner.
+    ///
+    /// # No concurrent two-way transfers
+    ///
+    /// A project can only have one pending transfer at a time (stored under
+    /// `StorageKey::PendingTransfer(project_id)`). A second `initiate_transfer`
+    /// replaces the first atomically. Two parties racing to `accept_transfer` on
+    /// the same project_id: the second one will find `TransferNotFound` because
+    /// step 7 removes the pending record on the first successful accept.
     pub fn accept_transfer(
         env: &Env,
         project_id: u64,
@@ -1064,6 +1275,7 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::OwnerProjects(old_owner.clone()), &updated_old);
+        Self::remove_active_owner_project(env, &old_owner, project_id);
 
         Self::ensure_owner_capacity(env, &pending_new_owner)?;
 
@@ -1078,6 +1290,9 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(pending_new_owner.clone()),
             &new_owner_projects,
         );
+        if !project.archived {
+            Self::add_active_owner_project(env, &pending_new_owner, project_id);
+        }
 
         // Update project owner
         project.owner = pending_new_owner.clone();
@@ -1134,6 +1349,7 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
+        Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_archived_event(env, project_id, caller);
         Ok(())
@@ -1167,13 +1383,160 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
 
+        Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_reactivated_event(env, project_id, caller);
         Ok(())
     }
 
     /// List projects by tag - Issue #125
-    pub fn list_projects_by_tag(env: &Env, tag: String, start_index: u32, limit: u32) -> Vec<Project> {
+
+    // ===== Tag index (issue #483) =====
+    //
+    // `list_projects_by_tag` loads every project from id 1 to ProjectCount on
+    // every call, so a tag lookup costs O(total projects) regardless of how few
+    // carry the tag. These maintain an inverted index, tag -> project ids.
+    //
+    // The index is only authoritative for ids at or below the watermark.
+    // Projects registered before the index existed are absent from it, and an
+    // absent entry is indistinguishable from "no project has this tag" — so a
+    // lookup serves the covered range from the index and scans only the tail.
+
+    /// Project ids known to carry `tag`.
+    pub fn get_tag_index(env: &Env, tag: &String) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagProjects(tag.clone()))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Highest project id guaranteed to be represented in the tag index.
+    pub fn get_tag_index_watermark(env: &Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::TagIndexWatermark)
+            .unwrap_or(0)
+    }
+
+    fn set_tag_index_watermark(env: &Env, value: u64) {
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagIndexWatermark, &value);
+    }
+
+    /// Add `project_id` to the index entry for `tag`, if not already present.
+    fn index_tag(env: &Env, tag: &String, project_id: u64) {
+        let mut ids = Self::get_tag_index(env, tag);
+        if ids.contains(&project_id) {
+            return;
+        }
+        ids.push_back(project_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::TagProjects(tag.clone()), &ids);
+    }
+
+    /// Remove `project_id` from the index entry for `tag`.
+    fn unindex_tag(env: &Env, tag: &String, project_id: u64) {
+        let ids = Self::get_tag_index(env, tag);
+        let mut remaining = Vec::new(env);
+        let mut changed = false;
+        for id in ids.iter() {
+            if id == project_id {
+                changed = true;
+            } else {
+                remaining.push_back(id);
+            }
+        }
+        if !changed {
+            return;
+        }
+        let key = ExtensionKey::TagProjects(tag.clone());
+        if remaining.is_empty() {
+            env.storage().persistent().remove(&key);
+        } else {
+            env.storage().persistent().set(&key, &remaining);
+        }
+    }
+
+    /// Index every tag on a project.
+    fn index_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::index_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    /// Remove a project from every tag entry it was indexed under.
+    fn unindex_project_tags(env: &Env, project_id: u64, tags: &Option<Vec<String>>) {
+        if let Some(tags) = tags {
+            for tag in tags.iter() {
+                Self::unindex_tag(env, &tag, project_id);
+            }
+        }
+    }
+
+    // ── Tag Index Watermark State Machine ──────────────────────────────────────
+    //
+    //  State Machine:
+    //  ┌──────────────┐     reindex_tags()     ┌──────────────┐     reindex_tags()     ┌──────────────┐
+    //  │ Uninitialized│ ────────────────────> │   Indexing   │ ────────────────────> │   Complete   │
+    //  │(watermark=0) │   watermark > 0      │(0<W<ProjCount)│  watermark==ProjCount │(W==ProjCount)│
+    //  └──────────────┘                      └──────────────┘                      └──────────────┘
+    //
+    //  - Uninitialized (watermark == 0): No historic backfilling performed; lookups scan full catalog.
+    //  - Indexing (0 < watermark < ProjectCount): Partial backfill completed up to watermark ID.
+    //  - Complete (watermark == ProjectCount): Entire project catalog indexed.
+    //
+    //  Guarantees:
+    //  - Atomic update: Watermark advances monotonically (`watermark >= stored`).
+    //  - Transaction Safety: Reindex failures rollback atomically under Soroban execution.
+
+    /// Backfill the tag index for projects registered before it existed.
+    ///
+    /// Processes at most `limit` ids past the watermark and advances it, so the
+    /// backfill can be driven in bounded batches rather than one unbounded call.
+    /// Returns the watermark after this batch.
+    pub fn reindex_tags(env: &Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        require_admin_auth(env, &caller)?;
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let current_watermark = Self::get_tag_index_watermark(env);
+        let mut watermark = current_watermark;
+        let batch = if limit == 0 { 1u64 } else { limit as u64 };
+        let target = core::cmp::min(watermark.saturating_add(batch), count);
+
+        while watermark < target {
+            let id = watermark + 1;
+            if let Some(project) = Self::get_project(env, id) {
+                Self::index_project_tags(env, id, &project.tags);
+            }
+            watermark = id;
+        }
+
+        // Monotonic guard: ensure watermark updates can never regress stored watermark
+        let final_stored = Self::get_tag_index_watermark(env);
+        if watermark > final_stored {
+            Self::set_tag_index_watermark(env, watermark);
+        } else {
+            watermark = final_stored;
+        }
+        Ok(watermark)
+    }
+
+    /// Look projects up by tag using the inverted index (issue #483).
+    ///
+    /// Serves ids within the indexed range directly. Any range not yet covered
+    /// by the watermark is scanned, so results are correct before a backfill has
+    /// finished — the index makes it fast, it does not make it correct.
+    /// Archived projects are excluded, matching `list_projects_by_tag`.
+    pub fn get_projects_by_tag_batch(env: &Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -1186,33 +1549,110 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
+        let watermark = Self::get_tag_index_watermark(env);
         let mut projects = Vec::new(env);
-        if count == 0 {
-            return projects;
-        }
+        let mut seen: Vec<u64> = Vec::new(env);
 
-        let mut collected: u32 = 0;
-
-        // Iterate through all projects; start_index is a 0-based offset into the project ID space.
-        for id in (start_index as u64 + 1)..=count {
-            if collected >= effective_limit {
-                break;
-            }
-
-            if let Some(project) = Self::get_project(env, id) {
-                if project.archived {
+        // Indexed range: straight lookups, no full scan.
+        for tag in tags.iter() {
+            for id in Self::get_tag_index(env, &tag).iter() {
+                if projects.len() >= effective_limit {
+                    return projects;
+                }
+                if id > watermark || seen.contains(&id) {
                     continue;
                 }
-                if let Some(tags) = &project.tags {
-                    for project_tag in tags.iter() {
-                        if project_tag == tag {
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    seen.push_back(id);
+                    projects.push_back(project);
+                }
+            }
+        }
+
+        // Uncovered tail: scan until a backfill catches up.
+        if watermark < count {
+            for id in (watermark + 1)..=count {
+                if projects.len() >= effective_limit {
+                    break;
+                }
+                if seen.contains(&id) {
+                    continue;
+                }
+                if let Some(project) = Self::get_project(env, id) {
+                    if project.archived {
+                        continue;
+                    }
+                    if let Some(project_tags) = &project.tags {
+                        let mut matched = false;
+                        for project_tag in project_tags.iter() {
+                            for tag in tags.iter() {
+                                if project_tag == tag {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            if matched {
+                                break;
+                            }
+                        }
+                        if matched {
+                            seen.push_back(id);
                             projects.push_back(project);
-                            collected += 1;
-                            break;
                         }
                     }
                 }
             }
+        }
+
+        projects
+    }
+
+    pub fn list_projects_by_tag(
+        env: &Env,
+        tag: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        // Read the inverted tag index rather than scanning the whole ID space (issue #485).
+        let ids = Self::tag_index(env, &tag);
+
+        let mut projects = Vec::new(env);
+        if ids.is_empty() {
+            return projects;
+        }
+
+        let mut skipped: u32 = 0;
+        let mut collected: u32 = 0;
+
+        // `start_index` is a 0-based offset into the projects matching this tag.
+        for i in 0..ids.len() {
+            if collected >= effective_limit {
+                break;
+            }
+            let Some(id) = ids.get(i) else {
+                continue;
+            };
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+            if project.archived {
+                continue;
+            }
+            if skipped < start_index {
+                skipped += 1;
+                continue;
+            }
+            projects.push_back(project);
+            collected += 1;
         }
 
         projects
@@ -1393,6 +1833,9 @@ impl ProjectRegistry {
             &StorageKey::OwnerProjects(claim_request.claimant.clone()),
             &new_owner_projects,
         );
+        if !project.archived {
+            Self::add_active_owner_project(env, &claim_request.claimant, claim_request.project_id);
+        }
 
         // Save project
         env.storage()
@@ -1425,6 +1868,15 @@ impl ProjectRegistry {
             admin.clone(),
             old_owner,
             claim_request.claimant,
+        );
+
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ClaimRequestApproved,
+            Some(claim_request.project_id),
+            None,
+            None,
         );
 
         Ok(())
@@ -1464,8 +1916,18 @@ impl ProjectRegistry {
             claim_request_id,
             claim_request.project_id,
             claim_request.claimant,
-            admin,
+            admin.clone(),
         );
+
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ClaimRequestRejected,
+            Some(claim_request.project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -1523,7 +1985,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::ProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -1590,7 +2052,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::ProjectNotFound);
         }
 
         env.storage()
@@ -1641,7 +2103,7 @@ impl ProjectRegistry {
 
         let mut maintainers = Self::get_maintainers(env, project_id);
         if maintainers.contains(&maintainer) {
-            return Err(ContractError::AlreadyLinked);
+            return Err(ContractError::AlreadyMaintainerAdded);
         }
 
         maintainers.push_back(maintainer.clone());
@@ -1836,13 +2298,38 @@ impl ProjectRegistry {
 
         Utils::validate_metadata_cid(&proof_cid)?;
 
+        let now = env.ledger().timestamp();
+
+        // If a pending claim already exists for this address, only allow replacing it
+        // once it has expired. Active (non-expired) pending claims block new submissions.
+        if let Some(existing) =
+            env.storage()
+                .persistent()
+                .get::<_, ContractClaimRequest>(&ExtensionKey::ContractClaim(
+                    project_id,
+                    contract_address.clone(),
+                ))
+        {
+            if existing.status == ClaimStatus::Pending {
+                // expires_at == 0 is the legacy sentinel for "no expiry"; treat as non-expired.
+                let is_expired = existing.expires_at > 0 && now >= existing.expires_at;
+                if !is_expired {
+                    return Err(ContractError::InvalidStatus);
+                }
+                // Expired — fall through and overwrite the stale pending claim.
+            }
+        }
+
+        let expires_at = now + CLAIM_EXPIRY_SECONDS;
+
         let req = ContractClaimRequest {
             project_id,
             contract_address: contract_address.clone(),
             claimant: caller.clone(),
             proof_cid: proof_cid.clone(),
             status: ClaimStatus::Pending,
-            created_at: env.ledger().timestamp(),
+            created_at: now,
+            expires_at,
         };
 
         env.storage().persistent().set(
@@ -1959,41 +2446,114 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut all: Vec<Project> = Vec::new(env);
-        for id in 1..=count {
-            if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
-                    all.push_back(project);
-                }
-            }
+        let mut result: Vec<Project> = Vec::new(env);
+        if count == 0 {
+            return result;
         }
 
-        Utils::bubble_sort_by(&mut all, |a, b| match sort_mode {
-            ProjectSortMode::Newest => a.created_at < b.created_at,
-            ProjectSortMode::Oldest => a.created_at > b.created_at,
-            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
-                let stats_a = crate::review_registry::ReviewRegistry::get_project_stats(env, a.id);
-                let stats_b = crate::review_registry::ReviewRegistry::get_project_stats(env, b.id);
-                if sort_mode == ProjectSortMode::HighestRated {
-                    stats_a.average_rating < stats_b.average_rating
-                        || (stats_a.average_rating == stats_b.average_rating
-                            && stats_a.review_count < stats_b.review_count)
-                } else {
-                    stats_a.review_count < stats_b.review_count
-                        || (stats_a.review_count == stats_b.review_count
-                            && stats_a.average_rating < stats_b.average_rating)
+        match sort_mode {
+            // Project IDs are handed out in registration order and `created_at` is
+            // non-decreasing across them, so the ID space is already the sort order.
+            // Walking it directly reads only the requested page instead of loading
+            // and ordering the whole registry (issue #484).
+            ProjectSortMode::Newest | ProjectSortMode::Oldest => {
+                let newest_first = sort_mode == ProjectSortMode::Newest;
+                let mut skipped: u64 = 0;
+                let mut collected: u32 = 0;
+
+                for step in 0..count {
+                    if collected >= effective_limit {
+                        break;
+                    }
+                    let id = if newest_first { count - step } else { step + 1 };
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    if skipped < start_index {
+                        skipped += 1;
+                        continue;
+                    }
+                    result.push_back(project);
+                    collected += 1;
                 }
             }
-        });
-        let n = all.len();
+            // Rating order cannot be derived from the ID space. Read each project's
+            // review stats once - the previous bubble sort re-read them inside every
+            // comparison, which made the call O(N^2) in storage reads - and then select
+            // just the requested page rather than ordering the entire registry.
+            ProjectSortMode::HighestRated | ProjectSortMode::MostReviewed => {
+                let mut candidates: Vec<Project> = Vec::new(env);
+                let mut averages: Vec<u32> = Vec::new(env);
+                let mut review_counts: Vec<u32> = Vec::new(env);
 
-        let mut result = Vec::new(env);
-        let start = start_index as u32;
-        if start < n {
-            let end = core::cmp::min(start.saturating_add(effective_limit), n);
-            for i in start..end {
-                if let Some(project) = all.get(i) {
-                    result.push_back(project);
+                for id in 1..=count {
+                    let Some(project) = Self::get_project(env, id) else {
+                        continue;
+                    };
+                    if project.archived {
+                        continue;
+                    }
+                    let stats = crate::review_registry::ReviewRegistry::get_project_stats(env, id);
+                    candidates.push_back(project);
+                    averages.push_back(stats.average_rating);
+                    review_counts.push_back(stats.review_count);
+                }
+
+                let total = candidates.len();
+                let start = start_index as u32;
+                if start >= total {
+                    return result;
+                }
+                let wanted = core::cmp::min(start.saturating_add(effective_limit), total);
+
+                let highest_rated = sort_mode == ProjectSortMode::HighestRated;
+                let mut taken: Vec<bool> = Vec::new(env);
+                for _ in 0..total {
+                    taken.push_back(false);
+                }
+
+                // Partial selection: only `wanted` ranks are resolved, so the work is
+                // bounded by the page the caller asked for.
+                for rank in 0..wanted {
+                    let mut best: Option<u32> = None;
+                    for i in 0..total {
+                        if taken.get(i).unwrap_or(false) {
+                            continue;
+                        }
+                        let Some(best_index) = best else {
+                            best = Some(i);
+                            continue;
+                        };
+                        let (primary, secondary) = if highest_rated {
+                            (&averages, &review_counts)
+                        } else {
+                            (&review_counts, &averages)
+                        };
+                        let candidate_primary = primary.get(i).unwrap_or(0);
+                        let best_primary = primary.get(best_index).unwrap_or(0);
+                        let candidate_secondary = secondary.get(i).unwrap_or(0);
+                        let best_secondary = secondary.get(best_index).unwrap_or(0);
+
+                        if candidate_primary > best_primary
+                            || (candidate_primary == best_primary
+                                && candidate_secondary > best_secondary)
+                        {
+                            best = Some(i);
+                        }
+                    }
+
+                    let Some(best_index) = best else {
+                        break;
+                    };
+                    taken.set(best_index, true);
+                    if rank >= start {
+                        if let Some(project) = candidates.get(best_index) {
+                            result.push_back(project);
+                        }
+                    }
                 }
             }
         }
@@ -2003,12 +2563,19 @@ impl ProjectRegistry {
 
     fn append_string_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, s: &String) {
         let len = s.len() as usize;
-        let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
-        s.copy_into_slice(&mut scratch[..len]);
-        for i in 0..len {
-            buf.push_back(scratch[i]);
+        let mut scratch = vec![0u8; len];
+        s.copy_into_slice(&mut scratch);
+        for &byte in scratch.iter() {
+            buf.push_back(byte);
         }
     }
+
+    fn append_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, bytes: &[u8]) {
+        for &byte in bytes.iter() {
+            buf.push_back(byte);
+        }
+    }
+
     /// Set the optional region tag for a project (owner only).
     pub fn set_project_region(
         env: &Env,
@@ -2017,8 +2584,7 @@ impl ProjectRegistry {
         region: Option<String>,
     ) -> Result<(), ContractError> {
         caller.require_auth();
-        let project =
-            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
         if project.owner != caller {
             return Err(ContractError::Unauthorized);
         }
@@ -2049,9 +2615,16 @@ impl ProjectRegistry {
             .get(&ExtensionKey::ProjectIntegrityHash(project_id))
     }
 
-
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
-    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    /// The payload is canonicalized as:
+    /// `project-integrity-v1|name|slug|category|description`
+    /// using the exact UTF-8 bytes for each field in a fixed order. The canonical
+    /// payload makes the hash deterministic for a given project, while the version
+    /// prefix keeps future upgrades explicit and testable.
+    ///
+    /// Any change to `name`, `slug`, `category`, or `description` changes the
+    /// resulting hash, which lets verification detect when project metadata drifted
+    /// from the stored value.
     pub fn store_integrity_hash(
         env: &Env,
         project_id: u64,
@@ -2060,6 +2633,23 @@ impl ProjectRegistry {
         category: &String,
         description: &String,
     ) {
+        let hash_bytes = Self::compute_integrity_hash(env, name, slug, category, description);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+    }
+
+    /// Computes the legacy, unversioned SHA-256 hash for the given metadata fields.
+    /// This encoding is retained for backwards compatibility during verification of
+    /// already-stored project hashes created before the canonical versioned format
+    /// was introduced.
+    pub fn compute_integrity_hash_legacy(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
         let sep = b'|';
         let mut buf = soroban_sdk::Bytes::new(env);
         Self::append_string_bytes(env, &mut buf, name);
@@ -2070,10 +2660,134 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
-        let hash_bytes = soroban_sdk::Bytes::from_array(env, &hash.to_array());
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Returns true when the provided hash matches either the current canonical
+    /// versioned payload or the legacy payload. This preserves backward
+    /// compatibility with older on-chain integrity hashes while rejecting metadata drift.
+    pub fn hash_matches_current_or_legacy(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+        candidate_hash: &soroban_sdk::Bytes,
+    ) -> bool {
+        let current = Self::compute_integrity_hash(env, name, slug, category, description);
+        let legacy = Self::compute_integrity_hash_legacy(env, name, slug, category, description);
+        candidate_hash == &current || candidate_hash == &legacy
+    }
+
+    /// Computes (but does not store) the current canonical SHA-256 integrity hash
+    /// for the given metadata fields.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+        Self::append_bytes(env, &mut buf, b"project-integrity-v1");
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, name);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, slug);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, category);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, description);
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Update a project's lifecycle status.
+    /// Only the project owner can change the lifecycle status.
+    pub fn set_project_lifecycle_status(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_status: ProjectLifecycleStatus,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        caller.require_auth();
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let previous_status = project.lifecycle_status;
+        if previous_status == new_status {
+            // Status unchanged, no event needed
+            return Ok(project);
+        }
+
+        project.lifecycle_status = new_status;
+        project.updated_at = env.ledger().timestamp();
+
         env.storage()
             .persistent()
-            .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        publish_project_lifecycle_status_updated_event(
+            env,
+            project_id,
+            project.owner.clone(),
+            previous_status,
+            new_status,
+        );
+
+        Ok(project)
+    }
+
+    /// List projects by lifecycle status with pagination.
+    /// Returns projects matching the specified lifecycle status, excluding archived projects.
+    pub fn list_projects_by_lifecycle_status(
+        env: &Env,
+        status: ProjectLifecycleStatus,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        let mut projects = Vec::new(env);
+        if count == 0 {
+            return projects;
+        }
+
+        let first = if start_id > 0 { start_id } else { 1 };
+        let mut collected: u32 = 0;
+
+        for id in first..=count {
+            if collected >= effective_limit {
+                break;
+            }
+
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived && project.lifecycle_status == status {
+                    projects.push_back(project);
+                    collected = collected.saturating_add(1);
+                }
+            }
+        }
+
+        projects
     }
 }
 
@@ -2109,7 +2823,7 @@ mod tests {
         // 3. Validate alphanumeric, underscore, hyphen
         for c in name_str.chars() {
             if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
-                return Err(ContractError::InvalidNameFormat);
+                return Err(ContractError::InvalidProjectNameFormat);
             }
         }
 
@@ -2152,7 +2866,7 @@ mod tests {
             &String::from_str(&env, "Desc"),
             &String::from_str(&env, "Cat"),
         );
-        assert_eq!(result, Err(ContractError::InvalidNameFormat));
+        assert_eq!(result, Err(ContractError::InvalidProjectNameFormat));
     }
 
     #[test]

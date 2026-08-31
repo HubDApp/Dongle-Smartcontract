@@ -26,12 +26,14 @@ fn register_project(client: &DongleContractClient, owner: &Address, name: &str) 
         description: String::from_str(env, "Description"),
         category: String::from_str(env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params)
 }
@@ -431,12 +433,14 @@ fn test_list_projects_by_category_basic() {
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "Web3"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params1);
 
@@ -447,12 +451,14 @@ fn test_list_projects_by_category_basic() {
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "DeFi"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().register_project(&params2);
 
@@ -484,12 +490,14 @@ fn test_list_projects_by_category_update_moves_project() {
         description: String::from_str(&env, "Description"),
         category: String::from_str(&env, "OldCat"),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
 
@@ -507,12 +515,15 @@ fn test_list_projects_by_category_update_moves_project() {
         description: None,
         category: Some(String::from_str(&env, "NewCat")),
         website: None,
+        license: None,
         logo_cid: None,
         metadata_cid: None,
         tags: None,
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().update_project(&update_params);
 
@@ -547,12 +558,14 @@ fn test_list_projects_by_category_pagination() {
             description: String::from_str(&env, "Description"),
             category: String::from_str(&env, "MultiCat"),
             website: None,
+            license: None,
             logo_cid: None,
             metadata_cid: None,
             tags: None,
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         };
         client.mock_all_auths().register_project(&params);
     }

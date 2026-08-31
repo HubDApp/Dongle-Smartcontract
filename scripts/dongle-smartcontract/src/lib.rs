@@ -1,6 +1,8 @@
 #![no_std]
 #![allow(warnings)]
 
+extern crate alloc;
+
 mod admin_action_log;
 mod admin_manager;
 pub mod auth;
@@ -558,8 +560,7 @@ impl DongleContract {
         ReviewRegistry::get_review_tombstone(&env, project_id, reviewer)
     }
 
-    /// List reviews sorted by the given sort mode with pagination.
-    /// Sorting is performed on-chain in-memory; compute cost scales with review count.
+    /// List a bounded review page. Sort the returned pages client-side.
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,

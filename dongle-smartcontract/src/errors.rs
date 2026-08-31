@@ -12,108 +12,164 @@ pub enum ContractError {
     ProjectNotFound = 3,
     /// Invalid rating - must be between 1 and 5
     InvalidRating = 4,
-    /// Max projects per user exceeded
-    MaxProjectsExceeded = 5,
     /// Review not found
-    ReviewNotFound = 6,
-    /// Invalid CID format
-    InvalidCid = 7,
-    /// Invalid input data
-    InvalidInput = 8,
-    /// Invalid project name - empty, whitespace only, or invalid format
-    InvalidProjectName = 9,
-    /// Invalid project data - missing required fields or invalid format
-    InvalidProjectData = 10,
-    /// Invalid project slug
-    InvalidProjectSlug = 11,
-    /// Invalid status or status transition
-    InvalidStatus = 12,
-    /// Project already exists
-    ProjectAlreadyExists = 13,
-    /// Project is already archived
-    AlreadyArchived = 14,
-    /// Project is not archived
-    ProjectNotArchived = 15,
-    /// Project is too young to be verified
-    ProjectTooYoung = 16,
-    /// Verification record not found
-    VerificationNotFound = 17,
-    /// Field is frozen for verified projects
-    VerifiedFieldFrozen = 18,
-    /// Only admin can perform this action
-    AdminOnly = 19,
-    /// Admin not found
-    AdminNotFound = 20,
-    /// No pending ownership transfer found for this project
-    TransferNotFound = 21,
-    /// Reserved project name
-    ReservedName = 22,
-    /// Invalid verification status transition
-    InvalidStatusTransition = 23,
-    /// Insufficient fee paid
-    InsufficientFee = 24,
-    /// Treasury address not set
-    TreasuryNotSet = 25,
-    /// Fee configuration not set
-    FeeConfigNotSet = 26,
-    /// Duplicate project name
-    DuplicateProjectName = 27,
-    /// Cannot link a project to itself
-    CannotLinkToSelf = 28,
-    /// Projects are already linked
-    AlreadyLinked = 29,
-    /// Already following this project
-    AlreadyFollowing = 30,
-    /// Not following this project
-    NotFollowing = 31,
+    ReviewNotFound = 5,
     /// Duplicate review submission for same project and reviewer
-    DuplicateReview = 32,
-    /// Already reported this item
-    AlreadyReported = 33,
-    /// Review is already hidden
-    ReviewAlreadyHidden = 34,
-    /// Review is not hidden
-    ReviewNotHidden = 35,
-    /// Collection not found
-    CollectionNotFound = 36,
-    /// Collection already exists
-    CollectionExists = 37,
-    /// Project already in collection
-    AlreadyInCollection = 38,
-    /// Cannot remove the last admin
-    CannotRemoveLastAdmin = 39,
-    /// Reviews are disabled for this project
-    ReviewsDisabled = 40,
+    DuplicateReview = 6,
     /// Caller is not the owner of the targeted review
-    NotReviewOwner = 41,
-    /// Caller is not the designated recipient of the pending transfer
-    NotPendingTransferRecipient = 42,
-    /// Verification has expired and is no longer active
-    VerificationExpired = 43,
+    NotReviewOwner = 7,
+    /// Verification record not found
+    VerificationNotFound = 8,
+    /// Invalid verification status transition
+    InvalidStatusTransition = 9,
+    /// Only admin can perform this action
+    AdminOnly = 10,
+    /// Fee configuration not set
+    FeeConfigNotSet = 11,
+    /// Treasury address not set
+    TreasuryNotSet = 12,
+    /// Insufficient fee paid
+    InsufficientFee = 13,
+    /// Invalid project data - missing required fields
+    InvalidProjectData = 14,
+    /// Project name too long
+    ProjectNameTooLong = 15,
+    /// Invalid project name format
+    InvalidProjectNameFormat = 16,
+    /// Cannot remove last admin
+    CannotRemoveLastAdmin = 17,
+    /// Admin not found
+    AdminNotFound = 18,
+    /// Invalid project name - empty or whitespace only
+    InvalidProjectName = 19,
+    /// Invalid project description - empty or whitespace only
+    InvalidProjectDescription = 20,
+    /// Invalid project category - empty or whitespace only
+    InvalidProjectCategory = 21,
+    /// Project description too long
+    ProjectDescriptionTooLong = 22,
+    /// Project description contains invalid characters
+    InvalidProjectDescriptionFormat = 23,
+    /// Maximum number of projects exceeded
+    MaxProjectsExceeded = 24,
+    /// Invalid project website
+    InvalidProjectWebsite = 25,
+    /// Invalid project logo CID
+    InvalidProjectLogoCid = 26,
+    /// Invalid project metadata CID
+    InvalidProjectMetadataCid = 27,
+    /// Project category too long
+    ProjectCategoryTooLong = 28,
+    /// Project website too long
+    ProjectWebsiteTooLong = 29,
     /// Project is not in a revocable state (must be Verified)
-    VerificationNotRevocable = 44,
-    /// Owner cannot review their own project
-    OwnerCannotReview = 45,
+    VerificationNotRevocable = 30,
+    /// No pending ownership transfer found for this project
+    TransferNotFound = 31,
+    /// Caller is not the designated recipient of the pending transfer
+    NotPendingTransferRecipient = 32,
+    /// Verification has expired and is no longer active
+    VerificationExpired = 33,
+    /// Contract has already been initialized
+    AlreadyInitialized = 34,
+    /// Invalid CID format
+    InvalidCid = 35,
+    /// Invalid input provided
+    InvalidInput = 36,
+    /// Invalid project slug
+    InvalidProjectSlug = 37,
+    /// Invalid status for the requested operation
+    InvalidStatus = 38,
+    /// Project is already archived
+    AlreadyArchived = 39,
+    /// Project is not archived
+    ProjectNotArchived = 40,
+    /// Project is too young for this operation
+    ProjectTooYoung = 41,
+    /// Verified field is frozen and cannot be modified
+    VerifiedFieldFrozen = 42,
+    /// Project name is reserved
+    ReservedName = 43,
+    /// Duplicate project name
+    DuplicateProjectName = 44,
+    /// Cannot link a project to itself
+    CannotLinkToSelf = 45,
+    /// Projects are already linked
+    AlreadyLinked = 46,
+    /// Already following this project
+    AlreadyFollowing = 47,
+    /// Not following this project
+    NotFollowing = 48,
+    /// Review has already been reported
+    AlreadyReported = 49,
+    /// Review is already hidden
+    ReviewAlreadyHidden = 50,
+    /// Review is not hidden
+    ReviewNotHidden = 51,
+    /// Collection not found
+    CollectionNotFound = 52,
+    /// Collection already exists
+    CollectionExists = 53,
+    /// Project is already in the collection
+    AlreadyInCollection = 54,
+    /// Reviews are disabled for this project
+    ReviewsDisabled = 55,
+    /// Project owner cannot review their own project
+    OwnerCannotReview = 56,
     /// Invalid name format
-    InvalidNameFormat = 46,
+    InvalidNameFormat = 57,
     /// Reviewer is not eligible
-    ReviewerNotEligible = 47,
+    ReviewerNotEligible = 58,
     /// Review fee is required
-    ReviewFeeRequired = 48,
+    ReviewFeeRequired = 59,
     /// Collection is full
-    CollectionFull = 49,
+    CollectionFull = 60,
     /// Contract is paused
-    ContractPaused = 50,
-    /// Already bookmarked
-    AlreadyBookmarked = 51,
-    /// Not bookmarked
-    NotBookmarked = 52,
-    /// Already endorsed
-    AlreadyEndorsed = 53,
-    /// Not endorsed
-    NotEndorsed = 54,
-    /// Timelock has not expired yet
-    TimelockNotExpired = 55,
+    ContractPaused = 61,
+    /// Project is already bookmarked
+    AlreadyBookmarked = 62,
+    /// Project is already endorsed
+    AlreadyEndorsed = 63,
+    /// Project is not bookmarked
+    NotBookmarked = 64,
+    /// Project is not endorsed
+    NotEndorsed = 65,
+    /// Timelock action has not expired yet
+    TimelockNotExpired = 66,
+    /// Stored proposal payload does not match its recorded hash
+    PayloadHashMismatch = 67,
+    /// Tag list is invalid (empty, over-length, too many, bad charset, or duplicates)
+    InvalidTags = 68,
+    /// Admin proposal has passed its expiry time and can no longer be executed
+    ProposalExpired = 69,
+    /// No refund is recorded for the given project.
+    NoRefundAvailable = 70,
+    /// The recorded refund has already been paid out.
+    RefundAlreadyClaimed = 71,
+    /// A checked arithmetic operation overflowed.
+    ArithmeticOverflow = 72,
+    /// Project is not in the collection
+    NotInCollection = 73,
+    /// A SetThreshold proposal that would lower the threshold must be approved
+    /// by strictly more admins than the proposed new threshold (supermajority
+    /// rule). This prevents the multi-sig quorum from being silently dismantled
+    /// by exactly the number of colluding admins it is meant to require.
+    ThresholdDowngradeRequiresSupermajority = 74,
+    /// Adding this dependency would create a circular reference in the
+    /// transitive project-dependency graph (project A depends on B which
+    /// depends back on A, directly or indirectly).
+    CircularDependency = 75,
+    /// Adding this dependency would make the transitive project-dependency
+    /// chain deeper than `MAX_DEPENDENCY_DEPTH` levels.
+    DependencyDepthExceeded = 76,
+    /// Multi-signature admin approval is required for this operation.
+    MultiSigRequired = 77,
+    /// The stored fee payment has expired and is no longer valid.
+    FeePaymentExpired = 78,
+    /// The linked project referenced by this operation no longer exists.
+    LinkedProjectNotFound = 79,
+    /// The maintainer is already on the project maintainer list.
+    AlreadyMaintainerAdded = 80,
 }
 
 pub type Error = ContractError;

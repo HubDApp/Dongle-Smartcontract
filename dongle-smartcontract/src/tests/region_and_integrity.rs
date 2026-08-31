@@ -1,5 +1,7 @@
 //! Tests for project region metadata (#238) and project integrity hash (#250).
 
+use crate::constants::MAX_DESCRIPTION_LEN;
+use crate::project_registry::ProjectRegistry;
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
 use soroban_sdk::{
@@ -42,6 +44,7 @@ fn register_project(client: &DongleContractClient<'_>, env: &Env, owner: &Addres
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         })
 }
 
@@ -70,6 +73,109 @@ fn test_owner_can_set_and_get_region() {
 
     let stored = client.get_project_region(&project_id);
     assert_eq!(stored, Some(region_str));
+}
+
+#[test]
+fn test_region_accepts_documented_codes_and_rejects_invalid_values() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+
+    for region in [
+        "AFRICA",
+        "ASIA",
+        "EU",
+        "LATAM",
+        "NA",
+        "GLOBAL",
+        "north_america",
+    ] {
+        let project_id = register_project(&client, &env, &owner);
+        let result = client.mock_all_auths().try_set_project_region(
+            &project_id,
+            &owner,
+            &Some(String::from_str(&env, region)),
+        );
+        assert!(result.is_ok(), "Region should be accepted: {region}");
+    }
+
+    let invalid_project_id = register_project(&client, &env, &owner);
+    let invalid = client.mock_all_auths().try_set_project_region(
+        &invalid_project_id,
+        &owner,
+        &Some(String::from_str(&env, "INVALID")),
+    );
+    assert!(invalid.is_err(), "Invalid region should be rejected");
+}
+
+#[test]
+fn test_owner_can_change_region_value_when_still_valid() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner);
+
+    client.mock_all_auths().set_project_region(
+        &project_id,
+        &owner,
+        &Some(String::from_str(&env, "AFRICA")),
+    );
+    client.mock_all_auths().set_project_region(
+        &project_id,
+        &owner,
+        &Some(String::from_str(&env, "ASIA")),
+    );
+
+    assert_eq!(
+        client.get_project_region(&project_id),
+        Some(String::from_str(&env, "ASIA"))
+    );
+}
+
+#[test]
+fn test_region_based_filtering_matches_project_region_values() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+
+    let africa_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &africa_project,
+        &owner,
+        &Some(String::from_str(&env, "AFRICA")),
+    );
+
+    let asia_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &asia_project,
+        &owner,
+        &Some(String::from_str(&env, "ASIA")),
+    );
+
+    let eu_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &eu_project,
+        &owner,
+        &Some(String::from_str(&env, "EU")),
+    );
+
+    let all_projects = client.list_projects(&0, &10);
+    let africa_only: Vec<u64> = all_projects
+        .iter()
+        .filter_map(|project| {
+            if client.get_project_region(&project.id).unwrap_or(String::from_str(&env, ""))
+                == String::from_str(&env, "AFRICA")
+            {
+                Some(project.id)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(africa_only.len(), 1);
+    assert_eq!(africa_only.get(0).copied(), Some(africa_project));
+    assert!(all_projects.iter().any(|project| project.id == asia_project));
 }
 
 #[test]
@@ -158,6 +264,7 @@ fn test_integrity_hash_changes_on_update() {
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         });
 
     let hash_after = client.get_project_integrity_hash(&project_id).unwrap();
@@ -165,4 +272,123 @@ fn test_integrity_hash_changes_on_update() {
         hash_before, hash_after,
         "Hash must change when metadata changes"
     );
+}
+
+#[test]
+fn test_integrity_hash_accepts_description_longer_than_previous_scratch_buffer() {
+    let env = Env::default();
+    let description = "a".repeat(MAX_DESCRIPTION_LEN + 1);
+
+    let hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &String::from_str(&env, "Test-Project"),
+        &String::from_str(&env, "test-project"),
+        &String::from_str(&env, "DeFi"),
+        &String::from_str(&env, &description),
+    );
+
+    assert_eq!(hash.len(), 32, "SHA-256 hash must be 32 bytes");
+}
+
+#[test]
+fn test_integrity_hash_is_deterministic_for_same_project() {
+    let env = Env::default();
+    let name = String::from_str(&env, "Test-Project");
+    let slug = String::from_str(&env, "test-project");
+    let category = String::from_str(&env, "DeFi");
+    let description = String::from_str(&env, "A test project description");
+
+    let first = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    let second = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+
+    assert_eq!(first, second, "Same project metadata must hash identically");
+}
+
+#[test]
+fn test_integrity_hash_changes_for_each_field() {
+    let env = Env::default();
+    let base_name = String::from_str(&env, "Test-Project");
+    let base_slug = String::from_str(&env, "test-project");
+    let base_category = String::from_str(&env, "DeFi");
+    let base_description = String::from_str(&env, "A test project description");
+
+    let base_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &base_category,
+        &base_description,
+    );
+
+    let name_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &String::from_str(&env, "Test-Project-2"),
+        &base_slug,
+        &base_category,
+        &base_description,
+    );
+    assert_ne!(base_hash, name_hash, "Changing name must change the integrity hash");
+
+    let slug_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &String::from_str(&env, "test-project-2"),
+        &base_category,
+        &base_description,
+    );
+    assert_ne!(base_hash, slug_hash, "Changing slug must change the integrity hash");
+
+    let category_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &String::from_str(&env, "AI"),
+        &base_description,
+    );
+    assert_ne!(base_hash, category_hash, "Changing category must change the integrity hash");
+
+    let description_hash = ProjectRegistry::compute_integrity_hash(
+        &env,
+        &base_name,
+        &base_slug,
+        &base_category,
+        &String::from_str(&env, "A revised project description"),
+    );
+    assert_ne!(base_hash, description_hash, "Changing description must change the integrity hash");
+}
+
+#[test]
+fn test_integrity_hash_accepts_legacy_serialization() {
+    let env = Env::default();
+    let name = String::from_str(&env, "Legacy-Project");
+    let slug = String::from_str(&env, "legacy-project");
+    let category = String::from_str(&env, "DeFi");
+    let description = String::from_str(&env, "Legacy description");
+
+    let legacy_hash = ProjectRegistry::compute_integrity_hash_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+    );
+    assert!(ProjectRegistry::hash_matches_current_or_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+        &legacy_hash,
+    ));
+
+    let latest_hash = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    assert_ne!(legacy_hash, latest_hash, "The versioned hash must differ from the legacy hash");
+    assert!(ProjectRegistry::hash_matches_current_or_legacy(
+        &env,
+        &name,
+        &slug,
+        &category,
+        &description,
+        &latest_hash,
+    ));
 }

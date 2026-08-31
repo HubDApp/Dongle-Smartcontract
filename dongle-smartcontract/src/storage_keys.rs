@@ -1,4 +1,44 @@
 //! Storage key types for persistent storage. Modular to allow future extensions.
+//!
+//! ## Key namespace design (closes #665)
+//!
+//! Soroban `#[contracttype]` enums are XDR-serialised as a tagged union of the
+//! form `(variant_ordinal, payload)`.  The Soroban SDK caps a single union at
+//! **50 variants** — attempting to compile a 51st case panics the macro.
+//!
+//! ### StorageKey (first 50 variants)
+//!
+//! `StorageKey` holds the original, core set of storage keys.  It currently
+//! has exactly 50 variants (ordinals 0–49).  Adding more variants to this enum
+//! would push it over the cap and break the build.
+//!
+//! ### ExtensionKey (overflow — independent namespace)
+//!
+//! When `StorageKey` reached 50 variants, all new keys were added to
+//! `ExtensionKey`.  Because `ExtensionKey` is a *different* XDR union type,
+//! its ordinals are **entirely independent** of `StorageKey`'s ordinals.
+//! There is **no cross-enum collision**: `StorageKey::Project(0)` and
+//! `ExtensionKey::ClaimRequest(0)` serialise to different byte sequences and
+//! never share a ledger entry.
+//!
+//! The only soundness requirement is that the two names used in the *same*
+//! enum must be unique — the Rust compiler enforces this.
+//!
+//! ### Capacity and the 50-variant limit
+//!
+//! `ExtensionKey` follows the same 50-variant cap.  Its current variant count
+//! is tracked by `tests::storage_key_uniqueness`.  When `ExtensionKey`
+//! approaches 45 variants (the warning threshold) a third enum
+//! (`ExtensionKey2`) must be introduced following the same pattern.
+//!
+//! The warning threshold test (`extension_key_variant_count_below_warn_threshold`)
+//! will fail loudly before the limit is reached.
+//!
+//! ### Performance
+//!
+//! Key lookup is O(1) — the key is XDR-serialised once per call and handed
+//! directly to the host storage map.  The two-enum split adds zero runtime
+//! overhead.
 
 use soroban_sdk::{contracttype, Address, String};
 
@@ -18,11 +58,12 @@ pub enum StorageKey {
     OwnerProjects(Address),
     /// Project by name (for duplicate detection).
     ProjectByName(String),
-    /// Project by slug (for URL lookups).
+    /// Project by canonical lowercase slug (for URL lookups and uniqueness).
+    /// The key is normalized to lowercase so `Alpha` and `alpha` resolve to the
+    /// same unique storage entry and duplicate detection remains consistent.
     ProjectBySlug(String),
-    /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
-    /// Used for case/whitespace/punctuation-insensitive duplicate detection.
-    ProjectByNormalizedName(String),
+    /// Project lifecycle status by project ID.
+    ProjectLifecycleStatus(u64),
     /// Project count.
     ProjectCount,
     /// Review by (project_id, reviewer address).
@@ -74,8 +115,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
-    /// Admin-configured duration (in seconds) a verification stays active.
-    VerificationDuration,
     /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
     ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
@@ -102,7 +141,12 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Global pause flag (admin-controlled). Read by `get_config`.
     ContractPaused,
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
+    /// List of non-archived project IDs registered by owner.
+    ActiveOwnerProjects(Address),
 }
 
 /// Additional storage keys for new features to stay under the 50-variant limit of StorageKey.
@@ -118,7 +162,6 @@ pub enum ExtensionKey {
     DuplicateDispute(u64),
     ProjectDuplicateDisputes(u64),
     NextDuplicateDisputeId,
-    VerificationDuration,
     ProjectFollowers(u64),
     UserSubscriptions(Address),
     FollowerCount(u64),
@@ -144,8 +187,18 @@ pub enum ExtensionKey {
     AdminProposal(u64),
     /// Admin governance: list of all proposal IDs.
     AdminProposalIds,
+    /// Changelog: next changelog entry ID counter.
+    NextChangelogEntryId,
+    /// Changelog: entry by ID.
+    ProjectChangelogEntry(u64),
+    /// Changelog: list of changelog entry IDs for a project.
+    ProjectChangelogEntries(u64),
     /// Project endorsements: list of addresses that endorsed a project.
     ProjectEndorsements(u64),
+    /// Endorser at a zero-based project position.
+    EndorsementAt(u64, u32),
+    /// Zero-based position of an endorser in a project's index.
+    EndorsementIndex(u64, Address),
     /// Endorsement count for a project.
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
@@ -156,6 +209,8 @@ pub enum ExtensionKey {
     FeePaymentDetails(u64),
     /// Fee payment details for a registration (payer, amount, token, timestamp).
     RegistrationFeePaymentDetails(Address),
+    /// Claimable refund owed after a rejected verification (issue #472).
+    FeeRefund(u64),
     /// List of reserved project names (admin-managed).
     ReservedNames,
     /// Optional region/market metadata for a project.
@@ -164,21 +219,54 @@ pub enum ExtensionKey {
     ProjectIntegrityHash(u64),
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
     /// Used for case/whitespace/punctuation-insensitive duplicate detection.
+    ///
+    /// Declared here rather than in `StorageKey`: Soroban caps a `#[contracttype]`
+    /// union at 50 cases and `StorageKey` was at 51, which panics the macro. The
+    /// key encoding is the variant name plus payload and is identical either way,
+    /// so relocating it needs no storage migration. An unused duplicate of this
+    /// variant already existed here.
     ProjectByNormalizedName(String),
-    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
-    /// pause state across mutating entry points is intentionally out of scope for the
-    /// config-view feature; see `set_pause` for the toggle.
-    Paused,
+    /// Inverted tag index: tag -> project ids carrying it (issue #483).
+    ///
+    /// Declared here rather than in `StorageKey` for the reason recorded on
+    /// `ProjectByNormalizedName` above: Soroban caps a `#[contracttype]` union at
+    /// 50 cases and `StorageKey` is already at exactly 50. The issue suggested
+    /// `StorageKey::TagProjects`, which cannot compile.
+    TagProjects(String),
+    /// Watermark for the tag index: every project id `<= n` is represented in
+    /// `TagProjects` (issue #483).
+    ///
+    /// Projects registered before the index existed are not in it, and an empty
+    /// index entry is indistinguishable from "no project has this tag". The
+    /// watermark makes the covered range explicit, so a lookup can serve indexed
+    /// ids directly and scan only the uncovered tail. `reindex_tags` advances it.
+    TagIndexWatermark,
     ContractClaim(u64, String),
     ProjectContracts(u64),
     ReviewEligibilityConfig,
     FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
-    /// Next changelog entry ID counter.
-    NextChangelogEntryId,
-    /// Changelog entry by ID.
-    ProjectChangelogEntry(u64),
-    /// List of changelog entry IDs for a project.
-    ProjectChangelogEntries(u64),
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
+    /// Global index of pending verification request IDs, in creation order.
+    PendingVerificationRequests,
+    /// Fee configuration change history, appended oldest-first.
+    ///
+    /// Stored as a single `Vec<FeeConfigHistoryEntry>` rather than one key per
+    /// entry because `ExtensionKey` is a `#[contracttype]` union and Soroban
+    /// caps those at 50 cases; a per-entry key plus a separate count key would
+    /// need two slots and push the enum over the limit.
+    FeeConfigHistory,
+}
+
+/// Storage keys for fee configuration history, split into a separate enum to stay under
+/// Soroban's 50-variant limit per `#[contracttype]` enum.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeHistoryKey {
+    /// Counter for fee configuration change history entries.
+    FeeConfigHistoryCount,
+    /// Fee configuration history entry by index.
+    FeeConfigHistoryEntry(u32),
 }

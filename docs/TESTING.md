@@ -201,6 +201,24 @@ fn test_example() {
 }
 ```
 
+### Property-based / fuzz tests
+
+Pure validators and pagination helpers also have `proptest`-driven tests that
+generate many randomized inputs per case and shrink failures to a minimal
+example:
+
+- `src/tests/string_validation.rs` — regex-constrained cases for name,
+  description, category, CID and URL validators.
+- `src/tests/fuzz_validation.rs` — unconstrained input (empty, oversized,
+  whitespace, control chars, multi-byte UTF-8) for the CID and URL validators,
+  checked against a byte-level oracle and asserted panic-free.
+- `src/tests/proptest_pagination.rs` — pagination coverage/no-duplicate
+  invariants.
+
+Failing inputs are persisted under `proptest-regressions/` and replayed on the
+next run; commit those files. Run a single suite with, e.g.,
+`cargo test -p dongle-contract fuzz_validation`.
+
 ---
 
 ## CI/CD Integration
@@ -243,8 +261,8 @@ Once all tests pass, clippy is clean, and code is formatted:
 - [Soroban SDK Documentation](https://docs.rs/soroban-sdk/latest/)
 - [Rust Book](https://doc.rust-lang.org/book/)
 - [Cargo Documentation](https://doc.rust-lang.org/cargo/)
-- `CONTRACT_INTERFACE.md` - Contract API reference
-- `EVENTS_SCHEMA.md` - Event schema documentation
+- [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md) - Contract API reference
+- [EVENTS_SCHEMA.md](EVENTS_SCHEMA.md) - Event schema documentation
 
 ---
 
