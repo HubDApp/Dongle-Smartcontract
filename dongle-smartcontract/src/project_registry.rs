@@ -1870,6 +1870,15 @@ impl ProjectRegistry {
             claim_request.claimant,
         );
 
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ClaimRequestApproved,
+            Some(claim_request.project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 
@@ -1907,8 +1916,18 @@ impl ProjectRegistry {
             claim_request_id,
             claim_request.project_id,
             claim_request.claimant,
-            admin,
+            admin.clone(),
         );
+
+        crate::admin_action_log::AdminActionLog::record_action(
+            env,
+            admin,
+            crate::types::AdminActionType::ClaimRequestRejected,
+            Some(claim_request.project_id),
+            None,
+            None,
+        );
+
         Ok(())
     }
 

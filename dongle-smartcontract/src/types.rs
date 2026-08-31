@@ -835,6 +835,10 @@ pub struct ContractLimits {
     pub max_description_len: u32,
     /// Verification validity period in seconds (`VERIFICATION_VALIDITY_PERIOD`).
     pub verification_validity_period: u64,
+    /// Maximum number of projects that can be featured simultaneously
+    /// (`MAX_FEATURED_PROJECTS`). When this limit is reached, the oldest
+    /// featured project is evicted (FIFO) to make room for the new one.
+    pub max_featured_projects: u32,
 }
 
 /// Aggregated, read-only contract configuration snapshot. Frontends and

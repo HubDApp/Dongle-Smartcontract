@@ -750,7 +750,12 @@ impl ReviewRegistry {
         for i in 0..len {
             if let Some((project_id, reviewer)) = ids.get(i) {
                 if let Some(review) = Self::get_review(env, project_id, reviewer) {
-                    reviews.push_back(review);
+                    // Exclude hidden reviews from bulk listing (issue #658).
+                    // Direct per-reviewer lookups via `get_review` still return
+                    // the full record so admins can inspect hidden reviews.
+                    if !review.hidden {
+                        reviews.push_back(review);
+                    }
                 }
             }
         }
@@ -815,7 +820,16 @@ impl ReviewRegistry {
     }
 
     pub fn get_review_cid(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
-        Self::get_review(env, project_id, reviewer).and_then(|review| review.content_cid)
+        Self::get_review(env, project_id, reviewer).and_then(|review| {
+            // Return None for hidden reviews — callers should not get CIDs for
+            // moderated content (issue #658). Admins needing the CID of a hidden
+            // review can call get_review directly.
+            if review.hidden {
+                None
+            } else {
+                review.content_cid
+            }
+        })
     }
 
     pub fn get_project_review_cids(env: &Env, project_id: u64) -> Vec<(Address, String)> {
@@ -829,8 +843,13 @@ impl ReviewRegistry {
         let len = reviewers.len();
         for i in 0..len {
             if let Some(reviewer) = reviewers.get(i) {
-                if let Some(cid) = Self::get_review_cid(env, project_id, reviewer.clone()) {
-                    cids.push_back((reviewer, cid));
+                // Only include CIDs for non-hidden reviews (issue #658).
+                if let Some(review) = Self::get_review(env, project_id, reviewer.clone()) {
+                    if !review.hidden {
+                        if let Some(cid) = review.content_cid {
+                            cids.push_back((reviewer, cid));
+                        }
+                    }
                 }
             }
         }

@@ -501,6 +501,11 @@ impl DongleContract {
         FeaturedRegistry::list_featured_projects(&env, start_index, limit)
     }
 
+    /// Return the number of projects currently in the featured list.
+    pub fn get_featured_count(env: Env) -> u32 {
+        FeaturedRegistry::get_featured_count(&env)
+    }
+
     // --- Review Registry ---
 
     pub fn add_review(

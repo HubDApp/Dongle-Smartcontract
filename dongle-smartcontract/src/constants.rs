@@ -200,6 +200,11 @@ pub const LEDGER_THRESHOLD_VERIFICATION: u32 = 777_600;
 /// User data should persist reasonably long.
 pub const LEDGER_THRESHOLD_USER: u32 = 1_036_800;
 
+/// Maximum number of featured projects that can be active simultaneously.
+/// When the limit is reached and a new project is featured, the oldest
+/// featured project (front of the list) is evicted to make room.
+pub const MAX_FEATURED_PROJECTS: u32 = 20;
+
 /// Maximum number of collections that can exist.
 /// 100: collections are a curated, admin-scale feature, not user-generated at
 /// scale; the global cap keeps `list_collections` pagination bounded.
