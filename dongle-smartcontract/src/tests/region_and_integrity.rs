@@ -76,6 +76,109 @@ fn test_owner_can_set_and_get_region() {
 }
 
 #[test]
+fn test_region_accepts_documented_codes_and_rejects_invalid_values() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+
+    for region in [
+        "AFRICA",
+        "ASIA",
+        "EU",
+        "LATAM",
+        "NA",
+        "GLOBAL",
+        "north_america",
+    ] {
+        let project_id = register_project(&client, &env, &owner);
+        let result = client.mock_all_auths().try_set_project_region(
+            &project_id,
+            &owner,
+            &Some(String::from_str(&env, region)),
+        );
+        assert!(result.is_ok(), "Region should be accepted: {region}");
+    }
+
+    let invalid_project_id = register_project(&client, &env, &owner);
+    let invalid = client.mock_all_auths().try_set_project_region(
+        &invalid_project_id,
+        &owner,
+        &Some(String::from_str(&env, "INVALID")),
+    );
+    assert!(invalid.is_err(), "Invalid region should be rejected");
+}
+
+#[test]
+fn test_owner_can_change_region_value_when_still_valid() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner);
+
+    client.mock_all_auths().set_project_region(
+        &project_id,
+        &owner,
+        &Some(String::from_str(&env, "AFRICA")),
+    );
+    client.mock_all_auths().set_project_region(
+        &project_id,
+        &owner,
+        &Some(String::from_str(&env, "ASIA")),
+    );
+
+    assert_eq!(
+        client.get_project_region(&project_id),
+        Some(String::from_str(&env, "ASIA"))
+    );
+}
+
+#[test]
+fn test_region_based_filtering_matches_project_region_values() {
+    let env = Env::default();
+    let (client, _admin) = setup(&env);
+    let owner = Address::generate(&env);
+
+    let africa_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &africa_project,
+        &owner,
+        &Some(String::from_str(&env, "AFRICA")),
+    );
+
+    let asia_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &asia_project,
+        &owner,
+        &Some(String::from_str(&env, "ASIA")),
+    );
+
+    let eu_project = register_project(&client, &env, &owner);
+    client.mock_all_auths().set_project_region(
+        &eu_project,
+        &owner,
+        &Some(String::from_str(&env, "EU")),
+    );
+
+    let all_projects = client.list_projects(&0, &10);
+    let africa_only: Vec<u64> = all_projects
+        .iter()
+        .filter_map(|project| {
+            if client.get_project_region(&project.id).unwrap_or(String::from_str(&env, ""))
+                == String::from_str(&env, "AFRICA")
+            {
+                Some(project.id)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(africa_only.len(), 1);
+    assert_eq!(africa_only.get(0).copied(), Some(africa_project));
+    assert!(all_projects.iter().any(|project| project.id == asia_project));
+}
+
+#[test]
 fn test_owner_can_clear_region() {
     let env = Env::default();
     let (client, _admin) = setup(&env);
