@@ -2727,6 +2727,9 @@ impl ProjectRegistry {
             return Ok(project);
         }
 
+        // Validate the requested transition against the permitted matrix.
+        Self::validate_lifecycle_transition(previous_status, new_status)?;
+
         project.lifecycle_status = new_status;
         project.updated_at = env.ledger().timestamp();
 

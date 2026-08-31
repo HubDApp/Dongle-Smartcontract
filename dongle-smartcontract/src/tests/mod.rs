@@ -54,7 +54,8 @@ mod tag_index;
 mod tags;
 
 // Metadata freeze policy for verified projects
-// mod verified_freeze;
+// Issue #671: slug immutability on verified projects
+mod verified_freeze;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
