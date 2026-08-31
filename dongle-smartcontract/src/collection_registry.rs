@@ -137,6 +137,23 @@ impl CollectionRegistry {
 
         Self::require_collection(env, collection_id)?;
 
+        // Delete is a cascade of membership state, not project deletion. The actual
+        // projects remain registered; only the collection's membership list is
+        // removed so no project remains associated with a deleted collection.
+        let project_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CollectionProjectIds(collection_id))
+            .unwrap_or(Vec::new(env));
+        for project_id in project_ids.iter() {
+            publish_project_removed_from_collection_event(
+                env,
+                collection_id,
+                project_id,
+                admin.clone(),
+            );
+        }
+
         let list: Vec<u64> = env
             .storage()
             .persistent()

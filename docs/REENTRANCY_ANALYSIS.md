@@ -89,8 +89,47 @@ if the Soroban host introduces:
 
 ---
 
+## State consistency when the external call itself fails (#693)
+
+Everything above concerns re-entrancy specifically. A separate question this
+document didn't originally cover: what happens to *this contract's own
+storage* when the token transfer at one of the three sites above simply
+fails — insufficient balance, a frozen trustline, an untrusted/misconfigured
+token address, etc. — rather than being re-entered?
+
+The answer follows directly from Soroban's invocation model already
+described above: a panic/trap anywhere inside a single top-level invocation
+(including inside a cross-contract sub-invocation) aborts that entire
+invocation, and the host rolls back *every* storage write made during it —
+not just the failed sub-call. So for all three sites:
+
+- `execute_fee_payment`: the transfer runs *before* the paid flag/payment
+  record are written, so a failed transfer never even reaches those writes.
+- `claim_fee_refund` / `cancel_fee_payment`: the state write runs *before*
+  the transfer (CEI, as defence-in-depth against a hypothetical future
+  re-entrancy), but if the transfer then fails, the *whole* invocation rolls
+  back — including that earlier write — so it's not observable either way.
+
+`dongle-smartcontract/src/tests/cross_contract_call_safety_693.rs` (issue
+#693) is the empirical check for this: each of the three sites is driven
+through an actual transfer failure (zero balance for `pay_fee`, a drained
+treasury for `claim_fee_refund`/`cancel_fee_payment`) and asserts no partial
+state survives — both via the contract's own getters and a raw storage
+snapshot taken before/after.
+
+**External contract assumption, stated explicitly:** all three sites trust
+that the configured token conforms to the standard interface
+(`soroban_sdk::token::Client`) and that `transfer` either fully succeeds or
+traps without partially applying. Nothing in this contract can protect
+against a *malicious* token contract that reports success without moving
+funds — that trust boundary is set by whoever configures `token` via
+`set_fee`, not enforced by this contract.
+
+---
+
 ## References
 
 - [Soroban security model](https://developers.stellar.org/docs/build/smart-contracts/security)
 - [SEP-0041 Token Interface](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - Issue #621: Reentrancy Protection Missing
+- Issue #693: Cross-Contract Call Safety and State Consistency

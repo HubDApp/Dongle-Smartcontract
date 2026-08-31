@@ -12,7 +12,7 @@ pub const MAX_PROJECTS_PER_USER: u32 = 50;
 // See STORAGE_INDEXES.md for the full index catalog and pagination strategy.
 
 /// Maximum unique reviewers indexed per project (`ProjectReviews`).
-pub const MAX_REVIEWS_PER_PROJECT: u32 = 500;
+pub const MAX_REVIEWS_PER_PROJECT: u32 = 20_000;
 
 /// Maximum projects indexed per reviewer (`UserReviews`).
 /// Also used as the shared index-capacity error (`MaxProjectsExceeded`) for review indexes.

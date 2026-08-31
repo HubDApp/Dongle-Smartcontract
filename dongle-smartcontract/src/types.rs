@@ -136,11 +136,38 @@ pub struct ReviewRevisionEvent {
 }
 
 /// Shared three-state status for all claim workflows (ownership + contract-address).
+///
+/// ## State Machine
+///
+/// ```text
+///         submit_claim_request
+///              │
+///              ▼
+///           Pending  ──── approve ────► Approved  (terminal)
+///              │
+///              └──── reject ────────► Rejected  (terminal)
+/// ```
+///
+/// ### Valid transitions
+///
+/// | From    | To       | Triggered by                      |
+/// |---------|----------|-----------------------------------|
+/// | Pending | Approved | admin calls `approve_claim_request` |
+/// | Pending | Rejected | admin calls `reject_claim_request`  |
+///
+/// ### Terminal states
+///
+/// `Approved` and `Rejected` are terminal — once a claim reaches either state
+/// no further transition is permitted.  Attempts to transition out of a
+/// terminal state return [`crate::errors::ContractError::InvalidStatus`].
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
+    /// The claim has been submitted and is awaiting admin review.
     Pending,
+    /// The claim was approved by an admin. **Terminal state.**
     Approved,
+    /// The claim was rejected by an admin. **Terminal state.**
     Rejected,
 }
 
@@ -177,8 +204,32 @@ impl ClaimStatus {
         *self = Self::Rejected;
         Ok(())
     }
+
+    /// Returns `true` if this status is a terminal state (no further transitions allowed).
+    ///
+    /// Terminal states are `Approved` and `Rejected`.  Once a claim reaches
+    /// either of these states it cannot be transitioned further.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Approved | Self::Rejected)
+    }
+
+    /// Returns `true` if transitioning `self → next` is a valid state-machine step.
+    ///
+    /// Only `Pending → Approved` and `Pending → Rejected` are valid.
+    /// All other combinations (including self-transitions) return `false`.
+    pub fn can_transition_to(self, next: ClaimStatus) -> bool {
+        matches!(
+            (self, next),
+            (Self::Pending, Self::Approved) | (Self::Pending, Self::Rejected)
+        )
+    }
 }
 
+/// A pending or resolved ownership-claim request.
+///
+/// The `status` field follows the [`ClaimStatus`] state machine:
+/// `Pending` (initial) → `Approved` or `Rejected` (terminal).
+/// See [`ClaimStatus`] for the full state diagram and transition rules.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimRequest {
@@ -542,10 +593,8 @@ pub enum AdminActionType {
     ContractPaused,
     /// Admin toggled the global pause flag off (`false` was the new value).
     ContractResumed,
-    /// Admin approved an ownership claim request.
-    ClaimRequestApproved,
-    /// Admin rejected an ownership claim request.
-    ClaimRequestRejected,
+    /// Admin updated the configurable maximum reviews per project.
+    MaxReviewsPerProjectSet,
 }
 
 #[contracttype]
@@ -820,4 +869,38 @@ pub struct ContractConfigView {
     pub fees: FeeConfig,
     /// User-facing limits (see `ContractLimits` doc for stability rules).
     pub limits: ContractLimits,
+}
+
+// ── Batch TTL extension result (#666) ─────────────────────────────────────────
+
+/// Result returned by batch TTL extension calls.
+///
+/// The batch is **fail-fast**: the operation stops at the first hard error
+/// (e.g. storage failure). Missing projects/reviews are *not* hard errors —
+/// they are recorded in `skipped_ids` and processing continues (continue
+/// semantics). Only `refreshed` + `skipped` + any partial completion is
+/// surfaced here so callers can detect partial-failure states.
+///
+/// ## Partial-failure states
+///
+/// | `refreshed` | `skipped_ids.len()` | Meaning |
+/// |-------------|---------------------|---------|
+/// | N | 0 | Full success, all N items extended |
+/// | N | M | Partial: N extended, M not found/skipped |
+/// | 0 | M | All items were missing |
+///
+/// The batch makes a best-effort pass and is **not** transactional: if the
+/// call panics mid-way (contract budget exhausted, etc.) some TTLs may have
+/// been extended already. Callers that require all-or-nothing semantics should
+/// validate all IDs before calling, or check `refreshed == ids.len()`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchTtlResult {
+    /// Number of items whose TTL was successfully extended.
+    pub refreshed: u32,
+    /// IDs that were skipped because the item does not exist in storage.
+    /// For project batches these are project IDs; for review batches these
+    /// are encoded as `project_id * 1_000_000_007 ^ reviewer_index` — use
+    /// `skipped_project_ids` / `skipped_reviewer_indices` instead for reviews.
+    pub skipped_ids: Vec<u64>,
 }

@@ -177,11 +177,13 @@ impl ProjectRegistry {
             return Err(ContractError::DuplicateProjectName);
         }
 
-        // Slug uniqueness
+        // Slug uniqueness: canonical slugs are stored lowercase so case-only
+        // variations are treated as duplicates of the same key.
+        let canonical_slug = Utils::to_lowercase(env, &params.slug);
         if env
             .storage()
             .persistent()
-            .has(&StorageKey::ProjectBySlug(params.slug.clone()))
+            .has(&StorageKey::ProjectBySlug(canonical_slug.clone()))
         {
             return Err(ContractError::ProjectAlreadyExists);
         }
@@ -273,13 +275,15 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::ProjectByName(params.name), &count);
+        let canonical_slug = Utils::to_lowercase(env, &project.slug);
         env.storage()
             .persistent()
-            .set(&StorageKey::ProjectBySlug(params.slug), &count);
+            .set(&StorageKey::ProjectBySlug(canonical_slug.clone()), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        // and for case-insensitive lookups via get_project_by_name.
         let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
-            &ExtensionKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
         );
 
@@ -304,6 +308,7 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(env, &normalized_name);
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
@@ -477,22 +482,24 @@ impl ProjectRegistry {
         }
         if let Some(value) = params.slug {
             Utils::validate_project_slug(&value)?;
+            let canonical_slug = Utils::to_lowercase(env, &value);
 
-            // Check if new slug is different from current slug
-            if value != old_slug {
-                // Check if new slug already exists (assigned to a different project)
+            // Check if new slug is different from current slug.
+            // Canonicalized lowercase storage keys keep slug uniqueness consistent
+            // with the name normalization rules.
+            if canonical_slug != old_slug {
+                // Check if the canonical slug already exists on a different project.
                 if let Some(existing_id) = env
                     .storage()
                     .persistent()
-                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(value.clone()))
+                    .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(canonical_slug.clone()))
                 {
-                    // If the slug exists and points to a different project, it's a duplicate
                     if existing_id != params.project_id {
                         return Err(ContractError::ProjectAlreadyExists);
                     }
                 }
 
-                project.slug = value;
+                project.slug = canonical_slug.clone();
                 slug_updated = true;
             }
         }
@@ -652,24 +659,20 @@ impl ProjectRegistry {
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
         if name_updated {
-            // Remove old name mapping
+            // Remove old name mappings
             env.storage()
                 .persistent()
                 .remove(&StorageKey::ProjectByName(old_name.clone()));
-
-            // Remove old normalized name mapping
             let old_normalized = Utils::normalize_project_name(env, &old_name);
             env.storage()
                 .persistent()
                 .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
 
-            // Create new exact name mapping
+            // Create new name mappings
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
                 &params.project_id,
             );
-
-            // Create new normalized name mapping
             let new_normalized = Utils::normalize_project_name(env, &project.name);
             env.storage().persistent().set(
                 &ExtensionKey::ProjectByNormalizedName(new_normalized),
@@ -730,6 +733,10 @@ impl ProjectRegistry {
         // Extend TTL for updated project data
         StorageManager::extend_project_ttl(env, params.project_id);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(
+            env,
+            &Utils::normalize_project_name(env, &project.name),
+        );
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Only extend stats TTL if stats exist (they may not exist for projects without reviews)
@@ -882,13 +889,30 @@ impl ProjectRegistry {
     }
 
     pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
-        // Get project ID from slug mapping
+        let canonical_slug = Utils::to_lowercase(env, &slug);
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectBySlug(slug))?;
+            .get(&StorageKey::ProjectBySlug(slug.clone()))?;
+
+        // Extend the slug-index TTL so it stays alive as long as the project data.
+        StorageManager::extend_project_by_slug_ttl(env, &slug);
 
         // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
+    /// Looks up a project by name, case/whitespace/punctuation-insensitively, using the
+    /// ProjectByNormalizedName index rather than scanning all projects.
+    pub fn get_project_by_name(env: &Env, name: String) -> Option<Project> {
+        let normalized_name = Utils::normalize_project_name(env, &name);
+
+        // Get project ID from normalized name mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectByNormalizedName(normalized_name))?;
+
         Self::get_project(env, project_id)
     }
 
@@ -1122,6 +1146,21 @@ impl ProjectRegistry {
     }
 
     /// Step 1: Current owner proposes a transfer to `new_owner`.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// Soroban transactions execute atomically: every storage write in a single
+    /// invocation either all commits or all reverts. There is therefore no risk
+    /// of a partial state (e.g. PendingTransfer written but TTL not extended).
+    ///
+    /// # Concurrent transfer attempts
+    ///
+    /// If the owner calls `initiate_transfer` a second time before the first is
+    /// accepted, the new recipient **overwrites** the old one atomically.
+    /// The first recipient can no longer accept — they will receive `Unauthorized`.
+    /// This is intentional: the owner retains full control over the pending
+    /// transfer until `accept_transfer` is called.
+    ///
     /// Overwrites any existing pending transfer for this project.
     pub fn initiate_transfer(
         env: &Env,
@@ -1171,6 +1210,33 @@ impl ProjectRegistry {
     }
 
     /// Step 2: Designated new owner accepts the transfer.
+    ///
+    /// # Atomicity guarantee (#656)
+    ///
+    /// All storage mutations in this function execute within a single Soroban
+    /// transaction and are committed or reverted together:
+    ///
+    /// 1. Remove `project_id` from the old owner's `OwnerProjects` index.
+    /// 2. Remove from the old owner's active-projects index.
+    /// 3. Capacity check for the new owner (returns error if at limit — no
+    ///    partial state is written in that case).
+    /// 4. Add `project_id` to the new owner's `OwnerProjects` index.
+    /// 5. Add to the new owner's active-projects index (if not archived).
+    /// 6. Update `project.owner` and `project.updated_at`.
+    /// 7. Remove the `PendingTransfer` storage entry.
+    ///
+    /// If any step panics or returns an error, every preceding write in this
+    /// invocation reverts. There is no intermediate state that can be observed
+    /// by a concurrent reader: ownership is either fully on the old owner or
+    /// fully on the new owner.
+    ///
+    /// # No concurrent two-way transfers
+    ///
+    /// A project can only have one pending transfer at a time (stored under
+    /// `StorageKey::PendingTransfer(project_id)`). A second `initiate_transfer`
+    /// replaces the first atomically. Two parties racing to `accept_transfer` on
+    /// the same project_id: the second one will find `TransferNotFound` because
+    /// step 7 removes the pending record on the first successful accept.
     pub fn accept_transfer(
         env: &Env,
         project_id: u64,
@@ -1411,6 +1477,22 @@ impl ProjectRegistry {
         }
     }
 
+    // ── Tag Index Watermark State Machine ──────────────────────────────────────
+    //
+    //  State Machine:
+    //  ┌──────────────┐     reindex_tags()     ┌──────────────┐     reindex_tags()     ┌──────────────┐
+    //  │ Uninitialized│ ────────────────────> │   Indexing   │ ────────────────────> │   Complete   │
+    //  │(watermark=0) │   watermark > 0      │(0<W<ProjCount)│  watermark==ProjCount │(W==ProjCount)│
+    //  └──────────────┘                      └──────────────┘                      └──────────────┘
+    //
+    //  - Uninitialized (watermark == 0): No historic backfilling performed; lookups scan full catalog.
+    //  - Indexing (0 < watermark < ProjectCount): Partial backfill completed up to watermark ID.
+    //  - Complete (watermark == ProjectCount): Entire project catalog indexed.
+    //
+    //  Guarantees:
+    //  - Atomic update: Watermark advances monotonically (`watermark >= stored`).
+    //  - Transaction Safety: Reindex failures rollback atomically under Soroban execution.
+
     /// Backfill the tag index for projects registered before it existed.
     ///
     /// Processes at most `limit` ids past the watermark and advances it, so the
@@ -1425,7 +1507,8 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut watermark = Self::get_tag_index_watermark(env);
+        let current_watermark = Self::get_tag_index_watermark(env);
+        let mut watermark = current_watermark;
         let batch = if limit == 0 { 1u64 } else { limit as u64 };
         let target = core::cmp::min(watermark.saturating_add(batch), count);
 
@@ -1437,7 +1520,13 @@ impl ProjectRegistry {
             watermark = id;
         }
 
-        Self::set_tag_index_watermark(env, watermark);
+        // Monotonic guard: ensure watermark updates can never regress stored watermark
+        let final_stored = Self::get_tag_index_watermark(env);
+        if watermark > final_stored {
+            Self::set_tag_index_watermark(env, watermark);
+        } else {
+            watermark = final_stored;
+        }
         Ok(watermark)
     }
 
@@ -1896,7 +1985,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::LinkedProjectNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -1963,7 +2052,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::LinkedProjectNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         env.storage()
@@ -2480,6 +2569,13 @@ impl ProjectRegistry {
             buf.push_back(byte);
         }
     }
+
+    fn append_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, bytes: &[u8]) {
+        for &byte in bytes.iter() {
+            buf.push_back(byte);
+        }
+    }
+
     /// Set the optional region tag for a project (owner only).
     pub fn set_project_region(
         env: &Env,
@@ -2520,7 +2616,15 @@ impl ProjectRegistry {
     }
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
-    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    /// The payload is canonicalized as:
+    /// `project-integrity-v1|name|slug|category|description`
+    /// using the exact UTF-8 bytes for each field in a fixed order. The canonical
+    /// payload makes the hash deterministic for a given project, while the version
+    /// prefix keeps future upgrades explicit and testable.
+    ///
+    /// Any change to `name`, `slug`, `category`, or `description` changes the
+    /// resulting hash, which lets verification detect when project metadata drifted
+    /// from the stored value.
     pub fn store_integrity_hash(
         env: &Env,
         project_id: u64,
@@ -2535,13 +2639,11 @@ impl ProjectRegistry {
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 
-    /// Computes (but does not store) the SHA-256 integrity hash for the given
-    /// metadata fields.  The hash input is the pipe-separated concatenation:
-    /// name|slug|category|description.
-    ///
-    /// Exposed so that other modules (e.g. `verification_registry`) can
-    /// recompute and validate the hash without duplicating the logic.
-    pub fn compute_integrity_hash(
+    /// Computes the legacy, unversioned SHA-256 hash for the given metadata fields.
+    /// This encoding is retained for backwards compatibility during verification of
+    /// already-stored project hashes created before the canonical versioned format
+    /// was introduced.
+    pub fn compute_integrity_hash_legacy(
         env: &Env,
         name: &String,
         slug: &String,
@@ -2556,6 +2658,48 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, category);
         buf.push_back(sep);
+        Self::append_string_bytes(env, &mut buf, description);
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Returns true when the provided hash matches either the current canonical
+    /// versioned payload or the legacy payload. This preserves backward
+    /// compatibility with older on-chain integrity hashes while rejecting metadata drift.
+    pub fn hash_matches_current_or_legacy(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+        candidate_hash: &soroban_sdk::Bytes,
+    ) -> bool {
+        let current = Self::compute_integrity_hash(env, name, slug, category, description);
+        let legacy = Self::compute_integrity_hash_legacy(env, name, slug, category, description);
+        candidate_hash == &current || candidate_hash == &legacy
+    }
+
+    /// Computes (but does not store) the current canonical SHA-256 integrity hash
+    /// for the given metadata fields.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+        Self::append_bytes(env, &mut buf, b"project-integrity-v1");
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, name);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, slug);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, category);
+        buf.push_back(b'|');
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
         soroban_sdk::Bytes::from_array(env, &hash.to_array())
