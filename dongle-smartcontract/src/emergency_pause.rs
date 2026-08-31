@@ -1,4 +1,4 @@
-//! Contract Pause / Emergency Stop module.
+//! Contract Pause / Emergency Stop module (closes #664).
 //!
 //! Allows an admin to halt a defined set of mutating operations during an
 //! incident by flipping a single flag (`StorageKey::ContractPaused`).

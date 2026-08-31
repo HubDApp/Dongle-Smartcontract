@@ -1,4 +1,44 @@
 //! Storage key types for persistent storage. Modular to allow future extensions.
+//!
+//! ## Key namespace design (closes #665)
+//!
+//! Soroban `#[contracttype]` enums are XDR-serialised as a tagged union of the
+//! form `(variant_ordinal, payload)`.  The Soroban SDK caps a single union at
+//! **50 variants** — attempting to compile a 51st case panics the macro.
+//!
+//! ### StorageKey (first 50 variants)
+//!
+//! `StorageKey` holds the original, core set of storage keys.  It currently
+//! has exactly 50 variants (ordinals 0–49).  Adding more variants to this enum
+//! would push it over the cap and break the build.
+//!
+//! ### ExtensionKey (overflow — independent namespace)
+//!
+//! When `StorageKey` reached 50 variants, all new keys were added to
+//! `ExtensionKey`.  Because `ExtensionKey` is a *different* XDR union type,
+//! its ordinals are **entirely independent** of `StorageKey`'s ordinals.
+//! There is **no cross-enum collision**: `StorageKey::Project(0)` and
+//! `ExtensionKey::ClaimRequest(0)` serialise to different byte sequences and
+//! never share a ledger entry.
+//!
+//! The only soundness requirement is that the two names used in the *same*
+//! enum must be unique — the Rust compiler enforces this.
+//!
+//! ### Capacity and the 50-variant limit
+//!
+//! `ExtensionKey` follows the same 50-variant cap.  Its current variant count
+//! is tracked by `tests::storage_key_uniqueness`.  When `ExtensionKey`
+//! approaches 45 variants (the warning threshold) a third enum
+//! (`ExtensionKey2`) must be introduced following the same pattern.
+//!
+//! The warning threshold test (`extension_key_variant_count_below_warn_threshold`)
+//! will fail loudly before the limit is reached.
+//!
+//! ### Performance
+//!
+//! Key lookup is O(1) — the key is XDR-serialised once per call and handed
+//! directly to the host storage map.  The two-enum split adds zero runtime
+//! overhead.
 
 use soroban_sdk::{contracttype, Address, String};
 
