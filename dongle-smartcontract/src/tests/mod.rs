@@ -92,6 +92,9 @@ mod issues_242_252_256;
 mod linked_projects;
 // Issues #458, #463, #465, #466: typed-error and admin-log regressions
 mod typed_error_regressions;
+// Issues #654, #655, #656, #657: dispute state machine, changelog immutability,
+// transfer atomicity, and refund idempotency
+mod issues_654_655_656_657;
 mod multisig_and_history;
 mod proposal_threshold;
 mod report_registry;

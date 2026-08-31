@@ -508,9 +508,31 @@ impl FeeManager {
 
     /// Pay out a recorded refund.
     ///
+    /// # Idempotency guarantee (#657)
+    ///
+    /// This function is **idempotent by design**: the first successful call marks
+    /// the refund as `claimed_at = Some(timestamp)` in persistent storage *before*
+    /// executing the token transfer. Any subsequent call with the same `project_id`
+    /// will find `claimed_at.is_some()` and immediately return
+    /// [`ContractError::RefundAlreadyClaimed`] without touching treasury balances.
+    ///
+    /// Because Soroban transactions are atomic, the `claimed_at` write and the token
+    /// transfer either both commit or both revert. There is no window in which the
+    /// record is marked claimed but tokens were not sent, or tokens were sent but
+    /// the record was not marked.
+    ///
+    /// # Authorization
+    ///
     /// Callable by the payer or any admin; the tokens always go to the
     /// recorded payer regardless of who calls, so an admin settling on
     /// someone's behalf cannot redirect the funds.
+    ///
+    /// # Storage cleanup
+    ///
+    /// The `FeeRefundRecord` is **not removed** after claiming — it is preserved
+    /// with `claimed_at` set so that indexers can audit the full refund lifecycle
+    /// (opened, claimed, timestamp). Callers that want to reclaim storage may
+    /// call `cleanup_claimed_refund` (if available) after the TTL window.
     pub fn claim_fee_refund(
         env: &Env,
         caller: Address,
@@ -521,6 +543,10 @@ impl FeeManager {
         let mut refund =
             Self::get_fee_refund(env, project_id).ok_or(ContractError::NoRefundAvailable)?;
 
+        // Idempotency guard: a refund can only be claimed once.
+        // claimed_at is set to Some before the transfer executes (checks-effects-interactions).
+        // Any re-entrant or subsequent call will hit this guard and return an error
+        // without moving any tokens.
         if refund.claimed_at.is_some() {
             return Err(ContractError::RefundAlreadyClaimed);
         }
@@ -537,9 +563,11 @@ impl FeeManager {
             .get(&StorageKey::Treasury)
             .ok_or(ContractError::TreasuryNotSet)?;
 
-        // Mark claimed before transferring. If the transfer panics the whole
-        // invocation reverts, so this cannot leave a claimed-but-unpaid
-        // record — but it does close the door on re-entrant double claims.
+        // Checks-Effects-Interactions: mark claimed before transferring.
+        // If the transfer panics the whole invocation reverts atomically,
+        // so this cannot leave a claimed-but-unpaid record.
+        // The persistent write here ensures re-entrant calls see claimed_at = Some
+        // and return RefundAlreadyClaimed before reaching the transfer below.
         refund.claimed_at = Some(env.ledger().timestamp());
         env.storage()
             .persistent()
