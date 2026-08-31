@@ -351,3 +351,26 @@ Verification configuration events use the `CONFIG` topic namespace.
   * `previous_duration_seconds` (`u64`): Previous verification duration.
   * `duration_seconds` (`u64`): New verification duration.
   * `timestamp` (`u64`): Unix timestamp.
+
+---
+
+## 7. Reserved Name Events
+
+Reserved project-name changes use the `CONFIG` topic namespace. See
+[`RESERVED_NAMES.md`](./RESERVED_NAMES.md) for the feature overview.
+
+### Reserved Name Added
+* **Topic:** `(Symbol("CONFIG"), Symbol("RSVD_ADD"))`
+* **Payload (`ReservedNameAddedEvent`):**
+  * `name` (`String`): The name that was added to the reserved list.
+  * `admin` (`Address`): Admin address that added the name.
+  * `timestamp` (`u64`): Unix timestamp.
+* Not emitted when the name was already reserved (idempotent no-op).
+
+### Reserved Name Removed
+* **Topic:** `(Symbol("CONFIG"), Symbol("RSVD_REM"))`
+* **Payload (`ReservedNameRemovedEvent`):**
+  * `name` (`String`): The name that was removed from the reserved list.
+  * `admin` (`Address`): Admin address that removed the name.
+  * `timestamp` (`u64`): Unix timestamp.
+* Not emitted when the name was not present (idempotent no-op).

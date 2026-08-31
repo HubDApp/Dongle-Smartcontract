@@ -22,6 +22,7 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
+use alloc::vec;
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ProjectRegistry;
@@ -276,9 +277,10 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::ProjectBySlug(params.slug), &count);
         // Store normalized name index for case/whitespace/punctuation-insensitive dedup
+        // and for case-insensitive lookups via get_project_by_name.
         let normalized_name = Utils::normalize_project_name(env, &project.name);
         env.storage().persistent().set(
-            &ExtensionKey::ProjectByNormalizedName(normalized_name),
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
             &count,
         );
 
@@ -303,6 +305,7 @@ impl ProjectRegistry {
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(env, &normalized_name);
         StorageManager::extend_project_count_ttl(env);
         StorageManager::extend_owner_projects_ttl(env, &params.owner);
         StorageManager::extend_category_projects_ttl(env, &project.category);
@@ -651,24 +654,20 @@ impl ProjectRegistry {
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
         if name_updated {
-            // Remove old name mapping
+            // Remove old name mappings
             env.storage()
                 .persistent()
                 .remove(&StorageKey::ProjectByName(old_name.clone()));
-
-            // Remove old normalized name mapping
             let old_normalized = Utils::normalize_project_name(env, &old_name);
             env.storage()
                 .persistent()
                 .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
 
-            // Create new exact name mapping
+            // Create new name mappings
             env.storage().persistent().set(
                 &StorageKey::ProjectByName(project.name.clone()),
                 &params.project_id,
             );
-
-            // Create new normalized name mapping
             let new_normalized = Utils::normalize_project_name(env, &project.name);
             env.storage().persistent().set(
                 &ExtensionKey::ProjectByNormalizedName(new_normalized),
@@ -729,6 +728,10 @@ impl ProjectRegistry {
         // Extend TTL for updated project data
         StorageManager::extend_project_ttl(env, params.project_id);
         StorageManager::extend_project_by_name_ttl(env, &project.name);
+        StorageManager::extend_project_by_normalized_name_ttl(
+            env,
+            &Utils::normalize_project_name(env, &project.name),
+        );
         StorageManager::extend_category_projects_ttl(env, &project.category);
 
         // Only extend stats TTL if stats exist (they may not exist for projects without reviews)
@@ -885,7 +888,25 @@ impl ProjectRegistry {
         let project_id: u64 = env
             .storage()
             .persistent()
-            .get(&StorageKey::ProjectBySlug(slug))?;
+            .get(&StorageKey::ProjectBySlug(slug.clone()))?;
+
+        // Extend the slug-index TTL so it stays alive as long as the project data.
+        StorageManager::extend_project_by_slug_ttl(env, &slug);
+
+        // Get project by ID
+        Self::get_project(env, project_id)
+    }
+
+    /// Looks up a project by name, case/whitespace/punctuation-insensitively, using the
+    /// ProjectByNormalizedName index rather than scanning all projects.
+    pub fn get_project_by_name(env: &Env, name: String) -> Option<Project> {
+        let normalized_name = Utils::normalize_project_name(env, &name);
+
+        // Get project ID from normalized name mapping
+        let project_id: u64 = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectByNormalizedName(normalized_name))?;
 
         // Get project by ID
         Self::get_project(env, project_id)
@@ -2496,12 +2517,19 @@ impl ProjectRegistry {
 
     fn append_string_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, s: &String) {
         let len = s.len() as usize;
-        let mut scratch = [0u8; crate::constants::MAX_DESCRIPTION_LEN];
-        s.copy_into_slice(&mut scratch[..len]);
-        for &byte in scratch.iter().take(len) {
+        let mut scratch = vec![0u8; len];
+        s.copy_into_slice(&mut scratch);
+        for &byte in scratch.iter() {
             buf.push_back(byte);
         }
     }
+
+    fn append_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, bytes: &[u8]) {
+        for &byte in bytes.iter() {
+            buf.push_back(byte);
+        }
+    }
+
     /// Set the optional region tag for a project (owner only).
     pub fn set_project_region(
         env: &Env,
@@ -2542,7 +2570,15 @@ impl ProjectRegistry {
     }
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
-    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    /// The payload is canonicalized as:
+    /// `project-integrity-v1|name|slug|category|description`
+    /// using the exact UTF-8 bytes for each field in a fixed order. The canonical
+    /// payload makes the hash deterministic for a given project, while the version
+    /// prefix keeps future upgrades explicit and testable.
+    ///
+    /// Any change to `name`, `slug`, `category`, or `description` changes the
+    /// resulting hash, which lets verification detect when project metadata drifted
+    /// from the stored value.
     pub fn store_integrity_hash(
         env: &Env,
         project_id: u64,
@@ -2557,13 +2593,11 @@ impl ProjectRegistry {
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 
-    /// Computes (but does not store) the SHA-256 integrity hash for the given
-    /// metadata fields.  The hash input is the pipe-separated concatenation:
-    /// name|slug|category|description.
-    ///
-    /// Exposed so that other modules (e.g. `verification_registry`) can
-    /// recompute and validate the hash without duplicating the logic.
-    pub fn compute_integrity_hash(
+    /// Computes the legacy, unversioned SHA-256 hash for the given metadata fields.
+    /// This encoding is retained for backwards compatibility during verification of
+    /// already-stored project hashes created before the canonical versioned format
+    /// was introduced.
+    pub fn compute_integrity_hash_legacy(
         env: &Env,
         name: &String,
         slug: &String,
@@ -2578,6 +2612,48 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, category);
         buf.push_back(sep);
+        Self::append_string_bytes(env, &mut buf, description);
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Returns true when the provided hash matches either the current canonical
+    /// versioned payload or the legacy payload. This preserves backward
+    /// compatibility with older on-chain integrity hashes while rejecting metadata drift.
+    pub fn hash_matches_current_or_legacy(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+        candidate_hash: &soroban_sdk::Bytes,
+    ) -> bool {
+        let current = Self::compute_integrity_hash(env, name, slug, category, description);
+        let legacy = Self::compute_integrity_hash_legacy(env, name, slug, category, description);
+        candidate_hash == &current || candidate_hash == &legacy
+    }
+
+    /// Computes (but does not store) the current canonical SHA-256 integrity hash
+    /// for the given metadata fields.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+        Self::append_bytes(env, &mut buf, b"project-integrity-v1");
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, name);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, slug);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, category);
+        buf.push_back(b'|');
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
         soroban_sdk::Bytes::from_array(env, &hash.to_array())

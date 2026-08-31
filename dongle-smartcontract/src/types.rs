@@ -115,6 +115,13 @@ pub struct ReviewRevision {
     pub revised_at: u64,
 }
 
+/// Audit trail event emitted when a reviewer updates their review rating or content.
+/// This provides transparency for all rating changes, allowing tracking of:
+/// - When a rating was changed (timestamp)
+/// - Who changed it (reviewer)
+/// - What the previous rating was (previous_rating)
+/// - What the new rating is (new_rating)
+/// - The revision index for ordering changes (revision_index)
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewRevisionEvent {
@@ -129,11 +136,38 @@ pub struct ReviewRevisionEvent {
 }
 
 /// Shared three-state status for all claim workflows (ownership + contract-address).
+///
+/// ## State Machine
+///
+/// ```text
+///         submit_claim_request
+///              │
+///              ▼
+///           Pending  ──── approve ────► Approved  (terminal)
+///              │
+///              └──── reject ────────► Rejected  (terminal)
+/// ```
+///
+/// ### Valid transitions
+///
+/// | From    | To       | Triggered by                      |
+/// |---------|----------|-----------------------------------|
+/// | Pending | Approved | admin calls `approve_claim_request` |
+/// | Pending | Rejected | admin calls `reject_claim_request`  |
+///
+/// ### Terminal states
+///
+/// `Approved` and `Rejected` are terminal — once a claim reaches either state
+/// no further transition is permitted.  Attempts to transition out of a
+/// terminal state return [`crate::errors::ContractError::InvalidStatus`].
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimStatus {
+    /// The claim has been submitted and is awaiting admin review.
     Pending,
+    /// The claim was approved by an admin. **Terminal state.**
     Approved,
+    /// The claim was rejected by an admin. **Terminal state.**
     Rejected,
 }
 
@@ -170,8 +204,32 @@ impl ClaimStatus {
         *self = Self::Rejected;
         Ok(())
     }
+
+    /// Returns `true` if this status is a terminal state (no further transitions allowed).
+    ///
+    /// Terminal states are `Approved` and `Rejected`.  Once a claim reaches
+    /// either of these states it cannot be transitioned further.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Approved | Self::Rejected)
+    }
+
+    /// Returns `true` if transitioning `self → next` is a valid state-machine step.
+    ///
+    /// Only `Pending → Approved` and `Pending → Rejected` are valid.
+    /// All other combinations (including self-transitions) return `false`.
+    pub fn can_transition_to(self, next: ClaimStatus) -> bool {
+        matches!(
+            (self, next),
+            (Self::Pending, Self::Approved) | (Self::Pending, Self::Rejected)
+        )
+    }
 }
 
+/// A pending or resolved ownership-claim request.
+///
+/// The `status` field follows the [`ClaimStatus`] state machine:
+/// `Pending` (initial) → `Approved` or `Rejected` (terminal).
+/// See [`ClaimStatus`] for the full state diagram and transition rules.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimRequest {
@@ -312,6 +370,85 @@ pub struct FeeConfig {
     pub token: Option<Address>,
     pub verification_fee: u128,
     pub registration_fee: u128,
+}
+
+/// The lifecycle state of a fee payment for a single operation.
+///
+/// # State Machine
+///
+/// ```text
+/// [Unpaid]
+///     │  pay_fee() / pay_registration_fee()
+///     ▼
+/// [Pending]   ← FeePaidForProject flag set, FeePaymentRecord stored
+///     │  request_verification() / register_project()
+///     │  (consume_fee_payment / consume_registration_fee_payment)
+///     ├──────────────────────────────────────────────┐
+///     ▼                                              ▼
+/// [Consumed]                                   [Cancelled]
+///     │  (flag cleared, record retained)            │  cancel_fee_payment()
+///     │  reject_verification()                      │  (flag cleared, refund transferred)
+///     │  record_verification_refund()               ▼
+///     ▼                                         [terminal]
+/// [RefundPending]  ← FeeRefundRecord { claimed_at: None }
+///     │  claim_fee_refund()
+///     ▼
+/// [Refunded]       ← FeeRefundRecord { claimed_at: Some(ts) }
+/// ```
+///
+/// # Transition Rules
+///
+/// | From          | To            | Trigger                             | Guard                          |
+/// |---------------|---------------|-------------------------------------|-------------------------------|
+/// | Unpaid        | Pending       | `pay_fee` / `pay_registration_fee`  | Token transfer succeeds        |
+/// | Pending       | Consumed      | `consume_fee_payment`               | Paid flag set, not expired     |
+/// | Pending       | Cancelled     | `cancel_fee_payment`                | Payer or admin; not Pending/Verified |
+/// | Consumed      | RefundPending | `record_verification_refund`        | Verification rejected; amount > 0 |
+/// | RefundPending | Refunded      | `claim_fee_refund`                  | Payer or admin; not already claimed |
+///
+/// Any transition not listed above is invalid and returns `InvalidStatus` or
+/// `RefundAlreadyClaimed`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeePaymentStatus {
+    /// No fee has been paid yet for this operation.
+    Unpaid,
+    /// Fee has been paid and is waiting to be consumed by the operation.
+    Pending,
+    /// Fee was consumed when the operation was submitted for review.
+    Consumed,
+    /// Fee payment was cancelled and funds were returned to the payer.
+    Cancelled,
+    /// Verification was rejected; a refund is recorded but not yet claimed.
+    RefundPending,
+    /// Refund has been paid out to the original payer.
+    Refunded,
+}
+
+impl FeePaymentStatus {
+    /// Validate that a state transition is permitted.
+    ///
+    /// Returns `Ok(())` for all valid transitions; `Err(InvalidStatus)` for
+    /// any invalid transition.  This is the single source of truth for which
+    /// transitions are legal in the fee state machine.
+    pub fn validate_transition(
+        from: FeePaymentStatus,
+        to: FeePaymentStatus,
+    ) -> Result<(), crate::errors::ContractError> {
+        let valid = matches!(
+            (from, to),
+            (Self::Unpaid, Self::Pending)
+                | (Self::Pending, Self::Consumed)
+                | (Self::Pending, Self::Cancelled)
+                | (Self::Consumed, Self::RefundPending)
+                | (Self::RefundPending, Self::Refunded)
+        );
+        if valid {
+            Ok(())
+        } else {
+            Err(crate::errors::ContractError::InvalidStatus)
+        }
+    }
 }
 
 #[contracttype]
@@ -456,6 +593,8 @@ pub enum AdminActionType {
     ContractPaused,
     /// Admin toggled the global pause flag off (`false` was the new value).
     ContractResumed,
+    /// Admin updated the configurable maximum reviews per project.
+    MaxReviewsPerProjectSet,
 }
 
 #[contracttype]

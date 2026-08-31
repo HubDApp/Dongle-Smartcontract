@@ -50,6 +50,38 @@ impl AdminActionLog {
             .get(&StorageKey::AdminActionLog(log_id))
     }
 
+    /// List admin action log entries, **most recent first**.
+    ///
+    /// # Pagination convention (reverse / most-recent-first offset)
+    ///
+    /// Unlike the ID-cursor endpoints (`list_projects`, `list_projects_by_status`,
+    /// which take a `start_id` and walk forward) and the plain index-offset
+    /// endpoints (`list_featured_projects`, `list_reviews`, … which take a
+    /// zero-based `start_index` into an ascending list via [`crate::pagination::paginate`]),
+    /// this endpoint paginates **backward** from the newest entry:
+    ///
+    /// ```text
+    /// start_idx = count.saturating_sub(start_index)
+    /// page      = entries[start_idx], entries[start_idx - 1], … (descending IDs)
+    /// ```
+    ///
+    /// So `start_index = 0` returns the newest `limit` entries, `start_index = limit`
+    /// returns the page before that, and so on.
+    ///
+    /// This divergence is intentional and load-bearing:
+    ///
+    /// * The action log is an **append-only audit trail**. Operators and
+    ///   incident responders almost always want the *latest* actions, so the
+    ///   default page (offset 0) must be the newest entries, not the oldest.
+    /// * Entry IDs are dense and monotonic (`1..=count`), so a reverse offset
+    ///   needs no cursor bookkeeping — `count - start_index` is an O(1) seek.
+    /// * A forward offset would make the *first* page the genesis actions and
+    ///   force callers to compute `count` themselves and offset from the end on
+    ///   every call; every new action would also shift every page boundary.
+    ///
+    /// The sibling filtered endpoint [`Self::get_admin_action_log_by_admin`] uses
+    /// the same most-recent-first offset semantics over the per-admin index for
+    /// consistency within this module.
     pub fn list_admin_actions(env: &Env, start_index: u32, limit: u32) -> Vec<AdminActionEntry> {
         let count: u64 = env
             .storage()
