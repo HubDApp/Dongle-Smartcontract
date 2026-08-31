@@ -3,6 +3,8 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+// Issue #670: Admin concurrent operation atomicity and consistency verification
+mod admin_concurrent;
 mod archival;
 mod collection_registry_crud;
 mod collections;
@@ -23,6 +25,8 @@ mod name_search;
 mod pagination;
 // mod pagination;
 mod claim;
+mod claim_status;
+mod claim_state_machine;
 mod config;
 mod dependencies;
 mod lifecycle_status;
@@ -42,6 +46,8 @@ mod fuzz_validation;
 mod license_metadata;
 mod sorted_listing;
 mod string_validation;
+// Issue #667: CID validation edge cases (empty string, malformed, CIDv0/CIDv1, future formats)
+mod cid_validation;
 mod tag_index;
 mod tags;
 

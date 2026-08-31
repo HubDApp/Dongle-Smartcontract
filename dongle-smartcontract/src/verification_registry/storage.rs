@@ -1112,4 +1112,24 @@ impl VerificationRegistry {
 
         Ok(count)
     }
+
+    /// Batch-fetch verification records by request ID.
+    /// Silently skips IDs with no record. Clamped to 100 entries.
+    pub fn get_verification_records_batch(env: &Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(request_ids.len(), MAX_BATCH);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = request_ids.get(i) {
+                if let Some(record) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(id))
+                {
+                    out.push_back((id, record));
+                }
+            }
+        }
+        out
+    }
 }
