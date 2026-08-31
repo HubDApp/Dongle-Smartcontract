@@ -1473,6 +1473,22 @@ impl ProjectRegistry {
         }
     }
 
+    // ── Tag Index Watermark State Machine ──────────────────────────────────────
+    //
+    //  State Machine:
+    //  ┌──────────────┐     reindex_tags()     ┌──────────────┐     reindex_tags()     ┌──────────────┐
+    //  │ Uninitialized│ ────────────────────> │   Indexing   │ ────────────────────> │   Complete   │
+    //  │(watermark=0) │   watermark > 0      │(0<W<ProjCount)│  watermark==ProjCount │(W==ProjCount)│
+    //  └──────────────┘                      └──────────────┘                      └──────────────┘
+    //
+    //  - Uninitialized (watermark == 0): No historic backfilling performed; lookups scan full catalog.
+    //  - Indexing (0 < watermark < ProjectCount): Partial backfill completed up to watermark ID.
+    //  - Complete (watermark == ProjectCount): Entire project catalog indexed.
+    //
+    //  Guarantees:
+    //  - Atomic update: Watermark advances monotonically (`watermark >= stored`).
+    //  - Transaction Safety: Reindex failures rollback atomically under Soroban execution.
+
     /// Backfill the tag index for projects registered before it existed.
     ///
     /// Processes at most `limit` ids past the watermark and advances it, so the
@@ -1487,7 +1503,8 @@ impl ProjectRegistry {
             .get(&StorageKey::ProjectCount)
             .unwrap_or(0);
 
-        let mut watermark = Self::get_tag_index_watermark(env);
+        let current_watermark = Self::get_tag_index_watermark(env);
+        let mut watermark = current_watermark;
         let batch = if limit == 0 { 1u64 } else { limit as u64 };
         let target = core::cmp::min(watermark.saturating_add(batch), count);
 
@@ -1499,7 +1516,13 @@ impl ProjectRegistry {
             watermark = id;
         }
 
-        Self::set_tag_index_watermark(env, watermark);
+        // Monotonic guard: ensure watermark updates can never regress stored watermark
+        let final_stored = Self::get_tag_index_watermark(env);
+        if watermark > final_stored {
+            Self::set_tag_index_watermark(env, watermark);
+        } else {
+            watermark = final_stored;
+        }
         Ok(watermark)
     }
 
@@ -1939,7 +1962,7 @@ impl ProjectRegistry {
         }
 
         if Self::get_project(env, linked_project_id).is_none() {
-            return Err(ContractError::LinkedProjectNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         let mut links: Vec<u64> = env
@@ -2006,7 +2029,7 @@ impl ProjectRegistry {
         }
 
         if !found {
-            return Err(ContractError::LinkedProjectNotFound);
+            return Err(ContractError::ProjectNotFound);
         }
 
         env.storage()

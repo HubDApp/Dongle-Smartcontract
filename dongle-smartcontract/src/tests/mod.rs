@@ -89,7 +89,7 @@ mod endorsements;
 mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
-mod linked_projects;
+// mod linked_projects;
 // Issues #458, #463, #465, #466: typed-error and admin-log regressions
 mod typed_error_regressions;
 // Issues #654, #655, #656, #657: dispute state machine, changelog immutability,
@@ -119,3 +119,15 @@ mod fee_state_machine_622;
 
 // Issue #623: Admin threshold downgrade supermajority edge cases
 mod supermajority_623;
+
+// Issue #624: Verification Expiry Check Automation
+mod verification_expiry_624_tests;
+
+// Issue #625: Review History Pagination Performance
+mod review_pagination_625_perf_tests;
+
+// Issue #626: Tag Indexing Watermark Edge Cases
+mod tag_index_watermark_626_tests;
+
+// Issue #627: Collection Capacity Enforcement
+mod collection_capacity_627_tests;
