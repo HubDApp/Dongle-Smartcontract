@@ -99,21 +99,24 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for the slug-to-project-id index entry.
+    pub fn extend_project_by_slug_ttl(env: &Env, slug: &String) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ProjectBySlug(slug.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project by normalized name mapping.
     pub fn extend_project_by_normalized_name_ttl(env: &Env, normalized_name: &String) {
-        if env
-            .storage()
-            .persistent()
-            .has(&ExtensionKey::ProjectByNormalizedName(
-                normalized_name.clone(),
-            ))
-        {
-            env.storage().persistent().extend_ttl(
-                &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
-                LEDGER_THRESHOLD_PROJECT,
-                LEDGER_BUMP_PROJECT,
-            );
-        }
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
     }
 
     /// Extend TTL for category projects index
@@ -372,6 +375,10 @@ impl StorageManager {
         Self::extend_project_ttl(env, project_id);
         Self::extend_project_stats_ttl(env, project_id);
         Self::extend_project_by_name_ttl(env, name);
+        Self::extend_project_by_normalized_name_ttl(
+            env,
+            &crate::utils::Utils::normalize_project_name(env, name),
+        );
         Self::extend_project_maintainers_ttl(env, project_id);
     }
 

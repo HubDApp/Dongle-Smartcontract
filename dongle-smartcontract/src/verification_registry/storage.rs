@@ -241,17 +241,19 @@ impl VerificationRegistry {
 
         // Verify integrity hash: ensure project metadata (name, slug, category,
         // description) has not changed since the hash was last written by
-        // register_project or update_project.  Recompute using the same
-        // pipe-separated SHA-256 scheme and compare byte-for-byte.
+        // register_project or update_project. The canonical payload uses a versioned
+        // format (`project-integrity-v1|name|slug|category|description`), while
+        // the legacy unversioned hash remains accepted for backward compatibility.
         if let Some(stored_hash) = ProjectRegistry::get_project_integrity_hash(env, project_id) {
-            let recomputed = ProjectRegistry::compute_integrity_hash(
+            let matches_current_or_legacy = ProjectRegistry::hash_matches_current_or_legacy(
                 env,
                 &project.name,
                 &project.slug,
                 &project.category,
                 &project.description,
+                &stored_hash,
             );
-            if recomputed != stored_hash {
+            if !matches_current_or_legacy {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -688,7 +690,7 @@ impl VerificationRegistry {
     pub fn get_verification_duration(env: &Env) -> u64 {
         env.storage()
             .persistent()
-            .get(&ExtensionKey::VerificationDuration)
+            .get(&StorageKey::VerificationDuration)
             .unwrap_or(crate::constants::VERIFICATION_VALIDITY_PERIOD)
     }
 
@@ -703,7 +705,7 @@ impl VerificationRegistry {
         let previous_duration_seconds = Self::get_verification_duration(env);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::VerificationDuration, &duration_seconds);
+            .set(&StorageKey::VerificationDuration, &duration_seconds);
 
         crate::events::publish_verification_duration_set_event(
             env,
@@ -1155,5 +1157,25 @@ impl VerificationRegistry {
         );
 
         Ok(count)
+    }
+
+    /// Batch-fetch verification records by request ID.
+    /// Silently skips IDs with no record. Clamped to 100 entries.
+    pub fn get_verification_records_batch(env: &Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(request_ids.len(), MAX_BATCH);
+        let mut out = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = request_ids.get(i) {
+                if let Some(record) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(id))
+                {
+                    out.push_back((id, record));
+                }
+            }
+        }
+        out
     }
 }

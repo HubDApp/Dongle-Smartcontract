@@ -73,8 +73,6 @@ pub enum StorageKey {
     PendingTransfer(u64),
     /// List of project IDs by category.
     CategoryProjects(String),
-    /// Admin-configured duration (in seconds) a verification stays active.
-    VerificationDuration,
     /// Whether reviews are enabled for a project (true = enabled, absent = enabled by default).
     ReviewsEnabled(u64),
     /// Review report tracking: (project_id, reviewer_address, reporter_address) -> bool
@@ -101,7 +99,10 @@ pub enum StorageKey {
     AdminActionLog(u64),
     /// Next admin action log ID (auto-increment counter).
     AdminActionLogCount,
+    /// Global pause flag (admin-controlled). Read by `get_config`.
     ContractPaused,
+    /// Admin-configured duration (in seconds) a verification stays active.
+    VerificationDuration,
     /// List of non-archived project IDs registered by owner.
     ActiveOwnerProjects(Address),
 }
@@ -119,7 +120,6 @@ pub enum ExtensionKey {
     DuplicateDispute(u64),
     ProjectDuplicateDisputes(u64),
     NextDuplicateDisputeId,
-    VerificationDuration,
     ProjectFollowers(u64),
     UserSubscriptions(Address),
     FollowerCount(u64),
@@ -199,10 +199,6 @@ pub enum ExtensionKey {
     /// watermark makes the covered range explicit, so a lookup can serve indexed
     /// ids directly and scan only the uncovered tail. `reindex_tags` advances it.
     TagIndexWatermark,
-    /// Global pause flag (admin-controlled). Read by `get_config`. Enforcement of the
-    /// pause state across mutating entry points is intentionally out of scope for the
-    /// config-view feature; see `set_pause` for the toggle.
-    Paused,
     ContractClaim(u64, String),
     ProjectContracts(u64),
     ReviewEligibilityConfig,
@@ -220,4 +216,15 @@ pub enum ExtensionKey {
     /// caps those at 50 cases; a per-entry key plus a separate count key would
     /// need two slots and push the enum over the limit.
     FeeConfigHistory,
+}
+
+/// Storage keys for fee configuration history, split into a separate enum to stay under
+/// Soroban's 50-variant limit per `#[contracttype]` enum.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeHistoryKey {
+    /// Counter for fee configuration change history entries.
+    FeeConfigHistoryCount,
+    /// Fee configuration history entry by index.
+    FeeConfigHistoryEntry(u32),
 }

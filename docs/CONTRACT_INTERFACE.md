@@ -724,6 +724,13 @@ if let Some(region) = get_project_region(env, project_id) {
 **Possible Errors**:
 - None
 
+**Algorithm**:
+- The canonical project integrity payload is `project-integrity-v1|name|slug|category|description`.
+- Each field is serialized as its exact UTF-8 byte sequence in fixed order.
+- The final value is `SHA-256(canonical_payload)`, producing a deterministic 32-byte digest.
+- Because `name`, `slug`, `category`, and `description` are all included in the payload, any metadata change changes the hash. This lets indexers and verifiers detect drift or tampering without relying on mutable storage state.
+- Legacy hashes produced by the older unversioned `name|slug|category|description` encoding are still accepted for verification for backward compatibility.
+
 **Example**:
 ```rust
 if let Some(hash) = get_project_integrity_hash(env, project_id) {
