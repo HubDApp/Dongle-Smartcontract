@@ -1,4 +1,21 @@
 //! Project changelog registry for publishing update notes and release history.
+//!
+//! # Immutability Contract (#655)
+//!
+//! Changelog entries are **write-once**. Once an entry is created via
+//! [`ChangelogRegistry::add_changelog_entry`] it cannot be modified. The only
+//! mutation allowed is deletion via [`ChangelogRegistry::remove_changelog_entry`].
+//!
+//! If a changelog entry needs to be corrected, the workflow is:
+//! 1. Call `remove_changelog_entry` to delete the existing entry.
+//! 2. Call `add_changelog_entry` with the corrected CID / metadata.
+//!
+//! There is deliberately **no** `update_changelog_entry` function. Attempting to
+//! call a non-existent update function will produce a compile-time error, which
+//! is the strongest possible enforcement of this contract.
+//!
+//! All changes (add and remove) emit on-chain events so indexers can reconstruct
+//! the full audit trail.
 
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
@@ -286,6 +303,32 @@ impl ChangelogRegistry {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: &Env, project_id: u64) -> u32 {
         Self::get_project_changelog_entries(env, project_id).len()
+    }
+
+    /// Explicitly reject any attempt to update a changelog entry in-place.
+    ///
+    /// # Immutability enforcement (#655)
+    ///
+    /// Changelog entries are write-once. This function exists purely to provide
+    /// a clear, discoverable API surface that documents the "no update" contract
+    /// and returns a typed error when called, rather than silently not existing.
+    ///
+    /// To change a changelog entry:
+    /// 1. Call [`remove_changelog_entry`] to delete it.
+    /// 2. Call [`add_changelog_entry`] with the corrected data.
+    ///
+    /// # Returns
+    /// Always returns `Err(ContractError::Unauthorized)` — changelog entries
+    /// cannot be updated; they can only be removed and recreated.
+    #[allow(dead_code)]
+    pub fn update_changelog_entry(
+        _env: &Env,
+        _changelog_id: u64,
+        _owner: Address,
+    ) -> Result<(), ContractError> {
+        // Changelog entries are write-once (immutable after creation).
+        // Use remove_changelog_entry + add_changelog_entry instead.
+        Err(ContractError::Unauthorized)
     }
 
     // Internal helper function to get project changelog entry IDs

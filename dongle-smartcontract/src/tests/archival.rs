@@ -31,6 +31,7 @@ fn register_tagged_project(
             social_links: None,
             launch_timestamp: None,
             bounty_url: None,
+            repository_url: None,
         })
 }
 
