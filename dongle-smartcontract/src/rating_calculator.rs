@@ -33,8 +33,13 @@ impl RatingCalculator {
     /// Tuple of (new_sum, new_count, new_average)
     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (new_rating as u64) * 100;
-        let new_sum = current_sum + scaled_rating;
-        let new_count = current_count + 1;
+        // Saturating, matching update_rating/remove_rating below (issue #694):
+        // a rating aggregate degrading gracefully by clamping at the type's
+        // bound, rather than panicking/wrapping, is the existing convention
+        // for this struct — nothing about accumulating one more rating
+        // should abort a review submission with a hard error.
+        let new_sum = current_sum.saturating_add(scaled_rating);
+        let new_count = current_count.saturating_add(1);
         let new_average = Self::calculate_average(new_sum, new_count);
         (new_sum, new_count, new_average)
     }
