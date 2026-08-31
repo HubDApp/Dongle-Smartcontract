@@ -2461,6 +2461,13 @@ impl ProjectRegistry {
             buf.push_back(byte);
         }
     }
+
+    fn append_bytes(_env: &Env, buf: &mut soroban_sdk::Bytes, bytes: &[u8]) {
+        for &byte in bytes.iter() {
+            buf.push_back(byte);
+        }
+    }
+
     /// Set the optional region tag for a project (owner only).
     pub fn set_project_region(
         env: &Env,
@@ -2501,7 +2508,15 @@ impl ProjectRegistry {
     }
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.
-    /// The hash input is the concatenation: name|slug|category|description (pipe-separated).
+    /// The payload is canonicalized as:
+    /// `project-integrity-v1|name|slug|category|description`
+    /// using the exact UTF-8 bytes for each field in a fixed order. The canonical
+    /// payload makes the hash deterministic for a given project, while the version
+    /// prefix keeps future upgrades explicit and testable.
+    ///
+    /// Any change to `name`, `slug`, `category`, or `description` changes the
+    /// resulting hash, which lets verification detect when project metadata drifted
+    /// from the stored value.
     pub fn store_integrity_hash(
         env: &Env,
         project_id: u64,
@@ -2516,13 +2531,11 @@ impl ProjectRegistry {
             .set(&ExtensionKey::ProjectIntegrityHash(project_id), &hash_bytes);
     }
 
-    /// Computes (but does not store) the SHA-256 integrity hash for the given
-    /// metadata fields.  The hash input is the pipe-separated concatenation:
-    /// name|slug|category|description.
-    ///
-    /// Exposed so that other modules (e.g. `verification_registry`) can
-    /// recompute and validate the hash without duplicating the logic.
-    pub fn compute_integrity_hash(
+    /// Computes the legacy, unversioned SHA-256 hash for the given metadata fields.
+    /// This encoding is retained for backwards compatibility during verification of
+    /// already-stored project hashes created before the canonical versioned format
+    /// was introduced.
+    pub fn compute_integrity_hash_legacy(
         env: &Env,
         name: &String,
         slug: &String,
@@ -2537,6 +2550,48 @@ impl ProjectRegistry {
         buf.push_back(sep);
         Self::append_string_bytes(env, &mut buf, category);
         buf.push_back(sep);
+        Self::append_string_bytes(env, &mut buf, description);
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Returns true when the provided hash matches either the current canonical
+    /// versioned payload or the legacy payload. This preserves backward
+    /// compatibility with older on-chain integrity hashes while rejecting metadata drift.
+    pub fn hash_matches_current_or_legacy(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+        candidate_hash: &soroban_sdk::Bytes,
+    ) -> bool {
+        let current = Self::compute_integrity_hash(env, name, slug, category, description);
+        let legacy = Self::compute_integrity_hash_legacy(env, name, slug, category, description);
+        candidate_hash == &current || candidate_hash == &legacy
+    }
+
+    /// Computes (but does not store) the current canonical SHA-256 integrity hash
+    /// for the given metadata fields.
+    ///
+    /// Exposed so that other modules (e.g. `verification_registry`) can
+    /// recompute and validate the hash without duplicating the logic.
+    pub fn compute_integrity_hash(
+        env: &Env,
+        name: &String,
+        slug: &String,
+        category: &String,
+        description: &String,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+        Self::append_bytes(env, &mut buf, b"project-integrity-v1");
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, name);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, slug);
+        buf.push_back(b'|');
+        Self::append_string_bytes(env, &mut buf, category);
+        buf.push_back(b'|');
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
         soroban_sdk::Bytes::from_array(env, &hash.to_array())

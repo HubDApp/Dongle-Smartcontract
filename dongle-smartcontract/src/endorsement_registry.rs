@@ -74,7 +74,7 @@ impl EndorsementRegistry {
                 &last_user,
             );
             env.storage().persistent().set(
-                &ExtensionKey::EndorsementIndex(project_id, last_user),
+                &ExtensionKey::EndorsementIndex(project_id, last_user.clone()),
                 &index,
             );
             StorageManager::extend_endorsement_entry_ttl(env, project_id, &last_user, index);
@@ -84,7 +84,7 @@ impl EndorsementRegistry {
             .remove(&ExtensionKey::EndorsementAt(project_id, last_index));
         env.storage()
             .persistent()
-            .remove(&ExtensionKey::EndorsementIndex(project_id, user));
+            .remove(&ExtensionKey::EndorsementIndex(project_id, user.clone()));
         let new_count = last_index;
         env.storage()
             .persistent()
@@ -144,7 +144,7 @@ impl EndorsementRegistry {
             || env
                 .storage()
                 .persistent()
-                .get::<Vec<Address>>(&ExtensionKey::ProjectEndorsements(project_id))
+                .get::<_, Vec<Address>>(&ExtensionKey::ProjectEndorsements(project_id))
                 .map(|endorsements| endorsements.contains(user))
                 .unwrap_or(false)
     }
@@ -156,7 +156,7 @@ impl EndorsementRegistry {
             .or_else(|| {
                 env.storage()
                     .persistent()
-                    .get::<Vec<Address>>(&ExtensionKey::ProjectEndorsements(project_id))
+                    .get::<_, Vec<Address>>(&ExtensionKey::ProjectEndorsements(project_id))
                     .map(|endorsements| endorsements.len())
             })
             .unwrap_or(0)
