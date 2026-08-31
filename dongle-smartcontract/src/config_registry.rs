@@ -28,6 +28,72 @@ use soroban_sdk::{Address, Env, String};
 pub struct ConfigRegistry;
 
 impl ConfigRegistry {
+    // ── Configurable maximum reviews per project ────────────────────────────
+
+    /// Returns the admin-configured maximum number of reviewers per project.
+    ///
+    /// Falls back to the compile-time default (`MAX_REVIEWS_PER_PROJECT = 500`)
+    /// when no value has been written to storage, preserving backwards-compatible
+    /// behavior for existing deployments.
+    pub fn get_max_reviews_per_project(env: &Env) -> u32 {
+        let key = ExtensionKey::MaxReviewsPerProject;
+        let value: u32 = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(MAX_REVIEWS_PER_PROJECT);
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().extend_ttl(
+                &key,
+                LEDGER_THRESHOLD_CRITICAL,
+                LEDGER_BUMP_CRITICAL,
+            );
+        }
+        value
+    }
+
+    /// Admin-only: update the maximum number of reviews allowed per project.
+    ///
+    /// # Validation
+    /// - `max` must be at least 1 (zero is rejected as `InvalidInput`).
+    ///
+    /// # Storage
+    /// The value is persisted under `ExtensionKey::MaxReviewsPerProject` with the
+    /// critical-config TTL so it survives as long as other admin-managed config.
+    ///
+    /// # Authorization
+    /// Requires a registered admin — delegates to `auth::require_admin_auth`.
+    pub fn set_max_reviews_per_project(
+        env: &Env,
+        admin: Address,
+        max: u32,
+    ) -> Result<(), ContractError> {
+        auth::require_admin_auth(env, &admin)?;
+
+        if max == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let key = ExtensionKey::MaxReviewsPerProject;
+        env.storage().persistent().set(&key, &max);
+        env.storage().persistent().extend_ttl(
+            &key,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::MaxReviewsPerProjectSet,
+            None,
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
     /// Returns true if the contract has been paused by an admin via
     /// [`ConfigRegistry::set_pause`]. Defaults to `false` when no flag
     /// has ever been set, which keeps post-init reads well-defined.
@@ -139,7 +205,7 @@ impl ConfigRegistry {
             limits: ContractLimits {
                 max_page_limit: MAX_PAGE_LIMIT,
                 max_projects_per_user: MAX_PROJECTS_PER_USER,
-                max_reviews_per_project: MAX_REVIEWS_PER_PROJECT,
+                max_reviews_per_project: Self::get_max_reviews_per_project(env),
                 max_name_len: MAX_NAME_LEN as u32,
                 max_description_len: MAX_DESCRIPTION_LEN as u32,
                 verification_validity_period: VERIFICATION_VALIDITY_PERIOD,

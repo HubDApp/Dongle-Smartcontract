@@ -116,6 +116,26 @@ impl DongleContract {
         ConfigRegistry::get_config(&env)
     }
 
+    /// Returns the current maximum number of reviews allowed per project.
+    ///
+    /// Falls back to the compile-time default of 500 if no value has been
+    /// configured by an admin.
+    pub fn get_max_reviews_per_project(env: Env) -> u32 {
+        ConfigRegistry::get_max_reviews_per_project(&env)
+    }
+
+    /// Admin-only: set the maximum number of reviews allowed per project.
+    ///
+    /// `max` must be ≥ 1. Affects all future review submissions; existing
+    /// reviews beyond a lowered limit are not removed.
+    pub fn set_max_reviews_per_project(
+        env: Env,
+        admin: Address,
+        max: u32,
+    ) -> Result<(), ContractError> {
+        ConfigRegistry::set_max_reviews_per_project(&env, admin, max)
+    }
+
     pub fn set_admin_approval_threshold(
         env: Env,
         caller: Address,
