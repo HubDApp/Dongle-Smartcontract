@@ -314,13 +314,13 @@ fn cid_empty_is_invalid() {
 }
 
 #[test]
-fn cid_too_short_at_45_invalid() {
+fn cid_too_short_at_39_invalid() {
     let e = mk_env();
-    // CID minimum is 46; 45 must be rejected even with valid prefix
+    // CID minimum is 40; 39 must be rejected even with valid prefix
     let short_cid = {
         let mut v = repeat_char('Q', 1);
         v.push('m');
-        v.push_str(&repeat_char('a', 43)); // 1 + 1 + 43 = 45
+        v.push_str(&repeat_char('a', 37)); // 1 + 1 + 37 = 39
         v
     };
     let cid = SorobanString::from_str(&e, &short_cid);
@@ -457,9 +457,9 @@ proptest! {
             "CIDv1 of len {len} should be valid");
     }
 
-    /// CIDs shorter than 46 must always be rejected.
+    /// CIDs shorter than 40 must always be rejected.
     #[test]
-    fn prop_cid_too_short_rejected(len in 0usize..=45usize) {
+    fn prop_cid_too_short_rejected(len in 0usize..=39usize) {
         let e = mk_env();
         let cid_str = repeat_char('b', len);
         let cid = SorobanString::from_str(&e, &cid_str);
@@ -492,9 +492,14 @@ fn url_empty_invalid() {
 }
 
 #[test]
-fn url_http_valid() {
+fn url_http_rejected() {
+    // http:// is no longer accepted — only https:// is allowed.
     let e = mk_env();
-    assert!(Utils::validate_website(&s(&e, "http://example.com")).is_ok());
+    assert_eq!(
+        Utils::validate_website(&s(&e, "http://example.com")),
+        Err(ContractError::InvalidInput),
+        "http:// scheme must be rejected; only https:// is permitted"
+    );
 }
 
 #[test]

@@ -59,6 +59,9 @@ pub fn validate_registration_params(
     if let Some(bounty_url) = &params.bounty_url {
         Utils::validate_website(bounty_url)?;
     }
+    if let Some(repo_url) = &params.repository_url {
+        Utils::validate_website(repo_url)?;
+    }
 
     Ok(())
 }

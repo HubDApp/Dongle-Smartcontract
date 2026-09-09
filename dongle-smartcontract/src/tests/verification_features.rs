@@ -97,8 +97,16 @@ fn test_verification_expiry_and_duration() {
     // Check if it is expired at timestamp 500 (should be false)
     env.ledger().set_timestamp(500);
     assert!(!client.is_verification_expired(&project_id));
+    assert!(client.is_verification_expiring_soon(&project_id, &600));
+    assert!(!client.is_verification_expiring_soon(&project_id, &599));
+
+    // At the exact expiry timestamp, the verification is still not expired
+    // and a zero-second threshold correctly reports the renewal boundary.
+    env.ledger().set_timestamp(1100);
+    assert!(client.is_verification_expiring_soon(&project_id, &0));
 
     // Check if it is expired at timestamp 1200 (should be true)
     env.ledger().set_timestamp(1200);
     assert!(client.is_verification_expired(&project_id));
+    assert!(!client.is_verification_expiring_soon(&project_id, &u64::MAX));
 }

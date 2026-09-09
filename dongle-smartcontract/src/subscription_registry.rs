@@ -1,3 +1,39 @@
+//! Subscription (follow) registry (closes #663).
+//!
+//! ## Follow vs. Subscribe — they are the same thing
+//!
+//! The contract uses the term **"follow"** for the user-facing action
+//! (`follow_project`, `unfollow_project`) and **"subscription"** for the
+//! per-user index (`UserSubscriptions`).  These two concepts are identical:
+//!
+//! - Calling `follow_project(project_id, follower)` **subscribes** the follower
+//!   to the project.  Both `ProjectFollowers(project_id)` and
+//!   `UserSubscriptions(follower)` are updated atomically in the same call.
+//! - Calling `unfollow_project(project_id, follower)` **unsubscribes** the
+//!   follower.  Both indexes are cleaned up atomically.
+//! - There is **no separate "subscribe" entry point**.  A user's subscription
+//!   list is exactly the set of projects they follow.
+//!
+//! ## Storage layout
+//!
+//! | Key | Type | Description |
+//! |-----|------|-------------|
+//! | `ExtensionKey::ProjectFollowers(project_id)` | `Vec<Address>` | Ordered list of followers |
+//! | `ExtensionKey::FollowerCount(project_id)` | `u32` | Cached follower count |
+//! | `ExtensionKey::UserSubscriptions(address)` | `Vec<u64>` | Project IDs the user follows |
+//!
+//! ## Consistency invariants
+//!
+//! 1. `is_following(project_id, user) == true` ⟺ `user ∈ ProjectFollowers(project_id)`
+//! 2. `is_following(project_id, user) == true` ⟺ `project_id ∈ UserSubscriptions(user)`
+//! 3. `get_follower_count(project_id) == len(ProjectFollowers(project_id))`
+//! 4. A user cannot follow the same project twice (`AlreadyFollowing`).
+//! 5. Unfollowing a project that is not followed returns `NotFollowing`.
+//! 6. Following a non-existent project returns `ProjectNotFound`.
+//!
+//! Tests that verify these invariants live in
+//! `tests::follow_subscribe_relationship`.
+
 use crate::errors::ContractError;
 use crate::events::{publish_project_followed_event, publish_project_unfollowed_event};
 use crate::project_registry::ProjectRegistry;
@@ -69,7 +105,7 @@ impl SubscriptionRegistry {
             return Err(ContractError::NotFollowing);
         }
 
-        let mut followers: Vec<Address> = env
+        let followers: Vec<Address> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectFollowers(project_id))
@@ -85,7 +121,7 @@ impl SubscriptionRegistry {
             .persistent()
             .set(&ExtensionKey::FollowerCount(project_id), &count);
 
-        let mut subscriptions: Vec<u64> = env
+        let subscriptions: Vec<u64> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::UserSubscriptions(follower.clone()))
@@ -124,7 +160,7 @@ impl SubscriptionRegistry {
     pub fn get_project_followers(
         env: &Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Address> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
@@ -140,13 +176,13 @@ impl SubscriptionRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let len = followers.len();
-        if start >= len {
+        if start_index >= len {
             return Vec::new(env);
         }
 
-        let end = core::cmp::min(start.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
         let mut page = Vec::new(env);
-        for i in start..end {
+        for i in start_index..end {
             if let Some(f) = followers.get(i) {
                 page.push_back(f);
             }
@@ -154,7 +190,7 @@ impl SubscriptionRegistry {
         page
     }
 
-    pub fn get_user_subscriptions(env: &Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -168,17 +204,183 @@ impl SubscriptionRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         let len = subscriptions.len();
-        if start >= len {
+        if start_index >= len {
             return Vec::new(env);
         }
 
-        let end = core::cmp::min(start.saturating_add(effective_limit), len);
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
         let mut page = Vec::new(env);
-        for i in start..end {
+        for i in start_index..end {
             if let Some(pid) = subscriptions.get(i) {
                 page.push_back(pid);
             }
         }
         page
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::fixtures::{create_test_project, setup_contract};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    #[test]
+    fn test_follow_project() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let project_id = create_test_project(&client, &owner, "TestProject");
+        let follower = Address::generate(&env);
+
+        env.as_contract(&client.address, || {
+            let res = SubscriptionRegistry::follow_project(&env, project_id, follower.clone());
+            assert!(res.is_ok());
+
+            assert_eq!(
+                SubscriptionRegistry::get_follower_count(&env, project_id),
+                1
+            );
+            assert!(SubscriptionRegistry::is_following(
+                &env, project_id, &follower
+            ));
+        });
+    }
+
+    #[test]
+    fn test_unfollow_project() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let project_id = create_test_project(&client, &owner, "TestProject");
+        let follower = Address::generate(&env);
+
+        env.as_contract(&client.address, || {
+            assert!(
+                SubscriptionRegistry::follow_project(&env, project_id, follower.clone()).is_ok()
+            );
+            assert_eq!(
+                SubscriptionRegistry::get_follower_count(&env, project_id),
+                1
+            );
+        });
+
+        env.as_contract(&client.address, || {
+            let res = SubscriptionRegistry::unfollow_project(&env, project_id, follower.clone());
+            assert!(res.is_ok());
+
+            assert_eq!(
+                SubscriptionRegistry::get_follower_count(&env, project_id),
+                0
+            );
+            assert!(!SubscriptionRegistry::is_following(
+                &env, project_id, &follower
+            ));
+        });
+    }
+
+    #[test]
+    fn test_duplicate_follow_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let project_id = create_test_project(&client, &owner, "TestProject");
+        let follower = Address::generate(&env);
+
+        env.as_contract(&client.address, || {
+            assert!(
+                SubscriptionRegistry::follow_project(&env, project_id, follower.clone()).is_ok()
+            );
+        });
+
+        env.as_contract(&client.address, || {
+            let err = SubscriptionRegistry::follow_project(&env, project_id, follower.clone());
+            assert_eq!(err, Err(ContractError::AlreadyFollowing));
+        });
+    }
+
+    #[test]
+    fn test_unfollow_not_following_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let project_id = create_test_project(&client, &owner, "TestProject");
+        let follower = Address::generate(&env);
+
+        env.as_contract(&client.address, || {
+            let err = SubscriptionRegistry::unfollow_project(&env, project_id, follower.clone());
+            assert_eq!(err, Err(ContractError::NotFollowing));
+        });
+    }
+
+    #[test]
+    fn test_get_project_followers_pagination() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let project_id = create_test_project(&client, &owner, "TestProject");
+
+        for _ in 0..5 {
+            let f = Address::generate(&env);
+            env.as_contract(&client.address, || {
+                assert!(SubscriptionRegistry::follow_project(&env, project_id, f).is_ok());
+            });
+        }
+
+        env.as_contract(&client.address, || {
+            let page1 = SubscriptionRegistry::get_project_followers(&env, project_id, 0, 2);
+            assert_eq!(page1.len(), 2);
+
+            let page2 = SubscriptionRegistry::get_project_followers(&env, project_id, 2, 2);
+            assert_eq!(page2.len(), 2);
+
+            let page3 = SubscriptionRegistry::get_project_followers(&env, project_id, 4, 2);
+            assert_eq!(page3.len(), 1);
+
+            let empty = SubscriptionRegistry::get_project_followers(&env, project_id, 10, 2);
+            assert_eq!(empty.len(), 0);
+        });
+    }
+
+    #[test]
+    fn test_get_user_subscriptions_pagination() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _) = setup_contract(&env);
+
+        let owner = Address::generate(&env);
+        let follower = Address::generate(&env);
+
+        let names = ["Proj-0", "Proj-1", "Proj-2", "Proj-3"];
+        for name in names {
+            let project_id = create_test_project(&client, &owner, name);
+            env.as_contract(&client.address, || {
+                assert!(
+                    SubscriptionRegistry::follow_project(&env, project_id, follower.clone())
+                        .is_ok()
+                );
+            });
+        }
+
+        env.as_contract(&client.address, || {
+            let page1 = SubscriptionRegistry::get_user_subscriptions(&env, follower.clone(), 0, 2);
+            assert_eq!(page1.len(), 2);
+
+            let page2 = SubscriptionRegistry::get_user_subscriptions(&env, follower.clone(), 2, 2);
+            assert_eq!(page2.len(), 2);
+
+            let empty = SubscriptionRegistry::get_user_subscriptions(&env, follower.clone(), 10, 2);
+            assert_eq!(empty.len(), 0);
+        });
     }
 }

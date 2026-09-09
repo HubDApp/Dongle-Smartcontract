@@ -1,3 +1,45 @@
+//! # Duplicate Dispute State Machine (#654)
+//!
+//! Disputes follow a strict, one-way state machine:
+//!
+//! ```text
+//!  ┌─────────────────────────────────────┐
+//!  │                                     │
+//!  │  open_duplicate_dispute             │
+//!  │          │                          │
+//!  │          ▼                          │
+//!  │       Pending ──────────────────┐   │
+//!  │          │                      │   │
+//!  │   (admin resolves)        (admin rejects)
+//!  │          │                      │   │
+//!  │          ▼                      ▼   │
+//!  │       Resolved             Rejected │
+//!  │   (terminal state)     (terminal state)
+//!  │                                     │
+//!  └─────────────────────────────────────┘
+//! ```
+//!
+//! ## Valid transitions
+//!
+//! | From    | To       | Trigger                        |
+//! |---------|----------|--------------------------------|
+//! | Pending | Resolved | `resolve_duplicate_dispute` with `ArchiveProject` or `LinkDuplicates` |
+//! | Pending | Rejected | `resolve_duplicate_dispute` with `Reject` |
+//!
+//! ## Invalid transitions (return `DisputeNotPending`)
+//!
+//! | From     | Attempted | Error            |
+//! |----------|-----------|------------------|
+//! | Resolved | Resolve   | `DisputeNotPending` |
+//! | Resolved | Reject    | `DisputeNotPending` |
+//! | Rejected | Resolve   | `DisputeNotPending` |
+//! | Rejected | Reject    | `DisputeNotPending` |
+//!
+//! Both `Resolved` and `Rejected` are **terminal states** — once reached no
+//! further transitions are possible. A new dispute on the same project pair
+//! requires calling `open_duplicate_dispute` again, which creates a fresh
+//! dispute with a new ID.
+
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
@@ -5,7 +47,7 @@ use crate::events::{
     publish_duplicate_dispute_opened_event, publish_duplicate_dispute_resolved_event,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{AdminActionType, DisputeResolutionAction, DisputeStatus, DuplicateDispute};
 use crate::utils::Utils;
@@ -46,7 +88,7 @@ impl DisputeRegistry {
         }
 
         // Generate next dispute ID
-        let mut dispute_id: u64 = env
+        let dispute_id: u64 = env
             .storage()
             .persistent()
             .get(&ExtensionKey::NextDuplicateDisputeId)
@@ -114,6 +156,23 @@ impl DisputeRegistry {
         Ok(dispute_id)
     }
 
+    /// Resolve or reject a pending duplicate dispute (admin only).
+    ///
+    /// # State machine (#654)
+    ///
+    /// This function drives the dispute from `Pending` to either `Resolved` or
+    /// `Rejected` (see module-level state machine diagram). Calling this on a
+    /// dispute that is already in a terminal state (`Resolved` or `Rejected`)
+    /// returns [`ContractError::DisputeNotPending`] immediately — no storage is
+    /// mutated and no event is emitted.
+    ///
+    /// # Actions
+    ///
+    /// - `DisputeResolutionAction::Reject` → status becomes `Rejected`
+    /// - `DisputeResolutionAction::ArchiveProject(id)` → archives the project and
+    ///   status becomes `Resolved`
+    /// - `DisputeResolutionAction::LinkDuplicates` → links the two projects and
+    ///   status becomes `Resolved`
     pub fn resolve_duplicate_dispute(
         env: &Env,
         dispute_id: u64,
@@ -131,8 +190,12 @@ impl DisputeRegistry {
             .get(&ExtensionKey::DuplicateDispute(dispute_id))
             .ok_or(ContractError::ProjectNotFound)?;
 
+        // State machine guard: only Pending → Resolved/Rejected is a valid transition.
+        // Resolved and Rejected are terminal states. Attempting to re-resolve or
+        // re-reject them returns DisputeNotPending (not the generic InvalidStatus)
+        // so callers can distinguish "wrong kind of error" from "dispute not found".
         if dispute.status != DisputeStatus::Pending {
-            return Err(ContractError::InvalidStatus);
+            return Err(ContractError::DisputeNotPending);
         }
 
         let now = env.ledger().timestamp();

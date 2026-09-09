@@ -68,6 +68,7 @@ fn claim_request_and_contract_claim_request_share_status_type() {
         proof_cid: String::from_str(&Env::default(), "QmProof"),
         status: ClaimStatus::Pending,
         created_at: 0,
+        expires_at: 0,
     };
     assert_eq!(ownership.status, ClaimStatus::Pending);
     assert_eq!(contract.status, ClaimStatus::Pending);

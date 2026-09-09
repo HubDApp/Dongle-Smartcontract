@@ -21,7 +21,7 @@ Goals:
 | Insider collusion | Threshold admins bypass controls | Separate key custody, monitoring, incident runbooks |
 | Rotation mistake (remove before add) | Zero admins; irreversible without upgrade | Always add-before-remove checklist |
 
-See also [THREAT_MODEL.md](../THREAT_MODEL.md) for broader contract assumptions.
+See also [THREAT_MODEL.md](THREAT_MODEL.md) for broader contract assumptions.
 
 ## 3. Safe Rotation Procedure
 
@@ -108,7 +108,13 @@ Run on testnet before mainnet rotation:
 - Use hardware wallets for admin keys; never commit secrets to CI
 - Rotate on a **scheduled cadence** (e.g. quarterly) and after personnel changes
 - Monitor admin events via indexer alerts
-- Prefer timelocked fee/config changes on mainnet
+- Prefer timelocked fee/config changes on mainnet. Scheduled admin actions
+  must execute **between 1 day and 90 days** out (`TIMELOCK_MIN_DELAY` …
+  `TIMELOCK_MAX_DELAY`); anything outside that window is rejected with
+  `InvalidInput`. See [`TIMELOCK.md`](./TIMELOCK.md). For sub-day emergencies
+  use `emergency_pause`, not the timelock.
+- During any rotation or incident-response run, inventory pending timelock
+  actions (`list_scheduled_actions`) and `cancel_action` anything unexpected.
 - Keep this playbook and contract ID in your internal ops wiki
 
 ## 8. Incident Response — Compromised Key
@@ -155,4 +161,4 @@ Run on testnet before mainnet rotation:
 
 ---
 
-**Related docs:** [INITIALIZATION_DEPLOYMENT_CHECKLIST.md](./INITIALIZATION_DEPLOYMENT_CHECKLIST.md), [THREAT_MODEL.md](../THREAT_MODEL.md), [CONTRACT_INTERFACE.md](../CONTRACT_INTERFACE.md)
+**Related docs:** [INITIALIZATION_DEPLOYMENT_CHECKLIST.md](./INITIALIZATION_DEPLOYMENT_CHECKLIST.md), [THREAT_MODEL.md](THREAT_MODEL.md), [CONTRACT_INTERFACE.md](CONTRACT_INTERFACE.md)

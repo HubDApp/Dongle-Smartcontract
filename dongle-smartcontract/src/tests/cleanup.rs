@@ -526,7 +526,7 @@ fn test_admin_can_reactivate_archived_project() {
 fn test_archive_already_archived_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin) = setup(&env);
+    let (client, _admin) = setup(&env);
 
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "ProjectV");
@@ -540,7 +540,7 @@ fn test_archive_already_archived_returns_error() {
 fn test_reactivate_not_archived_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin) = setup(&env);
+    let (client, _admin) = setup(&env);
 
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "ProjectW");
@@ -553,7 +553,7 @@ fn test_reactivate_not_archived_returns_error() {
 fn test_stranger_cannot_archive_project() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin) = setup(&env);
+    let (client, _admin) = setup(&env);
 
     let owner = Address::generate(&env);
     let stranger = Address::generate(&env);
@@ -624,7 +624,7 @@ fn test_clear_reports_then_report_updates_count_correctly() {
 fn test_archived_project_still_accessible_via_get_project() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin) = setup(&env);
+    let (client, _admin) = setup(&env);
 
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "ProjectAA");

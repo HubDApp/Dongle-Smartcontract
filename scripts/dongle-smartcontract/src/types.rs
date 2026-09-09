@@ -61,6 +61,10 @@ pub struct Review {
     /// Unix timestamp (seconds) of the most recent modification to this review.
     pub updated_at: u64,
 
+    /// Unix timestamp (seconds) of the most recent reviewer update.
+    /// Zero means the review has not been updated since submission.
+    pub last_updated_at: u64,
+
     /// Whether the review is hidden by moderation.
     pub hidden: bool,
 
@@ -514,7 +518,7 @@ pub struct AdminProposal {
     pub action_type: AdminActionType,
     pub payload_hash: soroban_sdk::BytesN<32>,
     pub payload: ProposalPayload,
-    pub approvals: Vec<Address>,
+    pub approvals: Map<Address, bool>,
     pub status: ProposalStatus,
     pub created_at: u64,
 }
@@ -529,8 +533,8 @@ pub struct ReviewTombstone {
     pub deleted_at: u64,
 }
 
-/// Sort order for `list_reviews_sorted`. Sorting is performed on-chain in-memory.
-/// For large projects this increases compute budget usage proportionally to review count.
+/// Sort order retained for `list_reviews_sorted` ABI compatibility.
+/// Sorting is performed client-side.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReviewSortMode {

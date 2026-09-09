@@ -25,6 +25,7 @@ fn test_register_project_with_valid_bounty_url() {
         launch_timestamp: None,
         license: None,
         bounty_url: Some(String::from_str(&env, "https://bounty.example.com")),
+        repository_url: None,
         bounty_cid: None,
     };
     client.mock_all_auths().register_project(&params);
@@ -50,6 +51,7 @@ fn test_register_project_with_invalid_bounty_url() {
         launch_timestamp: None,
         license: None,
         bounty_url: Some(String::from_str(&env, "ftp://invalid")),
+        repository_url: None,
         bounty_cid: None,
     };
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -77,6 +79,7 @@ fn test_register_project_with_valid_bounty_cid() {
         launch_timestamp: None,
         license: None,
         bounty_url: None,
+        repository_url: None,
         bounty_cid: Some(String::from_str(&env, "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco")),
     };
     client.mock_all_auths().register_project(&params);
@@ -101,6 +104,7 @@ fn test_register_project_with_invalid_bounty_cid() {
         launch_timestamp: None,
         license: None,
         bounty_url: None,
+        repository_url: None,
         bounty_cid: Some(String::from_str(&env, "invalid-cid")),
     };
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

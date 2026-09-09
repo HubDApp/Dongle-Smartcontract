@@ -159,6 +159,8 @@ fn test_project_update_name_collision_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -203,6 +205,8 @@ fn test_project_update_slug_collision_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -245,6 +249,8 @@ fn test_project_update_invalid_name_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -286,6 +292,8 @@ fn test_project_update_category_change_with_invalid_slug_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -334,6 +342,8 @@ fn test_project_update_unauthorized_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -397,6 +407,8 @@ fn test_project_update_failed_social_links_keeps_all_indexes_unchanged() {
         social_links: Some(Some(invalid_social_links)),
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     });
     assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
 
@@ -797,6 +809,8 @@ fn test_multiple_operations_fail_independently() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     });
     assert_eq!(update_result, Err(Ok(ContractError::InvalidProjectName)));
 
@@ -857,6 +871,8 @@ fn test_project_update_invalid_description_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -898,6 +914,8 @@ fn test_project_update_invalid_category_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -943,6 +961,8 @@ fn test_project_update_invalid_website_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -986,6 +1006,8 @@ fn test_project_update_too_long_description_atomicity() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     };
 
     let result = client.try_update_project(&update_params);
@@ -1313,6 +1335,8 @@ fn test_cross_operation_atomicity_with_partial_failure() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
+        repository_url: None,
     });
     assert_eq!(update_result, Err(Ok(ContractError::InvalidProjectName)));
 

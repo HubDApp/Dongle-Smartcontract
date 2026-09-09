@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "dongle-contract"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "proptest",
  "soroban-sdk",
@@ -1656,10 +1656,6 @@ dependencies = [
  "rustix",
  "windows-sys",
 ]
-
-[[package]]
-name = "test_project"
-version = "0.1.0"
 
 [[package]]
 name = "thiserror"

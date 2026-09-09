@@ -34,6 +34,7 @@ fn test_register_project_success() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     let id = client.register_project(&params);
@@ -67,6 +68,7 @@ fn test_register_duplicate_project_fails() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
 
     // Register first project
@@ -101,6 +103,7 @@ fn test_register_different_projects_success() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     let id1 = client.register_project(&params1);
     assert_eq!(id1, 1);
@@ -118,6 +121,7 @@ fn test_register_different_projects_success() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     let id2 = client.register_project(&params2);
     assert_eq!(id2, 2);

@@ -27,6 +27,7 @@ fn register_project_with_bounty(
         social_links: None,
         launch_timestamp: None,
         bounty_url: bounty_url.map(|s| String::from_str(env, &s)),
+        repository_url: None,
         bounty_cid: bounty_cid.map(|s| String::from_str(env, &s)),
     };
     let env_clone = env.clone();
@@ -184,6 +185,7 @@ fn test_bounty_fields_missing() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
         bounty_cid: None,
     };
     let result = client.mock_all_auths().try_register_project(&params);

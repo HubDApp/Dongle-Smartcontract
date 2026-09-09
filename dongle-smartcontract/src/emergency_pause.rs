@@ -1,15 +1,27 @@
-//! Contract Pause / Emergency Stop module.
+//! Contract Pause / Emergency Stop module (closes #664).
 //!
-//! Allows an admin to pause all mutating operations during an incident.
+//! Allows an admin to halt a defined set of mutating operations during an
+//! incident by flipping a single flag (`StorageKey::ContractPaused`).
+//!
 //! When paused:
-//! - Mutating calls (registration, reviews, fees, verification, etc.) fail with
-//!   `ContractError::ContractPaused`.
+//! - The entry points guarded by [`EmergencyPause::require_not_paused`] fail with
+//!   `ContractError::ContractPaused`. That gate is currently applied to the
+//!   project lifecycle / links / transfer / region calls, `cancel_fee_payment`,
+//!   and the changelog write calls in `lib.rs`. It is **not** yet applied to
+//!   every mutating path (e.g. `pay_fee`, `add_review`, `request_verification`,
+//!   follow/bookmark/endorse) — see the enforcement-surface table in
+//!   `docs/EMERGENCY_PAUSE_RECOVERY.md`.
 //! - Read-only calls continue to work normally.
-//! - Admin recovery functions (pause, unpause, admin management, fee config,
-//!   verification approval/rejection/revocation, review moderation, TTL extensions)
-//!   are still allowed.
+//! - Admin-only recovery calls (pause, unpause, admin management, fee config,
+//!   verification and review moderation, TTL extensions, …) are never gated.
 //!
-//! Pause/unpause emit `ContractPaused` / `ContractUnpaused` events.
+//! Pause/unpause emit `CONTRACT/PAUSED` / `CONTRACT/UNPAUSED` events and do
+//! **not** write an `AdminActionLog` entry.
+//!
+//! Operational runbook (state machine, recovery checklist, post-unpause state
+//! validation): `docs/EMERGENCY_PAUSE_RECOVERY.md`. Not to be confused with the
+//! separate, unenforced `ConfigRegistry::set_pause` flag surfaced by
+//! `get_config`.
 
 use crate::errors::ContractError;
 use crate::events::{publish_contract_paused_event, publish_contract_unpaused_event};
@@ -72,4 +84,3 @@ impl EmergencyPause {
         Ok(())
     }
 }
-

@@ -65,6 +65,7 @@ fn create_test_project_params(env: &Env, owner: &Address, name: &str) -> Project
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
         bounty_cid: None,
     }
 }

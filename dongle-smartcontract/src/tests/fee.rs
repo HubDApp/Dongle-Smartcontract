@@ -46,6 +46,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     })
 }
 
@@ -180,7 +181,7 @@ fn test_zero_fee_no_token_succeeds() {
 // --- Native fee rejection ---
 
 /// Configuring a non-zero fee without a token address (i.e. native asset) must
-/// be rejected at set_fee time with NativeFeeNotSupported.
+/// be rejected at set_fee time with FeeConfigNotSet.
 #[test]
 fn test_native_fee_rejected_at_config() {
     let env = Env::default();
@@ -226,7 +227,7 @@ fn test_fee_consumed_after_request_verification() {
     let result = client.try_request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence2"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj"),
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }
@@ -247,7 +248,7 @@ fn test_owner_can_cancel_pending_fee_payment() {
 
     // Verify token balance of treasury (should be 100)
     let token_client = soroban_sdk::token::Client::new(&env, &token);
-    let treasury = client.get_config().treasury.unwrap();
+    let treasury = client.get_config().unwrap().treasury.unwrap();
     assert_eq!(token_client.balance(&treasury), 100);
     assert_eq!(token_client.balance(&owner), 0);
 

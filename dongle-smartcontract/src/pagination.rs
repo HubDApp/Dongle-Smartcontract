@@ -4,7 +4,7 @@ use soroban_sdk::{Env, Vec};
 pub fn paginate<T: Clone + soroban_sdk::TryFromVal<soroban_sdk::Env, soroban_sdk::Val>>(
     env: &Env,
     items: &Vec<T>,
-    start: u32,
+    start_index: u32,
     limit: u32,
 ) -> Vec<T>
 where
@@ -14,7 +14,7 @@ where
     let total = items.len();
     let mut result = Vec::new(env);
     let mut count = 0u32;
-    let mut i = start;
+    let mut i = start_index;
     while i < total && count < limit {
         if let Some(item) = items.get(i) {
             result.push_back(item);

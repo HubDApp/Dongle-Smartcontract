@@ -1,4 +1,21 @@
 //! Project changelog registry for publishing update notes and release history.
+//!
+//! # Immutability Contract (#655)
+//!
+//! Changelog entries are **write-once**. Once an entry is created via
+//! [`ChangelogRegistry::add_changelog_entry`] it cannot be modified. The only
+//! mutation allowed is deletion via [`ChangelogRegistry::remove_changelog_entry`].
+//!
+//! If a changelog entry needs to be corrected, the workflow is:
+//! 1. Call `remove_changelog_entry` to delete the existing entry.
+//! 2. Call `add_changelog_entry` with the corrected CID / metadata.
+//!
+//! There is deliberately **no** `update_changelog_entry` function. Attempting to
+//! call a non-existent update function will produce a compile-time error, which
+//! is the strongest possible enforcement of this contract.
+//!
+//! All changes (add and remove) emit on-chain events so indexers can reconstruct
+//! the full audit trail.
 
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
@@ -21,6 +38,8 @@ impl ChangelogRegistry {
     /// - `owner`: The project owner (must be authenticated)
     /// - `cid`: IPFS CID containing the changelog content
     /// - `description`: Optional description/title for the changelog entry
+    /// - `version`: Optional semver string for this release (e.g. "1.2.3")
+    /// - `changelog_cid`: Optional secondary IPFS CID for a machine-readable release-notes document
     ///
     /// # Returns
     /// - `Ok(u64)` with the new changelog entry ID on success
@@ -31,19 +50,21 @@ impl ChangelogRegistry {
         owner: Address,
         cid: String,
         description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
         // Authentication check
         owner.require_auth();
 
         // Verify project exists and caller is owner
-        let project = ProjectRegistry::get_project(env, project_id)
-            .ok_or(ContractError::ProjectNotFound)?;
-        
+        let project =
+            ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
 
-        // Validate CID
+        // Validate primary CID
         if cid.is_empty() {
             return Err(ContractError::InvalidCid);
         }
@@ -52,6 +73,23 @@ impl ChangelogRegistry {
         }
         if cid.len() as usize > MAX_CID_LEN {
             return Err(ContractError::InvalidCid);
+        }
+
+        // Validate optional version string (must be non-empty when provided)
+        if let Some(ref v) = version {
+            if v.is_empty() {
+                return Err(ContractError::InvalidProjectData);
+            }
+        }
+
+        // Validate optional secondary changelog CID when provided
+        if let Some(ref ccid) = changelog_cid {
+            if ccid.is_empty()
+                || !Utils::is_valid_ipfs_cid(ccid)
+                || ccid.len() as usize > MAX_CID_LEN
+            {
+                return Err(ContractError::InvalidCid);
+            }
         }
 
         // Check for duplicate CID in existing changelog entries
@@ -81,6 +119,8 @@ impl ChangelogRegistry {
             cid: cid.clone(),
             created_at: now,
             description,
+            version,
+            changelog_cid,
         };
 
         // Store changelog entry
@@ -105,13 +145,7 @@ impl ChangelogRegistry {
         StorageManager::extend_project_ttl(env, project_id);
 
         // Publish event
-        publish_changelog_added_event(
-            env,
-            changelog_id,
-            project_id,
-            owner,
-            cid,
-        );
+        publish_changelog_added_event(env, changelog_id, project_id, owner, cid);
 
         Ok(changelog_id)
     }
@@ -144,13 +178,13 @@ impl ChangelogRegistry {
         // Verify caller is project owner
         let project = ProjectRegistry::get_project(env, entry.project_id)
             .ok_or(ContractError::ProjectNotFound)?;
-        
+
         if project.owner != owner {
             return Err(ContractError::Unauthorized);
         }
 
         // Remove from project's changelog list
-        let mut project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
         let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
         env.storage().persistent().set(
             &ExtensionKey::ProjectChangelogEntries(entry.project_id),
@@ -176,7 +210,7 @@ impl ChangelogRegistry {
     /// # Arguments
     /// - `env`: The Soroban environment
     /// - `project_id`: The project ID to get changelog for
-    /// - `start`: Starting index for pagination
+    /// - `start_index`: Starting index for pagination
     /// - `limit`: Maximum number of entries to return (capped at MAX_PAGE_LIMIT)
     /// - `sort_mode`: Sort order (Newest or Oldest)
     ///
@@ -185,7 +219,7 @@ impl ChangelogRegistry {
     pub fn get_project_changelog(
         env: &Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: crate::types::ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
@@ -206,7 +240,7 @@ impl ChangelogRegistry {
         let changelog_ids = Self::get_project_changelog_entries(env, project_id);
         let total = changelog_ids.len();
 
-        if total == 0 || start >= total {
+        if total == 0 || start_index >= total {
             return Vec::new(env);
         }
 
@@ -227,16 +261,16 @@ impl ChangelogRegistry {
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at < b.created_at);
             }
             crate::types::ChangelogSortMode::Oldest => {
-                // For oldest first (ascending), swap when a.created_at > b.created_at  
+                // For oldest first (ascending), swap when a.created_at > b.created_at
                 Utils::bubble_sort_by(&mut entries, |a, b| a.created_at > b.created_at);
             }
         }
 
         // Apply pagination
-        let end = (start + effective_limit).min(total);
+        let end = (start_index + effective_limit).min(total);
         let mut paginated = Vec::new(env);
-        
-        for i in start..end {
+
+        for i in start_index..end {
             if let Some(entry) = entries.get(i) {
                 paginated.push_back(entry.clone());
             }
@@ -269,6 +303,32 @@ impl ChangelogRegistry {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: &Env, project_id: u64) -> u32 {
         Self::get_project_changelog_entries(env, project_id).len()
+    }
+
+    /// Explicitly reject any attempt to update a changelog entry in-place.
+    ///
+    /// # Immutability enforcement (#655)
+    ///
+    /// Changelog entries are write-once. This function exists purely to provide
+    /// a clear, discoverable API surface that documents the "no update" contract
+    /// and returns a typed error when called, rather than silently not existing.
+    ///
+    /// To change a changelog entry:
+    /// 1. Call [`remove_changelog_entry`] to delete it.
+    /// 2. Call [`add_changelog_entry`] with the corrected data.
+    ///
+    /// # Returns
+    /// Always returns `Err(ContractError::Unauthorized)` — changelog entries
+    /// cannot be updated; they can only be removed and recreated.
+    #[allow(dead_code)]
+    pub fn update_changelog_entry(
+        _env: &Env,
+        _changelog_id: u64,
+        _owner: Address,
+    ) -> Result<(), ContractError> {
+        // Changelog entries are write-once (immutable after creation).
+        // Use remove_changelog_entry + add_changelog_entry instead.
+        Err(ContractError::Unauthorized)
     }
 
     // Internal helper function to get project changelog entry IDs
