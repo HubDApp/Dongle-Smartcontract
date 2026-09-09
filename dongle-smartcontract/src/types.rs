@@ -595,6 +595,10 @@ pub enum AdminActionType {
     ContractResumed,
     /// Admin updated the configurable maximum reviews per project.
     MaxReviewsPerProjectSet,
+    /// Admin approved an ownership claim request.
+    ClaimRequestApproved,
+    /// Admin rejected an ownership claim request.
+    ClaimRequestRejected,
 }
 
 #[contracttype]

@@ -870,7 +870,7 @@ impl ProjectRegistry {
     }
 
     pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
-        let canonical_slug = Utils::to_lowercase(env, &slug);
+        let _canonical_slug = Utils::to_lowercase(env, &slug);
         let project_id: u64 = env
             .storage()
             .persistent()
@@ -2684,6 +2684,27 @@ impl ProjectRegistry {
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
         soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Validate that a lifecycle status transition is permitted.
+    fn validate_lifecycle_transition(
+        from: ProjectLifecycleStatus,
+        to: ProjectLifecycleStatus,
+    ) -> Result<(), ContractError> {
+        use ProjectLifecycleStatus::*;
+        let valid = matches!(
+            (from, to),
+            (Active, Inactive)
+                | (Active, Archived)
+                | (Inactive, Active)
+                | (Inactive, Archived)
+                | (Archived, Active)
+        );
+        if valid {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidStatus)
+        }
     }
 
     /// Update a project's lifecycle status.

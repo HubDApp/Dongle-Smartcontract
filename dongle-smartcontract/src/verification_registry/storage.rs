@@ -749,7 +749,7 @@ impl VerificationRegistry {
         let duration = Self::get_verification_duration(env);
         let new_expires_at = now.saturating_add(duration);
 
-        verification.expires_at = Some(new_expires_at);
+        verification.expires_at = new_expires_at;
         verification.last_renewed_at = now;
         env.storage().persistent().set(
             &StorageKey::Verification(project_id),
@@ -859,7 +859,7 @@ impl VerificationRegistry {
         let expires_at = now.saturating_add(Self::get_verification_duration(env));
 
         verification.status = VerificationStatus::Verified;
-        verification.expires_at = Some(expires_at);
+        verification.expires_at = expires_at;
         verification.last_renewed_at = now;
         env.storage().persistent().set(
             &StorageKey::Verification(project_id),
@@ -913,44 +913,6 @@ impl VerificationRegistry {
     }
 
     /// Directly renew an already-Verified verification without going through a
-    /// pending renewal request. Extends `expires_at` by the configured
-    /// verification duration and records the renewal timestamp.
-    pub fn renew_verification(
-        env: &Env,
-        project_id: u64,
-        admin: Address,
-    ) -> Result<(), ContractError> {
-        require_admin_auth(env, &admin)?;
-
-        // Project must exist
-        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-
-        // Record must exist
-        let mut record =
-            Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
-
-        // Can only renew an already-Verified record (not Pending / Rejected / Unverified)
-        if record.status != VerificationStatus::Verified {
-            return Err(ContractError::InvalidStatusTransition);
-        }
-
-        let now = env.ledger().timestamp();
-        let duration = AdminManager::get_verification_duration(env);
-        let new_expires_at = now.saturating_add(duration);
-
-        record.expires_at = new_expires_at;
-        record.last_renewed_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Verification(project_id), &record.request_id);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::VerificationRecord(record.request_id), &record);
-
-        publish_verification_renewed_event(env, project_id, admin, new_expires_at);
-        Ok(())
-    }
-
     pub fn reject_renewal(env: &Env, project_id: u64, admin: Address) -> Result<(), ContractError> {
         require_admin_auth(env, &admin)?;
         let _renewal = Self::get_renewal_request(env, project_id)
@@ -1210,25 +1172,5 @@ impl VerificationRegistry {
         );
 
         Ok(count)
-    }
-
-    /// Batch-fetch verification records by request ID.
-    /// Silently skips IDs with no record. Clamped to 100 entries.
-    pub fn get_verification_records_batch(env: &Env, request_ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
-        const MAX_BATCH: u32 = 100;
-        let len = core::cmp::min(request_ids.len(), MAX_BATCH);
-        let mut out = Vec::new(env);
-        for i in 0..len {
-            if let Some(id) = request_ids.get(i) {
-                if let Some(record) = env
-                    .storage()
-                    .persistent()
-                    .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(id))
-                {
-                    out.push_back((id, record));
-                }
-            }
-        }
-        out
     }
 }

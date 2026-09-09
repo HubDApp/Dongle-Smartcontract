@@ -258,6 +258,8 @@ pub enum ExtensionKey {
     /// caps those at 50 cases; a per-entry key plus a separate count key would
     /// need two slots and push the enum over the limit.
     FeeConfigHistory,
+    /// Configurable maximum number of reviews allowed per project.
+    MaxReviewsPerProject,
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
