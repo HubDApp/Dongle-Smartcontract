@@ -2691,20 +2691,12 @@ impl ProjectRegistry {
         from: ProjectLifecycleStatus,
         to: ProjectLifecycleStatus,
     ) -> Result<(), ContractError> {
-        use ProjectLifecycleStatus::*;
-        let valid = matches!(
-            (from, to),
-            (Active, Inactive)
-                | (Active, Archived)
-                | (Inactive, Active)
-                | (Inactive, Archived)
-                | (Archived, Active)
-        );
-        if valid {
-            Ok(())
-        } else {
-            Err(ContractError::InvalidStatus)
+        // All transitions between different statuses are permitted.
+        // The caller already guards against self-transitions before calling this.
+        if from == to {
+            return Err(ContractError::InvalidStatus);
         }
+        Ok(())
     }
 
     /// Update a project's lifecycle status.

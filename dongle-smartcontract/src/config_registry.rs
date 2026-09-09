@@ -21,7 +21,7 @@ use crate::constants::{
     MAX_REVIEWS_PER_PROJECT, VERIFICATION_VALIDITY_PERIOD,
 };
 use crate::errors::ContractError;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, FeeHistoryKey, StorageKey};
 use crate::types::{AdminActionType, ContractConfigView, ContractLimits, FeeConfig};
 use soroban_sdk::{Address, Env, String};
 
@@ -36,7 +36,7 @@ impl ConfigRegistry {
     /// when no value has been written to storage, preserving backwards-compatible
     /// behavior for existing deployments.
     pub fn get_max_reviews_per_project(env: &Env) -> u32 {
-        let key = ExtensionKey::MaxReviewsPerProject;
+        let key = FeeHistoryKey::MaxReviewsPerProject;
         let value: u32 = env
             .storage()
             .persistent()
@@ -74,7 +74,7 @@ impl ConfigRegistry {
             return Err(ContractError::InvalidInput);
         }
 
-        let key = ExtensionKey::MaxReviewsPerProject;
+        let key = FeeHistoryKey::MaxReviewsPerProject;
         env.storage().persistent().set(&key, &max);
         env.storage().persistent().extend_ttl(
             &key,
