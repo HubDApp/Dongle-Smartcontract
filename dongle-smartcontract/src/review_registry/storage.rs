@@ -8,17 +8,21 @@ use crate::constants::{
 };
 use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
-use crate::events::{publish_review_event, publish_review_revision_event};
+use crate::events::{
+    publish_review_event, publish_review_integrity_sealed_event,
+    publish_review_integrity_violation_event, publish_review_revision_event,
+};
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::review_registry::validation::ReviewValidation;
-use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::storage_keys::{ExtensionKey, ReviewIntegrityKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, EvidenceLink, Project, ProjectStats, Review, ReviewAction,
-    ReviewEligibilityConfig, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
+    ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
 use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::xdr::ToXdr;
 
 pub struct ReviewRegistry;
 
@@ -319,6 +323,9 @@ impl ReviewRegistry {
         // Perform all storage mutations
         env.storage().persistent().set(&review_key, &review);
 
+        // Write integrity seal for tamper detection (#809).
+        Self::store_review_integrity_seal(env, project_id, &reviewer, rating, &comment_cid);
+
         user_reviews.push_back(project_id);
         env.storage()
             .persistent()
@@ -453,6 +460,9 @@ impl ReviewRegistry {
 
         // Perform mutations
         env.storage().persistent().set(&review_key, &review);
+
+        // Update integrity seal to reflect the new content (#809).
+        Self::store_review_integrity_seal(env, project_id, &reviewer, rating, &comment_cid);
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
@@ -1324,5 +1334,179 @@ impl ReviewRegistry {
         _sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
         Self::list_reviews(env, project_id, start_index, limit)
+    }
+
+    // ── Review content integrity (#809) ─────────────────────────────────────
+
+    /// Canonical payload format for review integrity seals (v1).
+    ///
+    /// The payload is:
+    ///   `review-integrity-v1|<project_id_be8>|<reviewer_xdr>|<rating_be4>|<content_cid_or_NONE>`
+    ///
+    /// Using `project_id` and reviewer address bytes makes every seal unique
+    /// across reviews; including `rating` and `content_cid` means any change
+    /// to either field changes the hash.
+    fn compute_review_integrity_hash(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+        rating: u32,
+        content_cid: &Option<soroban_sdk::String>,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+
+        // Version prefix
+        for b in b"review-integrity-v1|" {
+            buf.push_back(*b);
+        }
+
+        // project_id as 8 big-endian bytes
+        let pid_bytes = project_id.to_be_bytes();
+        for b in &pid_bytes {
+            buf.push_back(*b);
+        }
+        buf.push_back(b'|');
+
+        // reviewer address XDR bytes
+        let reviewer_bytes = reviewer.to_xdr(env);
+        let rlen = reviewer_bytes.len();
+        for i in 0..rlen {
+            buf.push_back(reviewer_bytes.get(i).unwrap_or(0));
+        }
+        buf.push_back(b'|');
+
+        // rating as 4 big-endian bytes
+        let rating_bytes = rating.to_be_bytes();
+        for b in &rating_bytes {
+            buf.push_back(*b);
+        }
+        buf.push_back(b'|');
+
+        // content_cid or sentinel "NONE"
+        match content_cid {
+            Some(cid) => {
+                let cid_bytes = cid.to_xdr(env);
+                // XDR-encoded String has a 4-byte length prefix; skip it.
+                let xdr_len = cid_bytes.len();
+                let cid_char_len = cid.len();
+                let skip = xdr_len.saturating_sub(cid_char_len);
+                for i in skip..xdr_len {
+                    buf.push_back(cid_bytes.get(i).unwrap_or(0));
+                }
+            }
+            None => {
+                for b in b"NONE" {
+                    buf.push_back(*b);
+                }
+            }
+        }
+
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Compute and persist the integrity seal for a review.
+    ///
+    /// Called automatically on every `add_review` and `update_review`.
+    /// Emits `ReviewIntegritySealedEvent` so indexers can track seal history.
+    fn store_review_integrity_seal(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+        rating: u32,
+        content_cid: &Option<soroban_sdk::String>,
+    ) {
+        let hash = Self::compute_review_integrity_hash(env, project_id, reviewer, rating, content_cid);
+        let record = ReviewIntegrityRecord {
+            integrity_hash: hash,
+            sealed_at: env.ledger().timestamp(),
+            sealed_content_cid: content_cid.clone(),
+            sealed_rating: rating,
+        };
+        env.storage().persistent().set(
+            &ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer.clone()),
+            &record,
+        );
+        StorageManager::extend_review_integrity_seal_ttl(env, project_id, reviewer);
+
+        publish_review_integrity_sealed_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            rating,
+            content_cid.is_some(),
+        );
+    }
+
+    /// Return the stored integrity seal for a review, if any.
+    pub fn get_review_integrity_record(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ReviewIntegrityRecord> {
+        env.storage()
+            .persistent()
+            .get(&ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer))
+    }
+
+    /// Verify the content integrity of a stored review.
+    ///
+    /// Recomputes the SHA-256 seal over the review's current on-chain data and
+    /// compares it against the stored seal.
+    ///
+    /// Returns:
+    /// - `ReviewIntegrityStatus::Valid` — hash matches; content is unmodified.
+    /// - `ReviewIntegrityStatus::Tampered` — hash mismatch; emits
+    ///   `ReviewIntegrityViolationEvent` as a tamper warning.
+    /// - `ReviewIntegrityStatus::Unverifiable` — no seal exists for this review
+    ///   (submitted before integrity sealing was enabled).
+    pub fn verify_review_integrity(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> ReviewIntegrityStatus {
+        let review: Review = match env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Review(project_id, reviewer.clone()))
+        {
+            Some(r) => r,
+            None => return ReviewIntegrityStatus::Unverifiable,
+        };
+
+        let record: ReviewIntegrityRecord = match env
+            .storage()
+            .persistent()
+            .get(&ReviewIntegrityKey::ReviewIntegrityHash(
+                project_id,
+                reviewer.clone(),
+            )) {
+            Some(r) => r,
+            None => return ReviewIntegrityStatus::Unverifiable,
+        };
+
+        let current_hash = Self::compute_review_integrity_hash(
+            env,
+            project_id,
+            &reviewer,
+            review.rating,
+            &review.content_cid,
+        );
+
+        if current_hash == record.integrity_hash {
+            ReviewIntegrityStatus::Valid
+        } else {
+            // Emit tamper-warning event before returning.
+            publish_review_integrity_violation_event(
+                env,
+                project_id,
+                reviewer,
+                review.rating,
+                record.sealed_rating,
+                review.content_cid.is_some(),
+                record.sealed_content_cid.is_some(),
+            );
+            ReviewIntegrityStatus::Tampered
+        }
     }
 }

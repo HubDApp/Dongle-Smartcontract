@@ -1,3 +1,4 @@
+use crate::constants::MAX_PAGE_LIMIT;
 use crate::errors::ContractError;
 use crate::events::{publish_project_bookmarked_event, publish_project_unbookmarked_event};
 use crate::project_registry::ProjectRegistry;
@@ -5,8 +6,6 @@ use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, Vec};
-
-pub const MAX_PAGE_LIMIT: u32 = 100;
 
 pub struct BookmarkRegistry;
 

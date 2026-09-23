@@ -739,6 +739,11 @@ impl ProjectRegistry {
         );
 
         publish_project_updated_event(env, params.project_id, project.owner.clone());
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            params.project_id,
+            crate::types::NotificationKind::ProjectUpdate,
+        );
         if major_metadata_changed {
             publish_verification_status_reset_event(
                 env,
@@ -1333,6 +1338,11 @@ impl ProjectRegistry {
         Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_archived_event(env, project_id, caller);
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::ProjectArchived,
+        );
         Ok(())
     }
 
@@ -1367,6 +1377,11 @@ impl ProjectRegistry {
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_reactivated_event(env, project_id, caller);
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::ProjectReactivated,
+        );
         Ok(())
     }
 
