@@ -371,6 +371,14 @@ pub struct CreateCollectionParams {
 }
 
 /// Types of admin actions recorded in the admin action log.
+///
+/// **Variant-count ceiling:** Soroban encodes `#[contracttype]` enums as
+/// `u32` discriminants, but XDR union types have a practical limit of
+/// **50 variants** before SDK tooling and contract-size constraints become
+/// problematic (same constraint as [`StorageKey`] / [`ExtensionKey`]).
+/// This enum currently has **34 variants**; stay under 50. If you need
+/// more, introduce an `AdminActionTypeExt` enum (mirroring the
+/// `ExtensionKey` pattern) rather than pushing past the ceiling.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AdminActionType {
