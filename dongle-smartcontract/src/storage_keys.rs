@@ -272,3 +272,34 @@ pub enum FeeHistoryKey {
     /// Configurable maximum number of reviews allowed per project.
     MaxReviewsPerProject,
 }
+
+/// Storage keys for notification preferences and digest queues (#811).
+///
+/// `ExtensionKey` is at its 50-variant Soroban cap; new notification
+/// keys use this independent enum following the same pattern as
+/// `FeeHistoryKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationKey {
+    /// Global notification preferences for a user.
+    UserNotificationPrefs(Address),
+    /// Per-project notification override for a user.
+    /// Keyed by `(user_address, project_id)`.
+    UserProjectNotifOverride(Address, u64),
+    /// Queue of project IDs with pending updates awaiting digest delivery.
+    /// Cleared after a digest is emitted.
+    UserDigestQueue(Address),
+}
+
+/// Storage keys for review content integrity seals (#809).
+///
+/// `ExtensionKey` is at its 50-variant Soroban cap; review integrity
+/// keys use this independent enum following the same pattern as
+/// `FeeHistoryKey` and `NotificationKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewIntegrityKey {
+    /// SHA-256 integrity hash stored for a review at write time.
+    /// Keyed by `(project_id, reviewer)`.
+    ReviewIntegrityHash(u64, Address),
+}
