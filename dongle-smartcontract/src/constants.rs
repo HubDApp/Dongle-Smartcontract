@@ -275,6 +275,15 @@ pub const CLAIM_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
 
+/// Maximum number of evidence links that may be attached to a single review.
+/// Frontends should enforce this limit before submitting a transaction.
+/// Surfaced through `ContractLimits::max_evidence_links_per_review` in `get_config`.
+pub const MAX_EVIDENCE_LINKS_PER_REVIEW: u32 = 5;
+
+/// Maximum byte length of a single evidence link URL.
+/// URLs exceeding this limit are rejected with `ContractError::EvidenceLinkTooLong`.
+pub const MAX_EVIDENCE_LINK_URL_LEN: usize = 512;
+
 /// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
 pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
 

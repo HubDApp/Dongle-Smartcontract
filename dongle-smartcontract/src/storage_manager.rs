@@ -4,7 +4,7 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
@@ -173,6 +173,14 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &StorageKey::Review(project_id, reviewer.clone()),
+            LEDGER_THRESHOLD_REVIEW,
+            LEDGER_BUMP_REVIEW,
+        );
+        // Also extend evidence links stored separately under ExtensionKey2.
+        // Requirements: 7.3, 7.4
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone()),
             LEDGER_THRESHOLD_REVIEW,
             LEDGER_BUMP_REVIEW,
         );

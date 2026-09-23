@@ -260,6 +260,25 @@ pub enum ExtensionKey {
     FeeConfigHistory,
 }
 
+/// Third overflow storage key enum, introduced because `ExtensionKey` has reached the
+/// 50-variant Soroban `#[contracttype]` hard cap and cannot accept any further variants.
+///
+/// `ExtensionKey2` follows the exact same design rules as `ExtensionKey`:
+///
+/// - Ordinals are **entirely independent** of both `StorageKey` and `ExtensionKey`
+///   because this is a different XDR union type.  There is no cross-enum collision.
+/// - The only soundness requirement is that variant names within *this* enum are unique —
+///   the Rust compiler enforces this.
+/// - This enum is also subject to the 50-variant Soroban cap.  Its current variant count
+///   is tracked by `tests::storage_key_uniqueness`.  When it approaches 45 variants
+///   (the warning threshold), a fourth enum (`ExtensionKey3`) must be introduced.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExtensionKey2 {
+    /// Evidence links for a review, keyed by (project_id, reviewer).
+    ReviewEvidenceLinks(u64, Address),
+}
+
 /// Storage keys for fee configuration history, split into a separate enum to stay under
 /// Soroban's 50-variant limit per `#[contracttype]` enum.
 #[contracttype]

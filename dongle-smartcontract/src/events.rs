@@ -1,5 +1,6 @@
 use crate::types::{
-    AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus,
+    AdminActionType, EvidenceLink, ProjectLifecycleStatus, ReviewAction, ReviewEventData,
+    VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -355,6 +356,7 @@ pub fn publish_review_event(
     owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
+    evidence_links: Vec<EvidenceLink>,
 ) {
     let event_data = ReviewEventData {
         project_id,
@@ -365,6 +367,7 @@ pub fn publish_review_event(
         created_at,
         updated_at,
         owner_response,
+        evidence_links,
     };
 
     let action_sym = match action {

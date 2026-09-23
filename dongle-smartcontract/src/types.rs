@@ -1,5 +1,15 @@
 use soroban_sdk::{contracttype, Address, Map, String, Vec};
 
+/// A single URL attached to a review as supporting evidence.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceLink {
+    /// The URL string (http:// or https://).
+    pub url: String,
+    /// Admin-settable dead-link flag. False by default.
+    pub is_dead: bool,
+}
+
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct ProjectRegistrationParams {
@@ -80,6 +90,9 @@ pub struct Review {
 
     /// Number of times this review has been reported.
     pub report_count: u32,
+
+    /// Optional list of attached evidence links (max MAX_EVIDENCE_LINKS_PER_REVIEW).
+    pub evidence_links: Vec<EvidenceLink>,
 }
 
 #[contracttype]
@@ -103,6 +116,8 @@ pub struct ReviewEventData {
     pub owner_response: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
+    /// Snapshot of evidence links at the time this event was emitted.
+    pub evidence_links: Vec<EvidenceLink>,
 }
 
 /// Snapshot of a review before an edit. Stored in ascending revision_index order (0 = first edit).
@@ -843,6 +858,8 @@ pub struct ContractLimits {
     /// (`MAX_FEATURED_PROJECTS`). When this limit is reached, the oldest
     /// featured project is evicted (FIFO) to make room for the new one.
     pub max_featured_projects: u32,
+    /// Maximum evidence links attachable to a single review (`MAX_EVIDENCE_LINKS_PER_REVIEW`).
+    pub max_evidence_links_per_review: u32,
 }
 
 /// Aggregated, read-only contract configuration snapshot. Frontends and
