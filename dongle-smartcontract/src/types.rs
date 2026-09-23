@@ -166,6 +166,9 @@ pub struct Review {
     /// Does not automatically trigger hiding — that requires an explicit admin
     /// action.
     pub report_count: u32,
+
+    /// Optional list of attached evidence links (max MAX_EVIDENCE_LINKS_PER_REVIEW).
+    pub evidence_links: Vec<EvidenceLink>,
 }
 
 /// Identifies the lifecycle event that produced a `ReviewEventData` emission.
@@ -205,6 +208,8 @@ pub struct ReviewEventData {
     pub created_at: u64,
     /// Timestamp of the most recent modification at the time of the event.
     pub updated_at: u64,
+    /// Snapshot of evidence links at the time this event was emitted.
+    pub evidence_links: Vec<EvidenceLink>,
 }
 
 /// Snapshot of a review before an edit. Stored in ascending revision_index order (0 = first edit).
@@ -1352,6 +1357,8 @@ pub struct ContractLimits {
     /// (`MAX_FEATURED_PROJECTS`). When this limit is reached, the oldest
     /// featured project is evicted (FIFO) to make room for the new one.
     pub max_featured_projects: u32,
+    /// Maximum evidence links attachable to a single review (`MAX_EVIDENCE_LINKS_PER_REVIEW`).
+    pub max_evidence_links_per_review: u32,
 }
 
 /// Aggregated, read-only contract configuration snapshot. Frontends and
