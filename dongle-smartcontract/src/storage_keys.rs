@@ -269,4 +269,6 @@ pub enum FeeHistoryKey {
     FeeConfigHistoryCount,
     /// Fee configuration history entry by index.
     FeeConfigHistoryEntry(u32),
+    /// Configurable maximum number of reviews allowed per project.
+    MaxReviewsPerProject,
 }

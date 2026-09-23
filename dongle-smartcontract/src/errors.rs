@@ -70,8 +70,8 @@ pub enum ContractError {
     NotPendingTransferRecipient = 32,
     /// Verification has expired and is no longer active
     VerificationExpired = 33,
-    /// Contract has already been initialized
-    AlreadyInitialized = 34,
+    /// Project with this name or slug already exists
+    ProjectAlreadyExists = 34,
     /// Invalid CID format
     InvalidCid = 35,
     /// Invalid input provided
@@ -170,6 +170,8 @@ pub enum ContractError {
     LinkedProjectNotFound = 79,
     /// The maintainer is already on the project maintainer list.
     AlreadyMaintainerAdded = 80,
+    /// The dispute is not in a pending state and cannot be resolved.
+    DisputeNotPending = 81,
 }
 
 pub type Error = ContractError;

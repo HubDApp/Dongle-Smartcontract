@@ -8,11 +8,11 @@ use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, FeeHistoryKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::types::{
     AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
 };
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeeManager;
 

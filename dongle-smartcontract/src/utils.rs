@@ -1,6 +1,6 @@
 //! Utility functions and the `Utils` struct used throughout the contract.
 
-use soroban_sdk::{Env, Map, String, Vec};
+use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
@@ -620,55 +620,5 @@ impl Utils {
                 }
             }
         }
-    }
-
-    // ────────────────────────────────────────────────────────────────────
-    // Vec helpers
-    // ────────────────────────────────────────────────────────────────────
-
-    /// Remove the first occurrence of `item` from `vec` and return the new vec.
-    /// If `item` is not found, returns a clone of the original vec unchanged.
-    pub fn remove_item_from_vec<T>(
-        env: &Env,
-        vec: &soroban_sdk::Vec<T>,
-        item: &T,
-    ) -> soroban_sdk::Vec<T>
-    where
-        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
-            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
-            + PartialEq,
-    {
-        let mut result = soroban_sdk::Vec::new(env);
-        let mut removed = false;
-        for i in 0..vec.len() {
-            if let Some(v) = vec.get(i) {
-                if !removed && &v == item {
-                    removed = true;
-                } else {
-                    result.push_back(v);
-                }
-            }
-        }
-        result
-    }
-
-    /// Add `item` to `vec` only if it is not already present.
-    /// Returns `true` if the item was added, `false` if it was already present.
-    pub fn add_unique_to_vec<T>(vec: &mut soroban_sdk::Vec<T>, item: &T) -> bool
-    where
-        T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>
-            + soroban_sdk::TryFromVal<Env, soroban_sdk::Val>
-            + PartialEq
-            + Clone,
-    {
-        for i in 0..vec.len() {
-            if let Some(v) = vec.get(i) {
-                if &v == item {
-                    return false;
-                }
-            }
-        }
-        vec.push_back(item.clone());
-        true
     }
 }

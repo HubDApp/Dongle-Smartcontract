@@ -22,6 +22,7 @@ use crate::types::{
     VerificationStatus,
 };
 use crate::utils::Utils;
+use crate::validation::validate_registration_params;
 use alloc::vec;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -118,37 +119,17 @@ impl ProjectRegistry {
     /// Called **before** any storage mutation begins so that the function
     /// is purely read-only (aside from auth checks). This keeps the
     /// validate-then-mutate boundary clean.
+    ///
+    /// Field-format checks are delegated to the canonical
+    /// `validate_registration_params` function in `validation.rs`; this
+    /// function adds the uniqueness and capacity checks that require storage
+    /// access.
     fn validate_registration_fields(
         env: &Env,
         params: &ProjectRegistrationParams,
     ) -> Result<(), ContractError> {
-        // Field format validation
-        Utils::validate_project_name(&params.name)?;
-        Utils::validate_project_slug(&params.slug)?;
-        Utils::validate_description(&params.description)?;
-        Utils::validate_category_field(&params.category)?;
-
-        if let Some(website) = &params.website {
-            Utils::validate_website(website)?;
-        }
-        if let Some(value) = &params.bounty_url {
-            Utils::validate_website(value)?;
-        }
-        if let Some(logo_cid) = &params.logo_cid {
-            Utils::validate_logo_cid(logo_cid)?;
-        }
-        if let Some(metadata_cid) = &params.metadata_cid {
-            Utils::validate_metadata_cid(metadata_cid)?;
-        }
-        if let Some(repo_url) = &params.repository_url {
-            Utils::validate_website(repo_url)?;
-        }
-        if let Some(tags) = &params.tags {
-            Utils::validate_tags(tags)?;
-        }
-        if let Some(social_links) = &params.social_links {
-            Utils::validate_social_links(social_links)?;
-        }
+        // Field format validation — single canonical entry point (issue #499)
+        validate_registration_params(env, params)?;
 
         // Reserved-name check
         Self::check_reserved_name(env, &params.name)?;
@@ -889,7 +870,7 @@ impl ProjectRegistry {
     }
 
     pub fn get_project_by_slug(env: &Env, slug: String) -> Option<Project> {
-        let canonical_slug = Utils::to_lowercase(env, &slug);
+        let _canonical_slug = Utils::to_lowercase(env, &slug);
         let project_id: u64 = env
             .storage()
             .persistent()
@@ -2703,6 +2684,19 @@ impl ProjectRegistry {
         Self::append_string_bytes(env, &mut buf, description);
         let hash = env.crypto().sha256(&buf);
         soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Validate that a lifecycle status transition is permitted.
+    fn validate_lifecycle_transition(
+        from: ProjectLifecycleStatus,
+        to: ProjectLifecycleStatus,
+    ) -> Result<(), ContractError> {
+        // All transitions between different statuses are permitted.
+        // The caller already guards against self-transitions before calling this.
+        if from == to {
+            return Err(ContractError::InvalidStatus);
+        }
+        Ok(())
     }
 
     /// Update a project's lifecycle status.

@@ -31,6 +31,7 @@ mod subscription_registry;
 mod timelock_manager;
 pub mod types;
 pub mod utils;
+mod validation;
 mod verification_registry;
 
 #[cfg(test)]
