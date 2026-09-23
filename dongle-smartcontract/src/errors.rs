@@ -178,6 +178,12 @@ pub enum ContractError {
     InvalidEvidenceLink = 83,
     /// Evidence link URL exceeds MAX_EVIDENCE_LINK_URL_LEN bytes.
     EvidenceLinkTooLong = 84,
+    /// The requested review has been archived and is no longer in primary storage.
+    /// Use `get_archived_review` to retrieve the compact archived record.
+    ReviewArchived = 85,
+    /// The requested review has not been archived; the operation requires an
+    /// archived review (e.g., `set_archived_review_arweave_tx`).
+    ReviewNotArchived = 86,
 }
 
 pub type Error = ContractError;

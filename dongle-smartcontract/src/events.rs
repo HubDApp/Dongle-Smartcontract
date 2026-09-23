@@ -1,6 +1,6 @@
 use crate::types::{
-    AdminActionType, DigestFrequency, NotificationKind, ProjectLifecycleStatus, ReviewAction,
-    ReviewEventData, VerificationStatus,
+    AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
+    ReviewAction, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -2631,6 +2631,64 @@ pub fn publish_smart_folder_deleted_event(env: &Env, smart_folder_id: u64, owner
             symbol_short!("DELETED"),
             smart_folder_id,
             owner,
+        ),
+        event_data,
+    );
+}
+
+// ── Review Archival Events (#804) ─────────────────────────────────────────────
+
+/// Emitted for each review archived by `archive_old_reviews`.
+///
+/// Off-chain consumers (indexers, archival jobs) should subscribe to
+/// `(REVIEW, ARCHIVED, project_id)` and persist the full review payload to
+/// permanent storage (e.g., Arweave, IPFS) using the included fields.
+/// The on-chain `ArchivedReview` record has a shorter TTL than active reviews,
+/// so off-chain persistence is required for long-term retention.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewArchivedEvent {
+    /// ID of the project the archived review belonged to.
+    pub project_id: u64,
+    /// Address of the reviewer whose review was archived.
+    pub reviewer: Address,
+    /// Rating of the archived review (1–5).
+    pub rating: u32,
+    /// Canonical content CID of the archived review (`None` if no off-chain content).
+    pub content_cid: Option<soroban_sdk::String>,
+    /// Unix timestamp (seconds) when the original review was submitted.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the review was last modified before archival.
+    pub updated_at: u64,
+    /// Unix timestamp (seconds) when the review was archived.
+    pub archived_at: u64,
+}
+
+pub fn publish_review_archived_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    rating: u32,
+    content_cid: Option<soroban_sdk::String>,
+    created_at: u64,
+    updated_at: u64,
+) {
+    let archived_at = env.ledger().timestamp();
+    let event_data = ReviewArchivedEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        rating,
+        content_cid,
+        created_at,
+        updated_at,
+        archived_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("ARCHIVED"),
+            project_id,
+            reviewer,
         ),
         event_data,
     );

@@ -40,6 +40,42 @@ for the full policy.
 
 ### Added
 
+- **#804: Review archival to cheaper storage with query access and automatic job.**
+  Reviews older than 2 years (configurable via `REVIEW_ARCHIVE_AGE_SECONDS = 63_072_000`)
+  can now be archived by an admin to a compact, shorter-TTL on-chain record, freeing
+  primary persistent storage rent. New contract entrypoints:
+  - `archive_old_reviews(admin, project_id, batch_size)` — admin-only; moves eligible
+    reviews to `ArchivedReview` records at 30-day TTL (vs 60-day active TTL), removes
+    them from primary storage and active indexes, emits `ReviewArchivedEvent` for each
+    archived review so off-chain indexers can persist the full payload to permanent
+    storage (Arweave/IPFS). Processes up to `MAX_ARCHIVE_BATCH_SIZE = 50` reviews per
+    call; call repeatedly for large projects. Project stats
+    (`rating_sum`, `review_count`, `average_rating`) are preserved.
+  - `get_archived_review(project_id, reviewer)` — returns the compact `ArchivedReview`
+    record (rating, content CID, timestamps, optional Arweave TX ID) for a specific
+    archived review.
+  - `list_archived_reviews(project_id, start_index, limit)` — paginated enumeration
+    of all archived reviews for a project (uses `ProjectArchivedReviews` index).
+  - `set_archived_review_arweave_tx(admin, project_id, reviewer, arweave_tx_id)` —
+    admin-only; records the Arweave transaction ID after an off-chain job persists the
+    review payload to permanent storage.
+  New types: `ArchivedReview` (compact archive record in `types.rs`), `EvidenceLink`
+  (URL + dead-link flag, also resolves a pre-existing missing type).
+  New event: `ReviewArchivedEvent` (`REVIEW`/`ARCHIVED` topics) carrying the full
+  review snapshot for off-chain consumers.
+  New errors: `ReviewArchived = 85` (use `get_archived_review` instead),
+  `ReviewNotArchived = 86` (for `set_archived_review_arweave_tx` guard).
+  New storage keys: `ExtensionKey2::ArchivedReview(u64, Address)` and
+  `ExtensionKey2::ProjectArchivedReviews(u64)`.
+  New constants: `REVIEW_ARCHIVE_AGE_SECONDS`, `MAX_ARCHIVE_BATCH_SIZE`,
+  `LEDGER_THRESHOLD_ARCHIVED_REVIEW`, `LEDGER_BUMP_ARCHIVED_REVIEW`.
+  New script: `scripts/archive_old_reviews.sh` — cron-ready automated archival
+  job that iterates all projects, archives in batches, handles retries, supports
+  `--dry-run`, `--project-ids`, and `--start-id` flags, and emits instructions
+  for recording Arweave TX IDs back to the contract.
+  Tests in `tests::review_archive` (18 tests) cover: admin-only enforcement, 2-year
+  threshold, mixed-age reviews, stats preservation, paginated listing, field accuracy,
+  Arweave TX recording, batch capping, idempotency, and user-index cleanup.
 - **#666: Batch TTL extension fail-fast and error reporting.** `extend_projects_ttl`
   and `extend_reviews_ttl` now return `BatchTtlResult` (new type in `types.rs`)
   instead of a bare `u32`. The struct carries `refreshed` (count of items

@@ -184,6 +184,9 @@ fn extension_key2_variant_count() -> usize {
     // One entry per variant in ExtensionKey2 (keep in sync with storage_keys.rs).
     let variants: &[&str] = &[
         "ReviewEvidenceLinks",
+        // Issue #804: Review archival to cheaper storage
+        "ArchivedReview",
+        "ProjectArchivedReviews",
     ];
     variants.len()
 }

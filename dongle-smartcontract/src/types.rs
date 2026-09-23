@@ -124,6 +124,21 @@ pub struct ProjectStats {
     pub average_rating: u32,
 }
 
+/// A single URL attached to a review as supporting evidence.
+///
+/// The `is_dead` flag is set by admins via `mark_evidence_link_dead` when a
+/// link is found to be broken or invalid. It is stored inline so the link
+/// record is preserved for audit purposes even after it is marked dead.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceLink {
+    /// The URL string (http:// or https://).
+    pub url: String,
+    /// Admin-settable dead-link flag. `false` by default.
+    /// Set to `true` via `mark_evidence_link_dead` when a link is broken or invalid.
+    pub is_dead: bool,
+}
+
 /// A single on-chain review submitted for a project.
 ///
 /// Reviews are keyed by `(project_id, reviewer)` — one review per reviewer
@@ -1242,6 +1257,40 @@ pub struct ReviewTombstone {
     pub reviewer: Address,
     /// Unix timestamp (seconds) when the review was deleted.
     pub deleted_at: u64,
+}
+
+/// Compact on-chain record created when a review is archived by `archive_old_reviews`.
+///
+/// The full `Review` is removed from primary persistent storage (freeing storage
+/// rent) and replaced by this lighter record stored at a shorter TTL. Off-chain
+/// consumers that observe the `ReviewArchivedEvent` should persist the full
+/// review payload to permanent storage (e.g., Arweave/IPFS) before the on-chain
+/// archived record expires.
+///
+/// `get_archived_review` returns this type so callers can still query basic
+/// review metadata and the Arweave/IPFS reference after archival.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchivedReview {
+    /// ID of the project the review belonged to.
+    pub project_id: u64,
+    /// Address of the reviewer.
+    pub reviewer: Address,
+    /// Rating at the time of archival (1–5).
+    pub rating: u32,
+    /// Canonical content CID pointing to off-chain review content.
+    /// `None` when the original review had no off-chain content.
+    pub content_cid: Option<String>,
+    /// Unix timestamp (seconds) when the original review was submitted.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the review was last updated before archival.
+    pub updated_at: u64,
+    /// Unix timestamp (seconds) when this review was archived.
+    pub archived_at: u64,
+    /// Optional Arweave transaction ID set by an off-chain job after the full
+    /// review payload has been written to permanent storage. `None` until an
+    /// off-chain indexer calls `set_archived_review_arweave_tx`.
+    pub arweave_tx_id: Option<String>,
 }
 
 /// Optional anti-sybil review eligibility constraints.

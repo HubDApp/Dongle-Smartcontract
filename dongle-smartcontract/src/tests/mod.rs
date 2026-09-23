@@ -146,3 +146,5 @@ mod notifications;
 
 // Issue #815: Bookmark folders and smart folders
 mod bookmark_folders;
+// Issue #804: Review archival to cheaper storage
+mod review_archive;
