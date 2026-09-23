@@ -28,6 +28,7 @@ pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
 mod subscription_registry;
+mod notification_registry;
 mod timelock_manager;
 pub mod types;
 pub mod utils;
@@ -677,6 +678,39 @@ impl DongleContract {
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
         ReviewRegistry::list_reviews_sorted(&env, project_id, start_index, limit, sort_mode)
+    }
+
+    // --- Review Content Integrity (#809) ---
+
+    /// Verify the content integrity of a stored review.
+    ///
+    /// Recomputes the SHA-256 seal over the review's current on-chain fields
+    /// (`project_id`, `reviewer`, `rating`, `content_cid`) and compares it
+    /// against the integrity record written at create / update time.
+    ///
+    /// Returns:
+    /// - `ReviewIntegrityStatus::Valid` — content matches the seal.
+    /// - `ReviewIntegrityStatus::Tampered` — mismatch detected; a
+    ///   `ReviewIntegrityViolationEvent` is emitted as a warning.
+    /// - `ReviewIntegrityStatus::Unverifiable` — no seal exists (review
+    ///   predates sealing, or the review itself does not exist).
+    pub fn verify_review_integrity(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> crate::types::ReviewIntegrityStatus {
+        ReviewRegistry::verify_review_integrity(&env, project_id, reviewer)
+    }
+
+    /// Return the stored integrity seal record for a review.
+    ///
+    /// Returns `None` when no seal exists (review predates integrity sealing).
+    pub fn get_review_integrity_record(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<crate::types::ReviewIntegrityRecord> {
+        ReviewRegistry::get_review_integrity_record(&env, project_id, reviewer)
     }
 
     // --- Verification Registry ---
@@ -1584,6 +1618,68 @@ impl DongleContract {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
             &env, user, start_index, limit,
         )
+    }
+
+    // --- Notification Preferences ---
+
+    pub fn set_notification_prefs(
+        env: Env,
+        user: Address,
+        opted_out: bool,
+        notify_on_all: bool,
+        digest_frequency: crate::types::DigestFrequency,
+        kinds: soroban_sdk::Vec<crate::types::NotificationKind>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_notification_prefs(
+            &env, user, opted_out, notify_on_all, digest_frequency, kinds,
+        )
+    }
+
+    pub fn get_notification_prefs(
+        env: Env,
+        user: Address,
+    ) -> Option<crate::types::UserNotificationPrefs> {
+        crate::notification_registry::NotificationRegistry::get_notification_prefs(&env, user)
+    }
+
+    pub fn set_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        opted_out: bool,
+        kinds: Option<soroban_sdk::Vec<crate::types::NotificationKind>>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_project_notification_override(
+            &env, user, project_id, opted_out, kinds,
+        )
+    }
+
+    pub fn get_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Option<crate::types::ProjectNotificationOverride> {
+        crate::notification_registry::NotificationRegistry::get_project_notification_override(
+            &env, user, project_id,
+        )
+    }
+
+    pub fn get_digest_queue(
+        env: Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::notification_registry::NotificationRegistry::get_digest_queue(
+            &env, user, start_index, limit,
+        )
+    }
+
+    pub fn flush_digest_queue(env: Env, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::flush_digest_queue(&env, user)
     }
 
     // --- Bookmark Registry ---

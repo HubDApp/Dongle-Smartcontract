@@ -1329,3 +1329,101 @@ pub struct BatchTtlResult {
     /// `skipped_project_ids` / `skipped_reviewer_indices` instead for reviews.
     pub skipped_ids: Vec<u64>,
 }
+
+// ── Notification preference types (#811) ──────────────────────────────────────
+
+/// How frequently the user wants to receive digest notifications.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DigestFrequency {
+    /// No digest — immediate event-based notifications only.
+    None,
+    /// Receive a daily digest of queued project updates.
+    Daily,
+    /// Receive a weekly digest of queued project updates.
+    Weekly,
+}
+
+/// The kind of project update that can trigger a notification.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationKind {
+    /// The project's metadata was updated by its owner.
+    ProjectUpdate,
+    /// The project's verification was approved by an admin.
+    VerificationApproved,
+    /// The project's verification was rejected by an admin.
+    VerificationRejected,
+    /// The project's verification was revoked by an admin.
+    VerificationRevoked,
+    /// The project was archived.
+    ProjectArchived,
+    /// The project was reactivated from an archived state.
+    ProjectReactivated,
+}
+
+/// Global notification preferences for a user.
+///
+/// Controls which project-update events are forwarded to the user
+/// across all projects they follow, and whether digests are enabled.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UserNotificationPrefs {
+    /// Digest frequency preference.
+    pub digest_frequency: DigestFrequency,
+    /// When `true` the user wants notifications for every `NotificationKind`
+    /// on every followed project (overrides `kinds`).
+    pub notify_on_all: bool,
+    /// When `true` the user has globally opted out and receives no notifications.
+    pub opted_out: bool,
+    /// Specific notification kinds the user wants when `notify_on_all` is false.
+    pub kinds: Vec<NotificationKind>,
+}
+
+/// Per-project notification override for a specific user.
+///
+/// When present, overrides the user's global `UserNotificationPrefs`
+/// for the given project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectNotificationOverride {
+    /// When `true`, no notifications for this project regardless of global prefs.
+    pub opted_out: bool,
+    /// `Some(kinds)` overrides the user's global `kinds` list for this project.
+    /// `None` means fall back to global preferences.
+    pub kinds: Option<Vec<NotificationKind>>,
+}
+
+// ── Review content integrity types (#809) ────────────────────────────────────
+
+/// Result of a review integrity verification check.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewIntegrityStatus {
+    /// The review's current content matches the stored integrity seal.
+    Valid,
+    /// The review's current content does NOT match the stored seal.
+    /// The on-chain data may have been tampered with or the seal is stale.
+    Tampered,
+    /// No integrity seal exists for this review (e.g. submitted before
+    /// integrity sealing was enabled). The review is unverifiable.
+    Unverifiable,
+}
+
+/// Stored integrity record for a single review.
+///
+/// Written at create / update time and read back by `verify_review_integrity`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewIntegrityRecord {
+    /// SHA-256 seal over the canonical review payload at the time of last write.
+    /// 32-byte SHA-256 digest stored as raw bytes.
+    pub integrity_hash: soroban_sdk::Bytes,
+    /// Ledger timestamp (seconds) when the seal was last written.
+    pub sealed_at: u64,
+    /// The content CID that was included in the sealed payload, if any.
+    /// `None` means the review had no off-chain content when sealed.
+    pub sealed_content_cid: Option<String>,
+    /// The rating that was included in the sealed payload.
+    pub sealed_rating: u32,
+}

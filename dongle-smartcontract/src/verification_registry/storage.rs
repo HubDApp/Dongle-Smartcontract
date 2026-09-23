@@ -289,6 +289,11 @@ impl VerificationRegistry {
             .set(&StorageKey::Project(project_id), &project);
 
         publish_verification_approved_event(env, project_id, admin.clone(), now);
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::VerificationApproved,
+        );
 
         AdminActionLog::record_action(
             env,
@@ -363,6 +368,11 @@ impl VerificationRegistry {
         Self::remove_pending_request(env, record.request_id);
 
         publish_verification_rejected_event(env, project_id, admin.clone(), now);
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::VerificationRejected,
+        );
 
         AdminActionLog::record_action(
             env,
@@ -634,6 +644,11 @@ impl VerificationRegistry {
             .set(&StorageKey::Project(project_id), &project);
 
         publish_verification_revoked_event(env, project_id, admin.clone(), reason.clone());
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::VerificationRevoked,
+        );
 
         AdminActionLog::record_action(
             env,

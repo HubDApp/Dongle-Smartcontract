@@ -140,3 +140,6 @@ mod collection_capacity_627_tests;
 
 // Issue #470: pay_fee guards for archived project and active verification status
 mod pay_fee_guards_470;
+
+// Issue #811: Notification preference registry
+mod notifications;

@@ -1,5 +1,6 @@
 use crate::types::{
-    AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus,
+    AdminActionType, DigestFrequency, NotificationKind, ProjectLifecycleStatus, ReviewAction,
+    ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -2182,6 +2183,242 @@ pub fn publish_changelog_removed_event(
             symbol_short!("CHANGELOG"),
             symbol_short!("REMOVED"),
             project_id,
+        ),
+        event_data,
+    );
+}
+
+// ── Notification Events (#811) ────────────────────────────────────────────────
+
+/// Emitted on a project update that followers should be notified about.
+///
+/// Indexers subscribe to `(PROJECT, NOTIF, project_id)` topics to fan out
+/// the notification to each follower. The `follower_count` field allows the
+/// indexer to allocate its fanout work without a separate chain read.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUpdateNotificationEvent {
+    /// The project that was updated.
+    pub project_id: u64,
+    /// What kind of update occurred.
+    pub update_kind: NotificationKind,
+    /// Cached follower count at the time of the event.
+    pub follower_count: u32,
+    /// Ledger timestamp when the event was emitted.
+    pub timestamp: u64,
+}
+
+/// Emitted when a user's digest queue is flushed and a digest is scheduled
+/// for delivery.
+///
+/// Off-chain services consume this event to build and send the actual
+/// digest message (email, push, etc.).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UserDigestScheduledEvent {
+    /// The user whose digest is being dispatched.
+    pub user: Address,
+    /// Project IDs included in this digest batch.
+    pub queued_project_ids: Vec<u64>,
+    /// The frequency that triggered this digest.
+    pub frequency: DigestFrequency,
+    /// Ledger timestamp when the digest was scheduled.
+    pub timestamp: u64,
+}
+
+/// Emitted when a user updates their notification preferences.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NotificationPrefsUpdatedEvent {
+    pub user: Address,
+    pub opted_out: bool,
+    pub digest_frequency: DigestFrequency,
+    pub timestamp: u64,
+}
+
+/// Emitted when a user sets a per-project notification override.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectNotifOverrideSetEvent {
+    pub user: Address,
+    pub project_id: u64,
+    pub opted_out: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_update_notification_event(
+    env: &Env,
+    project_id: u64,
+    update_kind: NotificationKind,
+    follower_count: u32,
+) {
+    let event_data = ProjectUpdateNotificationEvent {
+        project_id,
+        update_kind: update_kind.clone(),
+        follower_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("NOTIF"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_user_digest_scheduled_event(
+    env: &Env,
+    user: Address,
+    queued_project_ids: Vec<u64>,
+    frequency: DigestFrequency,
+) {
+    let event_data = UserDigestScheduledEvent {
+        user: user.clone(),
+        queued_project_ids,
+        frequency,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("USER"),
+            symbol_short!("DIGEST"),
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_notification_prefs_updated_event(
+    env: &Env,
+    user: Address,
+    opted_out: bool,
+    digest_frequency: DigestFrequency,
+) {
+    let event_data = NotificationPrefsUpdatedEvent {
+        user: user.clone(),
+        opted_out,
+        digest_frequency,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("USER"),
+            symbol_short!("NFPREF"),
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_notif_override_set_event(
+    env: &Env,
+    user: Address,
+    project_id: u64,
+    opted_out: bool,
+) {
+    let event_data = ProjectNotifOverrideSetEvent {
+        user: user.clone(),
+        project_id,
+        opted_out,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("NFOVRRD"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+// ── Review Content Integrity Events (#809) ────────────────────────────────────
+
+/// Emitted when a review integrity seal is written (on create or update).
+///
+/// Indexers can subscribe to `(REVIEW, SEALED, project_id)` to track seal history.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewIntegritySealedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub sealed_rating: u32,
+    pub has_content_cid: bool,
+    pub timestamp: u64,
+}
+
+/// Emitted by `verify_review_integrity` when the live review content
+/// does NOT match its stored seal — indicating possible tampering.
+///
+/// Off-chain monitoring tools should alert on this event.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewIntegrityViolationEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    /// The rating currently stored on-chain.
+    pub current_rating: u32,
+    /// The rating that was present when the seal was written.
+    pub sealed_rating: u32,
+    /// Whether the current on-chain review has a content CID.
+    pub current_has_cid: bool,
+    /// Whether the sealed snapshot had a content CID.
+    pub sealed_has_cid: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_integrity_sealed_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    sealed_rating: u32,
+    has_content_cid: bool,
+) {
+    let event_data = ReviewIntegritySealedEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        sealed_rating,
+        has_content_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("SEALED"),
+            project_id,
+            reviewer,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_review_integrity_violation_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    current_rating: u32,
+    sealed_rating: u32,
+    current_has_cid: bool,
+    sealed_has_cid: bool,
+) {
+    let event_data = ReviewIntegrityViolationEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        current_rating,
+        sealed_rating,
+        current_has_cid,
+        sealed_has_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("TAMPER"),
+            project_id,
+            reviewer,
         ),
         event_data,
     );

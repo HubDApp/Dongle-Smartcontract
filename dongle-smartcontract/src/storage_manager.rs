@@ -4,7 +4,7 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ReviewIntegrityKey, StorageKey};
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
@@ -188,6 +188,16 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for a review integrity seal (#809).
+    pub fn extend_review_integrity_seal_ttl(env: &Env, project_id: u64, reviewer: &Address) {
+        Self::extend_if_exists(
+            env,
+            &ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer.clone()),
+            LEDGER_THRESHOLD_REVIEW,
+            LEDGER_BUMP_REVIEW,
+        );
+    }
+
     // ── Verification Data TTL Management ──────────────────────────────────
 
     /// Extend TTL for verification record
@@ -355,6 +365,23 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &ExtensionKey::UserSubscriptions(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for notification preferences and digest queue (user-scoped).
+    pub fn extend_notification_prefs_ttl(env: &Env, user: &Address) {
+        use crate::storage_keys::NotificationKey;
+        Self::extend_if_exists(
+            env,
+            &NotificationKey::UserNotificationPrefs(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &NotificationKey::UserDigestQueue(user.clone()),
             LEDGER_THRESHOLD_USER,
             LEDGER_BUMP_USER,
         );
