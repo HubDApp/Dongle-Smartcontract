@@ -172,76 +172,12 @@ pub enum ContractError {
     AlreadyMaintainerAdded = 80,
     /// The dispute is not in a pending state and cannot be resolved.
     DisputeNotPending = 81,
-    /// Recommendation referenced by the operation does not exist.
-    RecommendationNotFound = 82,
-    /// User has already submitted thumbs-up / thumbs-down feedback for this recommendation.
-    /// Feedback cannot be rewritten (see issue #820 — feedback is append-only to preserve
-    /// an auditable paper-trail for recommendation improvement).
-    RecommendationFeedbackAlreadyGiven = 83,
-    /// Recommendation label string exceeds the configured length limit.
-    RecommendationLabelTooLong = 84,
-    /// Engagement recording rejected because impressions are required before clicks.
-    /// (Prevents CTR inflation via click-only spamming.)
-    RecommendationNoImpression = 85,
-    /// The combination of audience + reference project specified for the
-    /// recommendation is invalid (e.g. Similar recs require a reference project).
-    RecommendationInvalidContext = 86,
-    /// Attempted to record feedback from a user who does not match the
-    /// recommendation's restricted audience (when audience.is_some).
-    RecommendationAudienceMismatch = 87,
-    /// Community collection referenced by the operation does not exist.
-    CommunityColNotFound = 88,
-    /// Community-collection name already in use by another community collection.
-    CommunityColNameExists = 89,
-    /// Community-collection name or description violates configured length limits.
-    CommunityColInvalidMetadata = 90,
-    /// Community-collection project-membership limit reached; cannot add more.
-    CommunityColFull = 91,
-    /// Operation restricted to the creator or an active curator but caller is neither.
-    CommunityColNotCurator = 92,
-    /// Voter has already cast a vote for this project in this collection. Voting
-    /// is append-only per voter per project per collection.
-    CommunityColVoteAlreadyCast = 93,
-    /// Project is already explicitly included in the community collection.
-    CommunityColAlreadyIncluded = 94,
-    /// Project is not in the community collection (for removal operations).
-    CommunityColNotIncluded = 95,
-    /// A curator set can never be empty — removing the last curator (or the creator)
-    /// would strand the collection.
-    CommunityColCuratorsEmpty = 96,
-    /// Creator cannot be removed from the curator set — creator status is permanent.
-    CommunityColCreatorIsImmutable = 97,
-    /// Revenue share cannot exceed 10_000 bps; creator share + per-curator allocation
-    /// sum must be ≤ 10_000 bps.
-    CommunityColRevenueShareInvalid = 98,
-    /// Vote thresholds must both be zero (disabled) or both be > zero (to keep
-    /// the approval/disapproval symmetry obvious and avoid accidental open-gate
-    /// configurations).
-    CommunityColThresholdInvalid = 99,
-    /// Template collections cannot accept votes, revenue attribution, or member
-    /// edits — clone them first to produce a working collection.
-    CommunityColIsTemplate = 100,
-    /// The referenced pre-defined template id is not in the
-    /// `CommunityCollectionTemplateId` enum.
-    CommunityColTemplateUnknown = 101,
-    /// Admin flagged this community collection as featured but a global cap on
-    /// featured community collections was reached.
-    CommunityColFeaturedCapExceeded = 102,
-    /// Social analytics: target project passed to the analytics endpoint does
-    /// not exist in the registry.
-    SocialAnalyticsProjectNotFound = 103,
-    /// Social analytics: caller passed `window_start_day > window_end_day`.
-    SocialAnalyticsInvalidWindow = 104,
-    /// Social analytics: daily-checkpoint storage has a cap per project so that
-    /// the per-project index cannot grow indefinitely.
-    SocialAnalyticsCheckpointCapExceeded = 105,
-    /// Social analytics: peer-comparison set requires at least 1 other project
-    /// in the same category to run a meaningful comparison.
-    SocialAnalyticsNoPeers = 106,
-    /// Social analytics: the export/report endpoint requires at least one
-    /// checkpoint to produce a "growth over time" report. Callers may run the
-    /// checkpoint endpoint first.
-    SocialAnalyticsNoCheckpoints = 107,
+    /// Too many evidence links supplied (max MAX_EVIDENCE_LINKS_PER_REVIEW).
+    TooManyEvidenceLinks = 82,
+    /// Evidence link URL is empty or has an invalid scheme.
+    InvalidEvidenceLink = 83,
+    /// Evidence link URL exceeds MAX_EVIDENCE_LINK_URL_LEN bytes.
+    EvidenceLinkTooLong = 84,
 }
 
 pub type Error = ContractError;

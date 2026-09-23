@@ -43,7 +43,7 @@
 //! directly to the host storage map.  The two-enum split adds zero runtime
 //! overhead compared to a single enum.
 
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal, String, Val};
 
 // ── Capacity guards ──────────────────────────────────────────────────────────
@@ -179,6 +179,15 @@ fn extension_key_variant_count() -> usize {
     variants.len()
 }
 
+/// Count the number of variants in `ExtensionKey2`.
+fn extension_key2_variant_count() -> usize {
+    // One entry per variant in ExtensionKey2 (keep in sync with storage_keys.rs).
+    let variants: &[&str] = &[
+        "ReviewEvidenceLinks",
+    ];
+    variants.len()
+}
+
 // ── Collision detection ──────────────────────────────────────────────────────
 
 #[test]
@@ -223,6 +232,27 @@ fn extension_key_variant_count_below_warn_threshold() {
     );
 }
 
+#[test]
+fn extension_key2_variant_count_within_soroban_cap() {
+    let count = extension_key2_variant_count();
+    assert!(
+        count <= SOROBAN_CONTRACTTYPE_VARIANT_CAP,
+        "ExtensionKey2 has {count} variants, exceeding the Soroban cap of \
+         {SOROBAN_CONTRACTTYPE_VARIANT_CAP}. Introduce ExtensionKey3 before adding more variants."
+    );
+}
+
+#[test]
+fn extension_key2_variant_count_below_warn_threshold() {
+    let count = extension_key2_variant_count();
+    assert!(
+        count < VARIANT_WARN_THRESHOLD,
+        "ExtensionKey2 has {count} variants (>= warn threshold {VARIANT_WARN_THRESHOLD}). \
+         Consider splitting the enum to stay below the Soroban cap of \
+         {SOROBAN_CONTRACTTYPE_VARIANT_CAP}."
+    );
+}
+
 // ── Cross-enum isolation ─────────────────────────────────────────────────────
 
 /// Verify that `StorageKey` and `ExtensionKey` variants with the same
@@ -250,6 +280,35 @@ fn storage_key_and_extension_key_are_distinct_types() {
         ek_val.get_payload(),
         "StorageKey and ExtensionKey must produce distinct encoded values \
          for the same discriminant index"
+    );
+}
+
+/// Verify that `ExtensionKey2::ReviewEvidenceLinks` does not collide with
+/// `ExtensionKey` or `StorageKey` variants that share the same discriminant
+/// index (0).
+///
+/// Because `ExtensionKey2` is a different XDR union type, its variant-0
+/// encodes differently from variant-0 of the other two enums.
+#[test]
+fn extension_key2_review_evidence_links_does_not_collide_with_other_enums() {
+    let env = Env::default();
+    let _ = env.register(crate::DongleContract, ());
+    let addr = Address::generate(&env);
+
+    // Variant-index-0 of StorageKey, ExtensionKey, and ExtensionKey2.
+    let sk_val: Val = StorageKey::Project(0u64).into_val(&env);
+    let ek_val: Val = ExtensionKey::ClaimRequest(0u64).into_val(&env);
+    let ek2_val: Val = ExtensionKey2::ReviewEvidenceLinks(0u64, addr).into_val(&env);
+
+    assert_ne!(
+        sk_val.get_payload(),
+        ek2_val.get_payload(),
+        "ExtensionKey2 and StorageKey must produce distinct encoded values"
+    );
+    assert_ne!(
+        ek_val.get_payload(),
+        ek2_val.get_payload(),
+        "ExtensionKey2 and ExtensionKey must produce distinct encoded values"
     );
 }
 

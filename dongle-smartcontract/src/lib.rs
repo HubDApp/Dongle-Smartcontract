@@ -30,6 +30,7 @@ pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
 mod subscription_registry;
+mod notification_registry;
 mod timelock_manager;
 pub mod types;
 pub mod utils;
@@ -55,18 +56,14 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, BatchTtlResult, ChangelogEntry, ChangelogSortMode,
-    ClaimRequest, Collection, CommunityCollection, CommunityCollectionRole,
-    CommunityCollectionTemplateId, CommunityCollectionVote, CommunityColInclusionStatus,
-    CommunityColRevenueSnapshot, ContractClaimRequest, ContractConfigView, DependencyRef,
-    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
-    FeeRefundRecord, Project, ProjectDependency, ProjectEngagementMetric, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectReport, ProjectSocialAnalyticsExport,
-    ProjectSocialDailyCheckpoint, ProjectSocialPeerRow, ProjectSortMode, ProjectStats,
-    ProjectUpdateParams, ProposalPayload, Recommendation, RecommendationAlgorithm,
-    RecommendationAnalytics, RecommendationEngagementKind, RecommendationFeedback, Review,
-    ReviewRevision, ReviewSortMode, ReviewTombstone, SecurityContactStatus, TimelockAction,
-    VerificationRecord, VerificationStatus,
+    AdminActionEntry, AdminProposal, BatchTtlResult, BookmarkFolder, ChangelogEntry,
+    ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest, ContractConfigView,
+    DependencyRef, DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
+    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationRecord,
+    VerificationStatus, VerificationStatusFilter,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -685,6 +682,39 @@ impl DongleContract {
         sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
         ReviewRegistry::list_reviews_sorted(&env, project_id, start_index, limit, sort_mode)
+    }
+
+    // --- Review Content Integrity (#809) ---
+
+    /// Verify the content integrity of a stored review.
+    ///
+    /// Recomputes the SHA-256 seal over the review's current on-chain fields
+    /// (`project_id`, `reviewer`, `rating`, `content_cid`) and compares it
+    /// against the integrity record written at create / update time.
+    ///
+    /// Returns:
+    /// - `ReviewIntegrityStatus::Valid` — content matches the seal.
+    /// - `ReviewIntegrityStatus::Tampered` — mismatch detected; a
+    ///   `ReviewIntegrityViolationEvent` is emitted as a warning.
+    /// - `ReviewIntegrityStatus::Unverifiable` — no seal exists (review
+    ///   predates sealing, or the review itself does not exist).
+    pub fn verify_review_integrity(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> crate::types::ReviewIntegrityStatus {
+        ReviewRegistry::verify_review_integrity(&env, project_id, reviewer)
+    }
+
+    /// Return the stored integrity seal record for a review.
+    ///
+    /// Returns `None` when no seal exists (review predates integrity sealing).
+    pub fn get_review_integrity_record(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<crate::types::ReviewIntegrityRecord> {
+        ReviewRegistry::get_review_integrity_record(&env, project_id, reviewer)
     }
 
     // --- Verification Registry ---
@@ -1594,6 +1624,68 @@ impl DongleContract {
         )
     }
 
+    // --- Notification Preferences ---
+
+    pub fn set_notification_prefs(
+        env: Env,
+        user: Address,
+        opted_out: bool,
+        notify_on_all: bool,
+        digest_frequency: crate::types::DigestFrequency,
+        kinds: soroban_sdk::Vec<crate::types::NotificationKind>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_notification_prefs(
+            &env, user, opted_out, notify_on_all, digest_frequency, kinds,
+        )
+    }
+
+    pub fn get_notification_prefs(
+        env: Env,
+        user: Address,
+    ) -> Option<crate::types::UserNotificationPrefs> {
+        crate::notification_registry::NotificationRegistry::get_notification_prefs(&env, user)
+    }
+
+    pub fn set_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        opted_out: bool,
+        kinds: Option<soroban_sdk::Vec<crate::types::NotificationKind>>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_project_notification_override(
+            &env, user, project_id, opted_out, kinds,
+        )
+    }
+
+    pub fn get_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Option<crate::types::ProjectNotificationOverride> {
+        crate::notification_registry::NotificationRegistry::get_project_notification_override(
+            &env, user, project_id,
+        )
+    }
+
+    pub fn get_digest_queue(
+        env: Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::notification_registry::NotificationRegistry::get_digest_queue(
+            &env, user, start_index, limit,
+        )
+    }
+
+    pub fn flush_digest_queue(env: Env, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::flush_digest_queue(&env, user)
+    }
+
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
@@ -1615,6 +1707,164 @@ impl DongleContract {
 
     pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start_index, limit)
+    }
+
+    // --- Bookmark Folders (#815) ---
+
+    /// Create a new folder for organising bookmarks.
+    pub fn create_bookmark_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        parent_id: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_folder(&env, user, name, parent_id)
+    }
+
+    /// Delete a bookmark folder (bookmarks are retained in the flat list).
+    pub fn delete_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_folder(&env, user, folder_id)
+    }
+
+    /// Rename a bookmark folder.
+    pub fn rename_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        new_name: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::rename_folder(&env, user, folder_id, new_name)
+    }
+
+    /// Get a bookmark folder by ID.
+    pub fn get_bookmark_folder_by_id(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Option<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder(&env, user, folder_id)
+    }
+
+    /// List all folders owned by the user.
+    pub fn list_bookmark_folders(env: Env, user: Address) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_folders(&env, user)
+    }
+
+    /// List direct child folders of a given parent folder.
+    pub fn list_child_bookmark_folders(
+        env: Env,
+        user: Address,
+        parent_id: u64,
+    ) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_child_folders(&env, user, parent_id)
+    }
+
+    /// Move a bookmarked project into a folder.
+    pub fn move_bookmark_to_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::move_bookmark_to_folder(
+            &env, user, project_id, folder_id,
+        )
+    }
+
+    /// Remove a bookmark from its current folder.
+    pub fn remove_bookmark_from_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::remove_bookmark_from_folder(
+            &env, user, project_id,
+        )
+    }
+
+    /// Get bookmarks in a folder, paginated.
+    pub fn get_folder_bookmarks(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder_bookmarks(
+            &env,
+            user,
+            folder_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get the folder ID that a bookmarked project currently lives in, if any.
+    pub fn get_bookmark_folder(env: Env, user: Address, project_id: u64) -> Option<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_bookmark_folder(&env, project_id, &user)
+    }
+
+    // --- Smart Folders (#815) ---
+
+    /// Create a smart folder (dynamically filtered bookmark view).
+    pub fn create_smart_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        filter: SmartFolderFilter,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_smart_folder(&env, user, name, filter)
+    }
+
+    /// Delete a smart folder.
+    pub fn delete_smart_folder(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(
+            &env,
+            user,
+            smart_folder_id,
+        )
+    }
+
+    /// Get a smart folder by ID.
+    pub fn get_smart_folder(env: Env, user: Address, smart_folder_id: u64) -> Option<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder(&env, user, smart_folder_id)
+    }
+
+    /// List all smart folders owned by the user.
+    pub fn list_smart_folders(env: Env, user: Address) -> Vec<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_smart_folders(&env, user)
+    }
+
+    /// Get the resolved bookmark list for a smart folder (paginated).
+    pub fn get_smart_folder_bookmarks(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder_bookmarks(
+            &env,
+            user,
+            smart_folder_id,
+            start_index,
+            limit,
+        )
     }
 
     // --- Endorsement Registry ---

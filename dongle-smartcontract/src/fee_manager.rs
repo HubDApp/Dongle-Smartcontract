@@ -175,6 +175,22 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        // Guard: archived projects can never proceed to verification, so paying
+        // the fee would permanently lock the owner's tokens.
+        if project.archived {
+            return Err(ContractError::AlreadyArchived);
+        }
+
+        // Guard: a Pending request is already in-flight; a Verified project does
+        // not need a new verification fee until its current status is revoked or
+        // expires. Accepting a payment in either state would create an orphaned
+        // payment record that can never be consumed by `request_verification`.
+        if project.verification_status == crate::types::VerificationStatus::Pending
+            || project.verification_status == crate::types::VerificationStatus::Verified
+        {
+            return Err(ContractError::InvalidStatus);
+        }
+
         let amount = Self::get_fee_config(env)?.verification_fee;
         Self::execute_fee_payment(
             env,

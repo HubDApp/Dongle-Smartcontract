@@ -3,22 +3,26 @@
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
     DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
-    MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER, MAX_REVIEW_REVISIONS,
-    REVIEW_UPDATE_COOLDOWN_SECONDS,
+    LEDGER_BUMP_REVIEW, LEDGER_THRESHOLD_REVIEW, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER,
+    MAX_REVIEW_REVISIONS, REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
 use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
-use crate::events::{publish_review_event, publish_review_revision_event};
+use crate::events::{
+    publish_review_event, publish_review_integrity_sealed_event,
+    publish_review_integrity_violation_event, publish_review_revision_event,
+};
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::review_registry::validation::ReviewValidation;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ReviewIntegrityKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
-    ReviewRevision, ReviewSortMode, ReviewTombstone,
+    ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision, ReviewSortMode, ReviewTombstone,
 };
 use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::xdr::ToXdr;
 
 pub struct ReviewRegistry;
 
@@ -53,6 +57,111 @@ impl ReviewRegistry {
         env.storage()
             .persistent()
             .set(&ExtensionKey::ReviewEligibilityConfig, &config);
+        Ok(())
+    }
+
+    // ── Evidence Link Storage Helpers ────────────────────────────────────
+
+    /// Store a list of evidence links for a (project_id, reviewer) pair.
+    ///
+    /// Writes under `ExtensionKey2::ReviewEvidenceLinks` and extends the TTL.
+    /// Requirements: 5.2
+    fn store_evidence_links(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+        links: &Vec<EvidenceLink>,
+    ) {
+        let key = ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone());
+        env.storage().persistent().set(&key, links);
+        env.storage().persistent().extend_ttl(&key, LEDGER_THRESHOLD_REVIEW, LEDGER_BUMP_REVIEW);
+    }
+
+    /// Load evidence links for a (project_id, reviewer) pair.
+    ///
+    /// Returns an empty `Vec` when no entry exists.
+    /// Requirements: 5.3
+    fn load_evidence_links(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+    ) -> Vec<EvidenceLink> {
+        let key = ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone());
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Remove evidence links for a (project_id, reviewer) pair from persistent storage.
+    ///
+    /// No-op if the entry does not exist.
+    /// Requirements: 5.1
+    fn delete_evidence_links(env: &Env, project_id: u64, reviewer: &Address) {
+        let key = ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone());
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+    }
+
+    /// Return the evidence links for a review.
+    ///
+    /// Returns an empty `Vec` for non-existent reviews or when no links are stored.
+    /// Requirements: 4.1, 4.2, 4.3
+    pub fn get_review_evidence_links(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+    ) -> Vec<EvidenceLink> {
+        Self::load_evidence_links(env, project_id, reviewer)
+    }
+
+    /// Admin-only: mark a specific evidence link as dead (set `is_dead = true`).
+    ///
+    /// - `admin.require_auth()` is called then admin role is checked.
+    /// - Returns `ReviewNotFound` if no review exists for (project_id, reviewer).
+    /// - Returns `InvalidInput` if `link_index >= links.len()`.
+    /// - Idempotent: calling again on an already-dead link leaves it dead.
+    ///
+    /// Requirements: 8.3, 8.4, 8.5
+    pub fn mark_evidence_link_dead_impl(
+        env: &Env,
+        admin: Address,
+        project_id: u64,
+        reviewer: Address,
+        link_index: u32,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Ensure the review exists.
+        let review_key = StorageKey::Review(project_id, reviewer.clone());
+        if !env.storage().persistent().has(&review_key) {
+            return Err(ContractError::ReviewNotFound);
+        }
+
+        let links = Self::load_evidence_links(env, project_id, &reviewer);
+        if link_index >= links.len() as u32 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // Build a new Vec with the targeted link's is_dead flag set to true.
+        let mut new_links: Vec<EvidenceLink> = Vec::new(env);
+        for i in 0..links.len() {
+            let link = links.get(i).unwrap();
+            if i as u32 == link_index {
+                new_links.push_back(EvidenceLink {
+                    url: link.url,
+                    is_dead: true,
+                });
+            } else {
+                new_links.push_back(link);
+            }
+        }
+
+        Self::store_evidence_links(env, project_id, &reviewer, &new_links);
         Ok(())
     }
 
@@ -117,10 +226,17 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
+        evidence_links: Option<soroban_sdk::Vec<EvidenceLink>>,
     ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
             ReviewValidation::validate_review_cid(cid)?;
         }
+
+        // Resolve evidence links — None means empty list
+        let resolved_links = evidence_links.unwrap_or_else(|| Vec::new(env));
+
+        // Validate evidence links before any mutations
+        ReviewValidation::validate_evidence_links(&resolved_links)?;
 
         // Validation phase
         reviewer.require_auth();
@@ -184,6 +300,7 @@ impl ReviewRegistry {
             last_updated_at: 0,
             hidden: false,
             report_count: 0,
+            evidence_links: Vec::new(env),
         };
 
         // Get current state for mutations
@@ -205,6 +322,9 @@ impl ReviewRegistry {
 
         // Perform all storage mutations
         env.storage().persistent().set(&review_key, &review);
+
+        // Write integrity seal for tamper detection (#809).
+        Self::store_review_integrity_seal(env, project_id, &reviewer, rating, &comment_cid);
 
         user_reviews.push_back(project_id);
         env.storage()
@@ -340,6 +460,9 @@ impl ReviewRegistry {
 
         // Perform mutations
         env.storage().persistent().set(&review_key, &review);
+
+        // Update integrity seal to reflect the new content (#809).
+        Self::store_review_integrity_seal(env, project_id, &reviewer, rating, &comment_cid);
         env.storage().persistent().set(
             &StorageKey::ProjectStats(project_id),
             &ProjectStats {
@@ -1211,5 +1334,179 @@ impl ReviewRegistry {
         _sort_mode: ReviewSortMode,
     ) -> Vec<Review> {
         Self::list_reviews(env, project_id, start_index, limit)
+    }
+
+    // ── Review content integrity (#809) ─────────────────────────────────────
+
+    /// Canonical payload format for review integrity seals (v1).
+    ///
+    /// The payload is:
+    ///   `review-integrity-v1|<project_id_be8>|<reviewer_xdr>|<rating_be4>|<content_cid_or_NONE>`
+    ///
+    /// Using `project_id` and reviewer address bytes makes every seal unique
+    /// across reviews; including `rating` and `content_cid` means any change
+    /// to either field changes the hash.
+    fn compute_review_integrity_hash(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+        rating: u32,
+        content_cid: &Option<soroban_sdk::String>,
+    ) -> soroban_sdk::Bytes {
+        let mut buf = soroban_sdk::Bytes::new(env);
+
+        // Version prefix
+        for b in b"review-integrity-v1|" {
+            buf.push_back(*b);
+        }
+
+        // project_id as 8 big-endian bytes
+        let pid_bytes = project_id.to_be_bytes();
+        for b in &pid_bytes {
+            buf.push_back(*b);
+        }
+        buf.push_back(b'|');
+
+        // reviewer address XDR bytes
+        let reviewer_bytes = reviewer.to_xdr(env);
+        let rlen = reviewer_bytes.len();
+        for i in 0..rlen {
+            buf.push_back(reviewer_bytes.get(i).unwrap_or(0));
+        }
+        buf.push_back(b'|');
+
+        // rating as 4 big-endian bytes
+        let rating_bytes = rating.to_be_bytes();
+        for b in &rating_bytes {
+            buf.push_back(*b);
+        }
+        buf.push_back(b'|');
+
+        // content_cid or sentinel "NONE"
+        match content_cid {
+            Some(cid) => {
+                let cid_bytes = cid.to_xdr(env);
+                // XDR-encoded String has a 4-byte length prefix; skip it.
+                let xdr_len = cid_bytes.len();
+                let cid_char_len = cid.len();
+                let skip = xdr_len.saturating_sub(cid_char_len);
+                for i in skip..xdr_len {
+                    buf.push_back(cid_bytes.get(i).unwrap_or(0));
+                }
+            }
+            None => {
+                for b in b"NONE" {
+                    buf.push_back(*b);
+                }
+            }
+        }
+
+        let hash = env.crypto().sha256(&buf);
+        soroban_sdk::Bytes::from_array(env, &hash.to_array())
+    }
+
+    /// Compute and persist the integrity seal for a review.
+    ///
+    /// Called automatically on every `add_review` and `update_review`.
+    /// Emits `ReviewIntegritySealedEvent` so indexers can track seal history.
+    fn store_review_integrity_seal(
+        env: &Env,
+        project_id: u64,
+        reviewer: &Address,
+        rating: u32,
+        content_cid: &Option<soroban_sdk::String>,
+    ) {
+        let hash = Self::compute_review_integrity_hash(env, project_id, reviewer, rating, content_cid);
+        let record = ReviewIntegrityRecord {
+            integrity_hash: hash,
+            sealed_at: env.ledger().timestamp(),
+            sealed_content_cid: content_cid.clone(),
+            sealed_rating: rating,
+        };
+        env.storage().persistent().set(
+            &ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer.clone()),
+            &record,
+        );
+        StorageManager::extend_review_integrity_seal_ttl(env, project_id, reviewer);
+
+        publish_review_integrity_sealed_event(
+            env,
+            project_id,
+            reviewer.clone(),
+            rating,
+            content_cid.is_some(),
+        );
+    }
+
+    /// Return the stored integrity seal for a review, if any.
+    pub fn get_review_integrity_record(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ReviewIntegrityRecord> {
+        env.storage()
+            .persistent()
+            .get(&ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer))
+    }
+
+    /// Verify the content integrity of a stored review.
+    ///
+    /// Recomputes the SHA-256 seal over the review's current on-chain data and
+    /// compares it against the stored seal.
+    ///
+    /// Returns:
+    /// - `ReviewIntegrityStatus::Valid` — hash matches; content is unmodified.
+    /// - `ReviewIntegrityStatus::Tampered` — hash mismatch; emits
+    ///   `ReviewIntegrityViolationEvent` as a tamper warning.
+    /// - `ReviewIntegrityStatus::Unverifiable` — no seal exists for this review
+    ///   (submitted before integrity sealing was enabled).
+    pub fn verify_review_integrity(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> ReviewIntegrityStatus {
+        let review: Review = match env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Review(project_id, reviewer.clone()))
+        {
+            Some(r) => r,
+            None => return ReviewIntegrityStatus::Unverifiable,
+        };
+
+        let record: ReviewIntegrityRecord = match env
+            .storage()
+            .persistent()
+            .get(&ReviewIntegrityKey::ReviewIntegrityHash(
+                project_id,
+                reviewer.clone(),
+            )) {
+            Some(r) => r,
+            None => return ReviewIntegrityStatus::Unverifiable,
+        };
+
+        let current_hash = Self::compute_review_integrity_hash(
+            env,
+            project_id,
+            &reviewer,
+            review.rating,
+            &review.content_cid,
+        );
+
+        if current_hash == record.integrity_hash {
+            ReviewIntegrityStatus::Valid
+        } else {
+            // Emit tamper-warning event before returning.
+            publish_review_integrity_violation_event(
+                env,
+                project_id,
+                reviewer,
+                review.rating,
+                record.sealed_rating,
+                review.content_cid.is_some(),
+                record.sealed_content_cid.is_some(),
+            );
+            ReviewIntegrityStatus::Tampered
+        }
     }
 }

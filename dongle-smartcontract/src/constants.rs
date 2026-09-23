@@ -275,6 +275,15 @@ pub const CLAIM_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
 
+/// Maximum number of evidence links that may be attached to a single review.
+/// Frontends should enforce this limit before submitting a transaction.
+/// Surfaced through `ContractLimits::max_evidence_links_per_review` in `get_config`.
+pub const MAX_EVIDENCE_LINKS_PER_REVIEW: u32 = 5;
+
+/// Maximum byte length of a single evidence link URL.
+/// URLs exceeding this limit are rejected with `ContractError::EvidenceLinkTooLong`.
+pub const MAX_EVIDENCE_LINK_URL_LEN: usize = 512;
+
 /// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
 pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
 
@@ -291,131 +300,28 @@ pub const DEFAULT_REVIEW_FEE: u128 = 0;
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
 
-// ── Recommendation Constants (Issue #820) ──────────────────────────────────
+// ── Bookmark Folder Constants (#815) ────────────────────────────────────────
 
-/// Maximum length for a recommendation `label` in bytes. Labels are short
-/// display strings ("Trending", "You might like", …); the limit is generous
-/// enough for UI copy but tight enough to avoid storage-entry bloat.
-pub const MAX_RECOMMENDATION_LABEL_LEN: usize = 128;
+/// Maximum number of bookmark folders per user (regular folders, excluding smart folders).
+/// 50: each folder is a `BookmarkFolder` record plus a `FolderBookmarks` list;
+/// 50 folders keeps the per-user storage footprint predictable.
+pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
 
-/// Maximum number of recommendations a single target project can have across
-/// all algorithms. Acts as a flood-gate against storage-key spam for popular
-/// projects; 200 is ~5-10 full recommendation surfaces (20 recs × 10 views).
-pub const MAX_RECOMMENDATIONS_PER_PROJECT: u32 = 200;
+/// Maximum number of smart folders per user.
+/// 20: smart folders are metadata-only (no stored list) but each query scans
+/// the full bookmark list, so a small cap keeps aggregate query cost bounded.
+pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
 
-/// Maximum recommendations stored globally (RecommendationList length cap).
-/// 10_000 is comfortably above what a single contract instance needs and
-/// keeps `list_recommendations` pagination bounded.
-pub const MAX_RECOMMENDATIONS_GLOBAL: u32 = 10_000;
+/// Maximum number of bookmarks inside a single folder.
+/// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
+/// 4 KiB, well within a single ledger entry.
+pub const MAX_BOOKMARKS_PER_FOLDER: u32 = 500;
 
-/// Weight of click-through rate in the composite effectiveness score.
-/// (Scaled basis-point weight; all weights sum to 10_000.)
-pub const EFFECTIVENESS_WEIGHT_CTR_BPS: u32 = 3_500;
+/// Maximum depth of nested bookmark folders.
+/// 5: deep nesting is expensive to validate (requires walking up the parent
+/// chain on every create/rename call) and rarely needed in practice.
+pub const MAX_FOLDER_DEPTH: u32 = 5;
 
-/// Weight of helpful-ratio in the composite effectiveness score.
-pub const EFFECTIVENESS_WEIGHT_HELPFUL_BPS: u32 = 3_500;
-
-/// Weight of downstream engagements (follow + bookmark + endorse + review)
-/// in the composite effectiveness score.
-pub const EFFECTIVENESS_WEIGHT_ENGAGEMENT_BPS: u32 = 3_000;
-
-/// Scaling factor used for CTR and helpful ratio (ppm = parts per million).
-pub const RATIO_SCALE_PPM: u32 = 1_000_000;
-
-/// Composite effectiveness score scale (basis points, 0–10_000).
-pub const SCORE_SCALE_BPS: u32 = 10_000;
-
-/// Minimum impressions required before CTR contributes a non-zero signal to
-/// the effectiveness score. Prevents a single-click "1/1 = 100%" fluke from
-/// dominating the ranking.
-pub const MIN_IMPRESSIONS_FOR_CTR_SIGNAL: u64 = 5;
-
-/// Minimum feedback votes required before helpful-ratio contributes a non-zero
-/// signal to the effectiveness score (same rationale as CTR floor above).
-pub const MIN_FEEDBACK_FOR_HELPFUL_SIGNAL: u64 = 3;
-
-// ── Community Collection Constants (Issue #821) ─────────────────────────────
-
-/// Maximum length of a community collection `name` in bytes (same generous limit
-/// as admin-only collections: 100 bytes).
-pub const MAX_COMMUNITY_COL_NAME_LEN: usize = 100;
-
-/// Maximum length of a community collection `description` in bytes (short blurb,
-/// 500 bytes, same as admin-only collections).
-pub const MAX_COMMUNITY_COL_DESCRIPTION_LEN: usize = 500;
-
-/// Maximum length of the optional comma-separated `tags` string in bytes.
-/// 256 bytes covers ~20 typical tag tokens.
-pub const MAX_COMMUNITY_COL_TAGS_LEN: usize = 256;
-
-/// Maximum number of projects a community collection can contain. Kept lower
-/// than admin-only collections (200 vs 500) because these are user-generated
-/// and the voting/curation loop is O(|project_ids|) in several places.
-pub const MAX_COMMUNITY_COL_PROJECTS: u32 = 200;
-
-/// Maximum curators allowed per community collection. Prevents runaway
-/// TTL-extend loops on the curator list.
-pub const MAX_COMMUNITY_COL_CURATORS: u32 = 30;
-
-/// Global cap on community collection count. Much higher than admin-only
-/// collections since *any* user can create them, but still bounded so
-/// `list_community_collections` pagination remains tractable.
-pub const MAX_COMMUNITY_COLLECTIONS: u32 = 5_000;
-
-/// Global cap on featured community collections (AC1). Matches the
-/// featured-projects cap (20). Admin toggles FIFO-evict the oldest entry
-/// when the cap is reached.
-pub const MAX_FEATURED_COMMUNITY_COLLECTIONS: u32 = 20;
-
-/// Default approval-vote threshold for newly-created community collections.
-/// 3 community yays auto-include unless a curator explicitly vetoes.
-pub const DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD: u32 = 3;
-
-/// Default disapproval-vote threshold for newly-created community collections.
-/// Symmetric with the approval threshold.
-pub const DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD: u32 = 3;
-
-/// Default creator revenue share (basis points) applied to new community
-/// collections when the creator does not explicitly specify one. 60% to
-/// the creator leaves 40% to be split evenly across curators.
-pub const DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 6_000;
-
-/// Maximum valid creator revenue share (basis points). Leaves at least 10%
-/// to curators to keep curation incentives aligned.
-pub const MAX_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 9_000;
-
-/// Minimum valid creator revenue share (basis points). Ensures the creator
-/// is meaningfully compensated for originating and stewarding the collection.
-pub const MIN_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 1_000;
-
-// ── Social Analytics Constants (Issue #822) ────────────────────────────────
-
-/// Daily checkpoint per-project cap. 730 days = ~2 years of daily history.
-/// After the cap is reached, `record_project_social_daily_checkpoint` evicts
-/// the oldest checkpoint (FIFO) before appending a new one so growth
-/// analytics retain a rolling 2-year window rather than failing.
-pub const MAX_SOCIAL_CHECKPOINTS_PER_PROJECT: u32 = 730;
-
-/// Scaling factor for engagement-rate ratios. 1e6 ppm = 1.0 (100%).
-pub const SOCIAL_ENGAGEMENT_RATE_SCALE_PPM: u64 = 1_000_000;
-
-/// Rating scale used by `ProjectStats.average_rating` (review_registry).
-/// Values are 0–50_000 for a 0–5 star rating (10_000 bps per star).
-pub const SOCIAL_RATING_BPS_PER_STAR: u32 = 10_000;
-
-/// Maximum number of peer projects to include in the peer comparison
-/// snapshot used for AC3. Limiting the peer set to 50 keeps the export
-/// report payload small while still representing a broad percentile rank.
-pub const SOCIAL_ANALYTICS_MAX_PEERS: u32 = 50;
-
-/// Minimum number of checkpoints required for a "growth over time"
-/// export report (AC1 + AC4). With >= 2 checkpoints we can derive at
-/// least one delta window. Callers with 1 checkpoint will still get a
-/// report but the export will note that deltas are zero.
-pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
-
-/// Number of days in the "last-week" preset window used by export (6 days + today inclusive = 7).
-pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
-
-/// Number of days in the "last-30-days" preset window used by export.
-pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;
+/// Maximum byte length for a bookmark folder name.
+/// 100: matches `MAX_COLLECTION_NAME_LEN`; a folder name is a display title.
+pub const MAX_FOLDER_NAME_LEN: usize = 100;
