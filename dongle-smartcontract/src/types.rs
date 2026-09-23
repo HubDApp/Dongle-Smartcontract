@@ -1,41 +1,95 @@
 use soroban_sdk::{contracttype, Address, Map, String, Vec};
 
+/// Parameters supplied to `register_project`. All required fields must be
+/// non-empty; optional fields default to `None` when omitted.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct ProjectRegistrationParams {
+    /// Address that will own the project and may update it.
     pub owner: Address,
+    /// Human-readable project name (max `MAX_NAME_LEN` bytes, non-empty).
     pub name: String,
+    /// URL-safe slug used as a stable identifier in links and queries
+    /// (max `MAX_SLUG_LEN` bytes, `[a-z0-9-]` only, non-empty).
     pub slug: String,
+    /// Short description of the project (max `MAX_DESCRIPTION_LEN` bytes).
     pub description: String,
+    /// Project category label (max `MAX_CATEGORY_LEN` bytes, non-empty).
     pub category: String,
+    /// Project website URL (max `MAX_WEBSITE_LEN` bytes, must start with
+    /// `https://` when present).
     pub website: Option<String>,
+    /// SPDX license identifier or free-text license note
+    /// (max `MAX_LICENSE_LEN` bytes).
     pub license: Option<String>,
+    /// IPFS CID of the project's logo image (max `MAX_CID_LEN` bytes).
     pub logo_cid: Option<String>,
+    /// IPFS CID of the off-chain metadata document (max `MAX_CID_LEN` bytes).
+    /// Must conform to `docs/project-metadata.schema.json`.
     pub metadata_cid: Option<String>,
+    /// Up to `MAX_TAGS_PER_PROJECT` short tag strings
+    /// (each max `MAX_TAG_LENGTH` bytes, `[A-Za-z0-9_-]` only).
     pub tags: Option<Vec<String>>,
+    /// Map of platform name → URL for social/community links
+    /// (max `MAX_SOCIAL_LINKS` entries; key max `MAX_SOCIAL_LINK_PLATFORM_LEN`,
+    /// value max `MAX_SOCIAL_LINK_URL_LEN`).
     pub social_links: Option<Map<String, String>>,
+    /// Unix timestamp (seconds) when the project publicly launched.
+    /// Optional; purely informational for frontends.
     pub launch_timestamp: Option<u64>,
+    /// URL of the project's bug-bounty or security-disclosure programme.
     pub bounty_url: Option<String>,
+    /// URL of the project's source-code repository.
     pub repository_url: Option<String>,
 }
 
+/// Parameters supplied to `update_project`. Each field is an `Option`
+/// containing the new value; `None` means "leave unchanged". Fields that are
+/// themselves nullable on the `Project` struct are wrapped in `Option<Option<T>>`
+/// so callers can explicitly clear them (`Some(None)`) versus leaving them
+/// alone (`None`).
+///
+/// **Note:** `lifecycle_status` is intentionally absent here — it has its own
+/// entry point (`set_project_lifecycle_status`) which emits a dedicated event.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct ProjectUpdateParams {
+    /// ID of the project to update.
     pub project_id: u64,
+    /// Address calling the update; must be the project owner.
     pub caller: Address,
+    /// New project name, or `None` to leave unchanged.
     pub name: Option<String>,
+    /// New URL-safe slug, or `None` to leave unchanged.
+    /// Immutable once the project is `Verified`.
     pub slug: Option<String>,
+    /// New description, or `None` to leave unchanged.
     pub description: Option<String>,
+    /// New category, or `None` to leave unchanged.
     pub category: Option<String>,
+    /// `Some(Some(url))` to set, `Some(None)` to clear, `None` to leave unchanged.
     pub website: Option<Option<String>>,
+    /// `Some(Some(id))` to set, `Some(None)` to clear, `None` to leave unchanged.
     pub license: Option<Option<String>>,
+    /// `Some(Some(cid))` to set, `Some(None)` to clear, `None` to leave unchanged.
     pub logo_cid: Option<Option<String>>,
+    /// `Some(Some(cid))` to set, `Some(None)` to clear, `None` to leave unchanged.
+    /// Changing this field invalidates an active verification (major-metadata rule).
     pub metadata_cid: Option<Option<String>>,
+    /// `Some(Some(tags))` to replace the tag list, `Some(None)` to clear,
+    /// `None` to leave unchanged.
     pub tags: Option<Option<Vec<String>>>,
+    /// `Some(Some(map))` to replace social links, `Some(None)` to clear,
+    /// `None` to leave unchanged.
     pub social_links: Option<Option<Map<String, String>>>,
+    /// `Some(Some(ts))` to set launch timestamp, `Some(None)` to clear,
+    /// `None` to leave unchanged.
     pub launch_timestamp: Option<Option<u64>>,
+    /// `Some(Some(url))` to set bounty URL, `Some(None)` to clear,
+    /// `None` to leave unchanged.
     pub bounty_url: Option<Option<String>>,
+    /// `Some(Some(url))` to set repository URL, `Some(None)` to clear,
+    /// `None` to leave unchanged.
     pub repository_url: Option<Option<String>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
@@ -47,22 +101,48 @@ pub struct ProjectUpdateParams {
     // `cargo test` could not compile at all.
 }
 
+/// Aggregated rating statistics for a single project.
+///
+/// Stored separately from `Project` so it can be updated on every review
+/// write without re-serialising the full project entry.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectStats {
+    /// Sum of all individual ratings (1–5 each). Divide by `review_count` to
+    /// compute the raw average, or use `average_rating` for the pre-computed
+    /// Bayesian-weighted value.
     pub rating_sum: u64,
+    /// Total number of non-deleted reviews submitted for this project.
+    /// Deleted reviews are excluded and their ratings are subtracted from
+    /// `rating_sum` at deletion time.
     pub review_count: u32,
+    /// Bayesian-weighted average rating scaled by 100 (e.g. 350 = 3.50 stars).
+    /// Computed as:
+    /// `(prior_count × prior_mean + rating_sum) / (prior_count + review_count)`
+    /// See `WEIGHTED_RATING_PRIOR_COUNT` and `WEIGHTED_RATING_PRIOR_MEAN` in
+    /// `constants.rs` for the prior parameters.
     pub average_rating: u32,
 }
 
+/// A single on-chain review submitted for a project.
+///
+/// Reviews are keyed by `(project_id, reviewer)` — one review per reviewer
+/// per project. Use `update_review` to change the rating or content.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Review {
+    /// ID of the project being reviewed.
     pub project_id: u64,
+    /// Address of the reviewer. Unique per project.
     pub reviewer: Address,
+    /// Rating in the range `[RATING_MIN, RATING_MAX]` (currently 1–5 inclusive).
     pub rating: u32,
-    /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair
+    /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair.
+    /// Points to an off-chain JSON document conforming to `docs/review-cid.schema.json`.
+    /// `None` when the review was submitted without off-chain content.
     pub content_cid: Option<String>,
+    /// Optional reply written by the project owner in response to this review.
+    /// Set via `set_owner_response`; only the current project owner may write it.
     pub owner_response: Option<String>,
 
     /// Unix timestamp (seconds) when the review was first submitted.
@@ -76,32 +156,54 @@ pub struct Review {
     pub last_updated_at: u64,
 
     /// Whether the review is hidden by moderation.
+    /// Set to `true` by admins via `hide_review`; cleared by `restore_review`.
+    /// Hidden reviews are excluded from public listing endpoints but the record
+    /// is retained on-chain for auditability.
     pub hidden: bool,
 
-    /// Number of times this review has been reported.
+    /// Number of times this review has been reported via `report_review`.
+    /// Admins may inspect high-count reviews and choose to hide them.
+    /// Does not automatically trigger hiding — that requires an explicit admin
+    /// action.
     pub report_count: u32,
 }
 
+/// Identifies the lifecycle event that produced a `ReviewEventData` emission.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReviewAction {
+    /// First submission of the review via `submit_review` / `add_review`.
     Submitted,
+    /// Reviewer updated rating or content via `update_review`.
     Updated,
+    /// Internal edit step that also stored a `ReviewRevision` snapshot.
     Revised,
+    /// Review deleted by the reviewer or an admin via `delete_review`.
     Deleted,
 }
 
+/// Payload carried by review lifecycle events (submitted, updated, deleted).
+/// Mirrors the most-read fields of `Review` so indexers do not need a
+/// separate storage read after observing an event.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewEventData {
+    /// ID of the reviewed project.
     pub project_id: u64,
+    /// Address that owns the review.
     pub reviewer: Address,
+    /// Lifecycle event that triggered this emission.
     pub action: ReviewAction,
+    /// Ledger timestamp (seconds) at the time of the event.
     pub timestamp: u64,
-    /// Canonical content CID - consolidates the review content
+    /// Canonical content CID - consolidates the review content.
     pub content_cid: Option<String>,
+    /// Project owner's reply at the time of the event (may be stale for
+    /// `Updated` / `Revised` events if the response was set independently).
     pub owner_response: Option<String>,
+    /// Original submission timestamp; unchanged across edits.
     pub created_at: u64,
+    /// Timestamp of the most recent modification at the time of the event.
     pub updated_at: u64,
 }
 
@@ -109,9 +211,18 @@ pub struct ReviewEventData {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewRevision {
+    /// Zero-based position of this revision in the edit history for the review.
+    /// Increments by 1 on each `update_review` call that actually changes
+    /// content. Oldest revisions are dropped when `MAX_REVIEW_REVISIONS` is
+    /// exceeded (the index value of retained revisions is not renumbered).
     pub revision_index: u32,
+    /// Rating at the time this snapshot was taken (before the edit that
+    /// produced this revision).
     pub rating: u32,
+    /// Content CID at the time of the snapshot (`None` if there was no
+    /// off-chain content before the edit).
     pub content_cid: Option<String>,
+    /// Unix timestamp (seconds) when this revision was recorded.
     pub revised_at: u64,
 }
 
@@ -125,13 +236,22 @@ pub struct ReviewRevision {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewRevisionEvent {
+    /// ID of the reviewed project.
     pub project_id: u64,
+    /// Address that owns the review.
     pub reviewer: Address,
+    /// Zero-based index of the revision being recorded (matches the
+    /// corresponding `ReviewRevision::revision_index`).
     pub revision_index: u32,
+    /// Rating value before this edit.
     pub previous_rating: u32,
+    /// Content CID before this edit (`None` if there was none).
     pub previous_content_cid: Option<String>,
+    /// Rating value after this edit.
     pub new_rating: u32,
+    /// Content CID after this edit (`None` if cleared).
     pub new_content_cid: Option<String>,
+    /// Ledger timestamp (seconds) of the edit.
     pub timestamp: u64,
 }
 
@@ -233,22 +353,40 @@ impl ClaimStatus {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimRequest {
+    /// Unique monotonically-increasing claim identifier.
     pub id: u64,
+    /// ID of the project being claimed.
     pub project_id: u64,
+    /// Address that submitted the claim.
     pub claimant: Address,
+    /// IPFS CID of the proof document supplied by the claimant.
     pub proof_cid: String,
+    /// Current status of the claim (see [`ClaimStatus`]).
     pub status: ClaimStatus,
+    /// Unix timestamp (seconds) when the claim was submitted.
     pub created_at: u64,
 }
 
+/// A pending or resolved contract-address claim for a project.
+///
+/// Lets a project owner prove on-chain that a given Stellar contract address
+/// belongs to their project. The workflow mirrors ownership claims but is
+/// specific to contract-address attestation.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractClaimRequest {
+    /// ID of the project the contract address is being claimed for.
     pub project_id: u64,
+    /// The Stellar contract address (56-char Strkey starting with `C`)
+    /// being claimed.
     pub contract_address: String,
+    /// Address that submitted the claim.
     pub claimant: Address,
+    /// IPFS CID of the proof document supplied by the claimant.
     pub proof_cid: String,
+    /// Current status of the claim (see [`ClaimStatus`]).
     pub status: ClaimStatus,
+    /// Unix timestamp (seconds) when the claim was submitted.
     pub created_at: u64,
     /// Unix timestamp (seconds) after which this pending claim is considered expired.
     /// A value of 0 means no expiry (legacy). New claims always set this to
@@ -256,60 +394,149 @@ pub struct ContractClaimRequest {
     pub expires_at: u64,
 }
 
+/// The primary on-chain record for a registered project.
+///
+/// Written by `register_project`; mutated by `update_project`,
+/// `archive_project`, `reactivate_project`, `initiate_transfer`,
+/// `accept_transfer`, and several verification/verification-renewal paths.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
+    /// Unique monotonically-increasing project identifier assigned at
+    /// registration time.
     pub id: u64,
+    /// Address that currently owns the project. Updated by
+    /// `accept_transfer` when an ownership transfer completes.
     pub owner: Address,
+    /// Human-readable project name (max `MAX_NAME_LEN` bytes).
+    /// Changing this field while the project is `Verified` invalidates the
+    /// current verification (major-metadata rule).
     pub name: String,
+    /// URL-safe slug (`[a-z0-9-]`). Used as a stable human-readable key in
+    /// external links. Immutable once the project is `Verified`.
     pub slug: String,
+    /// Short description of the project.
     pub description: String,
+    /// Category label (e.g. "DeFi", "NFT", "Infrastructure").
     pub category: String,
+    /// Project website URL. Changing this field while `Verified` invalidates
+    /// the current verification (major-metadata rule).
     pub website: Option<String>,
+    /// SPDX license identifier or free-text note (e.g. "Apache-2.0").
     pub license: Option<String>,
+    /// IPFS CID of the project's logo image.
     pub logo_cid: Option<String>,
+    /// IPFS CID of the off-chain metadata document. Changing this field while
+    /// `Verified` invalidates the current verification (major-metadata rule).
+    /// Must conform to `docs/project-metadata.schema.json`.
     pub metadata_cid: Option<String>,
+    /// Current verification status of the project. Transitions are validated
+    /// by `VerificationStateMachine` — see `verification_registry/state_machine.rs`.
     pub verification_status: VerificationStatus,
+    /// ID of the most recent active `VerificationRecord` for this project.
+    /// `None` until the first verification request is submitted. Updated each
+    /// time a new request is created (the old record is retained for history).
     pub current_verification_id: Option<u64>,
+    /// Whether the project has been archived by its owner.
+    /// Archived projects cannot be updated, receive reviews, or request
+    /// verification until reactivated via `reactivate_project`.
     pub archived: bool,
+    /// Whether the project is open for ownership claims.
+    /// Set by the current owner via `set_project_claimable`. When `true`,
+    /// any address may submit a claim request; when `false` claims are blocked.
     pub claimable: bool,
+    /// Lifecycle maturity signal set by the owner via
+    /// `set_project_lifecycle_status`. Used by frontends to surface project
+    /// stability (Active, Beta, Paused, Deprecated, Sunset). Does not affect
+    /// any on-chain permissions.
     pub lifecycle_status: ProjectLifecycleStatus,
+    /// Unix timestamp (seconds) when the project was first registered.
     pub created_at: u64,
+    /// Unix timestamp (seconds) of the most recent update to any project field.
     pub updated_at: u64,
+    /// Up to `MAX_TAGS_PER_PROJECT` short tag strings for discovery.
     pub tags: Option<Vec<String>>,
+    /// Map of platform name → URL for social/community links.
     pub social_links: Option<Map<String, String>>,
+    /// Optional Unix timestamp (seconds) of the project's public launch.
+    /// Informational only.
     pub launch_timestamp: Option<u64>,
+    /// Optional list of maintainer addresses. Maintainers have no on-chain
+    /// privilege beyond being listed here; they cannot update the project or
+    /// request verification on the owner's behalf.
     pub maintainers: Option<Vec<Address>>,
+    /// URL of the project's bug-bounty or security-disclosure programme.
     pub bounty_url: Option<String>,
+    /// URL of the project's source-code repository.
     pub repository_url: Option<String>,
+    /// Published security contact (e-mail, URL, or `security.txt` reference).
+    /// Settable by the owner via `set_security_contact`.
     pub security_contact: Option<String>,
+    /// IPFS CID of the proof document for the security contact attestation.
+    /// Set alongside `security_contact` when the owner calls
+    /// `set_security_contact` with a non-empty proof CID.
+    /// Cleared when `security_contact` is removed.
     pub security_contact_proof_cid: Option<String>,
+    /// Whether the security contact has been verified by an admin via
+    /// `verify_security_contact`. Automatically cleared when
+    /// `security_contact` is updated or removed.
     pub security_contact_verified: bool,
 }
 
+/// Read-only view of a project's security contact, returned by
+/// `get_security_contact_status`. Avoids fetching the full `Project`
+/// struct when only the security-contact fields are needed.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SecurityContactStatus {
+    /// The published security contact string (e-mail, URL, etc.), if any.
     pub contact: Option<String>,
+    /// IPFS CID of the supporting proof document, if provided.
     pub proof_cid: Option<String>,
+    /// Whether the contact has been verified by an admin.
     pub verified: bool,
 }
 
+/// A moderation report submitted against a project.
+///
+/// Reports are stored as a `Vec<ProjectReport>` under
+/// `ExtensionKey::ProjectReports(project_id)`. The count is cached
+/// separately for cheap access without deserialising the full list.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectReport {
+    /// ID of the reported project.
     pub project_id: u64,
+    /// Address that submitted the report.
     pub reporter: Address,
+    /// IPFS CID of the report content / evidence document.
     pub reason_cid: String,
+    /// Unix timestamp (seconds) when the report was submitted.
     pub timestamp: u64,
 }
 
+/// Verification lifecycle status for a project.
+///
+/// Transitions are enforced by `VerificationStateMachine`. Only the paths
+/// below are valid; any other transition returns `InvalidStatus`.
+///
+/// ```text
+/// Unverified ──request──► Pending ──approve──► Verified ──revoke──► Unverified
+///                │                  └──reject──► Rejected
+///                ◄──────────── re-request ───────────┘
+/// ```
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
+    /// No verification request has been submitted, or a previous verification
+    /// was revoked by an admin.
     Unverified,
+    /// A verification request has been submitted and is awaiting admin review.
     Pending,
+    /// The project has been verified by an admin.
     Verified,
+    /// The most recent verification request was rejected by an admin.
+    /// The owner may re-pay the fee and re-submit.
     Rejected,
 }
 
@@ -330,36 +557,78 @@ pub enum ProjectLifecycleStatus {
     Sunset,
 }
 
+/// Complete record of a single verification request, including its outcome.
+///
+/// One record is created per `request_verification` call. Records are
+/// immutable after their final state is set (`decided_at > 0`). The
+/// project's `current_verification_id` always points to the most recently
+/// created record; older records are retained for history.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRecord {
+    /// Unique monotonically-increasing identifier for this request.
     pub request_id: u64,
+    /// ID of the project this request belongs to.
     pub project_id: u64,
+    /// Address that submitted the verification request (must be the
+    /// project owner at the time of submission).
     pub requester: Address,
+    /// Current status of this record. Starts as `Pending`; transitions to
+    /// `Verified` on approval, `Rejected` on rejection, or `Unverified` on
+    /// revocation.
     pub status: VerificationStatus,
+    /// IPFS CID of the evidence document provided by the requester.
+    /// Must conform to `docs/verification-evidence.schema.json`.
     pub evidence_cid: String,
+    /// Unix timestamp (seconds) when the request was submitted.
     pub requested_at: u64,
+    /// Unix timestamp (seconds) when an admin approved, rejected, or revoked
+    /// this request. Zero while the request is still `Pending`.
     pub decided_at: u64,
+    /// Fee amount (in the smallest unit of the configured token) that was
+    /// consumed when this request was submitted. Stored here so a refund can
+    /// be issued without re-reading the payment record (which is cleared on
+    /// consumption).
     pub fee_amount: u128,
+    /// Optional admin-supplied reason for a revocation. Non-`None` only when
+    /// `status == Unverified` and the transition was triggered by an admin
+    /// calling `revoke_verification`.
     pub revoke_reason: Option<String>,
-    /// Unix timestamp when verification expires (0 = no expiry)
+    /// Unix timestamp when verification expires (0 = no expiry).
+    /// Set to `requested_at + verification_duration` on approval. After this
+    /// timestamp the project's verified status is considered lapsed and it
+    /// must renew via `request_renewal`.
     pub expires_at: u64,
-    /// Unix timestamp when verification was last renewed
+    /// Unix timestamp when verification was last renewed.
+    /// Updated by `approve_renewal`; zero until the first renewal.
     pub last_renewed_at: u64,
-    /// Admin assigned to review this verification request
+    /// Admin assigned to review this verification request via
+    /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
 }
 
+/// Record of a completed verification renewal.
+///
+/// Created by `approve_renewal` and stored alongside the canonical
+/// `VerificationRecord` to give indexers a full renewal history.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRenewalRecord {
+    /// ID of the project whose verification was renewed.
     pub project_id: u64,
+    /// Address that submitted the renewal request (must be the project owner).
     pub requester: Address,
+    /// Status of the project's verification at the time of renewal
+    /// (always `Verified` for a successful renewal record).
     pub status: VerificationStatus,
+    /// IPFS CID of the evidence document submitted with the renewal request.
     pub evidence_cid: String,
+    /// Unix timestamp (seconds) when the renewal was approved.
     pub timestamp: u64,
+    /// Fee amount (in the smallest unit of the configured token) consumed for
+    /// this renewal.
     pub fee_amount: u128,
-    /// Unix timestamp when the renewed verification expires
+    /// Unix timestamp when the renewed verification expires.
     pub expires_at: u64,
 }
 
@@ -367,8 +636,15 @@ pub struct VerificationRenewalRecord {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfig {
+    /// SAC token address used for fee payments, or `None` when fees are
+    /// free (zero-amount). When non-`None`, `verification_fee` and
+    /// `registration_fee` must be transferred in this token.
     pub token: Option<Address>,
+    /// Fee amount (smallest token unit) charged per `request_verification`
+    /// call. Zero disables the verification fee.
     pub verification_fee: u128,
+    /// Fee amount (smallest token unit) charged per `register_project` call.
+    /// Zero disables the registration fee.
     pub registration_fee: u128,
 }
 
@@ -451,12 +727,23 @@ impl FeePaymentStatus {
     }
 }
 
+/// Record of a completed fee payment. Stored under
+/// `ExtensionKey::FeePaymentDetails(project_id)` for verification fees
+/// or `ExtensionKey::RegistrationFeePaymentDetails(address)` for
+/// registration fees. Retained as an audit trail even after the payment
+/// flag is consumed.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeePaymentRecord {
+    /// Unix timestamp (seconds) when the payment was made.
     pub paid_at: u64,
+    /// Address that executed the payment (must be the project owner or
+    /// registrant).
     pub payer: Address,
+    /// Amount paid in the smallest unit of `token`.
     pub amount: u128,
+    /// Token the fee was paid in. `None` when the fee was configured as
+    /// free (zero-amount) and no token transfer occurred.
     pub token: Option<Address>,
 }
 
@@ -478,6 +765,8 @@ pub struct FeeRefundRecord {
     /// Address that paid the fee and is owed the refund.
     pub payer: Address,
     /// Amount owed, in the smallest unit of `token`.
+    /// Accumulated across multiple rejections if the owner re-paid and was
+    /// rejected again before claiming the outstanding refund.
     pub amount: u128,
     /// Token the fee was paid in. `None` when the fee was configured as free.
     pub token: Option<Address>,
@@ -487,18 +776,30 @@ pub struct FeeRefundRecord {
     pub claimed_at: Option<u64>,
 }
 
+/// Immutable snapshot of one fee-configuration change, appended to the history
+/// list whenever `set_fee` (or an equivalent timelock/proposal path) succeeds.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigHistoryEntry {
+    /// Admin address that executed the change.
     pub admin: Address,
+    /// Token address before the change, or `None` if fees were free.
     pub old_token: Option<Address>,
+    /// Verification fee before the change, or `None` for the initial entry.
     pub old_verification_fee: Option<u128>,
+    /// Registration fee before the change, or `None` for the initial entry.
     pub old_registration_fee: Option<u128>,
+    /// Treasury address before the change, or `None` for the initial entry.
     pub old_treasury: Option<Address>,
+    /// New token address after the change.
     pub token: Option<Address>,
+    /// New verification fee after the change.
     pub verification_fee: u128,
+    /// New registration fee after the change.
     pub registration_fee: u128,
+    /// New treasury address after the change.
     pub treasury: Address,
+    /// Unix timestamp (seconds) when the change was applied.
     pub timestamp: u64,
 }
 
@@ -506,6 +807,10 @@ pub struct FeeConfigHistoryEntry {
 
 /// External dependency reference can point to an internal project id,
 /// an external IPFS CID, an external URL, or a Stellar contract address.
+///
+/// Exactly one of the four fields should be `Some`; the others should be
+/// `None`. Using more than one field in a single `DependencyRef` is
+/// permitted by the type but semantically ambiguous.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DependencyRef {
@@ -519,6 +824,11 @@ pub struct DependencyRef {
     pub external_contract: Option<String>,
 }
 
+/// A single entry in a project's dependency list.
+///
+/// Dependencies are stored in a `Vec<ProjectDependency>` under
+/// `ExtensionKey::ProjectDependencies(project_id)`. Adding a dependency
+/// that creates a cycle or exceeds `MAX_DEPENDENCY_DEPTH` is rejected.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectDependency {
@@ -538,20 +848,34 @@ pub struct ProjectDependency {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeaturedProjectEvent {
+    /// ID of the project whose featured status changed.
     pub project_id: u64,
+    /// `true` when the project was featured; `false` when unfeatured.
     pub featured: bool,
+    /// Admin address that made the change.
     pub admin: Address,
+    /// Unix timestamp (seconds) when the change was applied.
     pub timestamp: u64,
 }
 
 /// A curated collection of projects, managed by admins.
+///
+/// The member list is stored separately under
+/// `ExtensionKey::CollectionProjects(id)` as a `Vec<u64>` of project IDs.
+/// The collection record itself only stores metadata.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Collection {
+    /// Unique monotonically-increasing collection identifier.
     pub id: u64,
+    /// Human-readable collection name (max `MAX_COLLECTION_NAME_LEN` bytes).
     pub name: String,
+    /// Short description of the collection's theme or curation criteria
+    /// (max `MAX_COLLECTION_DESCRIPTION_LEN` bytes).
     pub description: String,
+    /// Unix timestamp (seconds) when the collection was created.
     pub created_at: u64,
+    /// Unix timestamp (seconds) when the collection metadata was last updated.
     pub updated_at: u64,
 }
 
@@ -601,60 +925,108 @@ pub enum AdminActionType {
     ClaimRequestRejected,
 }
 
+/// Current state of a duplicate-project dispute.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DisputeStatus {
+    /// Dispute has been submitted and is awaiting admin resolution.
     Pending,
+    /// Admin determined the dispute was unfounded. **Terminal state.**
     Rejected,
+    /// Admin resolved the dispute (e.g. archived the duplicate or linked
+    /// the projects). **Terminal state.**
     Resolved,
 }
 
+/// A duplicate-project dispute raised by any user against a project they
+/// believe is a duplicate of another.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DuplicateDispute {
+    /// Unique monotonically-increasing dispute identifier.
     pub id: u64,
+    /// ID of the project alleged to be a duplicate.
     pub project_id: u64,
+    /// ID of the project alleged to be the original.
     pub original_project_id: u64,
+    /// Address that opened the dispute.
     pub creator: Address,
+    /// IPFS CID of the evidence document supplied by the creator.
     pub evidence_cid: String,
+    /// Current state of the dispute (see [`DisputeStatus`]).
     pub status: DisputeStatus,
+    /// Unix timestamp (seconds) when the dispute was opened.
     pub created_at: u64,
+    /// Unix timestamp (seconds) when the dispute was resolved or rejected.
+    /// Zero while the dispute is still `Pending`.
     pub resolved_at: u64,
 }
 
+/// Action an admin takes when resolving a duplicate dispute.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DisputeResolutionAction {
+    /// Dispute is unfounded; no action taken on the projects.
     Reject,
+    /// Archive the project with the given ID (typically the alleged duplicate).
     ArchiveProject(u64),
+    /// Link the two projects as related rather than archiving either.
     LinkDuplicates,
 }
 
 /// A single entry in the admin action log.
+///
+/// Entries are appended by `AdminActionLog::record_action` after every
+/// successful admin operation and are never mutated. Indexed under
+/// `ExtensionKey::AdminActionLog` as a `Vec<AdminActionEntry>`.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminActionEntry {
+    /// Unique monotonically-increasing log entry identifier.
     pub id: u64,
+    /// Admin address that performed the action.
     pub admin: Address,
+    /// Type of admin action performed (see [`AdminActionType`]).
     pub action_type: AdminActionType,
+    /// ID of the project, review, collection, or other entity affected by
+    /// the action. `None` for actions that do not target a specific entity
+    /// (e.g. `FeeChanged`, `ThresholdChanged`).
     pub target_id: Option<u64>,
+    /// Address of the entity affected by the action (e.g. the new admin
+    /// address for `AdminAdded`). `None` when not applicable.
     pub target_address: Option<Address>,
+    /// Unix timestamp (seconds) when the action was recorded.
     pub timestamp: u64,
+    /// Optional IPFS CID of a rationale or evidence document supplied at
+    /// the time of the action (e.g. revocation reason, moderation note).
     pub reason_cid: Option<String>,
 }
 
 // ── Admin Timelock ───────────────────────────────────────────────────────────
 
 /// A scheduled action in the admin timelock.
+///
+/// Created by `schedule_*` functions and executed by `execute_timelock_action`
+/// after `execution_timestamp` has passed. The delay must be within
+/// `[TIMELOCK_MIN_DELAY, TIMELOCK_MAX_DELAY]`.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelockAction {
+    /// Unique monotonically-increasing timelock action identifier.
     pub id: u64,
+    /// Admin address that scheduled the action.
     pub admin: Address,
+    /// Type of action to be executed (see [`AdminActionType`]).
     pub action_type: AdminActionType,
+    /// Unix timestamp (seconds) on or after which the action may be executed.
     pub execution_timestamp: u64,
+    /// Whether the action has already been executed. Once `true`, the action
+    /// cannot be executed again.
     pub executed: bool,
+    /// Whether the action was cancelled before execution. Once `true`, the
+    /// action cannot be executed or cancelled again.
     pub cancelled: bool,
+    /// Unix timestamp (seconds) when the action was scheduled.
     pub created_at: u64,
 }
 
@@ -662,9 +1034,13 @@ pub struct TimelockAction {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelockFeeParams {
+    /// New token address (see `FeeConfig::token`).
     pub token: Option<Address>,
+    /// New verification fee amount.
     pub verification_fee: u128,
+    /// New registration fee amount.
     pub registration_fee: u128,
+    /// New treasury address to receive fees.
     pub treasury: Address,
 }
 
@@ -672,6 +1048,7 @@ pub struct TimelockFeeParams {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelockAdminAddParams {
+    /// Address to be granted admin privileges.
     pub new_admin: Address,
 }
 
@@ -679,40 +1056,81 @@ pub struct TimelockAdminAddParams {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelockAdminRemoveParams {
+    /// Admin address to be removed.
     pub admin_to_remove: Address,
 }
 
+/// Lifecycle status of a multi-sig admin proposal.
+///
+/// ```text
+/// Pending ──(threshold met)──► Approved ──execute──► Executed  (terminal)
+///         └──(any admin rejects)──────────────────► Rejected   (terminal)
+/// ```
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProposalStatus {
+    /// Created and collecting approvals. Transitions to `Approved` once
+    /// the required threshold is reached, or `Rejected` if cancelled.
     Pending,
+    /// Approval threshold has been met; the proposal may now be executed.
     Approved,
+    /// Proposal has been executed. **Terminal state.**
     Executed,
+    /// Proposal was rejected before reaching the threshold. **Terminal state.**
     Rejected,
 }
 
+/// The operation encoded inside an `AdminProposal`.
+///
+/// The variant name and contained values are hashed at creation time
+/// (`payload_hash`) and re-verified at execution time to prevent
+/// payload-substitution attacks.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProposalPayload {
+    /// Grant admin privileges to the enclosed address.
     AddAdmin(Address),
+    /// Revoke admin privileges from the enclosed address.
     RemoveAdmin(Address),
+    /// Update fee configuration: `(token, verification_fee, registration_fee, treasury)`.
     SetFee(Option<Address>, u128, u128, Address),
+    /// Change the admin approval threshold to the enclosed value.
     SetThreshold(u32),
+    /// Approve the verification request with the enclosed `request_id`.
     ApproveVerification(u64),
+    /// Reject the verification request with the enclosed `request_id`.
     RejectVerification(u64),
+    /// Revoke the verification for the project with the enclosed `project_id`,
+    /// with the enclosed reason string.
     RevokeVerification(u64, String),
 }
 
+/// An admin proposal in the multi-sig workflow.
+///
+/// Proposals are created by any admin and collect approvals from other admins
+/// until the configured threshold is met, at which point any admin may execute
+/// the proposal. The `payload_hash` is a SHA-256 digest of the XDR-serialised
+/// `payload` and is re-verified at execution time to prevent tampering.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminProposal {
+    /// Unique monotonically-increasing proposal identifier.
     pub id: u64,
+    /// Admin address that created the proposal.
     pub proposer: Address,
+    /// High-level category of the proposed action (for logging and filtering).
     pub action_type: AdminActionType,
+    /// SHA-256 digest of the XDR-encoded `payload`. Verified at execution
+    /// time — a mismatch returns `PayloadHashMismatch`.
     pub payload_hash: soroban_sdk::BytesN<32>,
+    /// Full operation parameters. Must hash to `payload_hash`.
     pub payload: ProposalPayload,
+    /// Map of `admin_address → true` for each admin that has approved this
+    /// proposal. An admin can only appear once; re-approving is a no-op.
     pub approvals: Map<Address, bool>,
+    /// Current lifecycle status of the proposal (see [`ProposalStatus`]).
     pub status: ProposalStatus,
+    /// Unix timestamp (seconds) when the proposal was created.
     pub created_at: u64,
     /// Optional expiry timestamp (Unix seconds). When non-zero, `execute_proposal`
     /// will reject the proposal if the current ledger time is at or past this value.
@@ -725,8 +1143,11 @@ pub struct AdminProposal {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewTombstone {
+    /// ID of the project the deleted review belonged to.
     pub project_id: u64,
+    /// Address of the reviewer who submitted (and deleted) the review.
     pub reviewer: Address,
+    /// Unix timestamp (seconds) when the review was deleted.
     pub deleted_at: u64,
 }
 
