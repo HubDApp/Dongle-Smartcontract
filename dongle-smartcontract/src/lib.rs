@@ -53,13 +53,14 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, BatchTtlResult, ChangelogEntry, ChangelogSortMode,
-    ClaimRequest, Collection, ContractClaimRequest, ContractConfigView, DependencyRef,
-    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
-    FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    AdminActionEntry, AdminProposal, BatchTtlResult, BookmarkFolder, ChangelogEntry,
+    ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest, ContractConfigView,
+    DependencyRef, DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
     ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
     ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
-    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
+    SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationRecord,
+    VerificationStatus, VerificationStatusFilter,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1703,6 +1704,164 @@ impl DongleContract {
 
     pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start_index, limit)
+    }
+
+    // --- Bookmark Folders (#815) ---
+
+    /// Create a new folder for organising bookmarks.
+    pub fn create_bookmark_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        parent_id: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_folder(&env, user, name, parent_id)
+    }
+
+    /// Delete a bookmark folder (bookmarks are retained in the flat list).
+    pub fn delete_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_folder(&env, user, folder_id)
+    }
+
+    /// Rename a bookmark folder.
+    pub fn rename_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        new_name: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::rename_folder(&env, user, folder_id, new_name)
+    }
+
+    /// Get a bookmark folder by ID.
+    pub fn get_bookmark_folder_by_id(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Option<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder(&env, user, folder_id)
+    }
+
+    /// List all folders owned by the user.
+    pub fn list_bookmark_folders(env: Env, user: Address) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_folders(&env, user)
+    }
+
+    /// List direct child folders of a given parent folder.
+    pub fn list_child_bookmark_folders(
+        env: Env,
+        user: Address,
+        parent_id: u64,
+    ) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_child_folders(&env, user, parent_id)
+    }
+
+    /// Move a bookmarked project into a folder.
+    pub fn move_bookmark_to_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::move_bookmark_to_folder(
+            &env, user, project_id, folder_id,
+        )
+    }
+
+    /// Remove a bookmark from its current folder.
+    pub fn remove_bookmark_from_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::remove_bookmark_from_folder(
+            &env, user, project_id,
+        )
+    }
+
+    /// Get bookmarks in a folder, paginated.
+    pub fn get_folder_bookmarks(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder_bookmarks(
+            &env,
+            user,
+            folder_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get the folder ID that a bookmarked project currently lives in, if any.
+    pub fn get_bookmark_folder(env: Env, user: Address, project_id: u64) -> Option<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_bookmark_folder(&env, project_id, &user)
+    }
+
+    // --- Smart Folders (#815) ---
+
+    /// Create a smart folder (dynamically filtered bookmark view).
+    pub fn create_smart_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        filter: SmartFolderFilter,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_smart_folder(&env, user, name, filter)
+    }
+
+    /// Delete a smart folder.
+    pub fn delete_smart_folder(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(
+            &env,
+            user,
+            smart_folder_id,
+        )
+    }
+
+    /// Get a smart folder by ID.
+    pub fn get_smart_folder(env: Env, user: Address, smart_folder_id: u64) -> Option<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder(&env, user, smart_folder_id)
+    }
+
+    /// List all smart folders owned by the user.
+    pub fn list_smart_folders(env: Env, user: Address) -> Vec<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_smart_folders(&env, user)
+    }
+
+    /// Get the resolved bookmark list for a smart folder (paginated).
+    pub fn get_smart_folder_bookmarks(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder_bookmarks(
+            &env,
+            user,
+            smart_folder_id,
+            start_index,
+            limit,
+        )
     }
 
     // --- Endorsement Registry ---

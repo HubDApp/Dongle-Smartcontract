@@ -4,7 +4,7 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{ExtensionKey, ReviewIntegrityKey, StorageKey};
+use crate::storage_keys::{BookmarkKey, ExtensionKey, ReviewIntegrityKey, StorageKey};
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
@@ -467,6 +467,64 @@ impl StorageManager {
                 }
             }
         }
+    }
+
+    // ── Bookmark Folder TTL Management (#815) ──────────────────────────────
+
+    /// Extend TTL for a user's folder-ID list.
+    pub fn extend_user_folder_ids_ttl(env: &Env, user: &Address) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::UserFolderIds(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a single bookmark folder record.
+    pub fn extend_folder_ttl(env: &Env, user: &Address, folder_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::BookmarkFolder(user.clone(), folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::FolderBookmarks(user.clone(), folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a user's smart-folder-ID list.
+    pub fn extend_user_smart_folder_ids_ttl(env: &Env, user: &Address) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::UserSmartFolderIds(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a single smart folder record.
+    pub fn extend_smart_folder_ttl(env: &Env, user: &Address, smart_folder_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::SmartFolder(user.clone(), smart_folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for the bookmark-folder index entry for a project.
+    pub fn extend_bookmark_folder_index_ttl(env: &Env, user: &Address, project_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::BookmarkFolderIndex(user.clone(), project_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
     }
 }
 

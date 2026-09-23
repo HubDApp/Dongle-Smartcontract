@@ -299,3 +299,29 @@ pub const DEFAULT_REVIEW_FEE: u128 = 0;
 /// Bump when a non-backwards-compatible change to the public contract surface
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
+
+// ── Bookmark Folder Constants (#815) ────────────────────────────────────────
+
+/// Maximum number of bookmark folders per user (regular folders, excluding smart folders).
+/// 50: each folder is a `BookmarkFolder` record plus a `FolderBookmarks` list;
+/// 50 folders keeps the per-user storage footprint predictable.
+pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
+
+/// Maximum number of smart folders per user.
+/// 20: smart folders are metadata-only (no stored list) but each query scans
+/// the full bookmark list, so a small cap keeps aggregate query cost bounded.
+pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
+
+/// Maximum number of bookmarks inside a single folder.
+/// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
+/// 4 KiB, well within a single ledger entry.
+pub const MAX_BOOKMARKS_PER_FOLDER: u32 = 500;
+
+/// Maximum depth of nested bookmark folders.
+/// 5: deep nesting is expensive to validate (requires walking up the parent
+/// chain on every create/rename call) and rarely needed in practice.
+pub const MAX_FOLDER_DEPTH: u32 = 5;
+
+/// Maximum byte length for a bookmark folder name.
+/// 100: matches `MAX_COLLECTION_NAME_LEN`; a folder name is a display title.
+pub const MAX_FOLDER_NAME_LEN: usize = 100;

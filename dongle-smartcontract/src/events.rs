@@ -2425,3 +2425,213 @@ pub fn publish_review_integrity_violation_event(
         event_data,
     );
 }
+
+// ── Bookmark Folder Events (#815) ─────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderCreatedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub parent_id: Option<u64>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderDeletedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderRenamedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub new_name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkMovedToFolderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub folder_id: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkRemovedFromFolderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub folder_id: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolderCreatedEvent {
+    pub smart_folder_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolderDeletedEvent {
+    pub smart_folder_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_folder_created_event(
+    env: &Env,
+    folder_id: u64,
+    owner: Address,
+    name: String,
+    parent_id: Option<u64>,
+) {
+    let event_data = FolderCreatedEvent {
+        folder_id,
+        owner: owner.clone(),
+        name,
+        parent_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("CREATED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_folder_deleted_event(env: &Env, folder_id: u64, owner: Address) {
+    let event_data = FolderDeletedEvent {
+        folder_id,
+        owner: owner.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("DELETED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_folder_renamed_event(env: &Env, folder_id: u64, owner: Address, new_name: String) {
+    let event_data = FolderRenamedEvent {
+        folder_id,
+        owner: owner.clone(),
+        new_name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("RENAMED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_moved_to_folder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    folder_id: u64,
+) {
+    let event_data = BookmarkMovedToFolderEvent {
+        project_id,
+        owner: owner.clone(),
+        folder_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("MOVED"),
+            project_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_removed_from_folder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    folder_id: u64,
+) {
+    let event_data = BookmarkRemovedFromFolderEvent {
+        project_id,
+        owner: owner.clone(),
+        folder_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("RMVDFDR"),
+            project_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_folder_created_event(
+    env: &Env,
+    smart_folder_id: u64,
+    owner: Address,
+    name: String,
+) {
+    let event_data = SmartFolderCreatedEvent {
+        smart_folder_id,
+        owner: owner.clone(),
+        name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SFOLDER"),
+            symbol_short!("CREATED"),
+            smart_folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_folder_deleted_event(env: &Env, smart_folder_id: u64, owner: Address) {
+    let event_data = SmartFolderDeletedEvent {
+        smart_folder_id,
+        owner: owner.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SFOLDER"),
+            symbol_short!("DELETED"),
+            smart_folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
