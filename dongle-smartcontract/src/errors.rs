@@ -172,6 +172,19 @@ pub enum ContractError {
     AlreadyMaintainerAdded = 80,
     /// The dispute is not in a pending state and cannot be resolved.
     DisputeNotPending = 81,
+    // ── Bookmark Folder errors (#815) ─────────────────────────────────────
+    /// Bookmark folder not found.
+    FolderNotFound = 82,
+    /// A folder with this name already exists for the user.
+    FolderAlreadyExists = 83,
+    /// The maximum number of bookmark folders per user has been reached.
+    MaxFoldersExceeded = 84,
+    /// Nested folder depth limit exceeded.
+    FolderDepthExceeded = 85,
+    /// Smart folder not found.
+    SmartFolderNotFound = 86,
+    /// The maximum number of smart folders per user has been reached.
+    MaxSmartFoldersExceeded = 87,
 }
 
 pub type Error = ContractError;

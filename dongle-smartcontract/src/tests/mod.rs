@@ -143,3 +143,6 @@ mod pay_fee_guards_470;
 
 // Issue #811: Notification preference registry
 mod notifications;
+
+// Issue #815: Bookmark folders and smart folders
+mod bookmark_folders;

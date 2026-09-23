@@ -860,6 +860,94 @@ pub struct FeaturedProjectEvent {
 
 /// A curated collection of projects, managed by admins.
 ///
+// ── Bookmark Folder Types (#815) ─────────────────────────────────────────────
+
+/// A user-owned folder for organizing bookmarks.
+///
+/// Folders are scoped per user (`owner`) and identified by a monotonically-
+/// increasing `id` within the user's folder namespace (not global).  Each
+/// folder stores a `Vec<u64>` of project IDs as its bookmark list under
+/// `BookmarkKey::FolderBookmarks(owner, folder_id)`.
+///
+/// Nested folders are represented by an optional `parent_id`.  The depth limit
+/// is enforced at creation time by `BookmarkRegistry`.  A `None` parent means
+/// the folder is at the root level.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkFolder {
+    /// Folder identifier (monotonically increasing, scoped per user).
+    pub id: u64,
+    /// Address that owns this folder.
+    pub owner: Address,
+    /// Human-readable folder name (max `MAX_FOLDER_NAME_LEN` bytes).
+    pub name: String,
+    /// Optional parent folder ID.  `None` = root-level folder.
+    pub parent_id: Option<u64>,
+    /// Unix timestamp (seconds) when the folder was created.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the folder was last modified.
+    pub updated_at: u64,
+}
+
+/// A smart folder that derives its bookmark list dynamically by applying a
+/// `SmartFolderFilter` to the user's full bookmark set.  Smart folders are
+/// read-only: bookmarks cannot be manually added or removed from them.
+///
+/// The smart folder record is stored but the resolved project-ID list is
+/// computed on every `get_smart_folder_bookmarks` call (no caching).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolder {
+    /// Smart folder identifier (scoped per user, separate counter from regular
+    /// folders).
+    pub id: u64,
+    /// Address that owns this smart folder.
+    pub owner: Address,
+    /// Human-readable folder name.
+    pub name: String,
+    /// Filter criteria used to select bookmarks.
+    pub filter: SmartFolderFilter,
+    /// Unix timestamp (seconds) when the smart folder was created.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the smart folder was last modified.
+    pub updated_at: u64,
+}
+
+/// Optional verification-status filter for a smart folder.
+///
+/// `None` is represented as `Any` — the filter matches regardless of
+/// verification status.  Using a dedicated enum avoids the Soroban-SDK
+/// limitation that prevents `Option<ContractType-enum>` from being used
+/// inside another `#[contracttype]` struct.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationStatusFilter {
+    /// No filter — match any verification status.
+    Any,
+    /// Match only projects with the given verification status.
+    Is(VerificationStatus),
+}
+
+/// Filter criteria for a smart folder.
+///
+/// A smart folder resolves to the set of bookmarked projects that match **all**
+/// of the non-`Any` fields (AND semantics).  Fields set to `None`/`Any` are
+/// ignored.
+///
+/// Callers can create a "match-all" smart folder by setting every field to
+/// `None` — this mirrors the full bookmark list.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolderFilter {
+    /// Only include bookmarks for projects in this category, if set.
+    pub category: Option<String>,
+    /// Only include bookmarks for projects carrying this tag, if set.
+    pub tag: Option<String>,
+    /// Only include bookmarks for projects with this verification status
+    /// (`VerificationStatusFilter::Is(...)`) or any status (`Any`).
+    pub verification_status: VerificationStatusFilter,
+}
+
 /// The member list is stored separately under
 /// `ExtensionKey::CollectionProjects(id)` as a `Vec<u64>` of project IDs.
 /// The collection record itself only stores metadata.

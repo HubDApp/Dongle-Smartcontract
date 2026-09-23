@@ -303,3 +303,33 @@ pub enum ReviewIntegrityKey {
     /// Keyed by `(project_id, reviewer)`.
     ReviewIntegrityHash(u64, Address),
 }
+
+/// Storage keys for bookmark folders and smart folders (#815).
+///
+/// `ExtensionKey` is at its 50-variant Soroban cap.  Bookmark-folder keys use
+/// this independent enum following the same pattern as `FeeHistoryKey`,
+/// `NotificationKey`, and `ReviewIntegrityKey`.
+///
+/// All keys are **per-user**: the `Address` payload is the folder owner.
+/// Folder IDs are monotonically increasing counters scoped to each user.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BookmarkKey {
+    /// Folder record for (owner, folder_id).
+    BookmarkFolder(Address, u64),
+    /// List of folder IDs owned by a user.
+    UserFolderIds(Address),
+    /// Next folder ID counter for a user (scoped per-user).
+    NextFolderIdForUser(Address),
+    /// Bookmarks inside a folder: list of project IDs in (owner, folder_id).
+    FolderBookmarks(Address, u64),
+    /// Smart folder record for (owner, smart_folder_id).
+    SmartFolder(Address, u64),
+    /// List of smart folder IDs owned by a user.
+    UserSmartFolderIds(Address),
+    /// Next smart folder ID counter for a user (scoped per-user).
+    NextSmartFolderIdForUser(Address),
+    /// Per-user index: project_id → folder_id.  Lets `move_bookmark` find
+    /// the current folder of a project without scanning all folder lists.
+    BookmarkFolderIndex(Address, u64),
+}
