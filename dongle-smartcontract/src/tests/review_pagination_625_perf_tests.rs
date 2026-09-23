@@ -66,6 +66,7 @@ fn seed_reviews(
                 last_updated_at: 0,
                 hidden: false,
                 report_count: 0,
+                evidence_links: Vec::new(env),
             };
 
             env.storage()

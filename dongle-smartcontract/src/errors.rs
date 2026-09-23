@@ -172,6 +172,12 @@ pub enum ContractError {
     AlreadyMaintainerAdded = 80,
     /// The dispute is not in a pending state and cannot be resolved.
     DisputeNotPending = 81,
+    /// Too many evidence links supplied (max MAX_EVIDENCE_LINKS_PER_REVIEW).
+    TooManyEvidenceLinks = 82,
+    /// Evidence link URL is empty or has an invalid scheme.
+    InvalidEvidenceLink = 83,
+    /// Evidence link URL exceeds MAX_EVIDENCE_LINK_URL_LEN bytes.
+    EvidenceLinkTooLong = 84,
 }
 
 pub type Error = ContractError;

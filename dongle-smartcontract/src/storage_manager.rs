@@ -176,6 +176,14 @@ impl StorageManager {
             LEDGER_THRESHOLD_REVIEW,
             LEDGER_BUMP_REVIEW,
         );
+        // Also extend evidence links stored separately under ExtensionKey2.
+        // Requirements: 7.3, 7.4
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone()),
+            LEDGER_THRESHOLD_REVIEW,
+            LEDGER_BUMP_REVIEW,
+        );
     }
 
     /// Extend TTL for project reviews list
