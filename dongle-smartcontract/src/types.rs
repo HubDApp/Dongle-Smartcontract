@@ -908,3 +908,399 @@ pub struct BatchTtlResult {
     /// `skipped_project_ids` / `skipped_reviewer_indices` instead for reviews.
     pub skipped_ids: Vec<u64>,
 }
+
+// ── Recommendation & Recommendation Feedback ──────────────────────────────────
+
+/// Identifies why / how a project was recommended. The recommendation engine
+/// (off-chain or future on-chain) sets this when it creates a `Recommendation`
+/// so analytics can compare algorithm effectiveness side-by-side.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationAlgorithm {
+    /// Simple popularity / most-reviewed ranking.
+    Popular,
+    /// Highest weighted-rating (see `RatingCalculator`).
+    TopRated,
+    /// Same category / same tags as a reference project.
+    Similar,
+    /// Recently registered / trending.
+    Trending,
+    /// Featured + manually curated admin recommendation.
+    Featured,
+    /// Personalised for a user (follow graph, bookmarks, endorsements, …).
+    Personalised,
+    /// Catch-all for any future / custom algorithm.
+    Custom,
+}
+
+/// What kind of interaction was recorded when tracking a recommendation's
+/// click-through and engagement.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationEngagementKind {
+    /// Recommendation was rendered and shown to a user (impression). Used
+    /// as the denominator for click-through rate.
+    Impression,
+    /// User clicked / tapped the recommendation card to view the project.
+    Click,
+    /// User followed the project after arriving via the recommendation.
+    Follow,
+    /// User bookmarked the project after arriving via the recommendation.
+    Bookmark,
+    /// User endorsed the project after arriving via the recommendation.
+    Endorse,
+    /// User submitted a review for the project after arriving via the recommendation.
+    Review,
+}
+
+/// A single recommendation. Each recommendation points at a single *target*
+/// project (`target_project_id`) and is labelled with the algorithm that
+/// produced it. Optional `reference_project_id` + `audience` fields make it
+/// possible to group recommendations by the context in which they were shown
+/// (e.g. "similar to project X" vs "for-you feed for user Y").
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Recommendation {
+    pub id: u64,
+    /// Project being recommended (what the user will click into).
+    pub target_project_id: u64,
+    /// Algorithm used to produce the recommendation.
+    pub algorithm: RecommendationAlgorithm,
+    /// Optional reference project used as the seed for "similar" recs.
+    pub reference_project_id: Option<u64>,
+    /// Optional audience user the recommendation was personalised for.
+    pub audience: Option<Address>,
+    /// Algorithm-provided score / confidence (unsigned integer, unscaled;
+    /// higher = stronger signal). `None` for unranked recommendations.
+    pub score: Option<u64>,
+    /// Free-form short label ("trending now", "you may like", …).
+    pub label: Option<String>,
+    /// Ledger timestamp when this recommendation was created.
+    pub created_at: u64,
+}
+
+/// Per-user, per-recommendation thumbs-up / thumbs-down feedback. Stored
+/// explicitly (rather than aggregated into a counter) so recommendation
+/// engines can inspect *who* liked or disliked a recommendation, which
+/// enables collaborative filtering and fraud / Sybil detection off-chain.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationFeedback {
+    pub recommendation_id: u64,
+    pub user: Address,
+    /// `true` = thumbs up / helpful; `false` = thumbs down / not helpful.
+    pub helpful: bool,
+    /// Ledger timestamp when feedback was submitted.
+    pub created_at: u64,
+}
+
+/// Aggregated, read-only analytics snapshot for a single recommendation.
+/// Returned by `get_recommendation_analytics` so indexers and UIs can
+/// present effectiveness numbers without doing N storage reads on the client.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationAnalytics {
+    pub recommendation_id: u64,
+    /// Number of times the recommendation was marked as rendered (impressions).
+    pub impressions: u64,
+    /// Number of clicks on the recommendation card.
+    pub clicks: u64,
+    /// Click-through rate scaled by `1_000_000` (ppm).
+    /// `clicks / impressions * 1_000_000`; 0 if impressions == 0.
+    pub click_through_rate_ppm: u32,
+    /// Thumbs-up count (helpful == true).
+    pub helpful_count: u64,
+    /// Thumbs-down count (helpful == false).
+    pub not_helpful_count: u64,
+    /// Helpful ratio scaled by `1_000_000` (ppm).
+    /// `helpful_count / total_feedback * 1_000_000`; 0 if no feedback exists.
+    pub helpful_ratio_ppm: u32,
+    /// Count of Follow engagements triggered from this recommendation.
+    pub follow_engagements: u64,
+    /// Count of Bookmark engagements triggered from this recommendation.
+    pub bookmark_engagements: u64,
+    /// Count of Endorse engagements triggered from this recommendation.
+    pub endorse_engagements: u64,
+    /// Count of Review engagements triggered from this recommendation.
+    pub review_engagements: u64,
+    /// Composite effectiveness score (0–10,000 basis points) combining
+    /// CTR, helpful ratio and downstream engagement signals. Used by
+    /// `list_recommendations_sorted_by_effectiveness` and by recommendation
+    /// engines to "improve based on feedback".
+    pub effectiveness_score_bps: u32,
+}
+
+// ── Community Collections (Issue #821) ──────────────────────────────────────
+
+/// Who owns or stewards a community collection.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommunityCollectionRole {
+    /// Original creator of the collection. Receives creator-level revenue
+    /// share (if any) and cannot be removed from the curator set.
+    Creator,
+    /// Ordinary curator: can add/remove projects, update metadata, but does
+    /// not collect creator-level revenue.
+    Curator,
+}
+
+/// A single up-or-down community vote to include a project in a curated
+/// collection (AC2 — the curation mechanism). `approve = true` is a "yay" vote
+/// to include (or keep), `approve = false` is a "nay" vote to exclude (or
+/// drop). Append-only per voter per collection per project; repeat submissions
+/// error with `CommunityColVoteAlreadyCast`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionVote {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub voter: Address,
+    pub approve: bool,
+    pub created_at: u64,
+}
+
+/// Describes the inclusion state of a single project in a community collection
+/// after aggregating all votes and curator actions. Used to produce a
+/// definitive "is this project in the collection?" answer for UI display.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommunityColInclusionStatus {
+    /// Project is in the collection (either directly added by a curator or
+    /// crossed the approval-vote threshold).
+    Included,
+    /// Project is not in the collection (either never added, removed by a
+    /// curator, or crossed the disapproval-vote threshold).
+    Excluded,
+    /// Project was up for inclusion and a vote is running, but no threshold
+    /// has been reached yet. Only used as a return value for projects that
+    /// have at least one vote cast and are not yet explicitly Added/Removed.
+    Pending,
+}
+
+/// The identity of a pre-defined collection template (AC4 — templates for
+/// common collections). A template is a collection record with `is_template =
+/// true`. Callers can clone a template into a new community collection via
+/// `create_community_collection_from_template`, which copies the metadata
+/// description/project-set skeleton from the template into a new collection
+/// owned by the caller.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommunityCollectionTemplateId {
+    /// "Stellar DeFi Darlings" — well-known liquidity pools, DEXs, lending
+    /// and borrowing products. Seeded project list is empty on deploy;
+    /// populated by admins (avoids tying Soroban contract deploy to any
+    /// particular set of IDs).
+    Defi,
+    /// "NFT / Marketplaces" — marketplaces, trading venues, minting tools.
+    Nft,
+    /// "DAO / Governance Tools" — DAO frameworks, voting, treasury,
+    /// multisig.
+    Dao,
+    /// "Gaming / Metaverse" — on-chain game worlds, land, in-game assets.
+    Gaming,
+    /// "Infrastructure / Tooling" — oracles, RPC, bridges, block explorers,
+    /// indexing, SDKs.
+    Infra,
+    /// "Stablecoins / Payments" — fiat-backed / algorithmic stablecoins and
+    /// payment-focused contracts.
+    Stablecoins,
+    /// "Sustainability / Public Goods" — retroactive public-goods funding,
+    /// carbon, R&D grants, open source stewards.
+    PublicGoods,
+    /// "Audited & Verified" — project set curated from the registry's
+    /// verified set; a starting point for users who want to trust but verify.
+    Verified,
+}
+
+/// Community collection (AC1-4). Unlike `Collection` (admin-only), this is
+/// user-created, has curator voting, can be featured by admin, participates
+/// in revenue sharing, and supports template cloning.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollection {
+    pub id: u64,
+    /// Creator / initial curator. Always authenticated when creating the
+    /// collection. Receives the creator share of any revenue (AC3).
+    pub creator: Address,
+    /// Curator set (addresses who can add/remove projects directly). The
+    /// creator is NOT implicitly duplicated here; both the creator and any
+    /// address in this list can perform curator actions. Kept separate so
+    /// the creator role can receive distinct revenue shares.
+    pub curators: Vec<Address>,
+    /// Required approval votes for a community-proposed project addition to
+    /// become `Included` without a direct curator add. 0 disables voting
+    /// gates entirely.
+    pub approval_threshold: u32,
+    /// Required disapproval votes for a community-proposed removal to become
+    /// `Excluded` without a direct curator remove. 0 disables removal voting.
+    pub disapproval_threshold: u32,
+    pub name: String,
+    pub description: String,
+    /// Optional free-form tag string for indexers / UI facets (comma-
+    /// separated, unstructured on-chain). E.g. "defi,nft,verified".
+    pub tags: Option<String>,
+    /// When true this collection is a template (AC4). Templates cannot hold
+    /// votes or revenue; they exist to be cloned via
+    /// `create_community_collection_from_template`.
+    pub is_template: bool,
+    /// Which pre-defined template id (if any) this collection was cloned
+    /// from. `None` for collections created from scratch.
+    pub template_source: Option<CommunityCollectionTemplateId>,
+    /// Admin-only flag (AC1). When true the collection is surfaced in the
+    /// featured-community-collections list. Set by admin via
+    /// `feature_community_collection`.
+    pub is_featured: bool,
+    /// Basis points of any attributable revenue distributed to the creator
+    /// (AC3). The remaining share is distributed evenly across the curator
+    /// set. Creator share + (curator share per curator) ≤ 10_000.
+    pub creator_revenue_share_bps: u32,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+/// Snapshot of the accrued revenue attribution (AC3) for a single community
+/// collection. Recorded as cumulative totals so off-chain indexers can
+/// distribute payouts at any cadence without needing on-chain transfer logic.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityColRevenueSnapshot {
+    pub collection_id: u64,
+    /// Cumulative attributed tokens (1e7 scaled) to the creator address.
+    pub creator_cumulative_attributed: u128,
+    /// Cumulative attributed tokens (1e7 scaled) to the curator set, split
+    /// evenly. Per-curator = `curators_cumulative_attributed / N_curators`.
+    pub curators_cumulative_attributed: u128,
+    /// Cumulative total attributed tokens (for reconciliation / sanity).
+    pub total_cumulative_attributed: u128,
+    /// Ledger timestamp when this snapshot was emitted.
+    pub as_of_timestamp: u64,
+}
+
+// ── Social Analytics (Issue #822) ──────────────────────────────────────────
+
+/// One day of social-signal snapshots for a project. Keyed on the calendar day
+/// (Unix timestamp / 86400). Stored every time a caller invokes
+/// `record_project_social_daily_checkpoint`; the latest value per day wins
+/// (callers are expected to checkpoint roughly once every 24 hours).
+///
+/// Every counter is stored as a cumulative **snapshot count**, NOT a daily
+/// delta. Deltas between two days are derived by subtracting the earlier
+/// snapshot from the later snapshot — this makes any 2-window comparison
+/// (`last_7_days`, `last_30_days`, arbitrary ranges) trivial to compute
+/// without needing to iterate every day in between.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialDailyCheckpoint {
+    pub project_id: u64,
+    /// Day index = ledger timestamp / 86_400 when this checkpoint was recorded.
+    pub day_index: u32,
+    /// Unix timestamp when this checkpoint was persisted (may be later than
+    /// the day_start if the caller checkpoints early in the day).
+    pub recorded_at: u64,
+    pub follower_count: u32,
+    pub endorsement_count: u32,
+    pub bookmark_count: u32,
+    pub review_count: u32,
+    /// Average review rating scaled in basis points (0–50_000 for 0–5 stars).
+    pub average_rating_bps: u32,
+    /// Sum of follower + endorsement + bookmark + review counts on the day
+    /// of the checkpoint. Pre-summed so downstream aggregation can avoid
+    /// re-adding per-window.
+    pub total_engagement_units: u64,
+}
+
+/// Engagement rate metric for a project over an arbitrary time window (AC2).
+/// Engagement rate is computed as `(follower_gain + endorsement_gain +
+/// bookmark_gain + review_gain) / (follower_count_start + 1)` scaled to
+/// **parts per million** (ppm) so ratios remain integer-only for `no_std`
+/// environments. The "+1" stabilises the denominator on brand-new projects
+/// so we do not divide by zero.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectEngagementMetric {
+    pub project_id: u64,
+    /// Start day index of the window (inclusive).
+    pub window_start_day: u32,
+    /// End day index of the window (inclusive).
+    pub window_end_day: u32,
+    /// Net follower gain inside the window (snapshot end − snapshot start).
+    pub follower_gain: i64,
+    pub endorsement_gain: i64,
+    pub bookmark_gain: i64,
+    pub review_gain: i64,
+    /// Sum of all four gains (absolute-value clamped to ≥0 so ppm ratio is
+    /// never negative).
+    pub net_engagement_gain: u64,
+    /// Follower count at the beginning of the window (or 0 if no checkpoint
+    /// existed pre-window; we use `max(start_follower_count, 1)` as
+    /// denominator).
+    pub start_follower_count: u32,
+    /// Engagement rate expressed in parts-per-million (ppm)
+    /// `= net_engagement_gain * 1_000_000 / max(start_follower_count, 1)`.
+    pub engagement_rate_ppm: u64,
+    /// Average rating change (bps) over the window (end_avg − start_avg).
+    /// May be negative if average rating dropped.
+    pub rating_delta_bps: i64,
+}
+
+/// A single peer-project row returned by the comparison endpoint (AC3).
+/// Includes only the numbers needed for UI comparison widgets (percentile
+/// ranking is derived client-side from the returned sorted list).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialPeerRow {
+    pub project_id: u64,
+    /// Category-matched peer project name for convenience (saves UI one
+    /// `get_project` round-trip per row).
+    pub project_name: String,
+    /// Engagement rate ppm over the same comparison window as the queried
+    /// project.
+    pub engagement_rate_ppm: u64,
+    /// Net engagement gain in the comparison window (units of
+    /// follower + endorse + bookmark + review).
+    pub net_engagement_gain: u64,
+    /// Snapshot follower count at the end of the comparison window (latest
+    /// available checkpoint; falls back to live count if none).
+    pub latest_follower_count: u32,
+    /// Average rating in bps at end of window (or current live stat).
+    pub average_rating_bps: u32,
+}
+
+/// AC4: the fully-loaded "export analytics report" payload. Includes every
+/// metric a downstream report or indexer would need so consumers don't have
+/// to re-assemble 6–7 endpoints.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialAnalyticsExport {
+    pub project_id: u64,
+    /// Project-category string (for reproducibility of peer comparison).
+    pub category: String,
+    /// Number of daily checkpoints stored for this project.
+    pub checkpoint_count: u32,
+    /// Oldest / newest checkpoint day indices — lets the caller know the
+    /// report's data horizon.
+    pub oldest_checkpoint_day: Option<u32>,
+    pub newest_checkpoint_day: Option<u32>,
+    /// 7-day engagement rate (AC2) computed on the fly.
+    pub last_7_days: ProjectEngagementMetric,
+    /// 30-day engagement rate (AC2) computed on the fly.
+    pub last_30_days: ProjectEngagementMetric,
+    /// Growth numbers of pure follower + endorsement + review + bookmark
+    /// counts in the last 30 days (AC1). Matches the `net_engagement_gain`
+    /// of the `last_30_days` metric but is replicated here at top level so
+    /// CSV exporters can extract it in a flat column.
+    pub growth_last_30_days_total_engagement: u64,
+    pub growth_last_30_days_followers: i64,
+    pub growth_last_30_days_endorsements: i64,
+    pub growth_last_30_days_bookmarks: i64,
+    pub growth_last_30_days_reviews: i64,
+    /// Peer comparison rows (AC3) over last-30-day window, sorted by
+    /// `engagement_rate_ppm` descending (peer with highest rate at index 0,
+    /// target project always included so percentile is caller-computable).
+    pub peer_comparison: Vec<ProjectSocialPeerRow>,
+    /// 0-based position of the target project inside `peer_comparison` after
+    /// sorting (so the caller can compute percentile = pos / len).
+    pub self_index_in_peer_ranking: u32,
+    /// Unix ledger timestamp when this report was generated.
+    pub generated_at: u64,
+}

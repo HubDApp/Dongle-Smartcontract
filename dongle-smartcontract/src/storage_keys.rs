@@ -272,3 +272,114 @@ pub enum FeeHistoryKey {
     /// Configurable maximum number of reviews allowed per project.
     MaxReviewsPerProject,
 }
+
+/// Storage keys for recommendation data (issue #820). Held in its own enum to
+/// leave `ExtensionKey` headroom (it was exactly at the 50-variant Soroban
+/// union cap when this feature landed) and to keep recommendation analytics
+/// data together in one key namespace for future indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RecommendationKey {
+    /// Next auto-incrementing recommendation id (counter).
+    NextRecommendationId,
+    /// A single `Recommendation` struct, keyed by id.
+    Recommendation(u64),
+    /// Ordered list of all recommendation ids (oldest first).
+    RecommendationList,
+    /// Recommendation ids that target a specific project (project_id → Vec<u64>).
+    RecommendationsForProject(u64),
+    /// Recommendation ids produced by a specific algorithm.
+    RecommendationsByAlgorithm(u32),
+    /// Explicit per-user feedback: (recommendation_id, user) → RecommendationFeedback.
+    Feedback(u64, Address),
+    /// Count of helpful (thumbs-up) feedback entries for a recommendation.
+    HelpfulCount(u64),
+    /// Count of not-helpful (thumbs-down) feedback entries for a recommendation.
+    NotHelpfulCount(u64),
+    /// Total impressions recorded for a recommendation.
+    ImpressionCount(u64),
+    /// Total clicks recorded for a recommendation.
+    ClickCount(u64),
+    /// Total Follow engagements recorded against a recommendation.
+    FollowCount(u64),
+    /// Total Bookmark engagements recorded against a recommendation.
+    BookmarkCount(u64),
+    /// Total Endorse engagements recorded against a recommendation.
+    EndorseCount(u64),
+    /// Total Review engagements recorded against a recommendation.
+    ReviewCount(u64),
+    /// Per-user impression tracking (recommendation_id, user) → bool, so we
+    /// can enforce "impression before click" invariants and dedupe impressions.
+    ImpressionSeen(u64, Address),
+}
+
+/// Storage keys for community collections (issue #821). Held in its own enum to
+/// respect the 50-variant Soroban union cap (StorageKey = 50, ExtensionKey ≈ 50)
+/// and to provide one clean key namespace for indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CommunityCollectionKey {
+    /// Next auto-incrementing community-collection id counter.
+    NextId,
+    /// A single `CommunityCollection` struct keyed by id.
+    Collection(u64),
+    /// Normalized (lowercase + trimmed) collection name → collection id, used
+    /// to enforce unique community-collection names.
+    NameIndex(String),
+    /// Ordered list of all non-template community-collection ids (oldest first).
+    CollectionList,
+    /// List of community-collection ids marked `is_featured = true` (AC1).
+    /// Admin-maintained, in insertion order (FIFO eviction at the cap).
+    FeaturedList,
+    /// Project ids that are explicitly Included in the collection — the final
+    /// resolved set (curator adds + votes that crossed the threshold).
+    ProjectIds(u64),
+    /// Per-project per-collection append-only vote record.
+    /// (collection_id, project_id, voter) → CommunityCollectionVote.
+    Vote(u64, u64, Address),
+    /// Running approval-vote count per (collection_id, project_id).
+    ApprovalCount(u64, u64),
+    /// Running disapproval-vote count per (collection_id, project_id).
+    DisapprovalCount(u64, u64),
+    /// (collection_id, project_id) → bool: "did a curator explicitly add this?"
+    /// Used to short-circuit vote-based inclusion (curator > community vote).
+    CuratorIncluded(u64, u64),
+    /// (collection_id, project_id) → bool: "did a curator explicitly exclude this?"
+    CuratorExcluded(u64, u64),
+    /// Community-collection ids created by a single creator address.
+    ByCreator(Address),
+    /// Community-collection ids where a given address acts as curator (member of
+    /// `curators` list). Creator-owned ids are tracked in `ByCreator` above.
+    ByCurator(Address),
+    /// Cumulative attributed revenue to a collection's creator (u128, 1e7 scaled).
+    CreatorRevenueCumulative(u64),
+    /// Cumulative attributed revenue to a collection's curator set (u128).
+    CuratorsRevenueCumulative(u64),
+    /// Count of revenue-attribution events for the collection (monotonic, used
+    /// for off-chain sanity check of cumulative totals).
+    RevenueEventCount(u64),
+}
+
+/// Storage keys for social analytics (issue #822). Stored in its own enum
+/// separate from StorageKey / ExtensionKey to keep the 50-variant Soroban
+/// union cap intact, and to provide a single key namespace for indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SocialAnalyticsKey {
+    /// A single `ProjectSocialDailyCheckpoint` snapshot keyed by
+    /// (project_id, day_index). Written by `record_project_social_daily_checkpoint`.
+    DailyCheckpoint(u64, u32),
+    /// Per-project ordered list of day_indices for which we have a checkpoint.
+    /// Append-only, oldest-first. Length cap is `MAX_SOCIAL_CHECKPOINTS_PER_PROJECT`.
+    CheckpointDayIndex(u64),
+    /// Per-project oldest day_index snapshot we still keep — kept so peers
+    /// queries can fast-forward.
+    OldestCheckpointDay(u64),
+    /// Per-project newest day_index snapshot we still keep.
+    NewestCheckpointDay(u64),
+    /// Last ledger timestamp when a checkpoint was recorded.
+    LastCheckpointRecordedAt(u64),
+    /// Export report nonce / version counter. Emitted in the report event so
+    /// exporters can deduplicate identical snapshots across re-runs.
+    ExportReportCounter(u64),
+}
