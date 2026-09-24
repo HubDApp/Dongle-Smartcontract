@@ -66,10 +66,24 @@ Stored under `Collection(u64)`:
 | `id` | `u64` | Collection ID |
 | `name` | `String` | Display title (≤ `MAX_COLLECTION_NAME_LEN` = 100 bytes) |
 | `description` | `String` | Blurb (≤ `MAX_COLLECTION_DESCRIPTION_LEN` = 500 bytes) |
+| `owner` | `Address` | Owner/creator with management rights |
+| `is_public` | `bool` | Visibility flag: `true` for public, `false` for private |
 | `created_at` / `updated_at` | `u64` | Timestamps |
 
 Membership is a `Vec<u64>` capped at `MAX_PROJECTS_PER_COLLECTION` = 500; the
 global number of collections is capped at `MAX_COLLECTIONS` = 100.
+
+### Collection Visibility Keys (`CollectionVisibilityKey`)
+
+To respect the Soroban SDK 50-variant enum limit on `StorageKey`, collection visibility and sharing state is segregated into a dedicated `CollectionVisibilityKey` enum:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `CollectionOwner(u64)` | `Address` | Explicit collection owner lookup |
+| `CollectionIsPublic(u64)` | `bool` | Explicit visibility flag lookup |
+| `CollectionShareToken(u64)` | `BytesN<32>` | Active SHA-256 capability share token |
+| `UserCollections(Address)` | `Vec<u64>` | Index of all collection IDs owned by the user (both public and private) |
+| `PublicCollectionList` | `Vec<u64>` | Global index of publicly discoverable collection IDs |
 
 ---
 
