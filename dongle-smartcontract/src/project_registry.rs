@@ -3,6 +3,7 @@ use crate::auth::require_admin_auth;
 use crate::constants::{
     CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
     MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
+    PROJECT_SUNSET_MIN_NOTICE_SECS,
 };
 use crate::errors::ContractError;
 use crate::events::{
@@ -14,12 +15,12 @@ use crate::events::{
     publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectSortMode, ProjectUpdateParams, SecurityContactStatus,
-    VerificationStatus,
+    ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
+    SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
 use crate::validation::validate_registration_params;
@@ -2714,6 +2715,149 @@ impl ProjectRegistry {
         Ok(())
     }
 
+    /// Schedule a project deprecation and sunset with alternatives.
+    /// The sunset date must be at least 180 days after announcement.
+    pub fn schedule_project_sunset(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        sunset_at: u64,
+        alternative_project_ids: Vec<u64>,
+        redirect_project_id: Option<u64>,
+    ) -> Result<ProjectSunsetPlan, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        caller.require_auth();
+        if project.owner != caller || project.archived {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let announced_at = env.ledger().timestamp();
+        if sunset_at < announced_at.saturating_add(PROJECT_SUNSET_MIN_NOTICE_SECS)
+            || alternative_project_ids.is_empty()
+            || alternative_project_ids.len() > MAX_PAGE_LIMIT
+        {
+            return Err(ContractError::InvalidInput);
+        }
+        if project.lifecycle_status == ProjectLifecycleStatus::Sunset {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        for alternative_id in alternative_project_ids.iter() {
+            if alternative_id == project_id || alternative_id == 0 {
+                return Err(ContractError::InvalidInput);
+            }
+            let alternative =
+                Self::get_project(env, alternative_id).ok_or(ContractError::ProjectNotFound)?;
+            if alternative.archived || alternative_id == project_id {
+                return Err(ContractError::InvalidInput);
+            }
+        }
+        if let Some(redirect_id) = redirect_project_id {
+            if !alternative_project_ids.contains(&redirect_id) {
+                return Err(ContractError::InvalidInput);
+            }
+        }
+
+        let previous_status = project.lifecycle_status;
+        project.lifecycle_status = ProjectLifecycleStatus::Deprecated;
+        project.updated_at = announced_at;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        let plan = ProjectSunsetPlan {
+            project_id,
+            announced_at,
+            sunset_at,
+            alternative_project_ids,
+            redirect_project_id,
+            archived_at: None,
+        };
+        env.storage().persistent().set(
+            &ExtensionKey2::ProjectSunsetPlan(project_id),
+            &plan,
+        );
+
+        if previous_status != ProjectLifecycleStatus::Deprecated {
+            publish_project_lifecycle_status_updated_event(
+                env,
+                project_id,
+                caller,
+                previous_status,
+                ProjectLifecycleStatus::Deprecated,
+            );
+        }
+        Ok(plan)
+    }
+
+    pub fn get_project_sunset_plan(env: &Env, project_id: u64) -> Option<ProjectSunsetPlan> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey2::ProjectSunsetPlan(project_id))
+    }
+
+    /// Return the configured destination for traffic to a deprecated project.
+    pub fn get_project_redirect(env: &Env, project_id: u64) -> Option<u64> {
+        let plan = Self::get_project_sunset_plan(env, project_id)?;
+        plan.redirect_project_id
+            .or_else(|| plan.alternative_project_ids.get(0))
+    }
+
+    /// Finalize a scheduled sunset once its notice period has elapsed.
+    /// Any authenticated address may trigger this maintenance action.
+    pub fn process_project_sunset(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<Project, ContractError> {
+        caller.require_auth();
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let mut plan = Self::get_project_sunset_plan(env, project_id)
+            .ok_or(ContractError::InvalidStatus)?;
+        if project.archived {
+            return Err(ContractError::AlreadyArchived);
+        }
+        if env.ledger().timestamp() < plan.sunset_at {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        let now = env.ledger().timestamp();
+        let previous_status = project.lifecycle_status;
+        project.lifecycle_status = ProjectLifecycleStatus::Sunset;
+        project.archived = true;
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        Self::remove_active_owner_project(env, &project.owner, project_id);
+        StorageManager::extend_project_ttl(env, project_id);
+
+        plan.archived_at = Some(now);
+        env.storage().persistent().set(
+            &ExtensionKey2::ProjectSunsetPlan(project_id),
+            &plan,
+        );
+        if previous_status != ProjectLifecycleStatus::Sunset {
+            publish_project_lifecycle_status_updated_event(
+                env,
+                project_id,
+                project.owner.clone(),
+                previous_status,
+                ProjectLifecycleStatus::Sunset,
+            );
+        }
+        publish_project_archived_event(env, project_id, caller);
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::ProjectArchived,
+        );
+        Ok(project)
+    }
+
     /// Update a project's lifecycle status.
     /// Only the project owner can change the lifecycle status.
     pub fn set_project_lifecycle_status(
@@ -2734,6 +2878,10 @@ impl ProjectRegistry {
         if previous_status == new_status {
             // Status unchanged, no event needed
             return Ok(project);
+        }
+
+        if new_status == ProjectLifecycleStatus::Sunset {
+            return Err(ContractError::InvalidStatus);
         }
 
         // Validate the requested transition against the permitted matrix.

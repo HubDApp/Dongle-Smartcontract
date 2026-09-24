@@ -20,6 +20,9 @@ use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_keys::NotificationKey;
 use crate::types::{
+    AdminActionType, VerificationEvidenceComparison, VerificationEvidenceVersion,
+    VerificationBatchAction, VerificationBatchReport, VerificationBatchResult, VerificationRecord,
+    VerificationRenewalRecord, VerificationStatus,
     AdminActionType, NotificationDeliveryStatus, VerificationAppeal, VerificationExpiryNotification,
     VerificationRecord, VerificationRenewalRecord, VerificationRejectionState,
     VerificationRiskAssessment, VerificationRiskModel, VerificationStatus, VerificationSuspension,
@@ -28,6 +31,7 @@ use crate::utils::Utils;
 use crate::verification_registry::state_machine::VerificationStateMachine;
 use crate::verification_registry::validation::VerificationValidation;
 use soroban_sdk::{Address, Env, String, Vec};
+use crate::storage_keys::ExtensionKey2;
 
 pub struct VerificationRegistry;
 
@@ -300,6 +304,18 @@ impl VerificationRegistry {
             .persistent()
             .set(&StorageKey::VerificationRecord(request_id), &record);
 
+        let mut evidence_versions = Vec::new(env);
+        evidence_versions.push_back(VerificationEvidenceVersion {
+            version: 1,
+            evidence_cid: evidence_cid.clone(),
+            submitted_by: requester.clone(),
+            submitted_at: now,
+        });
+        env.storage().persistent().set(
+            &ExtensionKey2::VerificationEvidenceVersions(request_id),
+            &evidence_versions,
+        );
+
         // 9. Save to current/latest backward-compatible record
         env.storage()
             .persistent()
@@ -353,12 +369,13 @@ impl VerificationRegistry {
         Ok(())
     }
 
-    /// Updates the verification evidence CID for a pending verification request.
+    /// Updates the verification evidence CID for a pending or verified request.
     ///
     /// This can only be called by the project owner when the request is in the
-    /// Pending status. The supplied CID is validated using the standard CID validation rules.
-    /// Once updated successfully, it persists the new CID and publishes a
-    /// `VerificationEvidenceUpdated` event.
+    /// Pending status. A verified request is reset to Pending after a changed CID.
+    /// The supplied CID is validated using the standard CID validation rules.
+    /// Once updated successfully, it persists a new immutable version and publishes
+    /// a `VerificationEvidenceUpdated` event.
     pub fn update_verification_evidence(
         env: &Env,
         project_id: u64,
@@ -375,23 +392,72 @@ impl VerificationRegistry {
         let mut record =
             Self::get_verification(env, project_id).ok_or(ContractError::VerificationNotFound)?;
 
-        // 3. Reject if not Pending
-        if record.status != VerificationStatus::Pending {
+        // 3. Finalized rejected requests cannot be edited. A verified request
+        // may be edited, but the approval is reset below.
+        if record.status == VerificationStatus::Rejected
+            || record.status == VerificationStatus::Unverified
+        {
             return Err(ContractError::InvalidStatus);
         }
 
         // 4. Validate CID before state mutation
         VerificationValidation::validate_evidence_cid(&new_evidence_cid)?;
 
-        // 5. Update CID and persist
+        if record.evidence_cid == new_evidence_cid {
+            return Ok(());
+        }
+
+        // 5. Append a new immutable evidence snapshot.
         let old_evidence_cid = record.evidence_cid;
+        let mut evidence_versions = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<VerificationEvidenceVersion>>(
+                &ExtensionKey2::VerificationEvidenceVersions(record.request_id),
+            )
+            .unwrap_or_else(|| Vec::new(env));
+        let version = evidence_versions.len().saturating_add(1);
+        evidence_versions.push_back(VerificationEvidenceVersion {
+            version,
+            evidence_cid: new_evidence_cid.clone(),
+            submitted_by: caller.clone(),
+            submitted_at: env.ledger().timestamp(),
+        });
+        env.storage().persistent().set(
+            &ExtensionKey2::VerificationEvidenceVersions(record.request_id),
+            &evidence_versions,
+        );
+
+        // 6. Update the current snapshot. Evidence changes invalidate prior approval.
         record.evidence_cid = new_evidence_cid.clone();
+        if record.status == VerificationStatus::Verified {
+            record.status = VerificationStatus::Pending;
+            record.decided_at = 0;
+            record.expires_at = 0;
+            let mut project = ProjectRegistry::get_project(env, project_id)
+                .ok_or(ContractError::ProjectNotFound)?;
+            project.verification_status = VerificationStatus::Pending;
+            project.updated_at = env.ledger().timestamp();
+            env.storage()
+                .persistent()
+                .set(&StorageKey::Project(project_id), &project);
+
+            let mut pending = env
+                .storage()
+                .persistent()
+                .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+                .unwrap_or_else(|| Vec::new(env));
+            Utils::add_unique_to_vec(&mut pending, &record.request_id);
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::PendingVerificationRequests, &pending);
+        }
 
         env.storage()
             .persistent()
             .set(&StorageKey::VerificationRecord(record.request_id), &record);
 
-        // 6. Emit event
+        // 7. Emit event
         publish_verification_evidence_updated_event(
             env,
             project_id,
@@ -585,6 +651,196 @@ impl VerificationRegistry {
         Ok(())
     }
 
+    /// Atomically approve or reject up to 100 pending verification requests.
+    /// Every request is validated before the first state mutation.
+    pub fn decide_verifications_batch(
+        env: &Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+        action: VerificationBatchAction,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        if crate::admin_manager::AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+        if request_ids.is_empty() || request_ids.len() > 100 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut pending_records = Vec::new(env);
+        for i in 0..request_ids.len() {
+            let request_id = request_ids.get(i).ok_or(ContractError::InvalidInput)?;
+            if request_ids.iter().take(i).any(|id| id == request_id) {
+                return Err(ContractError::InvalidInput);
+            }
+
+            let record = Self::get_verification_record(env, request_id)
+                .ok_or(ContractError::VerificationNotFound)?;
+            if record.status != VerificationStatus::Pending {
+                return Err(ContractError::InvalidStatus);
+            }
+
+            let project = ProjectRegistry::get_project(env, record.project_id)
+                .ok_or(ContractError::ProjectNotFound)?;
+            if project.current_verification_id != Some(request_id) {
+                return Err(ContractError::InvalidStatus);
+            }
+            VerificationStateMachine::validate_transition(
+                project.verification_status,
+                match action {
+                    VerificationBatchAction::Approve => VerificationStatus::Verified,
+                    VerificationBatchAction::Reject => VerificationStatus::Rejected,
+                },
+            )?;
+
+            if action == VerificationBatchAction::Approve {
+                if let Some(stored_hash) = ProjectRegistry::get_project_integrity_hash(
+                    env,
+                    record.project_id,
+                ) {
+                    if !ProjectRegistry::hash_matches_current_or_legacy(
+                        env,
+                        &project.name,
+                        &project.slug,
+                        &project.category,
+                        &project.description,
+                        &stored_hash,
+                    ) {
+                        return Err(ContractError::InvalidProjectData);
+                    }
+                }
+            }
+
+            pending_records.push_back((project, record));
+        }
+
+        let now = env.ledger().timestamp();
+        let mut results = Vec::new(env);
+        for i in 0..pending_records.len() {
+            let (mut project, mut record) = pending_records
+                .get(i)
+                .ok_or(ContractError::VerificationNotFound)?;
+            let status = match action {
+                VerificationBatchAction::Approve => {
+                    record.status = VerificationStatus::Verified;
+                    record.expires_at = now.saturating_add(
+                        AdminManager::get_verification_duration(env),
+                    );
+                    record.decided_at = now;
+                    project.verification_status = VerificationStatus::Verified;
+                    VerificationStatus::Verified
+                }
+                VerificationBatchAction::Reject => {
+                    record.status = VerificationStatus::Rejected;
+                    record.decided_at = now;
+                    project.verification_status = VerificationStatus::Rejected;
+                    FeeManager::record_verification_refund(
+                        env,
+                        record.project_id,
+                        record.request_id,
+                        record.requester.clone(),
+                        record.fee_amount,
+                    )?;
+                    VerificationStatus::Rejected
+                }
+            };
+
+            project.current_verification_id = Some(record.request_id);
+            project.updated_at = now;
+            env.storage().persistent().set(
+                &StorageKey::VerificationRecord(record.request_id),
+                &record,
+            );
+            env.storage()
+                .persistent()
+                .set(&StorageKey::Project(record.project_id), &project);
+            Self::remove_pending_request(env, record.request_id);
+
+            match action {
+                VerificationBatchAction::Approve => {
+                    publish_verification_approved_event(
+                        env,
+                        record.project_id,
+                        admin.clone(),
+                        now,
+                    );
+                    crate::notification_registry::NotificationRegistry::emit_project_notification(
+                        env,
+                        record.project_id,
+                        crate::types::NotificationKind::VerificationApproved,
+                    );
+                    AdminActionLog::record_action(
+                        env,
+                        admin.clone(),
+                        AdminActionType::VerificationApproved,
+                        Some(record.project_id),
+                        None,
+                        None,
+                    );
+                }
+                VerificationBatchAction::Reject => {
+                    publish_verification_rejected_event(
+                        env,
+                        record.project_id,
+                        admin.clone(),
+                        now,
+                    );
+                    crate::notification_registry::NotificationRegistry::emit_project_notification(
+                        env,
+                        record.project_id,
+                        crate::types::NotificationKind::VerificationRejected,
+                    );
+                    AdminActionLog::record_action(
+                        env,
+                        admin.clone(),
+                        AdminActionType::VerificationRejected,
+                        Some(record.project_id),
+                        None,
+                        None,
+                    );
+                }
+            }
+
+            results.push_back(VerificationBatchResult {
+                request_id: record.request_id,
+                project_id: record.project_id,
+                status,
+                decided_at: now,
+            });
+        }
+
+        Ok(VerificationBatchReport {
+            action,
+            total: results.len(),
+            results,
+        })
+    }
+
+    pub fn approve_verifications_batch(
+        env: &Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        Self::decide_verifications_batch(
+            env,
+            request_ids,
+            admin,
+            VerificationBatchAction::Approve,
+        )
+    }
+
+    pub fn reject_verifications_batch(
+        env: &Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        Self::decide_verifications_batch(
+            env,
+            request_ids,
+            admin,
+            VerificationBatchAction::Reject,
+        )
     pub fn submit_verification_appeal(
         env: &Env,
         project_id: u64,
@@ -992,6 +1248,45 @@ impl VerificationRegistry {
         env.storage()
             .persistent()
             .get::<_, VerificationRecord>(&StorageKey::VerificationRecord(request_id))
+    }
+
+    pub fn get_verification_evidence_versions(
+        env: &Env,
+        request_id: u64,
+    ) -> Vec<VerificationEvidenceVersion> {
+        env.storage()
+            .persistent()
+            .get::<_, Vec<VerificationEvidenceVersion>>(
+                &ExtensionKey2::VerificationEvidenceVersions(request_id),
+            )
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn get_verification_evidence_version(
+        env: &Env,
+        request_id: u64,
+        version: u32,
+    ) -> Option<VerificationEvidenceVersion> {
+        let versions = Self::get_verification_evidence_versions(env, request_id);
+        if version == 0 || version > versions.len() {
+            return None;
+        }
+        versions.get(version - 1)
+    }
+
+    pub fn compare_verification_evidence(
+        env: &Env,
+        request_id: u64,
+        first_version: u32,
+        second_version: u32,
+    ) -> Option<VerificationEvidenceComparison> {
+        let first = Self::get_verification_evidence_version(env, request_id, first_version)?;
+        let second = Self::get_verification_evidence_version(env, request_id, second_version)?;
+        Some(VerificationEvidenceComparison {
+            changed: first.evidence_cid != second.evidence_cid,
+            first,
+            second,
+        })
     }
 
     pub fn get_pending_verifications(

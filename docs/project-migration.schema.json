@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dongle.example/schemas/project-migration.schema.json",
+  "title": "Dongle Project Migration Batch",
+  "description": "Registry-neutral project import format. Normalize source exports into this format before submitting projects to register_project.",
+  "type": "object",
+  "required": ["schemaVersion", "source", "projects"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "source": {
+      "type": "object",
+      "required": ["registry", "exportedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "registry": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "exportedAt": { "type": "string", "format": "date-time" },
+        "exportVersion": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/project"
+      }
+    }
+  },
+  "$defs": {
+    "project": {
+      "type": "object",
+      "required": ["sourceId", "owner", "name", "slug", "description", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "owner": { "type": "string", "pattern": "^G[A-Z2-7]{55}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "website": { "type": ["string", "null"], "format": "uri" },
+        "repository": { "type": ["string", "null"], "format": "uri" },
+        "license": { "type": ["string", "null"], "maxLength": 128 },
+        "logoCid": { "type": ["string", "null"], "minLength": 1, "maxLength": 128 },
+        "metadataCid": { "type": ["string", "null"], "minLength": 1, "maxLength": 128 },
+        "tags": {
+          "type": ["array", "null"],
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+        },
+        "socialLinks": {
+          "type": ["object", "null"],
+          "additionalProperties": { "type": "string", "format": "uri" }
+        },
+        "launchTimestamp": { "type": ["integer", "null"], "minimum": 0 },
+        "bountyUrl": { "type": ["string", "null"], "format": "uri" },
+        "maintainers": {
+          "type": ["array", "null"],
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      }
+    }
+  }
+}

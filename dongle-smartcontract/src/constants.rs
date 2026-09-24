@@ -255,6 +255,8 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
 /// Admins can override this via set_verification_duration.
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
+/// Minimum notice required between announcing a sunset and its effective date.
+pub const PROJECT_SUNSET_MIN_NOTICE_SECS: u64 = 180 * 24 * 60 * 60;
 /// Minimum timelock delay in seconds (1 day).
 ///
 /// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,
