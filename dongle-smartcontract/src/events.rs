@@ -1,6 +1,6 @@
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
-    ReviewAction, ReviewEventData, VerificationStatus,
+    ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -351,6 +351,7 @@ pub fn publish_review_event(
     env: &Env,
     project_id: u64,
     reviewer: Address,
+    attribution: ReviewAttribution,
     action: ReviewAction,
     content_cid: Option<String>,
     owner_response: Option<String>,
@@ -360,7 +361,11 @@ pub fn publish_review_event(
 ) {
     let event_data = ReviewEventData {
         project_id,
-        reviewer: reviewer.clone(),
+        reviewer: if attribution == ReviewAttribution::Attributed {
+            Some(reviewer.clone())
+        } else {
+            None
+        },
         action: action.clone(),
         timestamp: env.ledger().timestamp(),
         content_cid,
@@ -377,8 +382,12 @@ pub fn publish_review_event(
         ReviewAction::Deleted => symbol_short!("DELETED"),
     };
 
-    env.events()
-        .publish((REVIEW, action_sym, project_id, reviewer), event_data);
+    if attribution == ReviewAttribution::Attributed {
+        env.events()
+            .publish((REVIEW, action_sym, project_id, reviewer), event_data);
+    } else {
+        env.events().publish((REVIEW, action_sym, project_id), event_data);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -20,6 +20,7 @@ use crate::storage_keys::{ExtensionKey, ExtensionKey2, ReviewIntegrityKey, Stora
 use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, ArchivedReview, EvidenceLink, Project, ProjectStats, Review, ReviewAction,
+    ReviewAttribution,
     ReviewEligibilityConfig, ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision,
     ReviewSortMode, ReviewTombstone,
 };
@@ -230,6 +231,28 @@ impl ReviewRegistry {
         comment_cid: Option<String>,
         evidence_links: Option<soroban_sdk::Vec<EvidenceLink>>,
     ) -> Result<(), ContractError> {
+        Self::add_review_with_attribution(
+            env,
+            project_id,
+            reviewer,
+            rating,
+            comment_cid,
+            evidence_links,
+            ReviewAttribution::Attributed,
+            None,
+        )
+    }
+
+    pub fn add_review_with_attribution(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        comment_cid: Option<String>,
+        evidence_links: Option<soroban_sdk::Vec<EvidenceLink>>,
+        attribution: ReviewAttribution,
+        reviewer_name: Option<String>,
+    ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
             ReviewValidation::validate_review_cid(cid)?;
         }
@@ -294,6 +317,8 @@ impl ReviewRegistry {
         let review = Review {
             project_id,
             reviewer: reviewer.clone(),
+            attribution,
+            reviewer_name,
             rating,
             content_cid: comment_cid.clone(),
             owner_response: None,
@@ -357,6 +382,7 @@ impl ReviewRegistry {
             env,
             project_id,
             reviewer,
+            attribution,
             ReviewAction::Submitted,
             comment_cid.clone(),
             None,
@@ -373,8 +399,37 @@ impl ReviewRegistry {
         rating: u32,
         review_cid: String,
     ) -> Result<(), ContractError> {
+        Self::submit_review_with_attribution(
+            env,
+            project_id,
+            reviewer,
+            rating,
+            review_cid,
+            ReviewAttribution::Attributed,
+            None,
+        )
+    }
+
+    pub fn submit_review_with_attribution(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        review_cid: String,
+        attribution: ReviewAttribution,
+        reviewer_name: Option<String>,
+    ) -> Result<(), ContractError> {
         ReviewValidation::validate_review_cid(&review_cid)?;
-        Self::add_review(env, project_id, reviewer, rating, Some(review_cid))
+        Self::add_review_with_attribution(
+            env,
+            project_id,
+            reviewer,
+            rating,
+            Some(review_cid),
+            None,
+            attribution,
+            reviewer_name,
+        )
     }
 
     pub fn update_review(
@@ -478,6 +533,7 @@ impl ReviewRegistry {
             env,
             project_id,
             reviewer.clone(),
+            review.attribution,
             ReviewAction::Updated,
             comment_cid.clone(),
             review.owner_response.clone(),
@@ -764,6 +820,7 @@ impl ReviewRegistry {
             env,
             project_id,
             reviewer,
+            existing.attribution,
             ReviewAction::Deleted,
             None,
             existing.owner_response.clone(),
@@ -904,11 +961,9 @@ impl ReviewRegistry {
         let len = ids.len();
         for i in 0..len {
             if let Some((project_id, reviewer)) = ids.get(i) {
-                if let Some(review) = Self::get_review(env, project_id, reviewer) {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
                     // Exclude hidden reviews from bulk listing (issue #658).
-                    // Direct per-reviewer lookups via `get_review` still return
-                    // the full record so admins can inspect hidden reviews.
-                    if !review.hidden {
+                    if !review.hidden && review.attribution == ReviewAttribution::Attributed {
                         reviews.push_back(review);
                     }
                 }
@@ -955,6 +1010,7 @@ impl ReviewRegistry {
             env,
             project_id,
             reviewer,
+            review.attribution,
             ReviewAction::Updated,
             review.content_cid.clone(),
             review.owner_response.clone(),
@@ -965,21 +1021,29 @@ impl ReviewRegistry {
     }
 
     pub fn get_review_response(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
-        Self::get_review(env, project_id, reviewer).and_then(|review| review.owner_response)
+        Self::get_review_record(env, project_id, reviewer).and_then(|review| review.owner_response)
     }
 
     pub fn get_review(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
+        let review = Self::get_review_record(env, project_id, reviewer)?;
+        if review.attribution == ReviewAttribution::Anonymous {
+            return None;
+        }
+        Some(review)
+    }
+
+    fn get_review_record(env: &Env, project_id: u64, reviewer: Address) -> Option<Review> {
         env.storage()
             .persistent()
             .get(&StorageKey::Review(project_id, reviewer))
     }
 
     pub fn get_review_cid(env: &Env, project_id: u64, reviewer: Address) -> Option<String> {
-        Self::get_review(env, project_id, reviewer).and_then(|review| {
+        Self::get_review_record(env, project_id, reviewer).and_then(|review| {
             // Return None for hidden reviews — callers should not get CIDs for
             // moderated content (issue #658). Admins needing the CID of a hidden
             // review can call get_review directly.
-            if review.hidden {
+            if review.hidden || review.attribution == ReviewAttribution::Anonymous {
                 None
             } else {
                 review.content_cid
@@ -999,8 +1063,8 @@ impl ReviewRegistry {
         for i in 0..len {
             if let Some(reviewer) = reviewers.get(i) {
                 // Only include CIDs for non-hidden reviews (issue #658).
-                if let Some(review) = Self::get_review(env, project_id, reviewer.clone()) {
-                    if !review.hidden {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer.clone()) {
+                    if !review.hidden && review.attribution == ReviewAttribution::Attributed {
                         if let Some(cid) = review.content_cid {
                             cids.push_back((reviewer, cid));
                         }
@@ -1058,10 +1122,45 @@ impl ReviewRegistry {
 
         for i in start_index..end {
             if let Some(reviewer) = reviewers.get(i) {
-                if let Some(review) = Self::get_review(env, project_id, reviewer) {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
                     // Exclude hidden reviews from default listings
-                    if !review.hidden {
+                    if !review.hidden && review.attribution == ReviewAttribution::Attributed {
                         reviews.push_back(review);
+                    }
+                }
+            }
+        }
+        reviews
+    }
+
+    pub fn list_public_reviews(
+        env: &Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+        attribution: ReviewAttribution,
+    ) -> Vec<crate::types::PublicReview> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut reviews = Vec::new(env);
+        let len = reviewers.len();
+        if start_index >= len {
+            return reviews;
+        }
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
+        for i in start_index..end {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
+                    if !review.hidden && review.attribution == attribution {
+                        reviews.push_back(review.public_view());
                     }
                 }
             }
@@ -1142,7 +1241,9 @@ impl ReviewRegistry {
         // Extend TTL
         StorageManager::extend_review_ttl(env, project_id, &reviewer);
 
-        crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
+        if review.attribution == ReviewAttribution::Attributed {
+            crate::events::publish_review_reported_event(env, project_id, reviewer, reporter);
+        }
 
         Ok(())
     }

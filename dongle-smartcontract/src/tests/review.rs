@@ -2,6 +2,7 @@
 
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
+use crate::types::ReviewAttribution;
 use crate::DongleContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
@@ -27,6 +28,49 @@ fn test_add_review_success() {
     assert_eq!(review.rating, 5);
     assert_eq!(review.reviewer, reviewer);
     assert_eq!(review.project_id, project_id);
+}
+
+#[test]
+fn test_review_attribution_modes_use_separate_public_queries() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+    let project_id = create_test_project(&client, &admin, "AttributionModes");
+    let anonymous_reviewer = Address::generate(&env);
+    let attributed_reviewer = Address::generate(&env);
+
+    client.add_review_with_attribution(
+        &project_id,
+        &anonymous_reviewer,
+        &4,
+        &None,
+        &ReviewAttribution::Anonymous,
+        &None,
+    );
+    client.add_review_with_attribution(
+        &project_id,
+        &attributed_reviewer,
+        &5,
+        &None,
+        &ReviewAttribution::Attributed,
+        &Some(String::from_str(&env, "Ada")),
+    );
+
+    let anonymous = client.list_anonymous_reviews(&project_id, &0, &10);
+    assert_eq!(anonymous.len(), 1);
+    assert_eq!(anonymous.get(0).unwrap().reviewer, None);
+    assert_eq!(anonymous.get(0).unwrap().reviewer_name, None);
+
+    let attributed = client.list_attributed_reviews(&project_id, &0, &10);
+    assert_eq!(attributed.len(), 1);
+    assert_eq!(
+        attributed.get(0).unwrap().reviewer,
+        Some(attributed_reviewer)
+    );
+    assert_eq!(
+        attributed.get(0).unwrap().reviewer_name,
+        Some(String::from_str(&env, "Ada"))
+    );
 }
 
 #[test]
