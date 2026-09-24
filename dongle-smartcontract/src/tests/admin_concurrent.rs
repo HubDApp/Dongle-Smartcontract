@@ -70,6 +70,33 @@ fn assert_count_matches_list(client: &DongleContractClient<'_>) {
     );
 }
 
+// A repeated approval represents two submissions that raced before either
+// caller observed the other transaction's result.
+#[test]
+fn test_concurrent_duplicate_proposal_approval_is_rejected() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let second_admin = Address::generate(&env);
+    client.mock_all_auths().add_admin(&admin, &second_admin);
+    client.mock_all_auths().set_admin_approval_threshold(&admin, &2);
+
+    let proposal_id = client.create_proposal(
+        &admin,
+        &crate::types::ProposalPayload::AddAdmin(Address::generate(&env)),
+        &0,
+    );
+
+    client.mock_all_auths().approve_proposal(&second_admin, &proposal_id);
+    assert!(client
+        .mock_all_auths()
+        .try_approve_proposal(&second_admin, &proposal_id)
+        .is_err());
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.approvals.len(), 2);
+    assert_eq!(proposal.status, crate::types::ProposalStatus::Approved);
+}
+
 // ─── individual consistency checks ───────────────────────────────────────────
 
 /// After `add_admin`, both the mapping and the list must reflect the new admin.

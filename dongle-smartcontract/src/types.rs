@@ -160,6 +160,10 @@ pub struct Review {
     pub project_id: u64,
     /// Address of the reviewer. Unique per project.
     pub reviewer: Address,
+    /// Whether the reviewer identity is exposed by public query endpoints.
+    pub attribution: ReviewAttribution,
+    /// Optional name shown with an attributed review.
+    pub reviewer_name: Option<String>,
     /// Rating in the range `[RATING_MIN, RATING_MAX]` (currently 1–5 inclusive).
     pub rating: u32,
     /// Canonical content CID - replaces the redundant ipfs_cid/comment_cid pair.
@@ -196,6 +200,61 @@ pub struct Review {
     pub evidence_links: Vec<EvidenceLink>,
 }
 
+/// Controls whether a review is publicly attributed to its author.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReviewAttribution {
+    /// Public review views omit both the reviewer address and name.
+    Anonymous,
+    /// Public review views include the reviewer address and optional name.
+    Attributed,
+}
+
+/// Public projection of a review. The reviewer address is only populated for
+/// attributed reviews, so anonymous review queries cannot disclose it.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicReview {
+    pub project_id: u64,
+    pub reviewer: Option<Address>,
+    pub reviewer_name: Option<String>,
+    pub attribution: ReviewAttribution,
+    pub rating: u32,
+    pub content_cid: Option<String>,
+    pub owner_response: Option<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub last_updated_at: u64,
+    pub hidden: bool,
+    pub report_count: u32,
+    pub evidence_links: Vec<EvidenceLink>,
+}
+
+impl Review {
+    pub fn public_view(&self) -> PublicReview {
+        let attributed = self.attribution == ReviewAttribution::Attributed;
+        PublicReview {
+            project_id: self.project_id,
+            reviewer: if attributed { Some(self.reviewer.clone()) } else { None },
+            reviewer_name: if attributed {
+                self.reviewer_name.clone()
+            } else {
+                None
+            },
+            attribution: self.attribution,
+            rating: self.rating,
+            content_cid: self.content_cid.clone(),
+            owner_response: self.owner_response.clone(),
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            last_updated_at: self.last_updated_at,
+            hidden: self.hidden,
+            report_count: self.report_count,
+            evidence_links: self.evidence_links.clone(),
+        }
+    }
+}
+
 /// Identifies the lifecycle event that produced a `ReviewEventData` emission.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -219,7 +278,7 @@ pub struct ReviewEventData {
     /// ID of the reviewed project.
     pub project_id: u64,
     /// Address that owns the review.
-    pub reviewer: Address,
+    pub reviewer: Option<Address>,
     /// Lifecycle event that triggered this emission.
     pub action: ReviewAction,
     /// Ledger timestamp (seconds) at the time of the event.
@@ -1252,7 +1311,7 @@ pub struct AdminProposal {
     /// Full operation parameters. Must hash to `payload_hash`.
     pub payload: ProposalPayload,
     /// Map of `admin_address → true` for each admin that has approved this
-    /// proposal. An admin can only appear once; re-approving is a no-op.
+    /// proposal. An admin can only appear once; re-approving is rejected.
     pub approvals: Map<Address, bool>,
     /// Current lifecycle status of the proposal (see [`ProposalStatus`]).
     pub status: ProposalStatus,

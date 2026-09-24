@@ -421,6 +421,10 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
+        // `Map` provides set semantics for admin addresses. The read, update,
+        // threshold check, and proposal write are committed as one Soroban
+        // transaction, so conflicting approvals cannot interleave between the
+        // membership check and insertion.
         if proposal.approvals.contains_key(admin.clone()) {
             return Err(ContractError::Unauthorized);
         }
