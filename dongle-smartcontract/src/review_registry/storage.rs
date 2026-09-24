@@ -3,23 +3,25 @@
 use crate::admin_action_log::AdminActionLog;
 use crate::constants::{
     DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
-    LEDGER_BUMP_REVIEW, LEDGER_THRESHOLD_REVIEW, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER,
-    MAX_REVIEW_REVISIONS, REVIEW_UPDATE_COOLDOWN_SECONDS,
+    LEDGER_BUMP_ARCHIVED_REVIEW, LEDGER_BUMP_REVIEW, LEDGER_THRESHOLD_ARCHIVED_REVIEW,
+    LEDGER_THRESHOLD_REVIEW, MAX_ARCHIVE_BATCH_SIZE, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER,
+    MAX_REVIEW_REVISIONS, REVIEW_ARCHIVE_AGE_SECONDS, REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
 use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_review_event, publish_review_integrity_sealed_event,
+    publish_review_archived_event, publish_review_event, publish_review_integrity_sealed_event,
     publish_review_integrity_violation_event, publish_review_revision_event,
 };
 use crate::project_registry::ProjectRegistry;
 use crate::rating_calculator::RatingCalculator;
 use crate::review_registry::validation::ReviewValidation;
-use crate::storage_keys::{ExtensionKey, ReviewIntegrityKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, ReviewIntegrityKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, Project, ProjectStats, Review, ReviewAction, ReviewEligibilityConfig,
-    ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    AdminActionType, ArchivedReview, EvidenceLink, Project, ProjectStats, Review, ReviewAction,
+    ReviewEligibilityConfig, ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision,
+    ReviewSortMode, ReviewTombstone,
 };
 use soroban_sdk::{Address, Env, String, Vec};
 use soroban_sdk::xdr::ToXdr;
@@ -1508,5 +1510,283 @@ impl ReviewRegistry {
             );
             ReviewIntegrityStatus::Tampered
         }
+    }
+
+    // ── Review Archival (#804) ────────────────────────────────────────────
+
+    /// Admin-only: archive reviews older than `REVIEW_ARCHIVE_AGE_SECONDS` for a project.
+    ///
+    /// Iterates over the active reviewer list for `project_id`, checking each
+    /// review's `created_at` timestamp. Reviews whose age exceeds the threshold
+    /// are:
+    ///
+    /// 1. Moved to a compact `ArchivedReview` record stored at a shorter TTL
+    ///    (see `LEDGER_THRESHOLD_ARCHIVED_REVIEW`).
+    /// 2. Removed from primary persistent storage (`StorageKey::Review`).
+    /// 3. Removed from the `ProjectReviews` and `UserReviews` index so they
+    ///    no longer appear in regular listing calls.
+    /// 4. Added to the `ProjectArchivedReviews` index so callers can enumerate
+    ///    archived reviews via `list_archived_reviews`.
+    /// 5. Reported via `ReviewArchivedEvent` for off-chain indexers to persist
+    ///    the full payload to permanent storage (e.g., Arweave/IPFS).
+    ///
+    /// Project stats (`rating_sum`, `review_count`, `average_rating`) are **not**
+    /// modified — archived reviews continue to contribute to the aggregate rating.
+    ///
+    /// `batch_size` caps the number of reviews processed per call
+    /// (max `MAX_ARCHIVE_BATCH_SIZE`). Call repeatedly to archive large projects.
+    ///
+    /// Returns the number of reviews archived in this call.
+    ///
+    /// # Errors
+    /// - `ContractError::AdminOnly` — caller is not a registered admin.
+    /// - `ContractError::ProjectNotFound` — `project_id` does not exist.
+    pub fn archive_old_reviews(
+        env: &Env,
+        admin: Address,
+        project_id: u64,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        admin.require_auth();
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+        if ProjectRegistry::get_project(env, project_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let effective_batch = if batch_size == 0 || batch_size > MAX_ARCHIVE_BATCH_SIZE {
+            MAX_ARCHIVE_BATCH_SIZE
+        } else {
+            batch_size
+        };
+
+        let now = env.ledger().timestamp();
+        let cutoff = now.saturating_sub(REVIEW_ARCHIVE_AGE_SECONDS);
+
+        // Load current active reviewer list for the project.
+        let project_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Load current archived reviewer list (append-only index).
+        let mut archived_reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey2::ProjectArchivedReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Track which reviewers remain active after this batch.
+        let mut remaining: Vec<Address> = Vec::new(env);
+        let mut archived_count: u32 = 0;
+
+        let len = project_reviews.len();
+        for i in 0..len {
+            let reviewer = match project_reviews.get(i) {
+                Some(r) => r,
+                None => continue,
+            };
+
+            // If we've hit the batch cap, keep everything else active.
+            if archived_count >= effective_batch {
+                remaining.push_back(reviewer);
+                continue;
+            }
+
+            let review_key = StorageKey::Review(project_id, reviewer.clone());
+            let review: Review = match env.storage().persistent().get(&review_key) {
+                Some(r) => r,
+                None => continue, // orphaned index entry — skip silently
+            };
+
+            // Only archive if the review is old enough and not already archived.
+            if review.created_at > cutoff {
+                remaining.push_back(reviewer);
+                continue;
+            }
+
+            // --- Archive this review ---
+
+            // 1. Build and store the compact ArchivedReview record.
+            let archived = ArchivedReview {
+                project_id,
+                reviewer: reviewer.clone(),
+                rating: review.rating,
+                content_cid: review.content_cid.clone(),
+                created_at: review.created_at,
+                updated_at: review.updated_at,
+                archived_at: now,
+                arweave_tx_id: None,
+            };
+            let archive_key = ExtensionKey2::ArchivedReview(project_id, reviewer.clone());
+            env.storage().persistent().set(&archive_key, &archived);
+            env.storage().persistent().extend_ttl(
+                &archive_key,
+                LEDGER_THRESHOLD_ARCHIVED_REVIEW,
+                LEDGER_BUMP_ARCHIVED_REVIEW,
+            );
+
+            // 2. Remove from primary persistent storage.
+            env.storage().persistent().remove(&review_key);
+            // Also remove revision history to reclaim storage.
+            Self::clear_review_revisions(env, project_id, &reviewer);
+
+            // 3. Remove from the reviewer's own UserReviews index.
+            let user_reviews_key = StorageKey::UserReviews(reviewer.clone());
+            let user_reviews: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&user_reviews_key)
+                .unwrap_or_else(|| Vec::new(env));
+            let mut new_user_reviews: Vec<u64> = Vec::new(env);
+            for j in 0..user_reviews.len() {
+                if let Some(pid) = user_reviews.get(j) {
+                    if pid != project_id {
+                        new_user_reviews.push_back(pid);
+                    }
+                }
+            }
+            env.storage()
+                .persistent()
+                .set(&user_reviews_key, &new_user_reviews);
+
+            // 4. Add to the project archived reviewers index.
+            archived_reviewers.push_back(reviewer.clone());
+
+            // 5. Emit archival event for off-chain indexers.
+            publish_review_archived_event(
+                env,
+                project_id,
+                reviewer,
+                review.rating,
+                review.content_cid,
+                review.created_at,
+                review.updated_at,
+            );
+
+            archived_count += 1;
+        }
+
+        // Persist the updated active reviewer list.
+        env.storage()
+            .persistent()
+            .set(&StorageKey::ProjectReviews(project_id), &remaining);
+
+        // Persist the updated archived reviewer index.
+        if archived_count > 0 {
+            let archived_key = ExtensionKey2::ProjectArchivedReviews(project_id);
+            env.storage()
+                .persistent()
+                .set(&archived_key, &archived_reviewers);
+            env.storage().persistent().extend_ttl(
+                &archived_key,
+                LEDGER_THRESHOLD_ARCHIVED_REVIEW,
+                LEDGER_BUMP_ARCHIVED_REVIEW,
+            );
+        }
+
+        Ok(archived_count)
+    }
+
+    /// Retrieve the compact archived record for a review that has been processed
+    /// by `archive_old_reviews`. Returns `None` if the review was never archived
+    /// (or the archived record has expired from on-chain storage).
+    ///
+    /// Use this instead of `get_review` for reviews known to be archived.
+    pub fn get_archived_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ArchivedReview> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey2::ArchivedReview(project_id, reviewer))
+    }
+
+    /// Return a paginated list of archived reviews for a project.
+    ///
+    /// Results are in the order reviews were archived (oldest-archived first).
+    /// Use `start_index` / `limit` for pagination.
+    pub fn list_archived_reviews(
+        env: &Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ArchivedReview> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let reviewers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey2::ProjectArchivedReviews(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let total = reviewers.len();
+        let mut results: Vec<ArchivedReview> = Vec::new(env);
+        if start_index as usize >= total {
+            return results;
+        }
+
+        let end = core::cmp::min(
+            (start_index as usize).saturating_add(effective_limit as usize),
+            total,
+        );
+        for i in start_index as usize..end {
+            if let Some(reviewer) = reviewers.get(i as u32) {
+                if let Some(archived) =
+                    env.storage()
+                        .persistent()
+                        .get(&ExtensionKey2::ArchivedReview(project_id, reviewer))
+                {
+                    results.push_back(archived);
+                }
+            }
+        }
+        results
+    }
+
+    /// Admin-only: record the Arweave transaction ID for an archived review.
+    ///
+    /// Off-chain archival jobs call this after successfully writing the full
+    /// review payload to Arweave, so on-chain queries can return the permanent
+    /// storage reference.
+    ///
+    /// # Errors
+    /// - `ContractError::AdminOnly` — caller is not a registered admin.
+    /// - `ContractError::ReviewNotArchived` — no archived record exists for
+    ///   `(project_id, reviewer)`.
+    pub fn set_archived_review_arweave_tx(
+        env: &Env,
+        admin: Address,
+        project_id: u64,
+        reviewer: Address,
+        arweave_tx_id: String,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        let archive_key = ExtensionKey2::ArchivedReview(project_id, reviewer.clone());
+        let mut archived: ArchivedReview = env
+            .storage()
+            .persistent()
+            .get(&archive_key)
+            .ok_or(ContractError::ReviewNotArchived)?;
+
+        archived.arweave_tx_id = Some(arweave_tx_id);
+        env.storage().persistent().set(&archive_key, &archived);
+        env.storage().persistent().extend_ttl(
+            &archive_key,
+            LEDGER_THRESHOLD_ARCHIVED_REVIEW,
+            LEDGER_BUMP_ARCHIVED_REVIEW,
+        );
+        Ok(())
     }
 }

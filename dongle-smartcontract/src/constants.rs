@@ -275,6 +275,24 @@ pub const CLAIM_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
 
+/// Minimum age in seconds for a review before it becomes eligible for archival.
+/// Reviews older than this threshold (from `created_at`) are moved to cheaper
+/// storage via `archive_old_reviews`. Default is 2 years.
+///
+/// 2 years = 2 × 365 × 24 × 60 × 60 = 63_072_000 seconds.
+pub const REVIEW_ARCHIVE_AGE_SECONDS: u64 = 63_072_000;
+
+/// Maximum number of reviews that can be archived in a single `archive_old_reviews` call.
+/// Caps the per-invocation CPU and I/O budget so the call stays within Soroban limits.
+pub const MAX_ARCHIVE_BATCH_SIZE: u32 = 50;
+
+/// TTL for archived review records (uses cheaper, shorter-lived storage).
+/// Set to ~30 days — off-chain indexers should consume the archival event and
+/// store data permanently (e.g., on Arweave) within this window.
+/// 30 days = 30 * 24 * 60 * 60 / 5 seconds per ledger = 518_400 ledgers.
+pub const LEDGER_THRESHOLD_ARCHIVED_REVIEW: u32 = 518_400;
+pub const LEDGER_BUMP_ARCHIVED_REVIEW: u32 = LEDGER_THRESHOLD_ARCHIVED_REVIEW;
+
 /// Maximum number of evidence links that may be attached to a single review.
 /// Frontends should enforce this limit before submitting a transaction.
 /// Surfaced through `ContractLimits::max_evidence_links_per_review` in `get_config`.

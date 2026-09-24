@@ -56,14 +56,14 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, BatchTtlResult, BookmarkFolder, ChangelogEntry,
-    ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest, ContractConfigView,
-    DependencyRef, DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry,
-    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
-    ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
-    SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationRecord,
-    VerificationStatus, VerificationStatusFilter,
+    AdminActionEntry, AdminProposal, ArchivedReview, BatchTtlResult, BookmarkFolder,
+    ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest,
+    ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
+    FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
+    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
+    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
+    ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
+    TimelockAction, VerificationRecord, VerificationStatus, VerificationStatusFilter,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -585,6 +585,70 @@ impl DongleContract {
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         ReviewRegistry::list_reviews(&env, project_id, start_index, limit)
+    }
+
+    /// Admin-only: archive reviews older than 2 years for a project.
+    ///
+    /// Moves eligible reviews to compact archived storage, removes them from
+    /// primary storage and active indexes, and emits `ReviewArchivedEvent` for
+    /// each archived review so off-chain jobs can persist the full payload to
+    /// permanent storage (e.g., Arweave/IPFS).
+    ///
+    /// `batch_size` limits how many reviews are processed per call
+    /// (capped at `MAX_ARCHIVE_BATCH_SIZE = 50`). Call repeatedly to process
+    /// large projects. Returns the number of reviews archived.
+    pub fn archive_old_reviews(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        ReviewRegistry::archive_old_reviews(&env, admin, project_id, batch_size)
+    }
+
+    /// Retrieve the compact archived record for a review that has been archived.
+    ///
+    /// Returns `None` when the review was never archived or its on-chain
+    /// archived record has expired. For active reviews, use `get_review`.
+    pub fn get_archived_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ArchivedReview> {
+        ReviewRegistry::get_archived_review(&env, project_id, reviewer)
+    }
+
+    /// Return a paginated list of archived reviews for a project.
+    ///
+    /// Results are in archival order (oldest archived first). Use
+    /// `start_index` / `limit` for pagination.
+    pub fn list_archived_reviews(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ArchivedReview> {
+        ReviewRegistry::list_archived_reviews(&env, project_id, start_index, limit)
+    }
+
+    /// Admin-only: record the Arweave transaction ID for an archived review.
+    ///
+    /// Off-chain archival jobs call this after successfully writing the full
+    /// review payload to Arweave permanent storage.
+    pub fn set_archived_review_arweave_tx(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reviewer: Address,
+        arweave_tx_id: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::set_archived_review_arweave_tx(
+            &env,
+            admin,
+            project_id,
+            reviewer,
+            arweave_tx_id,
+        )
     }
 
     pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {

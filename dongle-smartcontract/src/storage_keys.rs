@@ -277,6 +277,13 @@ pub enum ExtensionKey {
 pub enum ExtensionKey2 {
     /// Evidence links for a review, keyed by (project_id, reviewer).
     ReviewEvidenceLinks(u64, Address),
+    /// Archived review record, keyed by (project_id, reviewer).
+    /// Stored at a shorter TTL than active reviews after `archive_old_reviews`
+    /// moves eligible reviews out of primary storage.
+    ArchivedReview(u64, Address),
+    /// Index of reviewer addresses whose reviews have been archived for a project.
+    /// Enables paginated enumeration of all archived reviews for a given project.
+    ProjectArchivedReviews(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
