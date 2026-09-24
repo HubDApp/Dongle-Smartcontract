@@ -37,6 +37,12 @@ impl VerificationStateMachine {
             // Verified -> Unverified (admin revocation)
             (VerificationStatus::Verified, VerificationStatus::Unverified) => Ok(()),
 
+            // Verified -> Suspended (temporary admin suspension)
+            (VerificationStatus::Verified, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Verified (explicit or automatic restoration)
+            (VerificationStatus::Suspended, VerificationStatus::Verified) => Ok(()),
+
             // Same state (no change) - this should fail as it's not a valid transition
             (current, target) if current == target => Err(ContractError::InvalidStatus),
 
@@ -126,6 +132,12 @@ impl VerificationStateMachine {
             VerificationStatus::Verified => {
                 let mut v = Vec::new(env);
                 v.push_back(VerificationStatus::Unverified); // revocable by admin
+                v.push_back(VerificationStatus::Suspended);
+                v
+            }
+            VerificationStatus::Suspended => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
                 v
             }
         }
