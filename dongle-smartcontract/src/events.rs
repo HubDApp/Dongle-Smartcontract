@@ -200,10 +200,48 @@ pub struct VerificationRejectedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppealSubmittedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub evidence_cid: String,
+    pub appeal_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppealReviewedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub approved: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRevokedEvent {
     pub project_id: u64,
     pub admin: Address,
     pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSuspendedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub investigation_ticket: String,
+    pub restore_at: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRestoredEvent {
+    pub project_id: u64,
+    pub admin: Option<Address>,
     pub timestamp: u64,
 }
 
@@ -214,6 +252,18 @@ pub struct VerificationExpiredEvent {
     pub project_id: u64,
     pub expired_at: u64,
     pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiryNotificationEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub expires_at: u64,
+    pub renewal_instructions: String,
+    pub sent_at: u64,
+    pub resend: bool,
+    pub resend_count: u32,
 }
 
 /// Emitted when an admin renews (resets the expiry of) a verified project.
@@ -619,6 +669,30 @@ pub fn publish_verification_expired_event(env: &Env, project_id: u64, expired_at
     );
 }
 
+pub fn publish_verification_expiry_notification_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    expires_at: u64,
+    renewal_instructions: String,
+    resend: bool,
+    resend_count: u32,
+) {
+    let event_data = VerificationExpiryNotificationEvent {
+        project_id,
+        owner: owner.clone(),
+        expires_at,
+        renewal_instructions,
+        sent_at: env.ledger().timestamp(),
+        resend,
+        resend_count,
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("REMINDER"), project_id, owner),
+        event_data,
+    );
+}
+
 pub fn publish_verification_renewed_event(
     env: &Env,
     project_id: u64,
@@ -820,6 +894,44 @@ pub fn publish_verification_rejected_event(
     );
 }
 
+pub fn publish_verification_appeal_submitted_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    evidence_cid: String,
+    appeal_count: u32,
+) {
+    let event_data = VerificationAppealSubmittedEvent {
+        project_id,
+        owner,
+        evidence_cid,
+        appeal_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("APPEAL"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_appeal_reviewed_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    approved: bool,
+) {
+    let event_data = VerificationAppealReviewedEvent {
+        project_id,
+        admin,
+        approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), if approved { symbol_short!("APPRV") } else { symbol_short!("APDENY") }, project_id),
+        event_data,
+    );
+}
+
 pub fn publish_verification_revoked_event(
     env: &Env,
     project_id: u64,
@@ -838,6 +950,44 @@ pub fn publish_verification_revoked_event(
             symbol_short!("REVOKED"),
             project_id,
         ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_suspended_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: String,
+    investigation_ticket: String,
+    restore_at: u64,
+) {
+    let event_data = VerificationSuspendedEvent {
+        project_id,
+        admin: admin.clone(),
+        reason,
+        investigation_ticket,
+        restore_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("SUSPENDED"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_restored_event(
+    env: &Env,
+    project_id: u64,
+    admin: Option<Address>,
+) {
+    let event_data = VerificationRestoredEvent {
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("RESTORED"), project_id),
         event_data,
     );
 }

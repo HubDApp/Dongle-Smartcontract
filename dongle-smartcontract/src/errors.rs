@@ -184,6 +184,13 @@ pub enum ContractError {
     /// The requested review has not been archived; the operation requires an
     /// archived review (e.g., `set_archived_review_arweave_tx`).
     ReviewNotArchived = 86,
+    /// Maximum number of appeals for the current rejection has been reached.
+    /// The project must follow the manual review process after the cap is hit.
+    AppealLimitExceeded = 87,
+    /// The requested verification appeal does not exist or is no longer valid.
+    AppealNotFound = 88,
+    /// The verification appeal has already been reviewed and cannot be changed.
+    AppealAlreadyReviewed = 89,
 }
 
 pub type Error = ContractError;
