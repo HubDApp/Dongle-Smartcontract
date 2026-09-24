@@ -184,6 +184,28 @@ pub enum ContractError {
     /// The requested review has not been archived; the operation requires an
     /// archived review (e.g., `set_archived_review_arweave_tx`).
     ReviewNotArchived = 86,
+    // ── Bookmark Folder errors (#815) ─────────────────────────────────────
+    /// Bookmark folder not found.
+    FolderNotFound = 87,
+    /// A folder with this name already exists for the user.
+    FolderAlreadyExists = 88,
+    /// The maximum number of bookmark folders per user has been reached.
+    MaxFoldersExceeded = 89,
+    /// Nested folder depth limit exceeded.
+    FolderDepthExceeded = 90,
+    /// Smart folder not found.
+    SmartFolderNotFound = 91,
+    /// The maximum number of smart folders per user has been reached.
+    MaxSmartFoldersExceeded = 92,
+    // ── Collection Visibility errors (#819) ───────────────────────────────
+    /// Attempted unauthorized access to a private collection.
+    CollectionPrivate = 93,
+    /// Caller is not the collection owner or admin.
+    NotCollectionOwner = 94,
+    /// Share token is invalid or does not match.
+    InvalidShareToken = 95,
+    /// Share token was not found or has been revoked.
+    ShareTokenNotFound = 96,
 }
 
 pub type Error = ContractError;
