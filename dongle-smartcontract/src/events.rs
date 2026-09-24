@@ -344,7 +344,23 @@ pub struct FeeCancelledEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardPeriodFinalizedEvent { pub period_id: u64, pub pool_amount: u128, pub total_quality_score: u128, pub reviewer_count: u32, pub timestamp: u64 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardClaimedEvent { pub period_id: u64, pub reviewer: Address, pub amount: u128, pub timestamp: u64 }
+
 // ── Publish helpers ───────────────────────────────────────────────────────────
+
+pub fn publish_reward_period_finalized_event(env: &Env, period_id: u64, pool_amount: u128, total_quality_score: u128, reviewer_count: u32) {
+    env.events().publish((symbol_short!("REWARD"), symbol_short!("FINAL"), period_id), RewardPeriodFinalizedEvent { period_id, pool_amount, total_quality_score, reviewer_count, timestamp: env.ledger().timestamp() });
+}
+
+pub fn publish_reward_claimed_event(env: &Env, period_id: u64, reviewer: Address, amount: u128) {
+    env.events().publish((symbol_short!("REWARD"), symbol_short!("CLAIM"), period_id, reviewer.clone()), RewardClaimedEvent { period_id, reviewer, amount, timestamp: env.ledger().timestamp() });
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn publish_review_event(

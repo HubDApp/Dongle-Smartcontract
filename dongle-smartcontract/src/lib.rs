@@ -26,6 +26,7 @@ mod project_registry;
 pub mod rating_calculator;
 mod recommendation_registry;
 mod report_registry;
+mod reward_registry;
 pub mod review_registry;
 pub mod storage_keys;
 pub mod storage_manager;
@@ -62,7 +63,7 @@ use crate::types::{
     FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
+    ReviewSortMode, ReviewTombstone, RewardPeriod, RewardPoolConfig, SecurityContactStatus, SmartFolder, SmartFolderFilter,
     TimelockAction, VerificationRecord, VerificationStatus, VerificationStatusFilter,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -779,6 +780,36 @@ impl DongleContract {
         reviewer: Address,
     ) -> Option<crate::types::ReviewIntegrityRecord> {
         ReviewRegistry::get_review_integrity_record(&env, project_id, reviewer)
+    }
+
+    // --- Reviewer Rewards ---
+
+    pub fn configure_reward_pool(env: Env, admin: Address, token: Address, period_duration: u64, max_reviewers: u32) -> Result<(), ContractError> {
+        reward_registry::RewardRegistry::configure(&env, admin, token, period_duration, max_reviewers)
+    }
+
+    pub fn get_reward_pool_config(env: Env) -> Option<RewardPoolConfig> {
+        reward_registry::RewardRegistry::get_config(&env)
+    }
+
+    pub fn fund_reward_pool(env: Env, admin: Address, amount: u128) -> Result<(), ContractError> {
+        reward_registry::RewardRegistry::fund(&env, admin, amount)
+    }
+
+    pub fn set_review_quality_score(env: Env, admin: Address, project_id: u64, reviewer: Address, score: u32) -> Result<(), ContractError> {
+        reward_registry::RewardRegistry::set_quality_score(&env, admin, project_id, reviewer, score)
+    }
+
+    pub fn finalize_reward_period(env: Env, admin: Address, start_at: u64, end_at: u64, candidates: Vec<Address>) -> Result<u64, ContractError> {
+        reward_registry::RewardRegistry::finalize(&env, admin, start_at, end_at, candidates)
+    }
+
+    pub fn get_reward_period(env: Env, period_id: u64) -> Option<RewardPeriod> {
+        reward_registry::RewardRegistry::get_period(&env, period_id)
+    }
+
+    pub fn claim_reward(env: Env, reviewer: Address, period_id: u64) -> Result<u128, ContractError> {
+        reward_registry::RewardRegistry::claim(&env, reviewer, period_id)
     }
 
     // --- Verification Registry ---

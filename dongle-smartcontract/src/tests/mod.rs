@@ -93,6 +93,7 @@ mod changelog;
 mod duplicate_dispute;
 mod endorsements;
 mod fee_refund;
+mod reward_pool;
 pub mod fixtures;
 mod issues_242_252_256;
 // mod linked_projects;

@@ -184,6 +184,12 @@ pub enum ContractError {
     /// The requested review has not been archived; the operation requires an
     /// archived review (e.g., `set_archived_review_arweave_tx`).
     ReviewNotArchived = 86,
+    RewardPoolNotConfigured = 87,
+    NoEligibleReviewers = 88,
+    RewardPoolInsufficient = 89,
+    RewardPeriodNotFound = 90,
+    RewardAlreadyClaimed = 91,
+    NoRewardAvailable = 92,
 }
 
 pub type Error = ContractError;

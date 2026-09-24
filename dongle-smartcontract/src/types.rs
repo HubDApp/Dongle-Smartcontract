@@ -678,6 +678,35 @@ pub struct FeeConfig {
     pub registration_fee: u128,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardPoolConfig {
+    pub token: Address,
+    pub period_duration: u64,
+    pub max_reviewers: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewerReward {
+    pub period_id: u64,
+    pub reviewer: Address,
+    pub quality_score: u128,
+    pub amount: u128,
+    pub claimed_at: Option<u64>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardPeriod {
+    pub id: u64,
+    pub start_at: u64,
+    pub end_at: u64,
+    pub pool_amount: u128,
+    pub total_quality_score: u128,
+    pub rewards: Vec<ReviewerReward>,
+}
+
 /// The lifecycle state of a fee payment for a single operation.
 ///
 /// # State Machine

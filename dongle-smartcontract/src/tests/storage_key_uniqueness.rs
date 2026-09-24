@@ -187,6 +187,11 @@ fn extension_key2_variant_count() -> usize {
         // Issue #804: Review archival to cheaper storage
         "ArchivedReview",
         "ProjectArchivedReviews",
+        "RewardPoolConfig",
+        "RewardPoolFunded",
+        "NextRewardPeriodId",
+        "RewardPeriod",
+        "ReviewQualityScore",
     ];
     variants.len()
 }
