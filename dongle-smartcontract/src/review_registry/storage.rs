@@ -235,7 +235,7 @@ impl ReviewRegistry {
         }
 
         // Resolve evidence links — None means empty list
-        let resolved_links = evidence_links.unwrap_or_else(|| Vec::new(env));
+        let resolved_links = evidence_links.clone().unwrap_or_else(|| Vec::new(env));
 
         // Validate evidence links before any mutations
         ReviewValidation::validate_evidence_links(&resolved_links)?;
@@ -353,15 +353,17 @@ impl ReviewRegistry {
         StorageManager::extend_project_reviews_ttl(env, project_id);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
+        let links = evidence_links.unwrap_or_else(|| Vec::new(env));
         publish_review_event(
             env,
             project_id,
-            reviewer,
+            reviewer.clone(),
             ReviewAction::Submitted,
             comment_cid.clone(),
             None,
             now,
             now,
+            links,
         );
         Ok(())
     }
@@ -374,7 +376,7 @@ impl ReviewRegistry {
         review_cid: String,
     ) -> Result<(), ContractError> {
         ReviewValidation::validate_review_cid(&review_cid)?;
-        Self::add_review(env, project_id, reviewer, rating, Some(review_cid))
+        Self::add_review(env, project_id, reviewer, rating, Some(review_cid), None)
     }
 
     pub fn update_review(
@@ -483,6 +485,7 @@ impl ReviewRegistry {
             review.owner_response.clone(),
             review.created_at,
             now,
+            Self::get_review_evidence_links(env, project_id, &reviewer),
         );
 
         publish_review_revision_event(
@@ -769,6 +772,7 @@ impl ReviewRegistry {
             existing.owner_response.clone(),
             existing.created_at,
             now,
+            Vec::new(env),
         );
         Ok(())
     }
@@ -954,12 +958,13 @@ impl ReviewRegistry {
         publish_review_event(
             env,
             project_id,
-            reviewer,
+            reviewer.clone(),
             ReviewAction::Updated,
             review.content_cid.clone(),
             review.owner_response.clone(),
             review.created_at,
             now,
+            Self::get_review_evidence_links(env, project_id, &reviewer),
         );
         Ok(())
     }
@@ -1387,7 +1392,7 @@ impl ReviewRegistry {
         // content_cid or sentinel "NONE"
         match content_cid {
             Some(cid) => {
-                let cid_bytes = cid.to_xdr(env);
+                let cid_bytes = cid.clone().to_xdr(env);
                 // XDR-encoded String has a 4-byte length prefix; skip it.
                 let xdr_len = cid_bytes.len();
                 let cid_char_len = cid.len();
@@ -1727,7 +1732,7 @@ impl ReviewRegistry {
             .get(&ExtensionKey2::ProjectArchivedReviews(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        let total = reviewers.len();
+        let total = reviewers.len() as usize;
         let mut results: Vec<ArchivedReview> = Vec::new(env);
         if start_index as usize >= total {
             return results;
