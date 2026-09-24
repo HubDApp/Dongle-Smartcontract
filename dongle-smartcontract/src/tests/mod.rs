@@ -8,6 +8,7 @@ mod admin_concurrent;
 mod archival;
 mod collection_registry_crud;
 mod collections;
+mod collection_visibility;
 mod error_handling_tests;
 mod featured;
 // mod fee;
