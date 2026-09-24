@@ -6,3 +6,4 @@ mod validation;
 
 pub use state_machine::VerificationStateMachine;
 pub use storage::VerificationRegistry;
+pub use validation::VerificationValidation;
