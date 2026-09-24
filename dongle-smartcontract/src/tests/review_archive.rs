@@ -21,7 +21,7 @@ use crate::constants::REVIEW_ARCHIVE_AGE_SECONDS;
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::DongleContractClient;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger as _}, Address, Env, String};
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
