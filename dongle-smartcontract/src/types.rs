@@ -699,6 +699,8 @@ pub struct VerificationBatchReport {
     pub action: VerificationBatchAction,
     pub total: u32,
     pub results: Vec<VerificationBatchResult>,
+}
+
 /// A formal appeal against a rejection, including the additional evidence
 /// submitted by the owner and the result of the appeal review.
 #[contracttype]

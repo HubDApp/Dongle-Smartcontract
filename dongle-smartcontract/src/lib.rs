@@ -934,6 +934,8 @@ impl DongleContract {
         admin: Address,
     ) -> Result<VerificationBatchReport, ContractError> {
         VerificationRegistry::reject_verifications_batch(&env, request_ids, admin)
+    }
+
     /// Submit additional evidence to appeal a rejection.
     pub fn submit_verification_appeal(
         env: Env,
