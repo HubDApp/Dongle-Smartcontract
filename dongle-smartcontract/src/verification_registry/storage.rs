@@ -58,6 +58,17 @@ impl VerificationRegistry {
             return Err(ContractError::InvalidStatus);
         }
 
+        // 3.5 Check #789 License constraints
+        if !crate::trust_and_safety::TrustAndSafety::verify_license_for_category(env, &project.category, &project.license) {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // 3.6 Check #788 Fraud Detection
+        let fraud_record = crate::trust_and_safety::TrustAndSafety::get_fraud_record(env, project_id);
+        if fraud_record.is_flagged {
+            return Err(ContractError::InvalidStatus); // Reject if flagged for fraud
+        }
+
         // 4. Validate state transition using centralized state machine
         VerificationStateMachine::validate_transition(
             project.verification_status,
@@ -383,6 +394,8 @@ impl VerificationRegistry {
             None,
         );
 
+        crate::trust_and_safety::TrustAndSafety::record_verification_rejection(env, project_id);
+
         Ok(())
     }
 
@@ -658,6 +671,8 @@ impl VerificationRegistry {
             None,
             Some(reason),
         );
+
+        crate::trust_and_safety::TrustAndSafety::record_verification_reversal(env, project_id);
 
         Ok(())
     }

@@ -28,6 +28,7 @@ mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
 pub mod storage_keys;
+pub mod trust_and_safety;
 pub mod storage_manager;
 mod subscription_registry;
 mod notification_registry;
@@ -2710,5 +2711,57 @@ impl DongleContract {
         crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
             &env, project_id,
         )
+    }
+
+    // =========================================================================
+    // Trust and Safety Features (#788, #789, #790, #791)
+    // =========================================================================
+
+    /// Get fraud record for a project (#788)
+    pub fn get_fraud_record(env: Env, project_id: u64) -> crate::types::FraudRecord {
+        crate::trust_and_safety::TrustAndSafety::get_fraud_record(&env, project_id)
+    }
+
+    /// Admin flags a project for fraud manually (#788)
+    pub fn flag_project_fraud(env: Env, admin: Address, project_id: u64, reason: String) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::flag_project_fraud(&env, &admin, project_id, reason)
+    }
+
+    /// Set approved licenses for a category (#789)
+    pub fn set_category_license_config(
+        env: Env,
+        admin: Address,
+        category: String,
+        approved_licenses: Vec<String>,
+        exceptions_allowed: bool,
+    ) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::set_category_license_config(&env, &admin, category, approved_licenses, exceptions_allowed)
+    }
+
+    /// Get approved licenses config for a category (#789)
+    pub fn get_category_license_config(env: Env, category: String) -> Option<crate::types::CategoryLicenseConfig> {
+        crate::trust_and_safety::TrustAndSafety::get_category_license_config(&env, &category)
+    }
+
+    /// Verify reviewer identity (#790)
+    pub fn verify_reviewer_identity(
+        env: Env,
+        admin: Address,
+        reviewer: Address,
+        email_verified: bool,
+        social_proof_verified: bool,
+        verification_method: Option<String>,
+    ) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::verify_reviewer_identity(&env, &admin, reviewer, email_verified, social_proof_verified, verification_method)
+    }
+
+    /// Get reviewer identity (#790)
+    pub fn get_reviewer_identity(env: Env, reviewer: Address) -> crate::types::ReviewerIdentity {
+        crate::trust_and_safety::TrustAndSafety::get_reviewer_identity(&env, &reviewer)
+    }
+
+    /// Get reviewer points (#791)
+    pub fn get_reviewer_points(env: Env, reviewer: Address) -> crate::types::ReviewerPoints {
+        crate::trust_and_safety::TrustAndSafety::get_reviewer_points(&env, &reviewer)
     }
 }

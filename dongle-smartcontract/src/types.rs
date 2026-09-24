@@ -1672,3 +1672,44 @@ pub struct ABTestResult {
     /// Ranked list of projects produced by the assigned variant's algorithm.
     pub projects: Vec<Project>,
 }
+
+// =========================================================================
+// Trust and Safety Features (#788, #789, #790, #791)
+// =========================================================================
+
+/// Fraud tracking record for a project (#788)
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FraudRecord {
+    pub is_flagged: bool,
+    pub flag_reason: Option<String>,
+    pub rejection_count: u32,
+    pub reversal_count: u32,
+}
+
+/// Approved license configuration for a project category (#789)
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CategoryLicenseConfig {
+    pub approved_licenses: Vec<String>,
+    pub exceptions_allowed: bool,
+}
+
+/// Reviewer identity verification status (#790)
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewerIdentity {
+    pub is_verified: bool,
+    pub email_verified: bool,
+    pub social_proof_verified: bool,
+    pub verification_method: Option<String>,
+}
+
+/// Reviewer rewards and points (#791)
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewerPoints {
+    pub total_points: u64,
+    pub quality_reviews_count: u32,
+    pub badges: Vec<String>,
+}
