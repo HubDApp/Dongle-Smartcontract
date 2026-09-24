@@ -587,6 +587,18 @@ pub enum ProjectLifecycleStatus {
     Sunset,
 }
 
+/// Scheduled deprecation and sunset metadata for a project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSunsetPlan {
+    pub project_id: u64,
+    pub announced_at: u64,
+    pub sunset_at: u64,
+    pub alternative_project_ids: Vec<u64>,
+    pub redirect_project_id: Option<u64>,
+    pub archived_at: Option<u64>,
+}
+
 /// Complete record of a single verification request, including its outcome.
 ///
 /// One record is created per `request_verification` call. Records are
@@ -635,6 +647,56 @@ pub struct VerificationRecord {
     /// Admin assigned to review this verification request via
     /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
+}
+
+/// Immutable snapshot of the evidence CID used by a verification request.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceVersion {
+    /// One-based version number within the verification request.
+    pub version: u32,
+    /// Evidence CID at this version.
+    pub evidence_cid: String,
+    /// Address that submitted this version.
+    pub submitted_by: Address,
+    /// Unix timestamp when this version was recorded.
+    pub submitted_at: u64,
+}
+
+/// Pair of immutable evidence snapshots selected for comparison.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceComparison {
+    pub first: VerificationEvidenceVersion,
+    pub second: VerificationEvidenceVersion,
+    pub changed: bool,
+}
+
+/// Operation applied by a batch verification decision.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationBatchAction {
+    Approve,
+    Reject,
+}
+
+/// Result for one request in a successful batch decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchResult {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub status: VerificationStatus,
+    pub decided_at: u64,
+}
+
+/// Report returned after an atomic batch verification decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchReport {
+    pub action: VerificationBatchAction,
+    pub total: u32,
+    pub results: Vec<VerificationBatchResult>,
 }
 
 /// Record of a completed verification renewal.

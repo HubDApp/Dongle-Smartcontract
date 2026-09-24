@@ -284,6 +284,10 @@ pub enum ExtensionKey2 {
     /// Index of reviewer addresses whose reviews have been archived for a project.
     /// Enables paginated enumeration of all archived reviews for a given project.
     ProjectArchivedReviews(u64),
+    /// Append-only evidence CID versions for a verification request.
+    VerificationEvidenceVersions(u64),
+    /// Scheduled deprecation, sunset, alternatives, and redirect for a project.
+    ProjectSunsetPlan(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
