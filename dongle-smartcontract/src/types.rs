@@ -1,5 +1,15 @@
 use soroban_sdk::{contracttype, Address, Map, String, Vec};
 
+/// A single URL attached to a review as supporting evidence.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceLink {
+    /// The URL string (http:// or https://).
+    pub url: String,
+    /// Admin-settable dead-link flag. False by default.
+    pub is_dead: bool,
+}
+
 /// Parameters supplied to `register_project`. All required fields must be
 /// non-empty; optional fields default to `None` when omitted.
 #[contracttype]
@@ -1578,4 +1588,87 @@ pub struct ReviewIntegrityRecord {
     pub sealed_content_cid: Option<String>,
     /// The rating that was included in the sealed payload.
     pub sealed_rating: u32,
+}
+
+// ── Featured algorithm and A/B testing types (#816) ──────────────────────────
+
+/// Algorithm type selection for generating or querying featured projects.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeaturedAlgorithmType {
+    /// Balanced algorithm weighing rating, recency, activity, and verification.
+    Quality,
+    /// Fast-paced algorithm emphasizing velocity, recent activity, and shorter recency window.
+    Trending,
+    /// Algorithm prioritizing high Bayesian rating with moderate activity.
+    HighRating,
+    /// User-defined or custom configured weights.
+    Custom,
+}
+
+/// Scoring weights and parameters for project ranking algorithms.
+/// All weight values are in basis points (10_000 = 100.00%).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AlgorithmWeights {
+    /// Basis points allocated to the rating score (0..=10_000).
+    pub rating_weight: u32,
+    /// Basis points allocated to the recency score (0..=10_000).
+    pub recency_weight: u32,
+    /// Basis points allocated to the user activity score (0..=10_000).
+    pub activity_weight: u32,
+    /// Bonus basis points awarded to verified projects.
+    pub verification_bonus: u32,
+    /// Recency window in seconds; projects older than this window receive 0 recency score.
+    pub recency_window_secs: u64,
+}
+
+/// Configuration for an active A/B test between two ranking algorithms.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ABTestConfig {
+    /// Whether the A/B test is currently active.
+    pub enabled: bool,
+    /// Percentage of traffic directed to Variant B (0..=100). The remainder goes to Variant A.
+    pub split_percentage: u32,
+    /// Weight configuration for Variant A (control).
+    pub variant_a: AlgorithmWeights,
+    /// Weight configuration for Variant B (treatment).
+    pub variant_b: AlgorithmWeights,
+    /// Descriptive name or hypothesis for the experiment.
+    pub description: String,
+}
+
+/// Distinguishes the two variants in an A/B test experiment.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ABTestVariant {
+    VariantA,
+    VariantB,
+}
+
+/// A project paired with its detailed algorithmic score breakdown.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScoredProject {
+    /// ID of the evaluated project.
+    pub project_id: u64,
+    /// Composite score (scaled basis points + bonus).
+    pub total_score: u64,
+    /// Normalized rating score (0..=10_000).
+    pub rating_score: u32,
+    /// Normalized recency score (0..=10_000).
+    pub recency_score: u32,
+    /// Normalized user engagement activity score (0..=10_000).
+    pub activity_score: u32,
+}
+
+/// Response from an A/B test project query containing the assigned variant and ranked projects.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ABTestResult {
+    /// The variant bucket assigned to the caller or session.
+    pub variant: ABTestVariant,
+    /// Ranked list of projects produced by the assigned variant's algorithm.
+    pub projects: Vec<Project>,
 }

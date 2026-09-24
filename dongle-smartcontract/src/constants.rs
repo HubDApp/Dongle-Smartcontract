@@ -343,3 +343,48 @@ pub const MAX_FOLDER_DEPTH: u32 = 5;
 /// Maximum byte length for a bookmark folder name.
 /// 100: matches `MAX_COLLECTION_NAME_LEN`; a folder name is a display title.
 pub const MAX_FOLDER_NAME_LEN: usize = 100;
+
+// ── Featured Algorithm & A/B Testing Constants (#816) ────────────────────────
+
+/// Scale factor in basis points for algorithmic weights (10_000 = 100.00%).
+pub const MAX_BASIS_POINTS: u32 = 10_000;
+
+/// Default rating weight for the Quality algorithm (40.00% = 4_000).
+pub const DEFAULT_QUALITY_RATING_WEIGHT: u32 = 4000;
+/// Default recency weight for the Quality algorithm (30.00% = 3_000).
+pub const DEFAULT_QUALITY_RECENCY_WEIGHT: u32 = 3000;
+/// Default activity weight for the Quality algorithm (30.00% = 3_000).
+pub const DEFAULT_QUALITY_ACTIVITY_WEIGHT: u32 = 3000;
+/// Default verification bonus for the Quality algorithm (10.00% = 1_000).
+pub const DEFAULT_QUALITY_VERIFICATION_BONUS: u32 = 1000;
+/// Default recency decay window for the Quality algorithm (30 days in seconds).
+pub const DEFAULT_QUALITY_RECENCY_WINDOW_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Default rating weight for the Trending algorithm (15.00% = 1_500).
+pub const DEFAULT_TRENDING_RATING_WEIGHT: u32 = 1500;
+/// Default recency weight for the Trending algorithm (50.00% = 5_000).
+pub const DEFAULT_TRENDING_RECENCY_WEIGHT: u32 = 5000;
+/// Default activity weight for the Trending algorithm (35.00% = 3_500).
+pub const DEFAULT_TRENDING_ACTIVITY_WEIGHT: u32 = 3500;
+/// Default verification bonus for the Trending algorithm (5.00% = 500).
+pub const DEFAULT_TRENDING_VERIFICATION_BONUS: u32 = 500;
+/// Default recency decay window for the Trending algorithm (7 days in seconds).
+pub const DEFAULT_TRENDING_RECENCY_WINDOW_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// Default rating weight for the HighRating algorithm (70.00% = 7_000).
+pub const DEFAULT_HIGH_RATING_WEIGHT: u32 = 7000;
+/// Default recency weight for the HighRating algorithm (10.00% = 1_000).
+pub const DEFAULT_HIGH_RATING_RECENCY_WEIGHT: u32 = 1000;
+/// Default activity weight for the HighRating algorithm (20.00% = 2_000).
+pub const DEFAULT_HIGH_RATING_ACTIVITY_WEIGHT: u32 = 2000;
+/// Default verification bonus for the HighRating algorithm (10.00% = 1_000).
+pub const DEFAULT_HIGH_RATING_VERIFICATION_BONUS: u32 = 1000;
+/// Default recency decay window for the HighRating algorithm (60 days in seconds).
+pub const DEFAULT_HIGH_RATING_RECENCY_WINDOW_SECS: u64 = 60 * 24 * 60 * 60;
+
+/// Activity benchmark: points needed to achieve 100% (10_000) activity score.
+/// Raw activity formula: (reviews * 3) + (endorsements * 2) + followers.
+pub const ACTIVITY_BENCHMARK: u32 = 50;
+
+/// Maximum number of description bytes for an A/B test experiment.
+pub const MAX_AB_TEST_DESC_LEN: usize = 200;
