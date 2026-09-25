@@ -317,6 +317,16 @@ pub enum ContractError {
     /// checkpoint to produce a "growth over time" report. Callers may run the
     /// checkpoint endpoint first.
     SocialAnalyticsNoCheckpoints = 133,
+    /// Admin has exceeded the monthly veto (rejection) limit (#730).
+    VetoLimitExceeded = 96,
+    /// Comment on a proposal is not allowed because voting has already started.
+    CommentLocked = 97,
+    /// Emergency recovery request not found.
+    EmergencyRecoveryNotFound = 98,
+    /// Emergency recovery request is not in the pending state.
+    EmergencyRecoveryNotPending = 99,
+    /// Threshold increase requires all admins to approve.
+    ThresholdRequiresUnanimousApproval = 100,
 }
 
 pub type Error = ContractError;

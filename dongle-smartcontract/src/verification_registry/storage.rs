@@ -836,6 +836,12 @@ impl VerificationRegistry {
         admin: Address,
     ) -> Result<VerificationBatchReport, ContractError> {
         Self::decide_verifications_batch(env, request_ids, admin, VerificationBatchAction::Reject)
+        Self::decide_verifications_batch(
+            env,
+            request_ids,
+            admin,
+            VerificationBatchAction::Reject,
+        )
     }
 
     pub fn submit_verification_appeal(

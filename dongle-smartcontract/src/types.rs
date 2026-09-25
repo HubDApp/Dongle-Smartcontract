@@ -1299,6 +1299,65 @@ pub enum DisputeResolutionAction {
     LinkDuplicates,
 }
 
+/// A comment/discussion entry on a proposal (#736).
+///
+/// Comments are attached to proposals and are immutable once voting starts.
+/// They provide a transparent discussion thread before governance decisions.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalComment {
+    /// Unique comment identifier within a proposal's comment list.
+    pub comment_id: u64,
+    /// ID of the proposal this comment belongs to.
+    pub proposal_id: u64,
+    /// Admin address that posted the comment.
+    pub author: Address,
+    /// Comment content (IPFS CID or inline text).
+    pub content: String,
+    /// Unix timestamp when the comment was created.
+    pub created_at: u64,
+}
+
+/// Tracks admin activity timestamps for inactive admin detection (#739).
+///
+/// Stored under `GovKey::AdminActivity(address)`. Updated on every admin
+/// action (proposal creation, approval, rejection, etc.).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminActivityRecord {
+    /// Unix timestamp of the last admin action by this address.
+    pub last_action_at: u64,
+    /// Unix timestamp when the admin was first recorded as inactive (> 90 days).
+    pub flagged_inactive_at: Option<u64>,
+    /// Whether the admin has been auto-flagged for removal due to > 180 days inactivity.
+    pub removal_proposed: bool,
+}
+
+/// Emergency admin recovery request (#738).
+///
+/// Allows recovery of admin access in case of key loss. Requires approval
+/// from 2/3 of remaining admins and has a 7-day voting period.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyRecoveryRequest {
+    /// Unique recovery request ID.
+    pub request_id: u64,
+    /// Address of the admin whose key was lost (the account being recovered).
+    pub lost_admin: Address,
+    /// New admin address to replace the lost key.
+    pub new_admin: Address,
+    /// Map of admin addresses that have approved this recovery.
+    pub approvals: Map<Address, bool>,
+    /// Number of approvals required (2/3 of remaining admins).
+    pub required_approvals: u32,
+    /// Unix timestamp when the request was created.
+    pub created_at: u64,
+    /// Unix timestamp when the 7-day voting period ends.
+    pub voting_deadline: u64,
+    /// Whether the recovery has been executed.
+    pub executed: bool,
+}
+
 /// A single entry in the admin action log.
 ///
 /// Entries are appended by `AdminActionLog::record_action` after every

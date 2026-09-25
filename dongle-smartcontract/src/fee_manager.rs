@@ -240,7 +240,7 @@ impl FeeManager {
         let record =
             Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
         let now = env.ledger().timestamp();
-        if now >= record.paid_at + FEE_PAYMENT_EXPIRY_SECONDS {
+        if now >= record.paid_at.checked_add(FEE_PAYMENT_EXPIRY_SECONDS).ok_or(ContractError::ArithmeticOverflow)? {
             return Err(ContractError::FeePaymentExpired);
         }
         Self::execute_consume_fee_payment(
@@ -339,7 +339,7 @@ impl FeeManager {
         let record = Self::get_registration_fee_payment_details(env, address)
             .ok_or(ContractError::InsufficientFee)?;
         let now = env.ledger().timestamp();
-        if now >= record.paid_at + FEE_PAYMENT_EXPIRY_SECONDS {
+        if now >= record.paid_at.checked_add(FEE_PAYMENT_EXPIRY_SECONDS).ok_or(ContractError::ArithmeticOverflow)? {
             return Err(ContractError::FeePaymentExpired);
         }
         Self::execute_consume_fee_payment(

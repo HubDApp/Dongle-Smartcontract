@@ -762,6 +762,31 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     );
 }
 
+/// Emitted when an admin delegates their vote on a proposal (#727).
+pub fn publish_vote_delegated_event(
+    env: &Env,
+    proposal_id: u64,
+    delegator: Address,
+    delegate: Address,
+) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("DELEGATE")),
+        (proposal_id, delegator, delegate, env.ledger().timestamp()),
+    );
+}
+
+/// Emitted when an admin revokes their vote delegation (#727).
+pub fn publish_delegation_revoked_event(
+    env: &Env,
+    proposal_id: u64,
+    delegator: Address,
+) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("REVOKE")),
+        (proposal_id, delegator, env.ledger().timestamp()),
+    );
+}
+
 pub fn publish_review_reported_event(
     env: &Env,
     project_id: u64,
@@ -3837,3 +3862,23 @@ pub fn publish_project_social_analytics_export_event(
         event_data,
     );
 }
+
+// ── Expired proposal cleanup (#728) ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalsCleanedUpEvent {
+    pub removed_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_proposals_cleaned_up_event(env: &Env, removed_count: u32, timestamp: u64) {
+    env.events().publish(
+        (symbol_short!("PROPOSAL"), symbol_short!("CLEANUP")),
+        ProposalsCleanedUpEvent {
+            removed_count,
+            timestamp,
+        },
+    );
+}
+
