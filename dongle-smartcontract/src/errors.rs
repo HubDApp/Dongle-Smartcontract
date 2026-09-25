@@ -191,6 +191,18 @@ pub enum ContractError {
     AppealNotFound = 88,
     /// The verification appeal has already been reviewed and cannot be changed.
     AppealAlreadyReviewed = 89,
+    /// Admin lacks the required expertise for this verification assignment.
+    AdminLacksExpertise = 90,
+    /// Verification assignment record not found.
+    AssignmentNotFound = 91,
+    /// Invalid assignment status for the requested transition.
+    InvalidAssignmentStatus = 92,
+    /// SLA has not been breached yet; cannot escalate without cause.
+    SlaNotBreached = 93,
+    /// Caller is not the assigned admin for this verification.
+    NotAssignedAdmin = 94,
+    /// No active assignment exists for this verification request.
+    NoActiveAssignment = 95,
 }
 
 pub type Error = ContractError;

@@ -68,9 +68,10 @@ use crate::types::{
     VerificationStatus, VerificationStatusFilter,
     NotificationDeliveryStatus, TimelockAction, VerificationExpiryNotification,
     VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
-    VerificationStatusFilter, VerificationSuspension,
+    VerificationStatusFilter, VerificationSuspension, AdminWorkload, VerificationAssignment,
+    VerificationAssignmentStatus,
 };
-use crate::verification_registry::VerificationRegistry;
+use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
@@ -1215,6 +1216,172 @@ impl DongleContract {
     /// Get the admin assigned to review a verification request.
     pub fn get_assigned_admin(env: Env, project_id: u64) -> Option<Address> {
         VerificationRegistry::get_assigned_admin(&env, project_id)
+    }
+
+    // --- Verification Assignment & Specialized Admin Routing ---
+
+    /// Admin: assign a pending verification request to an admin with specific expertise.
+    pub fn assign_verification_with_expertise(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+        expertise: String,
+    ) -> Result<u64, ContractError> {
+        VerificationAssignmentRegistry::assign_verification_with_expertise(
+            &env,
+            project_id,
+            admin,
+            assignee,
+            Some(expertise),
+        )
+    }
+
+    /// Admin: automatically route a pending verification request to an admin specialized in the given expertise.
+    pub fn route_verification_to_expert(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        expertise: String,
+    ) -> Result<Address, ContractError> {
+        VerificationAssignmentRegistry::route_verification_to_expert(
+            &env,
+            project_id,
+            admin,
+            expertise,
+        )
+    }
+
+    /// Admin: set or update the specialized expertise domains for an admin.
+    pub fn set_admin_expertise(
+        env: Env,
+        caller: Address,
+        admin: Address,
+        expertise: Vec<String>,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_admin_expertise(&env, caller, admin, expertise)
+    }
+
+    /// Get the expertise domains registered for an admin.
+    pub fn get_admin_expertise(env: Env, admin: Address) -> Vec<String> {
+        VerificationAssignmentRegistry::get_admin_expertise(&env, admin)
+    }
+
+    /// Get all admins registered with a specific expertise domain.
+    pub fn get_admins_by_expertise(env: Env, expertise: String) -> Vec<Address> {
+        VerificationAssignmentRegistry::get_admins_by_expertise(&env, expertise)
+    }
+
+    /// Assigned Admin: accept the verification assignment to begin review.
+    pub fn accept_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::accept_verification_assignment(&env, project_id, admin)
+    }
+
+    /// Assigned Admin: decline the verification assignment with a reason, releasing it for reassignment.
+    pub fn decline_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::decline_verification_assignment(
+            &env,
+            project_id,
+            admin,
+            reason,
+        )
+    }
+
+    /// Get the active assignment record for a project's verification request, if any.
+    pub fn get_current_verification_assignment(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_current_verification_assignment(&env, project_id)
+    }
+
+    /// Get a specific verification assignment by its unique assignment ID.
+    pub fn get_verification_assignment(
+        env: Env,
+        assignment_id: u64,
+    ) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment(&env, assignment_id)
+    }
+
+    /// Get the complete historical log of verification assignments for a project.
+    pub fn get_verification_assignment_history(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history(&env, project_id)
+    }
+
+    /// Get paginated verification assignment history for a project.
+    pub fn get_verification_assignment_history_paginated(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history_paginated(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get all verification assignments associated with a specific admin.
+    pub fn get_admin_assignments(
+        env: Env,
+        admin: Address,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_admin_assignments(&env, admin)
+    }
+
+    /// Get workload statistics for an admin.
+    pub fn get_admin_workload(env: Env, admin: Address) -> AdminWorkload {
+        VerificationAssignmentRegistry::get_admin_workload(&env, admin)
+    }
+
+    /// Admin: set the global SLA duration (in seconds) for verification assignments.
+    pub fn set_verification_sla(
+        env: Env,
+        admin: Address,
+        sla_seconds: u64,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_verification_sla(&env, admin, sla_seconds)
+    }
+
+    /// Get the current verification review SLA duration (in seconds).
+    pub fn get_verification_sla(env: Env) -> u64 {
+        VerificationAssignmentRegistry::get_verification_sla(&env)
+    }
+
+    /// Check if the active assignment for a project has breached its review SLA deadline.
+    pub fn is_assignment_sla_breached(env: Env, project_id: u64) -> bool {
+        VerificationAssignmentRegistry::is_assignment_sla_breached(&env, project_id)
+    }
+
+    /// Get remaining seconds until the active assignment's SLA deadline lapses.
+    pub fn get_assignment_sla_remaining(env: Env, project_id: u64) -> Option<u64> {
+        VerificationAssignmentRegistry::get_assignment_sla_remaining(&env, project_id)
+    }
+
+    /// Admin: escalate an overdue or unhandled verification assignment that breached SLA.
+    pub fn escalate_verification_assignment(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::escalate_verification_assignment(
+            &env, caller, project_id, reason,
+        )
     }
 
     // --- Reserved Project Names ---
