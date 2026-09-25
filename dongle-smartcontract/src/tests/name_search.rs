@@ -97,6 +97,7 @@ fn test_get_project_by_name_after_rename() {
         social_links: None,
         launch_timestamp: None,
         bounty_url: None,
+        repository_url: None,
     };
     client.mock_all_auths().update_project(&update_params);
 

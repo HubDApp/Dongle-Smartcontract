@@ -98,7 +98,10 @@ fn url_ws_rejected() {
 fn url_ipfs_scheme_rejected() {
     let e = mk_env();
     assert_eq!(
-        Utils::validate_website(&s(&e, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi")),
+        Utils::validate_website(&s(
+            &e,
+            "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+        )),
         Err(ContractError::InvalidInput)
     );
 }

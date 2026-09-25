@@ -462,10 +462,7 @@ fn test_pending_verification_queue_order_pagination_and_removal() {
     let first_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 1");
     let second_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 2");
     let third_project = setup_project_with_fee(&client, &env, &admin, &owner, "Queue Project 3");
-    let evidence = String::from_str(
-        &env,
-        "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
-    );
+    let evidence = String::from_str(&env, "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG");
 
     client.request_verification(&first_project, &owner, &evidence);
     client.request_verification(&second_project, &owner, &evidence);

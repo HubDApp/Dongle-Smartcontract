@@ -47,7 +47,7 @@ use crate::events::{
     publish_duplicate_dispute_opened_event, publish_duplicate_dispute_resolved_event,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::ExtensionKey;
+use crate::storage_keys::{ExtensionKey, ExtensionKey2};
 use crate::storage_manager::StorageManager;
 use crate::types::{AdminActionType, DisputeResolutionAction, DisputeStatus, DuplicateDispute};
 use crate::utils::Utils;
@@ -91,7 +91,7 @@ impl DisputeRegistry {
         let dispute_id: u64 = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::NextDuplicateDisputeId)
+            .get(&ExtensionKey2::NextDuplicateDisputeId)
             .unwrap_or(1);
 
         let now = env.ledger().timestamp();
@@ -127,7 +127,7 @@ impl DisputeRegistry {
         let next_id = dispute_id.saturating_add(1);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::NextDuplicateDisputeId, &next_id);
+            .set(&ExtensionKey2::NextDuplicateDisputeId, &next_id);
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);

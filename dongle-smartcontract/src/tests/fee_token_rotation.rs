@@ -95,7 +95,13 @@ fn test_fee_config_history_records_old_and_new_values() {
 
     let token_b = Address::generate(&env);
     let treasury_b = Address::generate(&env);
-    client.set_fee(&admin, &Some(token_b.clone()), &200u128, &25u128, &treasury_b);
+    client.set_fee(
+        &admin,
+        &Some(token_b.clone()),
+        &200u128,
+        &25u128,
+        &treasury_b,
+    );
 
     let history = client.get_fee_config_history();
     assert_eq!(history.len(), 2);

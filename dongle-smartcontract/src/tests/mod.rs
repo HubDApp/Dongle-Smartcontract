@@ -21,14 +21,14 @@ mod transfer;
 mod cleanup;
 mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
-mod pause_state_recovery;
 mod moderation;
 mod name_search;
 mod pagination;
+mod pause_state_recovery;
 // mod pagination;
 mod claim;
-mod claim_status;
 mod claim_state_machine;
+mod claim_status;
 mod config;
 mod dependencies;
 mod lifecycle_status;
@@ -38,10 +38,10 @@ mod review_history;
 mod review_settings;
 mod security_contact;
 mod verification;
+mod verification_expert_assignment;
 mod verification_features;
 mod verification_lifecycle;
 mod verification_replacement;
-mod verification_expert_assignment;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 // Issue #545: property-based fuzz tests for the CID and URL validators
