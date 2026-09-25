@@ -1659,6 +1659,97 @@ pub fn publish_project_removed_from_collection_event(
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionVisibilityToggledEvent {
+    pub collection_id: u64,
+    pub is_public: bool,
+    pub caller: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionShareLinkGeneratedEvent {
+    pub collection_id: u64,
+    pub caller: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionShareLinkRevokedEvent {
+    pub collection_id: u64,
+    pub caller: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_collection_visibility_toggled_event(
+    env: &Env,
+    collection_id: u64,
+    is_public: bool,
+    caller: Address,
+) {
+    let event_data = CollectionVisibilityToggledEvent {
+        collection_id,
+        is_public,
+        caller: caller.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("VISTOGGL"),
+            collection_id,
+            caller,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_collection_share_link_generated_event(
+    env: &Env,
+    collection_id: u64,
+    caller: Address,
+) {
+    let event_data = CollectionShareLinkGeneratedEvent {
+        collection_id,
+        caller: caller.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("LINKGEN"),
+            collection_id,
+            caller,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_collection_share_link_revoked_event(
+    env: &Env,
+    collection_id: u64,
+    caller: Address,
+) {
+    let event_data = CollectionShareLinkRevokedEvent {
+        collection_id,
+        caller: caller.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COLLECT"),
+            symbol_short!("LINKREV"),
+            collection_id,
+            caller,
+        ),
+        event_data,
+    );
+}
+
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectLinkedEvent {
     pub project_id: u64,
     pub linked_project_id: u64,

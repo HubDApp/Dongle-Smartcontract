@@ -255,6 +255,7 @@ fn test_update_project_emits_notification() {
         project_id,
         caller: owner.clone(),
         name: None,
+        slug: None,
         description: Some(String::from_str(&env, "Updated description")),
         website: None,
         license: None,

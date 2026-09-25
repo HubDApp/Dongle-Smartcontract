@@ -10,7 +10,7 @@ pub mod auth;
 mod bookmark_registry;
 mod changelog_registry;
 mod collection_registry;
-mod community_collection_registry;
+// mod community_collection_registry;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
@@ -24,7 +24,7 @@ mod fee_manager;
 pub mod pagination;
 mod project_registry;
 pub mod rating_calculator;
-mod recommendation_registry;
+// mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
 pub mod storage_keys;
@@ -36,7 +36,7 @@ pub mod types;
 pub mod utils;
 mod validation;
 mod verification_registry;
-mod social_analytics_registry;
+// mod social_analytics_registry;
 
 #[cfg(test)]
 mod tests;
@@ -562,7 +562,7 @@ impl DongleContract {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None)
     }
 
     pub fn update_review(
@@ -1529,6 +1529,47 @@ impl DongleContract {
         CollectionRegistry::create_collection(&env, admin, name, description)
     }
 
+    /// Admin: create a collection with explicit visibility.
+    pub fn create_collection_vis(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_collection_with_visibility(&env, admin, name, description, is_public)
+    }
+
+    /// User: create a collection owned by the caller.
+    pub fn create_user_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_user_collection(&env, creator, name, description, is_public)
+    }
+
+    /// Toggle collection visibility between public and private (owner or admin only).
+    pub fn toggle_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<bool, ContractError> {
+        CollectionRegistry::toggle_collection_visibility(&env, caller, collection_id)
+    }
+
+    /// Set explicit collection visibility (owner or admin only).
+    pub fn set_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        is_public: bool,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::set_collection_visibility(&env, caller, collection_id, is_public)
+    }
+
     /// Admin: update a collection's name and description.
     pub fn update_collection(
         env: Env,
@@ -1569,17 +1610,68 @@ impl DongleContract {
         CollectionRegistry::remove_project_from_collection(&env, admin, collection_id, project_id)
     }
 
-    /// Get a collection by ID.
+    /// Get a collection by ID (returns Some only if public).
     pub fn get_collection(env: Env, collection_id: u64) -> Option<Collection> {
         CollectionRegistry::get_collection(&env, collection_id)
     }
 
-    /// List all collections with pagination.
+    /// Get a collection with caller authorization check (owner can see private collection).
+    pub fn get_collection_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_for_caller(&env, caller, collection_id)
+    }
+
+    /// List all public collections with pagination.
     pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
         CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
-    /// List project IDs in a collection with pagination.
+    /// List all public collections with pagination (explicit alias).
+    pub fn list_public_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_public_collections(&env, start_index, limit)
+    }
+
+    /// List all collections owned by a specific user (both public and private).
+    pub fn list_user_collections(
+        env: Env,
+        owner: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Collection>, ContractError> {
+        CollectionRegistry::list_user_collections(&env, owner, start_index, limit)
+    }
+
+    /// Generate a cryptographic share link for a collection (owner or admin only).
+    pub fn generate_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<String, ContractError> {
+        CollectionRegistry::generate_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// Retrieve a collection using a valid share token (read access even if private).
+    pub fn get_collection_by_share_token(
+        env: Env,
+        collection_id: u64,
+        share_token: String,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_by_share_token(&env, collection_id, share_token)
+    }
+
+    /// Revoke the active share link for a collection (owner or admin only).
+    pub fn revoke_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::revoke_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// List project IDs in a public collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
@@ -1587,6 +1679,17 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<u64> {
         CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
+    }
+
+    /// List project IDs in a collection with caller authorization.
+    pub fn list_col_projects_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        CollectionRegistry::list_collection_projects_for_caller(&env, caller, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.
@@ -2292,641 +2395,5 @@ impl DongleContract {
     /// future pause-enforcement ticket.
     pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<bool, ContractError> {
         ConfigRegistry::set_pause(&env, admin, paused)
-    }
-
-    // ── Recommendation Registry (Issue #820) ──────────────────────────────
-
-    /// Create a new recommendation. The `creator` address is always authenticated.
-    pub fn create_recommendation(
-        env: Env,
-        creator: Address,
-        target_project_id: u64,
-        algorithm: RecommendationAlgorithm,
-        reference_project_id: Option<u64>,
-        audience: Option<Address>,
-        score: Option<u64>,
-        label: Option<String>,
-    ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::recommendation_registry::RecommendationRegistry::create_recommendation(
-            &env,
-            creator,
-            target_project_id,
-            algorithm,
-            reference_project_id,
-            audience,
-            score,
-            label,
-        )
-    }
-
-    /// Look up a single recommendation by id.
-    pub fn get_recommendation(env: Env, recommendation_id: u64) -> Option<Recommendation> {
-        crate::recommendation_registry::RecommendationRegistry::get_recommendation(
-            &env,
-            recommendation_id,
-        )
-    }
-
-    /// Total number of recommendations currently stored.
-    pub fn get_recommendation_count(env: Env) -> u32 {
-        crate::recommendation_registry::RecommendationRegistry::get_recommendation_count(&env)
-    }
-
-    /// Number of recommendations stored against a specific target project.
-    pub fn get_recommendation_count_for_project(env: Env, target_project_id: u64) -> u32 {
-        crate::recommendation_registry::RecommendationRegistry::get_recommendation_count_for_project(
-            &env,
-            target_project_id,
-        )
-    }
-
-    /// List recommendations with pagination (oldest-first insertion order).
-    pub fn list_recommendations(
-        env: Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<Recommendation> {
-        crate::recommendation_registry::RecommendationRegistry::list_recommendations(
-            &env,
-            start_index,
-            limit,
-        )
-    }
-
-    /// List recommendations targeting a specific project.
-    pub fn list_recommendations_for_project(
-        env: Env,
-        target_project_id: u64,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<Recommendation> {
-        crate::recommendation_registry::RecommendationRegistry::list_recommendations_for_project(
-            &env,
-            target_project_id,
-            start_index,
-            limit,
-        )
-    }
-
-    /// Record that a recommendation was shown to `viewer` (impression / denominator
-    /// for CTR). Idempotent per viewer: repeat calls do not double-count.
-    pub fn record_recommendation_impression(
-        env: Env,
-        recommendation_id: u64,
-        viewer: Address,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::recommendation_registry::RecommendationRegistry::record_impression(
-            &env,
-            recommendation_id,
-            viewer,
-        )
-    }
-
-    /// Record that `viewer` clicked the recommendation (CTR numerator / click-through tracking).
-    /// Requires `record_recommendation_impression` to have been called first for the same viewer.
-    pub fn record_recommendation_click(
-        env: Env,
-        recommendation_id: u64,
-        viewer: Address,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::recommendation_registry::RecommendationRegistry::record_click(
-            &env,
-            recommendation_id,
-            viewer,
-        )
-    }
-
-    /// Generic engagement recorder for follow / bookmark / endorse / review
-    /// downstream signals. Impressions and clicks have dedicated entry points and
-    /// are not repeated here.
-    pub fn record_recommendation_engagement(
-        env: Env,
-        recommendation_id: u64,
-        user: Address,
-        kind: RecommendationEngagementKind,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::recommendation_registry::RecommendationRegistry::record_engagement(
-            &env,
-            recommendation_id,
-            user,
-            kind,
-        )
-    }
-
-    /// Record a user's thumbs-up or thumbs-down recommendation feedback.
-    /// Append-only: once a user has submitted feedback for a recommendation they
-    /// cannot change it — keeps the on-chain audit trail honest for the
-    /// recommendation-improvement loop.
-    pub fn give_recommendation_feedback(
-        env: Env,
-        recommendation_id: u64,
-        user: Address,
-        helpful: bool,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::recommendation_registry::RecommendationRegistry::give_feedback(
-            &env,
-            recommendation_id,
-            user,
-            helpful,
-        )
-    }
-
-    /// Look up what feedback a specific user left (if any) on a recommendation.
-    pub fn get_recommendation_user_feedback(
-        env: Env,
-        recommendation_id: u64,
-        user: Address,
-    ) -> Option<RecommendationFeedback> {
-        crate::recommendation_registry::RecommendationRegistry::get_user_feedback(
-            &env,
-            recommendation_id,
-            user,
-        )
-    }
-
-    /// Produce the aggregated RecommendationAnalytics snapshot (CTR, helpful ratio,
-    /// composite effectiveness score). Always emits `RecommendationAnalyticsSnapshotEvent`
-    /// so indexers can consume the result without additional reads.
-    pub fn get_recommendation_analytics(
-        env: Env,
-        recommendation_id: u64,
-    ) -> Option<RecommendationAnalytics> {
-        crate::recommendation_registry::RecommendationRegistry::get_analytics(
-            &env,
-            recommendation_id,
-        )
-    }
-
-    /// Return recommendations ordered from highest effectiveness score to lowest.
-    /// Provides the "improvement based on feedback" primitive: callers and future
-    /// on-chain recommendation engines use this list to surface the recommendations
-    /// that users actually find useful.
-    pub fn list_recommendations_sorted_by_effectiveness(
-        env: Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<Recommendation> {
-        crate::recommendation_registry::RecommendationRegistry::list_sorted_by_effectiveness(
-            &env,
-            start_index,
-            limit,
-        )
-    }
-
-    // ── Community Collections (Issue #821) ──────────────────────────────────
-
-    /// Create a community collection. Any authenticated address can call this
-    /// (unlike admin-only `Collection`).
-    pub fn create_community_collection(
-        env: Env,
-        creator: Address,
-        name: String,
-        description: String,
-        tags: Option<String>,
-        approval_threshold: Option<u32>,
-        disapproval_threshold: Option<u32>,
-        creator_revenue_share_bps: Option<u32>,
-        initial_curators: Option<Vec<Address>>,
-    ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::create(
-            &env,
-            creator,
-            name,
-            description,
-            tags,
-            approval_threshold,
-            disapproval_threshold,
-            creator_revenue_share_bps,
-            initial_curators,
-        )
-    }
-
-    /// Admin-only: create a built-in template collection that users can clone
-    /// (AC4 — templates for common collections).
-    pub fn create_community_collection_template(
-        env: Env,
-        admin: Address,
-        template_id: CommunityCollectionTemplateId,
-        override_name: Option<String>,
-        override_description: Option<String>,
-        seed_projects: Option<Vec<u64>>,
-    ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::create_template(
-            &env,
-            admin,
-            template_id,
-            override_name,
-            override_description,
-            seed_projects,
-        )
-    }
-
-    /// Clone any community collection (typically a template collection with
-    /// `is_template = true`) into a brand-new non-template one owned by the
-    /// caller. Copies metadata and project set skeleton (AC4).
-    pub fn create_community_collection_from_template(
-        env: Env,
-        caller: Address,
-        source_collection_id: u64,
-        name: String,
-        description: String,
-        tags: Option<String>,
-        approval_threshold: Option<u32>,
-        disapproval_threshold: Option<u32>,
-        creator_revenue_share_bps: Option<u32>,
-        initial_curators: Option<Vec<Address>>,
-    ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::create_from_template(
-            &env,
-            caller,
-            source_collection_id,
-            name,
-            description,
-            tags,
-            approval_threshold,
-            disapproval_threshold,
-            creator_revenue_share_bps,
-            initial_curators,
-        )
-    }
-
-    pub fn get_community_collection(env: Env, id: u64) -> Option<CommunityCollection> {
-        crate::community_collection_registry::CommunityCollectionRegistry::get(&env, id)
-    }
-
-    pub fn get_community_collection_count(env: Env) -> u32 {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_count(&env)
-    }
-
-    pub fn list_community_collections(
-        env: Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<CommunityCollection> {
-        crate::community_collection_registry::CommunityCollectionRegistry::list(
-            &env,
-            start_index,
-            limit,
-        )
-    }
-
-    pub fn list_community_collections_by_creator(
-        env: Env,
-        creator: Address,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<CommunityCollection> {
-        crate::community_collection_registry::CommunityCollectionRegistry::list_by_creator(
-            &env,
-            creator,
-            start_index,
-            limit,
-        )
-    }
-
-    pub fn list_community_collections_by_curator(
-        env: Env,
-        curator: Address,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<CommunityCollection> {
-        crate::community_collection_registry::CommunityCollectionRegistry::list_by_curator(
-            &env,
-            curator,
-            start_index,
-            limit,
-        )
-    }
-
-    pub fn get_community_collection_project_count(env: Env, id: u64) -> u32 {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_project_count(
-            &env, id,
-        )
-    }
-
-    pub fn list_community_collection_projects(
-        env: Env,
-        id: u64,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<u64> {
-        crate::community_collection_registry::CommunityCollectionRegistry::list_projects(
-            &env, id, start_index, limit,
-        )
-    }
-
-    pub fn update_community_collection_metadata(
-        env: Env,
-        id: u64,
-        updater: Address,
-        name: String,
-        description: String,
-        tags: Option<String>,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::update_metadata(
-            &env, id, updater, name, description, tags,
-        )
-    }
-
-    pub fn set_community_collection_thresholds(
-        env: Env,
-        id: u64,
-        updater: Address,
-        approval_threshold: u32,
-        disapproval_threshold: u32,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::set_thresholds(
-            &env,
-            id,
-            updater,
-            approval_threshold,
-            disapproval_threshold,
-        )
-    }
-
-    pub fn set_community_collection_revenue_share(
-        env: Env,
-        id: u64,
-        updater: Address,
-        creator_revenue_share_bps: u32,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::set_revenue_share(
-            &env,
-            id,
-            updater,
-            creator_revenue_share_bps,
-        )
-    }
-
-    pub fn add_community_collection_curator(
-        env: Env,
-        id: u64,
-        actor: Address,
-        new_curator: Address,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::add_curator(
-            &env, id, actor, new_curator,
-        )
-    }
-
-    pub fn remove_community_collection_curator(
-        env: Env,
-        id: u64,
-        actor: Address,
-        curator_to_remove: Address,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::remove_curator(
-            &env,
-            id,
-            actor,
-            curator_to_remove,
-        )
-    }
-
-    pub fn curator_add_project_to_community_collection(
-        env: Env,
-        id: u64,
-        curator: Address,
-        project_id: u64,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::curator_add_project(
-            &env, id, curator, project_id,
-        )
-    }
-
-    pub fn curator_remove_project_from_community_collection(
-        env: Env,
-        id: u64,
-        curator: Address,
-        project_id: u64,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::curator_remove_project(
-            &env, id, curator, project_id,
-        )
-    }
-
-    // AC2 — community voting / curation mechanism
-    pub fn cast_community_collection_vote(
-        env: Env,
-        id: u64,
-        voter: Address,
-        project_id: u64,
-        approve: bool,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::cast_vote(
-            &env, id, voter, project_id, approve,
-        )
-    }
-
-    pub fn get_community_collection_vote(
-        env: Env,
-        id: u64,
-        project_id: u64,
-        voter: Address,
-    ) -> Option<CommunityCollectionVote> {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_vote(
-            &env, id, project_id, voter,
-        )
-    }
-
-    pub fn get_community_collection_inclusion_status(
-        env: Env,
-        id: u64,
-        project_id: u64,
-    ) -> CommunityColInclusionStatus {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_inclusion_status(
-            &env, id, project_id,
-        )
-    }
-
-    // AC1 — featured community collections (admin-only, FIFO eviction at cap)
-    pub fn feature_community_collection(
-        env: Env,
-        admin: Address,
-        id: u64,
-        featured: bool,
-    ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::set_featured(
-            &env, admin, id, featured,
-        )
-    }
-
-    pub fn list_featured_community_collections(
-        env: Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<CommunityCollection> {
-        crate::community_collection_registry::CommunityCollectionRegistry::list_featured(
-            &env,
-            start_index,
-            limit,
-        )
-    }
-
-    pub fn get_featured_community_collection_count(env: Env) -> u32 {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_featured_count(
-            &env,
-        )
-    }
-
-    // AC3 — revenue sharing (recording cumulative attribution for off-chain payout)
-    pub fn attribute_community_collection_revenue(
-        env: Env,
-        caller: Address,
-        id: u64,
-        total_amount_scaled: u128,
-    ) -> Result<CommunityColRevenueSnapshot, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::community_collection_registry::CommunityCollectionRegistry::attribute_revenue(
-            &env, caller, id, total_amount_scaled,
-        )
-    }
-
-    pub fn get_community_collection_revenue_snapshot(
-        env: Env,
-        id: u64,
-    ) -> Option<CommunityColRevenueSnapshot> {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_revenue_snapshot(
-            &env, id,
-        )
-    }
-
-    // ── Social Analytics (Issue #822) ──────────────────────────────────────
-
-    // AC1 — Growth metrics over time: daily checkpoint snapshots that
-    // accumulate and support any-window delta computations.
-
-    /// Record today's social-signal snapshot (followers, endorsements,
-    /// bookmarks, reviews, rating) for the project. Idempotent per-day;
-    /// repeated calls on the same day overwrite the prior snapshot of the
-    /// day with the latest counts. When the rolling 730-day window is full,
-    /// the oldest day's checkpoint is FIFO-evicted. Any authenticated caller
-    /// may checkpoint (keepers / indexers are the expected operators).
-    pub fn record_project_social_daily_checkpoint(
-        env: Env,
-        caller: Address,
-        project_id: u64,
-    ) -> Result<u32, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::social_analytics_registry::SocialAnalyticsRegistry::record_daily_checkpoint(
-            &env, caller, project_id,
-        )
-    }
-
-    /// Retrieve a single checkpoint by project + day (if persisted).
-    pub fn get_project_social_checkpoint(
-        env: Env,
-        project_id: u64,
-        day_index: u32,
-    ) -> Option<ProjectSocialDailyCheckpoint> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::get_checkpoint(
-            &env, project_id, day_index,
-        )
-    }
-
-    /// List stored checkpoints for a project in oldest-first order, paginated.
-    pub fn list_project_social_checkpoints(
-        env: Env,
-        project_id: u64,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<ProjectSocialDailyCheckpoint> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::list_checkpoints(
-            &env, project_id, start_index, limit,
-        )
-    }
-
-    /// How many daily checkpoints currently exist for a project.
-    pub fn get_project_social_checkpoint_count(env: Env, project_id: u64) -> u32 {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::get_checkpoint_count(
-            &env, project_id,
-        )
-    }
-
-    /// Return (oldest_day, newest_day) of stored checkpoints for a project,
-    /// both optional (None if no checkpoints yet written). Fast metadata
-    /// without scanning the whole list.
-    pub fn get_project_social_checkpoint_day_bounds(
-        env: Env,
-        project_id: u64,
-    ) -> (Option<u32>, Option<u32>) {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::get_oldest_newest_checkpoint_days(&env, project_id)
-    }
-
-    // AC2 — Engagement rate calculations over arbitrary windows.
-
-    /// Engagement metric (ppm rate, gains by signal, rating delta) for a
-    /// custom window [window_start_day, window_end_day] inclusive.
-    pub fn compute_project_engagement_metric(
-        env: Env,
-        project_id: u64,
-        window_start_day: u32,
-        window_end_day: u32,
-    ) -> Result<ProjectEngagementMetric, ContractError> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::compute_engagement_metric(
-            &env,
-            project_id,
-            window_start_day,
-            window_end_day,
-        )
-    }
-
-    // AC3 — Peer comparison.
-
-    /// Last-30-day engagement-rate comparison of the target project with
-    /// other projects in the same category, sorted by rate descending. The
-    /// target project is always included (so percentile is pos/len on the
-    /// client side), and up to `max_peers` additional projects are returned
-    /// (cap = SOCIAL_ANALYTICS_MAX_PEERS = 50).
-    pub fn compare_social_to_similar_projects(
-        env: Env,
-        project_id: u64,
-        max_peers: u32,
-    ) -> Result<Vec<ProjectSocialPeerRow>, ContractError> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::compare_similar_projects(
-            &env, project_id, max_peers,
-        )
-    }
-
-    // AC4 — Export analytics report: one-shot payload combining everything.
-
-    /// Compute and return a `ProjectSocialAnalyticsExport` payload combining
-    /// checkpoints horizon, last-7d + last-30d engagement metrics, 30-day
-    /// growth deltas, peer comparison ranking, and a monotonically
-    /// incrementing report nonce so export consumers can dedupe repeated
-    /// runs. Also emits `ProjectSocialAnalyticsExportEvent` with the key
-    /// numbers for indexer consumption.
-    pub fn export_project_social_analytics_report(
-        env: Env,
-        project_id: u64,
-    ) -> Result<ProjectSocialAnalyticsExport, ContractError> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::export_report(
-            &env, project_id,
-        )
-    }
-
-    /// Last-generated export report nonce for a project. 0 if `export_*` has
-    /// never been called.
-    pub fn get_project_social_analytics_report_nonce(env: Env, project_id: u64) -> u64 {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
-            &env, project_id,
-        )
     }
 }

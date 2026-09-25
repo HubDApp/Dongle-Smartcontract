@@ -40,6 +40,15 @@ for the full policy.
 
 ### Added
 
+- **#819: Allow collections to be public or private with share link capability.**
+  Collections can now be configured as public or private with granular access controls and capability-token sharing:
+  - Toggle visibility per collection (`toggle_collection_visibility`, `set_collection_visibility`) by collection owner or admin, emitting `COLLECT/VIS_TOGGL` events.
+  - Public collections are discoverable and searchable via `list_collections` and `list_public_collections`.
+  - Private collections are strictly isolated to the collection owner and admins (`get_collection_for_caller`, `list_user_collections`, `list_col_projects_for_caller`); unauthenticated or unauthorized access returns `ContractError::CollectionPrivate`.
+  - Share link generation (`generate_collection_share_link`) produces a secure 32-byte SHA-256 capability token and canonical URL (`https://dongle.hub/c/{id}?key={token_hex}`). Anyone possessing the link can inspect the private collection via `get_collection_by_share_token`. Owners and admins can revoke tokens at any time (`revoke_collection_share_link`).
+  - Added user collection creation (`create_user_collection`) allowing any authenticated user to create and manage personal public or private project lists.
+  - Segregated storage into `CollectionVisibilityKey` (`CollectionOwner`, `CollectionIsPublic`, `CollectionShareToken`, `UserCollections`, `PublicCollectionList`) respecting Soroban's 50-variant enum ceiling.
+
 - **#804: Review archival to cheaper storage with query access and automatic job.**
   Reviews older than 2 years (configurable via `REVIEW_ARCHIVE_AGE_SECONDS = 63_072_000`)
   can now be archived by an admin to a compact, shorter-TTL on-chain record, freeing
