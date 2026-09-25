@@ -404,3 +404,24 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Verification Assignment & Specialized Admin SLA Constants ─────────────
+
+/// Default review SLA duration for verification requests (3 days = 259,200 seconds).
+pub const DEFAULT_VERIFICATION_SLA_SECS: u64 = 3 * 24 * 60 * 60;
+
+/// Minimum allowed verification SLA duration (1 hour = 3,600 seconds).
+pub const MIN_VERIFICATION_SLA_SECS: u64 = 3600;
+
+/// Maximum allowed verification SLA duration (30 days = 2,592,000 seconds).
+pub const MAX_VERIFICATION_SLA_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum length of an admin expertise string (64 bytes).
+pub const MAX_EXPERTISE_LEN: usize = 64;
+
+/// Maximum number of expertise tags an admin can have.
+pub const MAX_EXPERTISE_TAGS_PER_ADMIN: u32 = 20;
+
+/// Maximum length of a decline or escalation reason string.
+pub const MAX_ASSIGNMENT_REASON_LEN: usize = 256;
+

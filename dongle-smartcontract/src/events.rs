@@ -2843,3 +2843,217 @@ pub fn publish_review_archived_event(
         event_data,
     );
 }
+
+// ── Verification Assignment & Routing Events ────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignedWithExpertiseEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assigner: Address,
+    pub assignee: Address,
+    pub expertise: Option<String>,
+    pub sla_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentAcceptedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentDeclinedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentEscalatedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assignee: Address,
+    pub escalated_by: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminExpertiseSetEvent {
+    pub caller: Address,
+    pub admin: Address,
+    pub expertise_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSlaSetEvent {
+    pub admin: Address,
+    pub sla_seconds: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_verification_assigned_with_expertise_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    assigner: Address,
+    assignee: Address,
+    expertise: Option<String>,
+    sla_deadline: u64,
+) {
+    let event_data = VerificationAssignedWithExpertiseEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        assigner,
+        assignee,
+        expertise,
+        sla_deadline,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ASSIGNEX"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_accepted_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+) {
+    let event_data = VerificationAssignmentAcceptedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ACCEPTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_declined_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = VerificationAssignmentDeclinedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        admin,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("DECLINED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_escalated_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    assignee: Address,
+    escalated_by: Address,
+    reason: String,
+) {
+    let event_data = VerificationAssignmentEscalatedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        assignee,
+        escalated_by,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ESCALATE"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_admin_expertise_set_event(
+    env: &Env,
+    caller: Address,
+    admin: Address,
+    expertise_count: u32,
+) {
+    let event_data = AdminExpertiseSetEvent {
+        caller,
+        admin,
+        expertise_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("ADMIN"),
+            symbol_short!("EXPERTS"),
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_sla_set_event(
+    env: &Env,
+    admin: Address,
+    sla_seconds: u64,
+) {
+    let event_data = VerificationSlaSetEvent {
+        admin,
+        sla_seconds,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("SLA_SET"),
+        ),
+        event_data,
+    );
+}
+
