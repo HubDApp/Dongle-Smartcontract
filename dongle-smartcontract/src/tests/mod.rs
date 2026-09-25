@@ -10,6 +10,7 @@ mod collection_registry_crud;
 mod collections;
 mod error_handling_tests;
 mod featured;
+mod fork_detection;
 // mod fee;
 // mod indexer;
 mod review;
