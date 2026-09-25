@@ -404,3 +404,18 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Automatic inactivity archival constants (#753) ────────────────────────────
+
+/// Default inactivity threshold: two 365-day years.
+pub const DEFAULT_AUTO_ARCHIVE_THRESHOLD_SECS: u64 = 2 * 365 * 24 * 60 * 60;
+/// Mandatory owner notice period before automatic archival.
+pub const AUTO_ARCHIVE_NOTICE_SECS: u64 = 30 * 24 * 60 * 60;
+/// Minimum configurable threshold, equal to the notice period.
+pub const MIN_AUTO_ARCHIVE_THRESHOLD_SECS: u64 = AUTO_ARCHIVE_NOTICE_SECS;
+/// Maximum configurable threshold (ten years).
+pub const MAX_AUTO_ARCHIVE_THRESHOLD_SECS: u64 = 10 * 365 * 24 * 60 * 60;
+/// Maximum project IDs inspected by one keeper batch.
+pub const MAX_AUTO_ARCHIVE_BATCH_SIZE: u32 = 100;
+/// Maximum IDs scanned by one archived-project search page.
+pub const MAX_ARCHIVED_SEARCH_SCAN: u32 = 500;

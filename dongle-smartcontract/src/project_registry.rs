@@ -1301,6 +1301,34 @@ impl ProjectRegistry {
         Ok(())
     }
 
+    /// Archive a project because an authenticated keeper observed an elapsed
+    /// inactivity/notice window. Unlike owner archival, `updated_at` remains the
+    /// last real activity timestamp so the audit record remains verifiable.
+    pub(crate) fn auto_archive_project(
+        env: &Env,
+        project_id: u64,
+        keeper: Address,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.archived {
+            return Err(ContractError::AlreadyArchived);
+        }
+        project.archived = true;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        Self::remove_active_owner_project(env, &project.owner, project_id);
+        StorageManager::extend_project_ttl(env, project_id);
+        publish_project_archived_event(env, project_id, keeper.clone());
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::ProjectArchived,
+        );
+        Ok(project)
+    }
+
     /// Archive a project. The owner or any admin can archive a project.
     pub fn archive_project(
         env: &Env,
@@ -1374,6 +1402,9 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        crate::auto_archive_registry::AutoArchiveRegistry::on_project_restored(
+            env, project_id,
+        );
 
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);

@@ -6,6 +6,8 @@ extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
+mod auto_archive_registry;
+pub mod auto_archive_types;
 pub mod auth;
 mod bookmark_registry;
 mod changelog_registry;
@@ -507,6 +509,112 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
+    // ── Automatic Inactivity Archival (#753) ───────────────────────────────
+
+    pub fn get_auto_archive_config(env: Env) -> crate::auto_archive_types::AutoArchiveConfig {
+        crate::auto_archive_registry::AutoArchiveRegistry::get_config(&env)
+    }
+
+    /// Configure the global inactivity threshold (30 days through 10 years).
+    pub fn set_auto_archive_config(
+        env: Env,
+        admin: Address,
+        config: crate::auto_archive_types::AutoArchiveConfig,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::auto_archive_registry::AutoArchiveRegistry::set_config(&env, admin, config)
+    }
+
+    /// Permissionless keeper action that emits the owner-facing notice once the
+    /// project enters the 30-day pre-archival window.
+    pub fn notify_project_auto_archive(
+        env: Env,
+        keeper: Address,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::auto_archive_registry::AutoArchiveRegistry::notify_project(
+            &env,
+            keeper,
+            project_id,
+        )
+    }
+
+    pub fn get_auto_archive_notice(
+        env: Env,
+        project_id: u64,
+    ) -> Option<crate::auto_archive_types::AutoArchiveNotice> {
+        crate::auto_archive_registry::AutoArchiveRegistry::get_notice(&env, project_id)
+    }
+
+    /// Record off-chain delivery success/failure for the owner notice.
+    pub fn record_auto_archive_delivery(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        delivered: bool,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::auto_archive_registry::AutoArchiveRegistry::record_notice_delivery(
+            &env,
+            admin,
+            project_id,
+            delivered,
+        )
+    }
+
+    /// Archive a bounded range of projects whose notices have fully elapsed.
+    pub fn archive_inactive_projects(
+        env: Env,
+        keeper: Address,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Result<crate::auto_archive_types::AutoArchiveBatchResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::auto_archive_registry::AutoArchiveRegistry::archive_inactive_batch(
+            &env,
+            keeper,
+            start_project_id,
+            limit,
+        )
+    }
+
+    pub fn get_auto_archive_record(
+        env: Env,
+        project_id: u64,
+    ) -> Option<crate::auto_archive_types::AutoArchiveRecord> {
+        crate::auto_archive_registry::AutoArchiveRegistry::get_record(&env, project_id)
+    }
+
+    /// Owner/admin restoration entry point for automatically archived projects.
+    pub fn restore_auto_archived_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<crate::types::Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::auto_archive_registry::AutoArchiveRegistry::restore_archived_project(
+            &env,
+            project_id,
+            caller,
+        )
+    }
+
+    /// Cursor-based search over archived project name, slug, category, and text.
+    pub fn search_archived_projects(
+        env: Env,
+        query: String,
+        start_cursor: u64,
+        limit: u32,
+    ) -> Result<crate::auto_archive_types::ArchivedProjectSearchResult, ContractError> {
+        crate::auto_archive_registry::AutoArchiveRegistry::search_archived_projects(
+            &env,
+            query,
+            start_cursor,
+            limit,
+        )
     }
 
     pub fn add_maintainer(

@@ -506,6 +506,34 @@ impl StorageManager {
         );
     }
 
+    // ── Automatic archival TTL (#753) ─────────────────────────────────────
+
+    pub fn extend_auto_archive_config_ttl(env: &Env) {
+        use crate::storage_keys::AutoArchiveKey as AK;
+        Self::extend_if_exists(
+            env,
+            &AK::Config,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+    }
+
+    pub fn extend_auto_archive_project_ttl(env: &Env, project_id: u64) {
+        use crate::storage_keys::AutoArchiveKey as AK;
+        Self::extend_if_exists(
+            env,
+            &AK::Notice(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &AK::Record(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     // ── Community Collection TTL Management ────────────────────────────────
 
     /// Extend TTL for a community collection struct + membership + counters.

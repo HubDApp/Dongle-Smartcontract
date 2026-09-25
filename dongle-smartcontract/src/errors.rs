@@ -191,6 +191,16 @@ pub enum ContractError {
     AppealNotFound = 88,
     /// The verification appeal has already been reviewed and cannot be changed.
     AppealAlreadyReviewed = 89,
+    /// Automatic archival is disabled by the current configuration.
+    AutoArchiveDisabled = 90,
+    /// The project is not yet inside its 30-day pre-archival notice window.
+    AutoArchiveNotDue = 91,
+    /// No valid pre-archival notice exists for the project.
+    AutoArchiveNoticeNotFound = 92,
+    /// The 30-day notice period has not elapsed since notification.
+    AutoArchiveNoticeTooEarly = 93,
+    /// Configured inactivity threshold is outside allowed bounds.
+    AutoArchiveThresholdInvalid = 94,
 }
 
 pub type Error = ContractError;

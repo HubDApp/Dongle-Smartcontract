@@ -6,6 +6,7 @@ mod admin_action_log;
 // Issue #670: Admin concurrent operation atomicity and consistency verification
 mod admin_concurrent;
 mod archival;
+mod auto_archival;
 mod collection_registry_crud;
 mod collections;
 mod error_handling_tests;
