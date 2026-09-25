@@ -31,11 +31,7 @@ fn advance_time(env: &Env, seconds: u64) {
 }
 
 /// Submit a review at the current ledger time and return the reviewer address.
-fn submit_review(
-    client: &DongleContractClient<'_>,
-    project_id: u64,
-    rating: u32,
-) -> Address {
+fn submit_review(client: &DongleContractClient<'_>, project_id: u64, rating: u32) -> Address {
     let env = &client.env;
     let reviewer = Address::generate(env);
     client.add_review(&project_id, &reviewer, &rating, &None);
@@ -111,7 +107,9 @@ fn test_mixed_old_and_new_reviews_only_old_archived() {
 
     // Old review is archived
     assert!(client.get_review(&project_id, &old_reviewer).is_none());
-    assert!(client.get_archived_review(&project_id, &old_reviewer).is_some());
+    assert!(client
+        .get_archived_review(&project_id, &old_reviewer)
+        .is_some());
 
     // Recent review is still active
     assert!(client.get_review(&project_id, &recent_reviewer).is_some());
@@ -348,8 +346,7 @@ fn test_set_archived_review_arweave_tx_fails_for_non_archived_review() {
     // Do NOT archive — review is still active
 
     let tx_id = String::from_str(&env, "anyTxId");
-    let result =
-        client.try_set_archived_review_arweave_tx(&admin, &project_id, &reviewer, &tx_id);
+    let result = client.try_set_archived_review_arweave_tx(&admin, &project_id, &reviewer, &tx_id);
     assert_eq!(result, Err(Ok(ContractError::ReviewNotArchived)));
 }
 

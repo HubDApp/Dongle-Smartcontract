@@ -75,9 +75,10 @@ impl NotificationRegistry {
             kinds,
         };
 
-        env.storage()
-            .persistent()
-            .set(&NotificationKey::UserNotificationPrefs(user.clone()), &prefs);
+        env.storage().persistent().set(
+            &NotificationKey::UserNotificationPrefs(user.clone()),
+            &prefs,
+        );
         StorageManager::extend_notification_prefs_ttl(env, &user);
 
         publish_notification_prefs_updated_event(env, user, opted_out, digest_frequency);
@@ -183,12 +184,7 @@ impl NotificationRegistry {
     }
 
     /// Get the current digest queue for a user (paginated).
-    pub fn get_digest_queue(
-        env: &Env,
-        user: Address,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<u64> {
+    pub fn get_digest_queue(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {

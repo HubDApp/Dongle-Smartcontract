@@ -184,9 +184,6 @@ pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
 pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
 pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
 
-/// Maximum duration of a temporary verification suspension.
-pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
-
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
 /// TTL for critical contract data (admin list, fee config, treasury).
@@ -404,3 +401,63 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Community Collection Constants ────────────────────────────────────────────
+/// Maximum number of community collections.
+pub const MAX_COMMUNITY_COLLECTIONS: u32 = 100;
+
+/// Maximum byte length for a community collection name.
+pub const MAX_COMMUNITY_COL_NAME_LEN: usize = 100;
+
+/// Maximum byte length for a community collection description.
+pub const MAX_COMMUNITY_COL_DESCRIPTION_LEN: usize = 500;
+
+/// Maximum number of projects per community collection.
+pub const MAX_COMMUNITY_COL_PROJECTS: u32 = 500;
+
+/// Maximum number of curators per community collection.
+pub const MAX_COMMUNITY_COL_CURATORS: u32 = 10;
+
+/// Maximum byte length for community collection tags.
+pub const MAX_COMMUNITY_COL_TAGS_LEN: usize = 100;
+
+/// Maximum creator share in basis points (100% = 10000).
+pub const MAX_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 10_000;
+
+/// Default approval threshold for community collections.
+pub const DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD: u32 = 1;
+
+/// Default disapproval threshold for community collections.
+pub const DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD: u32 = 1;
+
+/// Default creator share in basis points.
+pub const DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 1000;
+
+/// Minimum creator share in basis points.
+pub const MIN_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 0;
+
+/// Maximum number of featured community collections.
+pub const MAX_FEATURED_COMMUNITY_COLLECTIONS: u32 = 20;
+
+// ── Social Analytics Constants ────────────────────────────────────────────────
+
+/// Maximum number of social checkpoints stored per project.
+pub const MAX_SOCIAL_CHECKPOINTS_PER_PROJECT: u32 = 100;
+
+/// Maximum number of peers for comparison in social analytics.
+pub const SOCIAL_ANALYTICS_MAX_PEERS: u32 = 50;
+
+/// Minimum checkpoints needed for growth calculation.
+pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
+
+/// Engagement rate scale in parts per million.
+pub const SOCIAL_ENGAGEMENT_RATE_SCALE_PPM: u32 = 1_000_000;
+
+/// Rating basis points per star (100 bps = 1 star).
+pub const SOCIAL_RATING_BPS_PER_STAR: u32 = 100;
+
+/// Social analytics 30-day window in seconds.
+pub const SOCIAL_WINDOW_30_DAYS: u64 = 30 * 24 * 60 * 60;
+
+/// Social analytics 7-day window in seconds.
+pub const SOCIAL_WINDOW_7_DAYS: u64 = 7 * 24 * 60 * 60;

@@ -283,19 +283,34 @@ fn test_revision_count_increments_on_every_update() {
     // First update creates revision_index 0
     env.ledger()
         .set_timestamp(env.ledger().timestamp().saturating_add(3601));
-    client.update_review(&project_id, &reviewer, &2, &Some(String::from_str(&env, CID_V2)));
+    client.update_review(
+        &project_id,
+        &reviewer,
+        &2,
+        &Some(String::from_str(&env, CID_V2)),
+    );
     assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 1);
 
     // Second update creates revision_index 1
     env.ledger()
         .set_timestamp(env.ledger().timestamp().saturating_add(3601));
-    client.update_review(&project_id, &reviewer, &3, &Some(String::from_str(&env, CID_V3)));
+    client.update_review(
+        &project_id,
+        &reviewer,
+        &3,
+        &Some(String::from_str(&env, CID_V3)),
+    );
     assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 2);
 
     // Third update
     env.ledger()
         .set_timestamp(env.ledger().timestamp().saturating_add(3601));
-    client.update_review(&project_id, &reviewer, &4, &Some(String::from_str(&env, CID_W1)));
+    client.update_review(
+        &project_id,
+        &reviewer,
+        &4,
+        &Some(String::from_str(&env, CID_W1)),
+    );
     assert_eq!(client.get_review_revision_count(&project_id, &reviewer), 3);
 
     // Verify history length matches count
@@ -321,9 +336,17 @@ fn test_revision_count_matches_history_entries_tamper_resistance() {
     client.submit_review(&project_id, &reviewer, &3, &cid1);
 
     for (i, cid) in [CID_V2, CID_V3, CID_W1, CID_W2].iter().enumerate() {
-        env.ledger()
-            .set_timestamp(env.ledger().timestamp().saturating_add((i as u64 + 1) * 3601));
-        client.update_review(&project_id, &reviewer, &((i as u32 % 5) + 1), &Some(String::from_str(&env, cid)));
+        env.ledger().set_timestamp(
+            env.ledger()
+                .timestamp()
+                .saturating_add((i as u64 + 1) * 3601),
+        );
+        client.update_review(
+            &project_id,
+            &reviewer,
+            &((i as u32 % 5) + 1),
+            &Some(String::from_str(&env, cid)),
+        );
     }
 
     let count = client.get_review_revision_count(&project_id, &reviewer);

@@ -237,8 +237,8 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
-        let record = Self::get_fee_payment_details(env, project_id)
-            .ok_or(ContractError::InsufficientFee)?;
+        let record =
+            Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
         let now = env.ledger().timestamp();
         if now >= record.paid_at + FEE_PAYMENT_EXPIRY_SECONDS {
             return Err(ContractError::FeePaymentExpired);

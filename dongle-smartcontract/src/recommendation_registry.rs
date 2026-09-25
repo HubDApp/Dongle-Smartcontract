@@ -9,8 +9,8 @@ use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::RecommendationKey as RK;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    Recommendation, RecommendationAlgorithm, RecommendationAnalytics,
-    RecommendationEngagementKind, RecommendationFeedback,
+    Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
+    RecommendationFeedback,
 };
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -81,10 +81,7 @@ impl RecommendationRegistry {
         Ok(())
     }
 
-    fn check_audience(
-        rec: &Recommendation,
-        user: &Address,
-    ) -> Result<(), ContractError> {
+    fn check_audience(rec: &Recommendation, user: &Address) -> Result<(), ContractError> {
         if let Some(audience) = &rec.audience {
             if audience != user {
                 return Err(ContractError::RecommendationAudienceMismatch);
@@ -148,11 +145,15 @@ impl RecommendationRegistry {
             label: label.clone(),
             created_at: env.ledger().timestamp(),
         };
-        env.storage().persistent().set(&RK::Recommendation(id), &rec);
+        env.storage()
+            .persistent()
+            .set(&RK::Recommendation(id), &rec);
 
         let mut global = global_list;
         global.push_back(id);
-        env.storage().persistent().set(&RK::RecommendationList, &global);
+        env.storage()
+            .persistent()
+            .set(&RK::RecommendationList, &global);
 
         let mut per_proj: Vec<u64> = env
             .storage()
@@ -188,7 +189,10 @@ impl RecommendationRegistry {
     }
 
     pub fn get_recommendation(env: &Env, recommendation_id: u64) -> Option<Recommendation> {
-        let rec = env.storage().persistent().get(&RK::Recommendation(recommendation_id));
+        let rec = env
+            .storage()
+            .persistent()
+            .get(&RK::Recommendation(recommendation_id));
         if rec.is_some() {
             StorageManager::extend_recommendation_ttl(env, recommendation_id);
         }
@@ -391,8 +395,7 @@ impl RecommendationRegistry {
         Self::check_audience(&rec, &user)?;
 
         let fb_key = RK::Feedback(recommendation_id, user.clone());
-        let existing: Option<RecommendationFeedback> =
-            env.storage().persistent().get(&fb_key);
+        let existing: Option<RecommendationFeedback> = env.storage().persistent().get(&fb_key);
         if existing.is_some() {
             return Err(ContractError::RecommendationFeedbackAlreadyGiven);
         }
@@ -626,7 +629,11 @@ impl RecommendationRegistry {
             return page;
         }
         let end = core::cmp::min(start_index.saturating_add(effective_limit), total);
-        for p in pairs.iter().skip(start_index as usize).take((end - start_index) as usize) {
+        for p in pairs
+            .iter()
+            .skip(start_index as usize)
+            .take((end - start_index) as usize)
+        {
             if let Some(rec) = Self::get_recommendation(env, p.0) {
                 page.push_back(rec);
             }

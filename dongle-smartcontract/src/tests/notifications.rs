@@ -32,7 +32,9 @@ fn test_set_notification_prefs_opted_out() {
     let kinds: Vec<NotificationKind> = Vec::new(&env);
     client.set_notification_prefs(&user, &true, &false, &DigestFrequency::None, &kinds);
 
-    let prefs = client.get_notification_prefs(&user).expect("prefs should be set");
+    let prefs = client
+        .get_notification_prefs(&user)
+        .expect("prefs should be set");
     assert!(prefs.opted_out);
     assert!(!prefs.notify_on_all);
     assert_eq!(prefs.digest_frequency, DigestFrequency::None);
@@ -49,7 +51,9 @@ fn test_set_notification_prefs_notify_on_all_with_daily_digest() {
     let kinds: Vec<NotificationKind> = Vec::new(&env);
     client.set_notification_prefs(&user, &false, &true, &DigestFrequency::Daily, &kinds);
 
-    let prefs = client.get_notification_prefs(&user).expect("prefs should be set");
+    let prefs = client
+        .get_notification_prefs(&user)
+        .expect("prefs should be set");
     assert!(!prefs.opted_out);
     assert!(prefs.notify_on_all);
     assert_eq!(prefs.digest_frequency, DigestFrequency::Daily);
@@ -69,7 +73,9 @@ fn test_set_notification_prefs_specific_kinds() {
 
     client.set_notification_prefs(&user, &false, &false, &DigestFrequency::Weekly, &kinds);
 
-    let prefs = client.get_notification_prefs(&user).expect("prefs should be set");
+    let prefs = client
+        .get_notification_prefs(&user)
+        .expect("prefs should be set");
     assert_eq!(prefs.digest_frequency, DigestFrequency::Weekly);
     assert!(!prefs.notify_on_all);
     assert_eq!(prefs.kinds.len(), 2);
@@ -89,7 +95,9 @@ fn test_overwrite_notification_prefs() {
     // Overwrite with opted_out
     client.set_notification_prefs(&user, &true, &false, &DigestFrequency::None, &kinds);
 
-    let prefs = client.get_notification_prefs(&user).expect("prefs should be set");
+    let prefs = client
+        .get_notification_prefs(&user)
+        .expect("prefs should be set");
     assert!(prefs.opted_out);
     assert_eq!(prefs.digest_frequency, DigestFrequency::None);
 }
@@ -291,7 +299,9 @@ fn test_archive_and_reactivate_emit_notifications() {
     client.reactivate_project(&project_id, &admin);
 
     // Verify project is active again (no panic = events were emitted successfully)
-    let project = client.get_project(&project_id).expect("project should exist");
+    let project = client
+        .get_project(&project_id)
+        .expect("project should exist");
     assert!(!project.archived);
 }
 
@@ -313,11 +323,15 @@ fn test_multiple_users_independent_prefs() {
     client.set_notification_prefs(&user_b, &false, &true, &DigestFrequency::Daily, &kinds);
     // user_c has no prefs
 
-    let a = client.get_notification_prefs(&user_a).expect("user_a prefs");
+    let a = client
+        .get_notification_prefs(&user_a)
+        .expect("user_a prefs");
     assert!(a.opted_out);
     assert_eq!(a.digest_frequency, DigestFrequency::None);
 
-    let b = client.get_notification_prefs(&user_b).expect("user_b prefs");
+    let b = client
+        .get_notification_prefs(&user_b)
+        .expect("user_b prefs");
     assert!(!b.opted_out);
     assert!(b.notify_on_all);
     assert_eq!(b.digest_frequency, DigestFrequency::Daily);

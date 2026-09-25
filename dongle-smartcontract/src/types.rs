@@ -134,21 +134,6 @@ pub struct ProjectStats {
     pub average_rating: u32,
 }
 
-/// A single URL attached to a review as supporting evidence.
-///
-/// The `is_dead` flag is set by admins via `mark_evidence_link_dead` when a
-/// link is found to be broken or invalid. It is stored inline so the link
-/// record is preserved for audit purposes even after it is marked dead.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EvidenceLink {
-    /// The URL string (http:// or https://).
-    pub url: String,
-    /// Admin-settable dead-link flag. `false` by default.
-    /// Set to `true` via `mark_evidence_link_dead` when a link is broken or invalid.
-    pub is_dead: bool,
-}
-
 /// A single on-chain review submitted for a project.
 ///
 /// Reviews are keyed by `(project_id, reviewer)` — one review per reviewer
@@ -699,6 +684,8 @@ pub struct VerificationBatchReport {
     pub action: VerificationBatchAction,
     pub total: u32,
     pub results: Vec<VerificationBatchResult>,
+}
+
 /// A formal appeal against a rejection, including the additional evidence
 /// submitted by the owner and the result of the appeal review.
 #[contracttype]

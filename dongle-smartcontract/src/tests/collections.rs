@@ -672,15 +672,21 @@ fn test_delete_collection_removes_project_associations() {
 
     let project = client.get_project(&project_id);
     assert_eq!(project.unwrap().id, project_id);
-    assert_eq!(client.list_collection_projects(&collection_id, &0, &10).len(), 0);
+    assert_eq!(
+        client
+            .list_collection_projects(&collection_id, &0, &10)
+            .len(),
+        0
+    );
     assert!(env.events().all().iter().any(|(_, topics, _)| {
-        topics == (
-            symbol_short!("COLLECT"),
-            symbol_short!("REMOVED"),
-            collection_id,
-            project_id,
-        )
-            .into_val(&env)
+        topics
+            == (
+                symbol_short!("COLLECT"),
+                symbol_short!("REMOVED"),
+                collection_id,
+                project_id,
+            )
+                .into_val(&env)
     }));
 }
 

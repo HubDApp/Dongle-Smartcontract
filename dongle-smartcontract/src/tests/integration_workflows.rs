@@ -193,7 +193,10 @@ fn archive_then_reactivate_roundtrip() {
     assert!(client.get_project(&id).unwrap().archived);
 
     // Double archive is rejected.
-    let err = client.try_archive_project(&id, &owner).unwrap_err().unwrap();
+    let err = client
+        .try_archive_project(&id, &owner)
+        .unwrap_err()
+        .unwrap();
     assert_eq!(err, ContractError::AlreadyArchived);
 
     client.reactivate_project(&id, &owner);
@@ -387,7 +390,10 @@ fn cannot_remove_last_admin() {
     env.mock_all_auths();
     let (client, admin) = setup_contract(&env);
 
-    let err = client.try_remove_admin(&admin, &admin).unwrap_err().unwrap();
+    let err = client
+        .try_remove_admin(&admin, &admin)
+        .unwrap_err()
+        .unwrap();
     assert_eq!(err, ContractError::CannotRemoveLastAdmin);
     assert_eq!(client.get_admin_count(), 1);
 }
@@ -400,11 +406,8 @@ fn governance_proposal_add_admin_end_to_end() {
     let candidate = Address::generate(&env);
 
     // Threshold defaults to 1 → proposer's auto-approval is enough to execute.
-    let proposal_id = client.create_proposal(
-        &admin,
-        &ProposalPayload::AddAdmin(candidate.clone()),
-        &0u64,
-    );
+    let proposal_id =
+        client.create_proposal(&admin, &ProposalPayload::AddAdmin(candidate.clone()), &0u64);
 
     assert!(client.get_proposal(&proposal_id).is_some());
 
@@ -603,10 +606,7 @@ fn bookmark_endorse_follow_counters() {
         ContractError::AlreadyBookmarked
     );
     assert_eq!(
-        client
-            .try_endorse_project(&id, &user)
-            .unwrap_err()
-            .unwrap(),
+        client.try_endorse_project(&id, &user).unwrap_err().unwrap(),
         ContractError::AlreadyEndorsed
     );
 
