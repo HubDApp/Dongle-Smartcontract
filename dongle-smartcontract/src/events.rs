@@ -1,3 +1,4 @@
+use crate::category_types::{ProjectCategory, ProjectCategoryMigrationResult};
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
     ReviewAction, ReviewEventData, VerificationStatus,
@@ -2839,6 +2840,100 @@ pub fn publish_review_archived_event(
             symbol_short!("ARCHIVED"),
             project_id,
             reviewer,
+        ),
+        event_data,
+    );
+}
+
+// ── Dynamic project category events (#752) ────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectCategoryCreatedEvent {
+    pub category_id: u64,
+    pub name: String,
+    pub parent_id: Option<u64>,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectCategoryUpdatedEvent {
+    pub category_id: u64,
+    pub name: String,
+    pub parent_id: Option<u64>,
+    pub active: bool,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectCategoryDeletedEvent {
+    pub category_id: u64,
+    pub migration_target_id: Option<u64>,
+    pub migrated_project_count: u64,
+    pub reparented_child_count: u32,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_category_created_event(
+    env: &Env,
+    category: &ProjectCategory,
+    admin: Address,
+) {
+    let event_data = ProjectCategoryCreatedEvent {
+        category_id: category.id,
+        name: category.name.clone(),
+        parent_id: category.parent_id,
+        admin: admin.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CATEGORY"), symbol_short!("CREATED"), category.id),
+        event_data,
+    );
+}
+
+pub fn publish_project_category_updated_event(
+    env: &Env,
+    category: &ProjectCategory,
+    admin: Address,
+) {
+    let event_data = ProjectCategoryUpdatedEvent {
+        category_id: category.id,
+        name: category.name.clone(),
+        parent_id: category.parent_id,
+        active: category.active,
+        admin: admin.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CATEGORY"), symbol_short!("UPDATED"), category.id),
+        event_data,
+    );
+}
+
+pub fn publish_project_category_deleted_event(
+    env: &Env,
+    result: &ProjectCategoryMigrationResult,
+    admin: Address,
+) {
+    let event_data = ProjectCategoryDeletedEvent {
+        category_id: result.deleted_category_id,
+        migration_target_id: result.migration_target_id,
+        migrated_project_count: result.migrated_project_count,
+        reparented_child_count: result.reparented_child_count,
+        admin: admin.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CATEGORY"),
+            symbol_short!("DELETED"),
+            result.deleted_category_id,
         ),
         event_data,
     );

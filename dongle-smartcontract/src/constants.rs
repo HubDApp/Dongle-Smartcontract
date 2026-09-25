@@ -404,3 +404,14 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Dynamic project category constants (#752) ────────────────────────────────
+
+/// Maximum category hierarchy depth, counting the root as depth one.
+pub const MAX_CATEGORY_HIERARCHY_DEPTH: u32 = 5;
+/// Maximum direct children under one category.
+pub const MAX_CATEGORY_CHILDREN: u32 = 50;
+/// Maximum category-description bytes.
+pub const MAX_CATEGORY_DESCRIPTION_LEN: usize = 500;
+/// Maximum number of dynamic categories retained by the contract.
+pub const MAX_PROJECT_CATEGORIES: u32 = 1_000;
