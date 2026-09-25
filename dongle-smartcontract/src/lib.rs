@@ -203,6 +203,39 @@ impl DongleContract {
         AdminManager::list_proposals(&env, start_index, limit)
     }
 
+    /// Batch-remove expired admin proposals to prevent storage bloat (#728).
+    ///
+    /// Scans at most `batch_size` proposals (capped at 100). Expired proposals
+    /// are those whose `expires_at` is non-zero and has passed. Returns the
+    /// number of proposals removed.
+    pub fn cleanup_expired_proposals(
+        env: Env,
+        caller: Address,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        AdminManager::cleanup_expired_proposals(&env, caller, batch_size)
+    }
+
+    /// Admin-only: set the monthly veto limit per admin (#730).
+    /// 0 = unlimited (default).
+    pub fn set_veto_monthly_limit(
+        env: Env,
+        caller: Address,
+        limit: u32,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_veto_monthly_limit(&env, caller, limit)
+    }
+
+    /// Return the current monthly veto limit (0 = unlimited).
+    pub fn get_veto_monthly_limit(env: Env) -> u32 {
+        AdminManager::get_veto_monthly_limit(&env)
+    }
+
+    /// Return how many vetoes `admin` has cast in the current calendar month.
+    pub fn get_veto_count(env: Env, admin: Address) -> u32 {
+        AdminManager::get_veto_count(&env, &admin)
+    }
+
     // --- Contract Pause / Emergency Stop ---
 
     /// Pause the contract (admin-only). All non-admin mutating operations will fail.

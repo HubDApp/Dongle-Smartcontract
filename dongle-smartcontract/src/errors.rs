@@ -203,6 +203,8 @@ pub enum ContractError {
     NotAssignedAdmin = 94,
     /// No active assignment exists for this verification request.
     NoActiveAssignment = 95,
+    /// Admin has exceeded the monthly veto (rejection) limit (#730).
+    VetoLimitExceeded = 96,
 }
 
 pub type Error = ContractError;

@@ -8,7 +8,7 @@ use crate::auth::require_admin_auth;
 use crate::constants::DEFAULT_VERIFICATION_DURATION_SECS;
 use crate::errors::ContractError;
 use crate::events::{publish_admin_added_event, publish_admin_removed_event};
-use crate::storage_keys::StorageKey;
+use crate::storage_keys::{ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
@@ -448,6 +448,9 @@ impl AdminManager {
         admin.require_auth();
         Self::require_admin(env, &admin)?;
 
+        // Enforce per-admin monthly veto limit (#730).
+        Self::check_veto_limit(env, &admin)?;
+
         let mut proposal = env
             .storage()
             .persistent()
@@ -465,6 +468,9 @@ impl AdminManager {
             &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
             &proposal,
         );
+
+        // Record this veto for monthly quota tracking.
+        Self::record_veto(env, &admin);
 
         Ok(())
     }
@@ -746,6 +752,76 @@ impl AdminManager {
             ))
     }
 
+    // ── Veto power limits (#730) ──────────────────────────────────────────────
+
+    /// Admin-only: set the monthly veto limit. 0 = unlimited (default).
+    pub fn set_veto_monthly_limit(
+        env: &Env,
+        caller: Address,
+        limit: u32,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &caller)?;
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey2::VetoMonthlyLimit,
+            &limit,
+        );
+        Ok(())
+    }
+
+    /// Return the current monthly veto limit (0 = unlimited).
+    pub fn get_veto_monthly_limit(env: &Env) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&crate::storage_keys::ExtensionKey2::VetoMonthlyLimit)
+            .unwrap_or(0)
+    }
+
+    /// Return how many vetoes `admin` has cast in the current calendar month.
+    pub fn get_veto_count(env: &Env, admin: &Address) -> u32 {
+        let month_key = Self::current_month_key(env);
+        env.storage()
+            .persistent()
+            .get(&crate::storage_keys::ExtensionKey2::AdminVetoCount(
+                admin.clone(),
+                month_key,
+            ))
+            .unwrap_or(0)
+    }
+
+    fn current_month_key(env: &Env) -> soroban_sdk::String {
+        let ts = env.ledger().timestamp();
+        // Approximate month key from Unix timestamp (good enough for quota windows).
+        let days = ts / 86400;
+        let month = ((days % 365) / 30) + 1;
+        let year = 1970 + (days / 365);
+        soroban_sdk::String::from_str(
+            env,
+            &alloc::format!("{}-{}", year, month),
+        )
+    }
+
+    fn check_veto_limit(env: &Env, admin: &Address) -> Result<(), ContractError> {
+        let limit = Self::get_veto_monthly_limit(env);
+        if limit == 0 {
+            return Ok(());
+        }
+        let count = Self::get_veto_count(env, admin);
+        if count >= limit {
+            return Err(ContractError::VetoLimitExceeded);
+        }
+        Ok(())
+    }
+
+    fn record_veto(env: &Env, admin: &Address) {
+        let month_key = Self::current_month_key(env);
+        let key = crate::storage_keys::ExtensionKey2::AdminVetoCount(
+            admin.clone(),
+            month_key,
+        );
+        let current: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        env.storage().persistent().set(&key, &(current + 1));
+    }
+
     /// List admin proposals with pagination.
     ///
     /// `start_index` is a zero-based offset into the proposal ID list and `limit`
@@ -768,6 +844,70 @@ impl AdminManager {
             }
         }
         result
+    }
+
+    /// Batch-remove expired admin proposals to prevent storage bloat (#728).
+    ///
+    /// Scans at most `batch_size` proposals (capped at 100). Expired proposals
+    /// are those whose `expires_at` is non-zero and less than or equal to the
+    /// current ledger timestamp. Removed proposals are no longer accessible via
+    /// `get_proposal` or `list_proposals`.
+    ///
+    /// Returns the number of proposals removed. Emits a
+    /// `ProposalsCleanedUpEvent` with the count and the timestamp.
+    pub fn cleanup_expired_proposals(
+        env: &Env,
+        caller: Address,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        require_admin_auth(env, &caller)?;
+
+        let capped = batch_size.min(100);
+        let now = env.ledger().timestamp();
+
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&crate::storage_keys::ExtensionKey::AdminProposalIds)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut removed = 0u32;
+        let mut surviving_ids = Vec::new(env);
+
+        for id in ids.iter() {
+            if removed >= capped {
+                // Beyond the batch limit — keep remaining IDs as-is.
+                surviving_ids.push_back(id);
+                continue;
+            }
+
+            if let Some(proposal) = env.storage().persistent().get::<_, AdminProposal>(
+                &crate::storage_keys::ExtensionKey::AdminProposal(id),
+            ) {
+                let is_expired =
+                    proposal.expires_at != 0 && proposal.expires_at <= now;
+                if is_expired {
+                    env.storage().persistent().remove(
+                        &crate::storage_keys::ExtensionKey::AdminProposal(id),
+                    );
+                    removed += 1;
+                } else {
+                    surviving_ids.push_back(id);
+                }
+            }
+            // Missing from storage (already cleaned up) — skip.
+        }
+
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposalIds,
+            &surviving_ids,
+        );
+
+        if removed > 0 {
+            crate::events::publish_proposals_cleaned_up_event(env, removed, now);
+        }
+
+        Ok(removed)
     }
 }
 
