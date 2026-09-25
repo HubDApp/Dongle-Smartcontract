@@ -300,6 +300,8 @@ pub enum ExtensionKey2 {
     VerificationAppeals(u64),
     /// Active rejection metadata for a project to enforce the per-rejection appeal cap.
     VerificationRejection(u64),
+    /// Admin vote delegation for a specific proposal: (proposal_id, delegator) -> delegate
+    AdminVoteDelegation(u64, Address),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under

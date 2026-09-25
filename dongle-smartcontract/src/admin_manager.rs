@@ -7,8 +7,11 @@ use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::constants::DEFAULT_VERIFICATION_DURATION_SECS;
 use crate::errors::ContractError;
-use crate::events::{publish_admin_added_event, publish_admin_removed_event};
-use crate::storage_keys::StorageKey;
+use crate::events::{
+    publish_admin_added_event, publish_admin_removed_event,
+    publish_vote_delegated_event, publish_delegation_revoked_event,
+};
+use crate::storage_keys::{ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, AdminProposal, FeeConfig, ProposalPayload, ProposalStatus, VerificationStatus,
@@ -395,7 +398,7 @@ impl AdminManager {
 
         env.storage().persistent().set(
             &crate::storage_keys::ExtensionKey::NextAdminProposalId,
-            &(id + 1),
+            &id.checked_add(1).ok_or(ContractError::ArithmeticOverflow)?,
         );
 
         Ok(id)
@@ -744,6 +747,158 @@ impl AdminManager {
             .get(&crate::storage_keys::ExtensionKey::AdminProposal(
                 proposal_id,
             ))
+    }
+
+    /// Delegate voting power to another admin for a specific proposal (#727).
+    ///
+    /// - Delegation is per-proposal and revocable before the voting deadline.
+    /// - Delegated votes count toward the approval threshold.
+    /// - Cannot delegate to self.
+    /// - Only the delegator can revoke their own delegation.
+    ///
+    /// The delegate must be an active admin. The proposal must be in `Pending` status
+    /// and not yet expired.
+    pub fn delegate_vote(
+        env: &Env,
+        delegator: Address,
+        delegate: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        delegator.require_auth();
+        Self::require_admin(env, &delegator)?;
+
+        if delegator == delegate {
+            return Err(ContractError::CannotDelegateToSelf);
+        }
+
+        if !Self::is_admin(env, &delegate) {
+            return Err(ContractError::AdminNotFound);
+        }
+
+        let proposal = Self::get_proposal(env, proposal_id)
+            .ok_or(ContractError::InvalidStatus)?;
+
+        if proposal.status != ProposalStatus::Pending {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        if proposal.expires_at != 0 && env.ledger().timestamp() >= proposal.expires_at {
+            return Err(ContractError::ProposalExpired);
+        }
+
+        // Check if delegator already voted or delegated on this proposal
+        if proposal.approvals.contains_key(delegator.clone()) {
+            return Err(ContractError::DelegationAlreadyUsed);
+        }
+
+        env.storage().persistent().set(
+            &ExtensionKey2::AdminVoteDelegation(proposal_id, delegator.clone()),
+            &delegate,
+        );
+
+        publish_vote_delegated_event(env, proposal_id, delegator, delegate);
+
+        Ok(())
+    }
+
+    /// Revoke a vote delegation before the voting deadline (#727).
+    pub fn revoke_delegation(
+        env: &Env,
+        delegator: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        delegator.require_auth();
+        Self::require_admin(env, &delegator)?;
+
+        let proposal = Self::get_proposal(env, proposal_id)
+            .ok_or(ContractError::InvalidStatus)?;
+
+        if proposal.status != ProposalStatus::Pending {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        if proposal.expires_at != 0 && env.ledger().timestamp() >= proposal.expires_at {
+            return Err(ContractError::ProposalExpired);
+        }
+
+        env.storage().persistent().remove(
+            &ExtensionKey2::AdminVoteDelegation(proposal_id, delegator.clone()),
+        );
+
+        publish_delegation_revoked_event(env, proposal_id, delegator);
+
+        Ok(())
+    }
+
+    /// Read the delegate for a given delegator on a specific proposal.
+    /// Returns `None` if no delegation exists.
+    pub fn get_delegation(env: &Env, proposal_id: u64, delegator: &Address) -> Option<Address> {
+        env.storage().persistent().get(
+            &ExtensionKey2::AdminVoteDelegation(proposal_id, delegator.clone()),
+        )
+    }
+
+    /// Approve a proposal, counting any delegated votes (#727).
+    ///
+    /// When an admin approves a proposal, any votes delegated to them
+    /// for that proposal are also counted. The delegation entries for
+    /// this proposal are cleaned up after processing.
+    pub fn approve_proposal_with_delegation(
+        env: &Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::require_admin(env, &admin)?;
+
+        let mut proposal = env
+            .storage()
+            .persistent()
+            .get::<_, AdminProposal>(&crate::storage_keys::ExtensionKey::AdminProposal(
+                proposal_id,
+            ))
+            .ok_or(ContractError::InvalidStatus)?;
+
+        if proposal.status != ProposalStatus::Pending {
+            return Err(ContractError::InvalidStatus);
+        }
+
+        if proposal.approvals.contains_key(admin.clone()) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Add the admin's own approval
+        proposal.approvals.set(admin.clone(), true);
+
+        // Count delegated votes: iterate admin list and check for delegations
+        let admins = Self::get_admin_list(env);
+        let mut delegated_count: u32 = 0;
+        for i in 0..admins.len() {
+            let delegator = admins.get_unchecked(i);
+            // Skip the approving admin (they already voted directly)
+            if delegator == admin {
+                continue;
+            }
+            if let Some(delegate) = Self::get_delegation(env, proposal_id, &delegator) {
+                if delegate == admin {
+                    // This delegator delegated to the approving admin — count it
+                    proposal.approvals.set(delegator, true);
+                    delegated_count += 1;
+                }
+            }
+        }
+
+        let threshold = Self::get_admin_approval_threshold(env);
+        if proposal.approvals.len() >= threshold {
+            proposal.status = ProposalStatus::Approved;
+        }
+
+        env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey::AdminProposal(proposal_id),
+            &proposal,
+        );
+
+        Ok(())
     }
 
     /// List admin proposals with pagination.

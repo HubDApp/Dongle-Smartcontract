@@ -203,6 +203,12 @@ pub enum ContractError {
     NotAssignedAdmin = 94,
     /// No active assignment exists for this verification request.
     NoActiveAssignment = 95,
+    /// Cannot delegate vote to self.
+    CannotDelegateToSelf = 96,
+    /// Vote delegation not found for this proposal and admin.
+    DelegationNotFound = 97,
+    /// Vote delegation has already been used (cannot delegate twice to same proposal).
+    DelegationAlreadyUsed = 98,
 }
 
 pub type Error = ContractError;
