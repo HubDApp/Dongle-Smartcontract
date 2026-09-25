@@ -191,6 +191,16 @@ pub enum ContractError {
     AppealNotFound = 88,
     /// The verification appeal has already been reviewed and cannot be changed.
     AppealAlreadyReviewed = 89,
+    /// Dynamic category does not exist.
+    ProjectCategoryNotFound = 90,
+    /// A category with the same normalized name already exists.
+    ProjectCategoryAlreadyExists = 91,
+    /// Category still has directly assigned projects and no migration target.
+    ProjectCategoryHasProjects = 92,
+    /// Parent relationship would create a cycle or exceed the depth limit.
+    ProjectCategoryHierarchyInvalid = 93,
+    /// Project category exists but is inactive.
+    ProjectCategoryInactive = 94,
 }
 
 pub type Error = ContractError;

@@ -129,6 +129,54 @@ impl StorageManager {
         );
     }
 
+    // ── Dynamic project category TTL (#752) ────────────────────────────────
+
+    pub fn extend_project_category_ttl(env: &Env, category_id: u64) {
+        use crate::storage_keys::ProjectCategoryKey as CK;
+        Self::extend_if_exists(
+            env,
+            &CK::Category(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Children(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Parent(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Stats(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    pub fn extend_project_category_global_ttl(env: &Env) {
+        use crate::storage_keys::ProjectCategoryKey as CK;
+        Self::extend_if_exists(
+            env,
+            &CK::NextCategoryId,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::CategoryList,
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    // ── Project Stats ─────────────────────────────────────────────────────
+
     /// Extend TTL for project stats
     pub fn extend_project_stats_ttl(env: &Env, project_id: u64) {
         Self::extend_if_exists(

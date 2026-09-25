@@ -182,6 +182,10 @@ impl ProjectRegistry {
 
         // ── Validation (read-only, no storage writes) ──────────────────────
         Self::validate_registration_fields(env, &params)?;
+        crate::category_registry::CategoryRegistry::validate_project_category(
+            env,
+            &params.category,
+        )?;
 
         // ── Fee payment ────────────────────────────────────────────────────
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -286,6 +290,11 @@ impl ProjectRegistry {
             &StorageKey::CategoryProjects(project.category.clone()),
             &category_projects,
         );
+        crate::category_registry::CategoryRegistry::on_project_assigned(
+            env,
+            &project.category,
+            false,
+        );
 
         // Extend TTL for project-related data (not stats, as it doesn't exist yet for new projects)
         StorageManager::extend_project_ttl(env, count);
@@ -348,6 +357,9 @@ impl ProjectRegistry {
         let is_maintainer = Self::is_maintainer(env, params.project_id, &params.caller);
         if !is_owner && !is_maintainer {
             return Err(ContractError::Unauthorized);
+        }
+        if let Some(category) = &params.category {
+            crate::category_registry::CategoryRegistry::validate_project_category(env, category)?;
         }
 
         // ── Metadata freeze guard ──────────────────────────────────────────
@@ -710,6 +722,16 @@ impl ProjectRegistry {
             );
 
             StorageManager::extend_category_projects_ttl(env, &old_category);
+            crate::category_registry::CategoryRegistry::on_project_unassigned(
+                env,
+                &old_category,
+                project.archived,
+            );
+            crate::category_registry::CategoryRegistry::on_project_assigned(
+                env,
+                &project.category,
+                project.archived,
+            );
         }
 
         // Extend TTL for updated project data
@@ -1132,6 +1154,95 @@ impl ProjectRegistry {
         projects
     }
 
+    /// Administrative category migration used by the dynamic category registry.
+    ///
+    /// Unlike owner updates, this path intentionally bypasses the verified-field
+    /// freeze: reclassifying a project does not let the owner mutate its verified
+    /// identity fields, and it keeps category deletion lossless.
+    pub(crate) fn admin_migrate_category(
+        env: &Env,
+        project_id: u64,
+        new_category: String,
+        _migrated_by: Address,
+    ) -> Result<Project, ContractError> {
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let old_category = project.category.clone();
+        if old_category == new_category {
+            return Ok(project);
+        }
+        crate::category_registry::CategoryRegistry::validate_project_category(env, &new_category)?;
+
+        let old_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CategoryProjects(old_category.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let mut remaining = Vec::new(env);
+        for index in 0..old_projects.len() {
+            if let Some(id) = old_projects.get(index) {
+                if id != project_id {
+                    remaining.push_back(id);
+                }
+            }
+        }
+        if remaining.is_empty() {
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::CategoryProjects(old_category.clone()));
+        } else {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::CategoryProjects(old_category.clone()), &remaining);
+        }
+
+        let mut new_projects: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CategoryProjects(new_category.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        if !new_projects.contains(&project_id) {
+            new_projects.push_back(project_id);
+        }
+        env.storage().persistent().set(
+            &StorageKey::CategoryProjects(new_category.clone()),
+            &new_projects,
+        );
+
+        project.category = new_category.clone();
+        project.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+        crate::category_registry::CategoryRegistry::on_project_unassigned(
+            env,
+            &old_category,
+            project.archived,
+        );
+        crate::category_registry::CategoryRegistry::on_project_assigned(
+            env,
+            &new_category,
+            project.archived,
+        );
+        StorageManager::extend_category_projects_ttl(env, &old_category);
+        StorageManager::extend_category_projects_ttl(env, &new_category);
+        Self::store_integrity_hash(
+            env,
+            project_id,
+            &project.name,
+            &project.slug,
+            &project.category,
+            &project.description,
+        );
+        publish_project_updated_event(env, project_id, project.owner.clone());
+        crate::notification_registry::NotificationRegistry::emit_project_notification(
+            env,
+            project_id,
+            crate::types::NotificationKind::ProjectUpdate,
+        );
+        Ok(project)
+    }
+
     /// Step 1: Current owner proposes a transfer to `new_owner`.
     ///
     /// # Atomicity guarantee (#656)
@@ -1335,6 +1446,11 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        crate::category_registry::CategoryRegistry::on_project_active_changed(
+            env,
+            &project.category,
+            false,
+        );
 
         Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
@@ -1374,6 +1490,11 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .set(&StorageKey::Project(project_id), &project);
+        crate::category_registry::CategoryRegistry::on_project_active_changed(
+            env,
+            &project.category,
+            true,
+        );
 
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);

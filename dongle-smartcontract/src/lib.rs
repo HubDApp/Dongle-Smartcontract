@@ -8,6 +8,8 @@ mod admin_action_log;
 mod admin_manager;
 pub mod auth;
 mod bookmark_registry;
+pub mod category_types;
+mod category_registry;
 mod changelog_registry;
 mod collection_registry;
 mod community_collection_registry;
@@ -425,6 +427,102 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
+    }
+
+    // ── Dynamic Project Categories (#752) ─────────────────────────────────
+
+    /// Admin-only: create a category, optionally beneath an active parent.
+    pub fn create_project_category(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+        parent_id: Option<u64>,
+    ) -> Result<crate::category_types::ProjectCategory, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::category_registry::CategoryRegistry::create_category(
+            &env,
+            admin,
+            name,
+            description,
+            parent_id,
+        )
+    }
+
+    /// Admin-only: edit category metadata/hierarchy. Renaming propagates the
+    /// display name to directly assigned projects.
+    pub fn update_project_category(
+        env: Env,
+        admin: Address,
+        category_id: u64,
+        name: String,
+        description: String,
+        parent_id: Option<u64>,
+        active: bool,
+    ) -> Result<crate::category_types::ProjectCategory, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::category_registry::CategoryRegistry::update_category(
+            &env,
+            admin,
+            category_id,
+            name,
+            description,
+            parent_id,
+            active,
+        )
+    }
+
+    /// Admin-only: delete a category. Assigned projects and child categories
+    /// are preserved by migrating them to `migrate_to` (or to root when None).
+    pub fn delete_project_category(
+        env: Env,
+        admin: Address,
+        category_id: u64,
+        migrate_to: Option<u64>,
+    ) -> Result<crate::category_types::ProjectCategoryMigrationResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::category_registry::CategoryRegistry::delete_category(
+            &env,
+            admin,
+            category_id,
+            migrate_to,
+        )
+    }
+
+    pub fn get_project_category(
+        env: Env,
+        category_id: u64,
+    ) -> Option<crate::category_types::ProjectCategory> {
+        crate::category_registry::CategoryRegistry::get_category(&env, category_id)
+    }
+
+    pub fn get_project_category_by_name(
+        env: Env,
+        name: String,
+    ) -> Option<crate::category_types::ProjectCategory> {
+        crate::category_registry::CategoryRegistry::get_category_by_name(&env, &name)
+    }
+
+    pub fn list_project_categories(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::category_types::ProjectCategory> {
+        crate::category_registry::CategoryRegistry::list_categories(&env, start_index, limit)
+    }
+
+    pub fn list_project_category_children(
+        env: Env,
+        category_id: u64,
+    ) -> Vec<crate::category_types::ProjectCategory> {
+        crate::category_registry::CategoryRegistry::list_children(&env, category_id)
+    }
+
+    pub fn get_project_category_stats(
+        env: Env,
+        category_id: u64,
+    ) -> Option<crate::category_types::ProjectCategoryStats> {
+        crate::category_registry::CategoryRegistry::get_stats(&env, category_id)
     }
 
     /// List projects filtered by lifecycle status.
