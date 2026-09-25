@@ -60,9 +60,11 @@ use crate::types::{
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest,
     ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
     FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision,
+    ProjectDependency, ProjectView, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
+    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload,
+    Recommendation, RecommendationABAnalytics, RecommendationABConfig, RecommendationAlgorithm,
+    RecommendationAnalytics, RecommendationEngagementKind, RecommendationFeedback,
+    RecommendationVariant, Review, ReviewRevision,
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
     TimelockAction, VerificationBatchAction, VerificationBatchReport, VerificationRecord,
     VerificationStatus, VerificationStatusFilter,
@@ -2476,6 +2478,88 @@ impl DongleContract {
             start_index,
             limit,
         )
+    }
+
+    /// Record a project view used for bounded on-chain personalization.
+    pub fn record_project_view(
+        env: Env,
+        viewer: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::record_project_view(
+            &env, viewer, project_id,
+        )
+    }
+
+    /// Return a viewer's oldest-first, deduplicated project-view history.
+    pub fn get_recommendation_view_history(
+        env: Env,
+        viewer: Address,
+    ) -> Vec<ProjectView> {
+        crate::recommendation_registry::RecommendationRegistry::get_view_history(&env, &viewer)
+    }
+
+    /// Generate up to `limit` personalized recommendations for a source project.
+    pub fn recommend_projects(
+        env: Env,
+        viewer: Address,
+        source_project_id: u64,
+        limit: u32,
+    ) -> Result<Vec<Recommendation>, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::recommend_projects(
+            &env,
+            viewer,
+            source_project_id,
+            limit,
+        )
+    }
+
+    /// Configure deterministic A/B assignment between recommendation algorithms.
+    pub fn set_recommendation_ab_config(
+        env: Env,
+        admin: Address,
+        config: RecommendationABConfig,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::set_ab_config(
+            &env, admin, config,
+        )
+    }
+
+    pub fn get_recommendation_ab_config(env: Env) -> RecommendationABConfig {
+        crate::recommendation_registry::RecommendationRegistry::get_ab_config(&env)
+    }
+
+    /// Return the viewer's deterministic A/B assignment.
+    pub fn get_recommendation_variant(
+        env: Env,
+        viewer: Address,
+    ) -> RecommendationVariant {
+        crate::recommendation_registry::RecommendationRegistry::get_variant(&env, viewer)
+    }
+
+    /// Record one unique downstream conversion for a previously impressed rec.
+    pub fn record_recommendation_conversion(
+        env: Env,
+        recommendation_id: u64,
+        user: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::record_conversion(
+            &env,
+            recommendation_id,
+            user,
+        )
+    }
+
+    /// Return aggregate funnel conversion metrics for one experiment arm.
+    pub fn get_recommendation_ab_analytics(
+        env: Env,
+        variant: RecommendationVariant,
+    ) -> RecommendationABAnalytics {
+        crate::recommendation_registry::RecommendationRegistry::get_ab_analytics(&env, variant)
     }
 
     // ── Community Collections (Issue #821) ──────────────────────────────────

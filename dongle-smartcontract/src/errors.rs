@@ -191,6 +191,20 @@ pub enum ContractError {
     AppealNotFound = 88,
     /// The verification appeal has already been reviewed and cannot be changed.
     AppealAlreadyReviewed = 89,
+    /// Recommendation label exceeds the configured byte limit.
+    RecommendationLabelTooLong = 90,
+    /// Recommendation algorithm is missing required context.
+    RecommendationInvalidContext = 91,
+    /// A targeted recommendation is not visible to this viewer.
+    RecommendationAudienceMismatch = 92,
+    /// Recommendation does not exist.
+    RecommendationNotFound = 93,
+    /// A click or conversion cannot be recorded before an impression.
+    RecommendationNoImpression = 94,
+    /// Feedback for this recommendation was already submitted by the user.
+    RecommendationFeedbackAlreadyGiven = 95,
+    /// Viewer has already converted on this recommendation.
+    RecommendationAlreadyConverted = 96,
 }
 
 pub type Error = ContractError;

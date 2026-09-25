@@ -404,3 +404,29 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Recommendation system constants (#749) ───────────────────────────────────
+
+/// Maximum recommendation records targeting one project.
+pub const MAX_RECOMMENDATIONS_PER_PROJECT: u32 = 50;
+/// Global cap for recommendation records; prevents unbounded global index growth.
+pub const MAX_RECOMMENDATIONS_GLOBAL: u32 = 1_000;
+/// Maximum label bytes accepted when creating a recommendation.
+pub const MAX_RECOMMENDATION_LABEL_LEN: usize = 64;
+/// Maximum unique projects retained in a viewer's personalization history.
+pub const MAX_RECOMMENDATION_VIEW_HISTORY: u32 = 50;
+/// Maximum project IDs inspected for reverse-dependency discovery.
+pub const MAX_RECOMMENDATION_SCAN: u64 = 200;
+/// Maximum candidates scored and returned in one recommendation request.
+pub const MAX_RECOMMENDATION_CANDIDATES: u32 = 100;
+/// Default equal split for recommendation A/B experiments.
+pub const DEFAULT_RECOMMENDATION_AB_SPLIT_BPS: u32 = 5_000;
+
+/// Rating and engagement thresholds used by the effectiveness score.
+pub const MIN_IMPRESSIONS_FOR_CTR_SIGNAL: u64 = 10;
+pub const MIN_FEEDBACK_FOR_HELPFUL_SIGNAL: u64 = 3;
+pub const RATIO_SCALE_PPM: u64 = 1_000_000;
+pub const SCORE_SCALE_BPS: u64 = 10_000;
+pub const EFFECTIVENESS_WEIGHT_CTR_BPS: u64 = 3_500;
+pub const EFFECTIVENESS_WEIGHT_HELPFUL_BPS: u64 = 3_500;
+pub const EFFECTIVENESS_WEIGHT_ENGAGEMENT_BPS: u64 = 3_000;

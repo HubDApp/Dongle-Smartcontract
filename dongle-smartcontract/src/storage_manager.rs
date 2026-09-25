@@ -442,6 +442,12 @@ impl StorageManager {
         );
         Self::extend_if_exists(
             env,
+            &RK::ConversionCount(recommendation_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
             &RK::HelpfulCount(recommendation_id),
             LEDGER_THRESHOLD_PROJECT,
             LEDGER_BUMP_PROJECT,
@@ -501,6 +507,40 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &RK::RecommendationsForProject(target_project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    /// Extend TTL for a viewer's bounded project-view history.
+    pub fn extend_recommendation_view_history_ttl(env: &Env, viewer: &Address) {
+        use crate::storage_keys::RecommendationKey as RK;
+        Self::extend_if_exists(
+            env,
+            &RK::ViewHistory(viewer.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for the active A/B configuration and per-arm aggregates.
+    pub fn extend_recommendation_ab_ttl(env: &Env) {
+        use crate::storage_keys::RecommendationKey as RK;
+        Self::extend_if_exists(
+            env,
+            &RK::ABConfig,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+        Self::extend_if_exists(
+            env,
+            &RK::VariantAAnalytics,
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &RK::VariantBAnalytics,
             LEDGER_THRESHOLD_PROJECT,
             LEDGER_BUMP_PROJECT,
         );
