@@ -173,6 +173,9 @@ pub const RATING_MAX: u32 = 5;
 /// After this period, verified projects need to renew their verification.
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
+/// Default probationary verification period duration in seconds (30 days).
+pub const DEFAULT_PROBATIONARY_DURATION_SECS: u64 = 30 * 24 * 60 * 60;
+
 /// Maximum duration of a temporary verification suspension.
 pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
 

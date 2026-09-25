@@ -37,6 +37,7 @@ pub mod utils;
 mod validation;
 mod verification_registry;
 mod social_analytics_registry;
+mod probation_registry;
 
 #[cfg(test)]
 mod tests;
@@ -50,6 +51,7 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
@@ -66,9 +68,9 @@ use crate::types::{
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
     TimelockAction, VerificationBatchAction, VerificationBatchReport, VerificationRecord,
     VerificationStatus, VerificationStatusFilter,
-    NotificationDeliveryStatus, TimelockAction, VerificationExpiryNotification,
-    VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
-    VerificationStatusFilter, VerificationSuspension,
+    NotificationDeliveryStatus, VerificationExpiryNotification,
+    VerificationRiskAssessment, VerificationRiskModel, VerificationSuspension,
+    ProbationRecord,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1046,6 +1048,75 @@ impl DongleContract {
         request_ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
+    // --- Probationary Verification & Enhanced Monitoring ---
+
+    /// Returns the configured probationary duration in seconds (default: 30 days).
+    pub fn get_probation_duration(env: Env) -> u64 {
+        ProbationRegistry::get_probation_duration(&env)
+    }
+
+    /// Admin-only: configure probationary duration in seconds.
+    pub fn set_probation_duration(
+        env: Env,
+        admin: Address,
+        duration_secs: u64,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::set_probation_duration(&env, admin, duration_secs)
+    }
+
+    /// Checks if a project is currently within its 30-day probationary period.
+    pub fn is_in_probation(env: Env, project_id: u64) -> bool {
+        ProbationRegistry::is_in_probation(&env, project_id)
+    }
+
+    /// Fetches the probation status record for a project.
+    pub fn get_probation_record(env: Env, project_id: u64) -> Option<ProbationRecord> {
+        ProbationRegistry::get_probation_record(&env, project_id)
+    }
+
+    /// Returns effective verification status (Probationary if in active 30-day probation).
+    pub fn get_effective_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationStatus> {
+        ProbationRegistry::get_effective_verification_status(&env, project_id)
+    }
+
+    /// Auto-promotes a project to full verification after the 30-day probationary period.
+    pub fn check_and_promote_probation(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        ProbationRegistry::check_and_promote_probation(&env, project_id)
+    }
+
+    /// Fast-track revocation during probation without requiring full review.
+    pub fn revoke_during_probation(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::revoke_during_probation(&env, admin, project_id, reason)
+    }
+
+    /// Enhanced monitoring: records an incident or discrepancy against a project in probation.
+    pub fn record_probation_incident(
+        env: Env,
+        reporter: Address,
+        project_id: u64,
+        details: String,
+    ) -> Result<u32, ContractError> {
+        ProbationRegistry::record_probation_incident(&env, reporter, project_id, details)
+    }
+
+    /// Returns the incident count recorded for a project during probation.
+    pub fn get_probation_incident_count(env: Env, project_id: u64) -> u32 {
+        ProbationRegistry::get_probation_incident_count(&env, project_id)
+    }
+
+    /// Lists project IDs currently under active probation and enhanced monitoring.
+    pub fn list_probationary_projects(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        ProbationRegistry::list_probationary_projects(&env, start_index, limit)
     }
 
     /// Read the refund recorded after a rejected verification (issue #472).

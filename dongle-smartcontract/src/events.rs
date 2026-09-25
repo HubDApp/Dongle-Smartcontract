@@ -2843,3 +2843,127 @@ pub fn publish_review_archived_event(
         event_data,
     );
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationStartedEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub approved_by: Address,
+    pub started_at: u64,
+    pub probation_until: u64,
+}
+
+pub fn publish_probation_started_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    approved_by: Address,
+    started_at: u64,
+    probation_until: u64,
+) {
+    let event = ProbationStartedEvent {
+        project_id,
+        request_id,
+        approved_by,
+        started_at,
+        probation_until,
+    };
+    env.events().publish(
+        (
+            soroban_sdk::symbol_short!("PROBATION"),
+            soroban_sdk::symbol_short!("STARTED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationAutoPromotedEvent {
+    pub project_id: u64,
+    pub promoted_at: u64,
+}
+
+pub fn publish_probation_auto_promoted_event(env: &Env, project_id: u64, promoted_at: u64) {
+    let event = ProbationAutoPromotedEvent {
+        project_id,
+        promoted_at,
+    };
+    env.events().publish(
+        (
+            soroban_sdk::symbol_short!("PROBATION"),
+            soroban_sdk::symbol_short!("PROMOTED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationRevokedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: soroban_sdk::String,
+    pub revoked_at: u64,
+}
+
+pub fn publish_probation_revoked_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: soroban_sdk::String,
+    revoked_at: u64,
+) {
+    let event = ProbationRevokedEvent {
+        project_id,
+        admin,
+        reason,
+        revoked_at,
+    };
+    env.events().publish(
+        (
+            soroban_sdk::symbol_short!("PROBATION"),
+            soroban_sdk::symbol_short!("REVOKED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationIncidentEvent {
+    pub project_id: u64,
+    pub incident_id: u32,
+    pub reporter: Address,
+    pub details: soroban_sdk::String,
+    pub recorded_at: u64,
+}
+
+pub fn publish_probation_incident_event(
+    env: &Env,
+    project_id: u64,
+    incident_id: u32,
+    reporter: Address,
+    details: soroban_sdk::String,
+    recorded_at: u64,
+) {
+    let event = ProbationIncidentEvent {
+        project_id,
+        incident_id,
+        reporter,
+        details,
+        recorded_at,
+    };
+    env.events().publish(
+        (
+            soroban_sdk::symbol_short!("PROBATION"),
+            soroban_sdk::symbol_short!("INCIDENT"),
+            project_id,
+        ),
+        event,
+    );
+}
