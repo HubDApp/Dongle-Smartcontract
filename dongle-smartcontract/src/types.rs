@@ -674,6 +674,118 @@ pub struct VerificationEvidenceComparison {
     pub changed: bool,
 }
 
+// ── Recommendation system (#749) ─────────────────────────────────────────────
+
+/// Algorithm used to rank or explain a recommendation.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationAlgorithm {
+    Popular,
+    TopRated,
+    Similar,
+    Trending,
+    Featured,
+    Personalised,
+    Custom,
+}
+
+/// Downstream engagement that can be attributed to a recommendation.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationEngagementKind {
+    Impression,
+    Click,
+    Follow,
+    Bookmark,
+    Endorse,
+    Review,
+}
+
+/// Persisted recommendation with immutable creation-time signals and score.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Recommendation {
+    pub id: u64,
+    pub target_project_id: u64,
+    pub algorithm: RecommendationAlgorithm,
+    pub reference_project_id: Option<u64>,
+    pub audience: Option<Address>,
+    pub score: Option<u64>,
+    pub label: Option<String>,
+    pub created_at: u64,
+    pub variant: RecommendationVariant,
+}
+
+/// User-supplied thumbs up/down feedback, submitted once per recommendation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationFeedback {
+    pub recommendation_id: u64,
+    pub user: Address,
+    pub helpful: bool,
+    pub created_at: u64,
+}
+
+/// Aggregated recommendation funnel and effectiveness metrics.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationAnalytics {
+    pub recommendation_id: u64,
+    pub impressions: u64,
+    pub clicks: u64,
+    pub conversions: u64,
+    pub click_through_rate_ppm: u32,
+    pub conversion_rate_ppm: u32,
+    pub helpful_count: u64,
+    pub not_helpful_count: u64,
+    pub helpful_ratio_ppm: u32,
+    pub follow_engagements: u64,
+    pub bookmark_engagements: u64,
+    pub endorse_engagements: u64,
+    pub review_engagements: u64,
+    pub effectiveness_score_bps: u32,
+}
+
+/// A/B experiment arm assigned deterministically to a viewer.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationVariant {
+    VariantA,
+    VariantB,
+}
+
+/// Active algorithm A/B test. `split_bps` is the share assigned to variant B.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationABConfig {
+    pub enabled: bool,
+    pub split_bps: u32,
+    pub variant_a: RecommendationAlgorithm,
+    pub variant_b: RecommendationAlgorithm,
+    /// Human-readable experiment hypothesis (max `MAX_AB_TEST_DESC_LEN`).
+    pub description: String,
+}
+
+/// Aggregate funnel metrics for one A/B arm.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationABAnalytics {
+    pub variant: RecommendationVariant,
+    pub impressions: u64,
+    pub clicks: u64,
+    pub conversions: u64,
+    pub click_through_rate_ppm: u32,
+    pub conversion_rate_ppm: u32,
+}
+
+/// One entry in a viewer's bounded project-viewing history.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectView {
+    pub project_id: u64,
+    pub viewed_at: u64,
+}
+
 /// Operation applied by a batch verification decision.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

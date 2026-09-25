@@ -1,6 +1,7 @@
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
-    ReviewAction, ReviewEventData, VerificationStatus,
+    RecommendationABConfig, RecommendationAlgorithm, RecommendationEngagementKind, ReviewAction,
+    ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -2840,6 +2841,282 @@ pub fn publish_review_archived_event(
             project_id,
             reviewer,
         ),
+        event_data,
+    );
+}
+
+// ── Recommendation events (#749) ─────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationCreatedEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub algorithm: RecommendationAlgorithm,
+    pub creator: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationImpressionEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub viewer: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationClickedEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub viewer: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationEngagementEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub user: Address,
+    pub kind: RecommendationEngagementKind,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationFeedbackEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub user: Address,
+    pub helpful: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationAnalyticsSnapshotEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub impressions: u64,
+    pub clicks: u64,
+    pub conversions: u64,
+    pub click_through_rate_ppm: u32,
+    pub conversion_rate_ppm: u32,
+    pub helpful: u64,
+    pub not_helpful: u64,
+    pub helpful_ratio_ppm: u32,
+    pub effectiveness_score_bps: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationConversionEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub user: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationABConfigEvent {
+    pub admin: Address,
+    pub enabled: bool,
+    pub split_bps: u32,
+    pub variant_a: RecommendationAlgorithm,
+    pub variant_b: RecommendationAlgorithm,
+    pub description: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectViewRecordedEvent {
+    pub viewer: Address,
+    pub project_id: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_recommendation_created_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    algorithm: RecommendationAlgorithm,
+    creator: Address,
+) {
+    let event_data = RecommendationCreatedEvent {
+        recommendation_id,
+        target_project_id,
+        algorithm,
+        creator: creator.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("CREATED"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_impression_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    viewer: Address,
+) {
+    let event_data = RecommendationImpressionEvent {
+        recommendation_id,
+        target_project_id,
+        viewer: viewer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("IMPR"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_clicked_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    viewer: Address,
+) {
+    let event_data = RecommendationClickedEvent {
+        recommendation_id,
+        target_project_id,
+        viewer: viewer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("CLICK"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_engagement_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    user: Address,
+    kind: RecommendationEngagementKind,
+) {
+    let event_data = RecommendationEngagementEvent {
+        recommendation_id,
+        target_project_id,
+        user: user.clone(),
+        kind,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("ENGAGE"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_feedback_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    user: Address,
+    helpful: bool,
+) {
+    let event_data = RecommendationFeedbackEvent {
+        recommendation_id,
+        target_project_id,
+        user: user.clone(),
+        helpful,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("FEEDBACK"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_analytics_snapshot_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    impressions: u64,
+    clicks: u64,
+    conversions: u64,
+    click_through_rate_ppm: u32,
+    conversion_rate_ppm: u32,
+    helpful: u64,
+    not_helpful: u64,
+    helpful_ratio_ppm: u32,
+    effectiveness_score_bps: u32,
+) {
+    let event_data = RecommendationAnalyticsSnapshotEvent {
+        recommendation_id,
+        target_project_id,
+        impressions,
+        clicks,
+        conversions,
+        click_through_rate_ppm,
+        conversion_rate_ppm,
+        helpful,
+        not_helpful,
+        helpful_ratio_ppm,
+        effectiveness_score_bps,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("ANALYTICS"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_conversion_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    user: Address,
+) {
+    let event_data = RecommendationConversionEvent {
+        recommendation_id,
+        target_project_id,
+        user: user.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("CONVERT"), recommendation_id),
+        event_data,
+    );
+}
+
+pub fn publish_recommendation_ab_config_event(
+    env: &Env,
+    config: &RecommendationABConfig,
+    admin: Address,
+) {
+    let event_data = RecommendationABConfigEvent {
+        admin: admin.clone(),
+        enabled: config.enabled,
+        split_bps: config.split_bps,
+        variant_a: config.variant_a,
+        variant_b: config.variant_b,
+        description: config.description.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("AB_CFG")),
+        event_data,
+    );
+}
+
+pub fn publish_project_view_recorded_event(env: &Env, viewer: Address, project_id: u64) {
+    let event_data = ProjectViewRecordedEvent {
+        viewer: viewer.clone(),
+        project_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), symbol_short!("VIEW"), project_id),
         event_data,
     );
 }
