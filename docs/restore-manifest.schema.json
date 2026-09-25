@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DongleRestoreManifest",
+  "description": "Schema for Admin Approval Manifest authorizing point-in-time recovery to a project snapshot.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "restoreId",
+    "targetSnapshotId",
+    "targetSnapshotCid",
+    "targetLedgerSequence",
+    "requestedAt",
+    "requestedBy",
+    "reason",
+    "manifestHash",
+    "governanceMode",
+    "requiredApprovals",
+    "adminApprovals",
+    "executionStatus",
+    "plannedChanges"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "restoreId": {
+      "type": "string",
+      "pattern": "^restore-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z-[a-f0-9]{8}$"
+    },
+    "targetSnapshotId": {
+      "type": "string"
+    },
+    "targetSnapshotCid": {
+      "type": "string"
+    },
+    "targetLedgerSequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requestedBy": {
+      "type": "string",
+      "pattern": "^G[A-Z2-7]{55}$"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "manifestHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 digest over the canonical plannedChanges and targetSnapshotId."
+    },
+    "governanceMode": {
+      "type": "string",
+      "enum": ["single-admin", "multisig"]
+    },
+    "requiredApprovals": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "adminApprovals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["adminAddress", "approvedAt", "signatureOrProof"],
+        "properties": {
+          "adminAddress": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$"
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signatureOrProof": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "executionStatus": {
+      "type": "string",
+      "enum": ["draft", "pending_approval", "approved", "executing", "completed", "rejected"]
+    },
+    "executedAt": {
+      "type": ["string", "null"]
+    },
+    "executedBy": {
+      "type": ["string", "null"]
+    },
+    "plannedChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["projectId", "action", "fields"],
+        "properties": {
+          "projectId": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["update", "reactivate", "archive", "revert"]
+          },
+          "fields": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

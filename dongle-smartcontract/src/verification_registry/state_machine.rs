@@ -31,6 +31,21 @@ impl VerificationStateMachine {
             // Pending -> Verified (admin approval)
             (VerificationStatus::Pending, VerificationStatus::Verified) => Ok(()),
 
+            // Pending -> Probationary (probationary verification)
+            (VerificationStatus::Pending, VerificationStatus::Probationary) => Ok(()),
+
+            // Probationary -> Verified (auto-promote after 30-day period)
+            (VerificationStatus::Probationary, VerificationStatus::Verified) => Ok(()),
+
+            // Probationary -> Unverified (revoke during probation without full review)
+            (VerificationStatus::Probationary, VerificationStatus::Unverified) => Ok(()),
+
+            // Probationary -> Suspended (temporary suspension during probation)
+            (VerificationStatus::Probationary, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Probationary (restoration back to probation)
+            (VerificationStatus::Suspended, VerificationStatus::Probationary) => Ok(()),
+
             // Pending -> Rejected (admin rejection)
             (VerificationStatus::Pending, VerificationStatus::Rejected) => Ok(()),
 
@@ -138,6 +153,13 @@ impl VerificationStateMachine {
             VerificationStatus::Suspended => {
                 let mut v = Vec::new(env);
                 v.push_back(VerificationStatus::Verified);
+                v
+            }
+            VerificationStatus::Probationary => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
+                v.push_back(VerificationStatus::Unverified);
+                v.push_back(VerificationStatus::Suspended);
                 v
             }
         }

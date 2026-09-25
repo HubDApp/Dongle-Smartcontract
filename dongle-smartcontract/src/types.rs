@@ -570,6 +570,8 @@ pub enum VerificationStatus {
     /// The most recent verification request was rejected by an admin.
     /// The owner may re-pay the fee and re-submit.
     Rejected,
+    /// The project is within its initial 30-day probationary period under enhanced monitoring.
+    Probationary,
 }
 
 /// Project lifecycle status for managing project activity state.
@@ -663,6 +665,56 @@ pub struct VerificationEvidenceVersion {
     pub submitted_by: Address,
     /// Unix timestamp when this version was recorded.
     pub submitted_at: u64,
+}
+
+/// Probationary verification status record tracking the initial monitoring period after approval.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationRecord {
+    /// ID of the project in probation.
+    pub project_id: u64,
+    /// ID of the verification request that was approved into probation.
+    pub request_id: u64,
+    /// Admin that approved the verification.
+    pub approved_by: Address,
+    /// Ledger timestamp when the 30-day probationary period started.
+    pub started_at: u64,
+    /// Ledger timestamp when the probationary period ends (started_at + 30 days).
+    pub probation_until: u64,
+    /// Whether the project has completed probation and auto-promoted to full verification.
+    pub is_promoted: bool,
+    /// Whether the project was revoked during probation without a full review.
+    pub is_revoked: bool,
+    /// Whether enhanced monitoring rules and lower reporting thresholds apply.
+    pub enhanced_monitoring: bool,
+    /// Count of incidents or flags recorded during the probationary period.
+    pub incident_count: u32,
+}
+
+/// Incident or alert recorded against a probationary project during enhanced monitoring.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationIncident {
+    /// Sequential incident index for this project.
+    pub incident_id: u32,
+    /// Project ID under monitoring.
+    pub project_id: u64,
+    /// Address that reported the incident or alert.
+    pub reporter: Address,
+    /// Description of the incident or discrepancy observed.
+    pub details: String,
+    /// Ledger timestamp when the incident was recorded.
+    pub recorded_at: u64,
+}
+
+/// Configuration settings for the probationary verification system.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationConfig {
+    /// Configured probationary duration in seconds (default: 30 days).
+    pub duration_secs: u64,
+    /// Whether enhanced monitoring is actively enforced during probation.
+    pub enhanced_monitoring_active: bool,
 }
 
 /// Pair of immutable evidence snapshots selected for comparison.

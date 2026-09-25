@@ -546,11 +546,19 @@ impl VerificationRegistry {
 
         AdminActionLog::record_action(
             env,
-            admin,
+            admin.clone(),
             AdminActionType::VerificationApproved,
             Some(project_id),
             None,
             None,
+        );
+
+        // Initiate 30-day probationary period under enhanced monitoring
+        let _ = crate::probation_registry::ProbationRegistry::start_probation(
+            env,
+            project_id,
+            record.request_id,
+            &admin,
         );
 
         Ok(())
@@ -777,6 +785,12 @@ impl VerificationRegistry {
                         Some(record.project_id),
                         None,
                         None,
+                    );
+                    let _ = crate::probation_registry::ProbationRegistry::start_probation(
+                        env,
+                        record.project_id,
+                        record.request_id,
+                        &admin,
                     );
                 }
                 VerificationBatchAction::Reject => {
