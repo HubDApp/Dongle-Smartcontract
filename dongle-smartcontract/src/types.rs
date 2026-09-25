@@ -1251,6 +1251,16 @@ pub enum AdminActionType {
     ClaimRequestApproved,
     /// Admin rejected an ownership claim request.
     ClaimRequestRejected,
+    /// Admin accepted a verification assignment.
+    VerificationAssignmentAccepted,
+    /// Admin declined a verification assignment.
+    VerificationAssignmentDeclined,
+    /// Verification assignment escalated due to SLA breach.
+    VerificationAssignmentEscalated,
+    /// Admin expertise was set or updated.
+    AdminExpertiseSet,
+    /// Verification SLA was configured.
+    VerificationSlaSet,
 }
 
 /// Current state of a duplicate-project dispute.
@@ -1901,3 +1911,64 @@ pub struct ABTestResult {
     /// Ranked list of projects produced by the assigned variant's algorithm.
     pub projects: Vec<Project>,
 }
+
+// ── Verification Assignment & Routing Types ─────────────────────────────────
+
+/// Lifecycle status of an admin verification assignment.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationAssignmentStatus {
+    /// Assignment created and awaiting admin acceptance.
+    Assigned = 0,
+    /// Admin accepted the assignment to review.
+    Accepted = 1,
+    /// Admin declined the assignment.
+    Declined = 2,
+    /// Assignment exceeded SLA without completion and was escalated.
+    Escalated = 3,
+    /// Verification has been approved or rejected (completed).
+    Completed = 4,
+}
+
+/// A persistent record tracking a verification assignment to a specialized admin.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignment {
+    /// Unique monotonically-increasing assignment ID.
+    pub assignment_id: u64,
+    /// ID of the project being verified.
+    pub project_id: u64,
+    /// ID of the underlying verification request.
+    pub request_id: u64,
+    /// Admin who made or routed the assignment.
+    pub assigner: Address,
+    /// Admin assigned to review the request.
+    pub assignee: Address,
+    /// Specialized expertise area required for this assignment (if specified).
+    pub expertise: Option<String>,
+    /// Current lifecycle status of the assignment.
+    pub status: VerificationAssignmentStatus,
+    /// Unix timestamp when the assignment was made.
+    pub assigned_at: u64,
+    /// Unix timestamp when the assignee accepted or declined (if responded).
+    pub responded_at: Option<u64>,
+    /// Unix timestamp representing the SLA deadline for review completion.
+    pub sla_deadline: u64,
+    /// Reason provided by admin if the assignment was declined.
+    pub decline_reason: Option<String>,
+    /// Reason provided when the assignment was escalated.
+    pub escalation_reason: Option<String>,
+}
+
+/// Summary of an admin's current assignment workload.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminWorkload {
+    pub admin: Address,
+    pub active_assignments: u32,
+    pub total_assigned: u32,
+    pub total_completed: u32,
+    pub total_declined: u32,
+    pub total_escalated: u32,
+}
+
