@@ -6,14 +6,13 @@ use crate::admin_manager::AdminManager;
 use crate::auth::require_admin_auth;
 use crate::constants::{
     DEFAULT_VERIFICATION_SLA_SECS, MAX_ASSIGNMENT_REASON_LEN, MAX_EXPERTISE_LEN,
-    MAX_EXPERTISE_TAGS_PER_ADMIN, MIN_VERIFICATION_SLA_SECS, MAX_VERIFICATION_SLA_SECS,
+    MAX_EXPERTISE_TAGS_PER_ADMIN, MAX_VERIFICATION_SLA_SECS, MIN_VERIFICATION_SLA_SECS,
 };
 use crate::errors::ContractError;
 use crate::events::{
     publish_admin_expertise_set_event, publish_verification_assigned_event,
     publish_verification_assigned_with_expertise_event,
-    publish_verification_assignment_accepted_event,
-    publish_verification_assignment_declined_event,
+    publish_verification_assignment_accepted_event, publish_verification_assignment_declined_event,
     publish_verification_assignment_escalated_event, publish_verification_sla_set_event,
 };
 use crate::storage_keys::{AssignmentKey, StorageKey};
@@ -230,9 +229,10 @@ impl VerificationAssignmentRegistry {
         env.storage()
             .persistent()
             .set(&AssignmentKey::Assignment(assignment_id), &assignment);
-        env.storage()
-            .persistent()
-            .set(&AssignmentKey::ActiveProjectAssignment(project_id), &assignment_id);
+        env.storage().persistent().set(
+            &AssignmentKey::ActiveProjectAssignment(project_id),
+            &assignment_id,
+        );
 
         Self::append_to_project_history(env, project_id, assignment_id);
         Self::append_to_admin_assignments(env, assignee.clone(), assignment_id);
@@ -908,9 +908,10 @@ impl VerificationAssignmentRegistry {
             .get(&AssignmentKey::ProjectAssignmentHistory(project_id))
             .unwrap_or_else(|| Vec::new(env));
         history.push_back(assignment_id);
-        env.storage()
-            .persistent()
-            .set(&AssignmentKey::ProjectAssignmentHistory(project_id), &history);
+        env.storage().persistent().set(
+            &AssignmentKey::ProjectAssignmentHistory(project_id),
+            &history,
+        );
     }
 
     fn append_to_admin_assignments(env: &Env, admin: Address, assignment_id: u64) {

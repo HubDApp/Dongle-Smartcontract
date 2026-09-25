@@ -341,7 +341,7 @@ impl AdminManager {
         let id: u64 = env
             .storage()
             .persistent()
-            .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
+            .get(&crate::storage_keys::ExtensionKey2::NextAdminProposalId)
             .unwrap_or(0);
 
         let action_type = match &payload {
@@ -394,7 +394,7 @@ impl AdminManager {
             .set(&crate::storage_keys::ExtensionKey::AdminProposalIds, &ids);
 
         env.storage().persistent().set(
-            &crate::storage_keys::ExtensionKey::NextAdminProposalId,
+            &crate::storage_keys::ExtensionKey2::NextAdminProposalId,
             &(id + 1),
         );
 
@@ -600,7 +600,9 @@ impl AdminManager {
                 // (approvals.len() >= current_threshold) already performed above
                 // is sufficient; no additional requirement is added.
                 let current_threshold = Self::get_admin_approval_threshold(env);
-                if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
+                if new_threshold < current_threshold
+                    && proposal.approvals.len() <= current_threshold
+                {
                     return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
                 }
 

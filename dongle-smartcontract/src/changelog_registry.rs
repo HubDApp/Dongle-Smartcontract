@@ -21,7 +21,7 @@ use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
 use crate::events::{publish_changelog_added_event, publish_changelog_removed_event};
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::ExtensionKey;
+use crate::storage_keys::{ExtensionKey, ExtensionKey2};
 use crate::storage_manager::StorageManager;
 use crate::types::ChangelogEntry;
 use crate::utils::Utils;
@@ -108,7 +108,7 @@ impl ChangelogRegistry {
         let changelog_id: u64 = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::NextChangelogEntryId)
+            .get(&ExtensionKey2::NextChangelogEntryId)
             .unwrap_or(1);
 
         // Create changelog entry
@@ -139,7 +139,7 @@ impl ChangelogRegistry {
         // Increment next ID
         env.storage()
             .persistent()
-            .set(&ExtensionKey::NextChangelogEntryId, &(changelog_id + 1));
+            .set(&ExtensionKey2::NextChangelogEntryId, &(changelog_id + 1));
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);

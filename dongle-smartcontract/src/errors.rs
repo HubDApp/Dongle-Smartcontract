@@ -203,6 +203,120 @@ pub enum ContractError {
     NotAssignedAdmin = 94,
     /// No active assignment exists for this verification request.
     NoActiveAssignment = 95,
+    /// A governance parameter value was set outside its configured
+    /// `[min, max]` range (issue #740). Use `get_param_range` to read the
+    /// bounds currently in force.
+    ParameterOutOfRange = 96,
+    /// A governance parameter range was supplied with `min > max`, or the
+    /// range would leave the parameter's current value invalid (issue #740).
+    InvalidParamRange = 97,
+    /// The referenced project-ownership recovery case does not exist (issue #747).
+    RecoveryCaseNotFound = 98,
+    /// The ownership-recovery case is not in a state that allows this
+    /// operation — e.g. voting before the nomination reached
+    /// `RECOVERY_REQUIRED_ENDORSEMENTS`, or a second vote from the same
+    /// address (issue #747).
+    RecoveryNotActive = 99,
+    /// A bulk import was rejected because at least one entry failed
+    /// validation. Nothing was written (issue #742); the
+    /// `validate_bulk_import` dry run reports the individual failures.
+    BulkImportValidationFailed = 100,
+    /// A bulk import exceeded `MAX_BULK_IMPORT_PROJECTS` entries (issue #742).
+    /// Split the payload across several calls.
+    BulkImportTooLarge = 101,
+
+    // ── Error codes restored after merge damage ────────────────────────────
+    //
+    // The recommendation (#820), community-collection (#821) and
+    // social-analytics (#822) features were merged with their `errors.rs`
+    // hunks lost, so their registries referenced variants that did not exist
+    // and the crate did not compile. The variants are restored here and
+    // renumbered from 102: the original 82-107 range is now occupied by the
+    // appeals (#804) / assignment / range / import / recovery errors that
+    // landed afterwards, and an error code is part of the public ABI.
+    // ── Bookmark Folder errors (#815) ─────────────────────────────────────
+    /// Bookmark folder not found.
+    FolderNotFound = 102,
+    /// A folder with this name already exists for the user.
+    FolderAlreadyExists = 103,
+    /// The maximum number of bookmark folders per user has been reached.
+    MaxFoldersExceeded = 104,
+    /// Nested folder depth limit exceeded.
+    FolderDepthExceeded = 105,
+    /// Smart folder not found.
+    SmartFolderNotFound = 106,
+    /// The maximum number of smart folders per user has been reached.
+    MaxSmartFoldersExceeded = 107,
+    /// Recommendation referenced by the operation does not exist.
+    RecommendationNotFound = 108,
+    /// User has already submitted thumbs-up / thumbs-down feedback for this recommendation.
+    /// Feedback cannot be rewritten (see issue #820 — feedback is append-only to preserve
+    /// an auditable paper-trail for recommendation improvement).
+    RecommendationFeedbackAlreadyGiven = 109,
+    /// Recommendation label string exceeds the configured length limit.
+    RecommendationLabelTooLong = 110,
+    /// Engagement recording rejected because impressions are required before clicks.
+    /// (Prevents CTR inflation via click-only spamming.)
+    RecommendationNoImpression = 111,
+    /// The combination of audience + reference project specified for the
+    /// recommendation is invalid (e.g. Similar recs require a reference project).
+    RecommendationInvalidContext = 112,
+    /// Attempted to record feedback from a user who does not match the
+    /// recommendation's restricted audience (when audience.is_some).
+    RecommendationAudienceMismatch = 113,
+    /// Community collection referenced by the operation does not exist.
+    CommunityColNotFound = 114,
+    /// Community-collection name already in use by another community collection.
+    CommunityColNameExists = 115,
+    /// Community-collection name or description violates configured length limits.
+    CommunityColInvalidMetadata = 116,
+    /// Community-collection project-membership limit reached; cannot add more.
+    CommunityColFull = 117,
+    /// Operation restricted to the creator or an active curator but caller is neither.
+    CommunityColNotCurator = 118,
+    /// Voter has already cast a vote for this project in this collection. Voting
+    /// is append-only per voter per project per collection.
+    CommunityColVoteAlreadyCast = 119,
+    /// Project is already explicitly included in the community collection.
+    CommunityColAlreadyIncluded = 120,
+    /// Project is not in the community collection (for removal operations).
+    CommunityColNotIncluded = 121,
+    /// A curator set can never be empty — removing the last curator (or the creator)
+    /// would strand the collection.
+    CommunityColCuratorsEmpty = 122,
+    /// Creator cannot be removed from the curator set — creator status is permanent.
+    CommunityColCreatorIsImmutable = 123,
+    /// Revenue share cannot exceed 10_000 bps; creator share + per-curator allocation
+    /// sum must be ≤ 10_000 bps.
+    CommunityColRevenueShareInvalid = 124,
+    /// Vote thresholds must both be zero (disabled) or both be > zero (to keep
+    /// the approval/disapproval symmetry obvious and avoid accidental open-gate
+    /// configurations).
+    CommunityColThresholdInvalid = 125,
+    /// Template collections cannot accept votes, revenue attribution, or member
+    /// edits — clone them first to produce a working collection.
+    CommunityColIsTemplate = 126,
+    /// The referenced pre-defined template id is not in the
+    /// `CommunityCollectionTemplateId` enum.
+    CommunityColTemplateUnknown = 127,
+    /// Admin flagged this community collection as featured but a global cap on
+    /// featured community collections was reached.
+    CommunityColFeaturedCapExceeded = 128,
+    /// Social analytics: target project passed to the analytics endpoint does
+    /// not exist in the registry.
+    SocialAnalyticsProjectNotFound = 129,
+    /// Social analytics: caller passed `window_start_day > window_end_day`.
+    SocialAnalyticsInvalidWindow = 130,
+    /// Social analytics: daily-checkpoint storage has a cap per project so that
+    /// the per-project index cannot grow indefinitely.
+    SocialAnalyticsCheckpointCapExceeded = 131,
+    /// Social analytics: peer-comparison set requires at least 1 other project
+    /// in the same category to run a meaningful comparison.
+    SocialAnalyticsNoPeers = 132,
+    /// Social analytics: the export/report endpoint requires at least one
+    /// checkpoint to produce a "growth over time" report. Callers may run the
+    /// checkpoint endpoint first.
+    SocialAnalyticsNoCheckpoints = 133,
 }
 
 pub type Error = ContractError;

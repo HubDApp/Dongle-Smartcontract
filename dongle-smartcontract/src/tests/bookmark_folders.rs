@@ -1,4 +1,3 @@
-
 //! Tests for bookmark folders and smart folders (issue #815).
 //!
 //! Coverage:
@@ -29,8 +28,8 @@ fn test_create_folder_success() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let folder_id = client
-        .create_bookmark_folder(&user, &String::from_str(&env, "My Folder"), &None);
+    let folder_id =
+        client.create_bookmark_folder(&user, &String::from_str(&env, "My Folder"), &None);
 
     assert_eq!(folder_id, 1);
 
@@ -88,7 +87,8 @@ fn test_delete_folder_success() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let folder_id = client.create_bookmark_folder(&user, &String::from_str(&env, "ToDelete"), &None);
+    let folder_id =
+        client.create_bookmark_folder(&user, &String::from_str(&env, "ToDelete"), &None);
 
     client.delete_bookmark_folder(&user, &folder_id);
 
@@ -121,9 +121,7 @@ fn test_rename_folder_success() {
 
     client.rename_bookmark_folder(&user, &folder_id, &String::from_str(&env, "NewName"));
 
-    let folder = client
-        .get_bookmark_folder_by_id(&user, &folder_id)
-        .unwrap();
+    let folder = client.get_bookmark_folder_by_id(&user, &folder_id).unwrap();
     assert_eq!(folder.name, String::from_str(&env, "NewName"));
 }
 
@@ -135,11 +133,8 @@ fn test_rename_nonexistent_folder_returns_error() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let result = client.try_rename_bookmark_folder(
-        &user,
-        &99u64,
-        &String::from_str(&env, "NewName"),
-    );
+    let result =
+        client.try_rename_bookmark_folder(&user, &99u64, &String::from_str(&env, "NewName"));
     assert_eq!(result, Err(Ok(ContractError::FolderNotFound)));
 }
 
@@ -205,15 +200,10 @@ fn test_create_nested_folder_success() {
     let user = Address::generate(&env);
 
     let parent_id = client.create_bookmark_folder(&user, &String::from_str(&env, "Parent"), &None);
-    let child_id = client.create_bookmark_folder(
-        &user,
-        &String::from_str(&env, "Child"),
-        &Some(parent_id),
-    );
+    let child_id =
+        client.create_bookmark_folder(&user, &String::from_str(&env, "Child"), &Some(parent_id));
 
-    let child = client
-        .get_bookmark_folder_by_id(&user, &child_id)
-        .unwrap();
+    let child = client.get_bookmark_folder_by_id(&user, &child_id).unwrap();
     assert_eq!(child.parent_id, Some(parent_id));
 }
 
@@ -255,11 +245,8 @@ fn test_nested_folder_depth_limit_enforced() {
     let id4 = client.create_bookmark_folder(&user, &String::from_str(&env, "L4"), &Some(id3));
 
     // Adding a 6th level (depth 5) should fail with FolderDepthExceeded.
-    let result = client.try_create_bookmark_folder(
-        &user,
-        &String::from_str(&env, "TooDeep"),
-        &Some(id4),
-    );
+    let result =
+        client.try_create_bookmark_folder(&user, &String::from_str(&env, "TooDeep"), &Some(id4));
     assert_eq!(result, Err(Ok(ContractError::FolderDepthExceeded)));
 }
 
@@ -271,11 +258,8 @@ fn test_nested_folder_nonexistent_parent_returns_error() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let result = client.try_create_bookmark_folder(
-        &user,
-        &String::from_str(&env, "Orphan"),
-        &Some(9999u64),
-    );
+    let result =
+        client.try_create_bookmark_folder(&user, &String::from_str(&env, "Orphan"), &Some(9999u64));
     assert_eq!(result, Err(Ok(ContractError::FolderNotFound)));
 }
 
@@ -541,8 +525,11 @@ fn test_create_smart_folder_success() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let sf_id = client
-        .create_smart_folder(&user, &String::from_str(&env, "All Bookmarks"), &no_filter(&env));
+    let sf_id = client.create_smart_folder(
+        &user,
+        &String::from_str(&env, "All Bookmarks"),
+        &no_filter(&env),
+    );
 
     assert_eq!(sf_id, 1);
 
@@ -559,8 +546,8 @@ fn test_delete_smart_folder_success() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let sf_id = client
-        .create_smart_folder(&user, &String::from_str(&env, "ToDelete"), &no_filter(&env));
+    let sf_id =
+        client.create_smart_folder(&user, &String::from_str(&env, "ToDelete"), &no_filter(&env));
 
     client.delete_smart_folder(&user, &sf_id);
 
@@ -621,8 +608,7 @@ fn test_smart_folder_match_all_returns_all_bookmarks() {
     client.bookmark_project(&p1, &user);
     client.bookmark_project(&p2, &user);
 
-    let sf_id = client
-        .create_smart_folder(&user, &String::from_str(&env, "All"), &no_filter(&env));
+    let sf_id = client.create_smart_folder(&user, &String::from_str(&env, "All"), &no_filter(&env));
 
     let result = client.get_smart_folder_bookmarks(&user, &sf_id, &0, &10);
     assert_eq!(result.len(), 2);
@@ -764,8 +750,7 @@ fn test_smart_folder_pagination() {
         client.bookmark_project(&pid, &user);
     }
 
-    let sf_id = client
-        .create_smart_folder(&user, &String::from_str(&env, "All"), &no_filter(&env));
+    let sf_id = client.create_smart_folder(&user, &String::from_str(&env, "All"), &no_filter(&env));
 
     let page1 = client.get_smart_folder_bookmarks(&user, &sf_id, &0, &4);
     assert_eq!(page1.len(), 4);
@@ -782,8 +767,8 @@ fn test_create_folder_unauthorized_fails() {
     let (client, _admin) = setup_contract(&env);
     let user = Address::generate(&env);
 
-    let result = client
-        .try_create_bookmark_folder(&user, &String::from_str(&env, "Unauthorized"), &None);
+    let result =
+        client.try_create_bookmark_folder(&user, &String::from_str(&env, "Unauthorized"), &None);
     assert!(result.is_err(), "should fail without auth");
 }
 

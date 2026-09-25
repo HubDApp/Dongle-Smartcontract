@@ -5,7 +5,7 @@ use soroban_sdk::{Env, String, Vec};
 use crate::constants::{
     MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_TAGS_PER_PROJECT,
-    MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_LEN,
+    MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_FLOOR, MIN_CID_LEN,
 };
 use crate::errors::ContractError;
 
@@ -471,15 +471,20 @@ impl Utils {
     /// metadata CID) where full structural validation is required.
     ///
     /// # CIDv0 (`Qm…`)
-    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - Length in `[40, MAX_CID_LEN]`.
     /// - First two bytes must be `Q` and `m`.
     ///
     /// # CIDv1 (`b…`)
-    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - Length in `[40, MAX_CID_LEN]`.
     /// - First byte must be `b`.
+    ///
+    /// The lower bound is `40` (issue #667), not `MIN_CID_LEN` (46): the
+    /// short-CID window keeps existing short proof CIDs valid, while
+    /// [`is_valid_ipfs_cid_strict`] — used for project metadata — still
+    /// enforces the canonical 46-byte minimum (issue #620).
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if !(MIN_CID_LEN..=MAX_CID_LEN).contains(&len) {
+        if !(MIN_CID_FLOOR..=MAX_CID_LEN).contains(&len) {
             return false;
         }
 

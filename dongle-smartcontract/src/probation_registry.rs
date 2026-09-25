@@ -302,9 +302,10 @@ impl ProbationRegistry {
         };
 
         // Persist incident and updated record
-        env.storage()
-            .persistent()
-            .set(&ProbationKey::ProbationIncident(project_id, incident_id), &incident);
+        env.storage().persistent().set(
+            &ProbationKey::ProbationIncident(project_id, incident_id),
+            &incident,
+        );
         env.storage()
             .persistent()
             .set(&ProbationKey::ProjectProbation(project_id), &record);

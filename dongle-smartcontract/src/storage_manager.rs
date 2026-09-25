@@ -4,7 +4,9 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{BookmarkKey, ExtensionKey, ReviewIntegrityKey, StorageKey};
+use crate::storage_keys::{
+    BookmarkKey, ExtensionKey, ExtensionKey2, ReviewIntegrityKey, StorageKey,
+};
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
