@@ -395,7 +395,7 @@ impl AdminManager {
 
         env.storage().persistent().set(
             &crate::storage_keys::ExtensionKey::NextAdminProposalId,
-            &(id + 1),
+            &id.checked_add(1).ok_or(ContractError::ArithmeticOverflow)?,
         );
 
         Ok(id)
