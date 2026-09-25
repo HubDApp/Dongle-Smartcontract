@@ -300,6 +300,10 @@ pub enum ExtensionKey2 {
     VerificationAppeals(u64),
     /// Active rejection metadata for a project to enforce the per-rejection appeal cap.
     VerificationRejection(u64),
+    /// Veto (rejection) count for an admin in a given month key (e.g. "2026-09") (#730).
+    AdminVetoCount(Address, String),
+    /// Maximum number of vetoes (rejections) an admin may cast per month (u32). Default: 0 = unlimited.
+    VetoMonthlyLimit,
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
@@ -333,6 +337,11 @@ pub enum NotificationKey {
     UserDigestQueue(Address),
     /// Owner-facing verification expiry reminder state by project.
     VerificationExpiryNotification(u64),
+    /// Set of admin proposal IDs eligible for expired-proposal cleanup (#728).
+    /// Proposals whose `expires_at` is non-zero and in the past are added here
+    /// by `cleanup_expired_proposals` so callers can discover them without
+    /// scanning the full proposal list.
+    ExpiredProposalIds,
 }
 
 /// Storage keys for review content integrity seals (#809).
