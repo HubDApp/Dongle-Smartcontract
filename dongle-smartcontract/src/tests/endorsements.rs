@@ -2,9 +2,9 @@
 
 extern crate std;
 
+use crate::storage_keys::ExtensionKey;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::ContractError;
-use crate::storage_keys::ExtensionKey;
 use soroban_sdk::{testutils::Address as _, Address, Env};
 use std::time::Instant;
 
@@ -45,10 +45,9 @@ fn indexed_endorsements_page_through_100k_entries_within_budget() {
 
     for index in 0..endorsement_count {
         let user = Address::generate(&env);
-        env.storage().persistent().set(
-            &ExtensionKey::EndorsementAt(project_id, index),
-            &user,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::EndorsementAt(project_id, index), &user);
         env.storage().persistent().set(
             &ExtensionKey::EndorsementIndex(project_id, user.clone()),
             &index,
@@ -64,19 +63,18 @@ fn indexed_endorsements_page_through_100k_entries_within_budget() {
 
     let started = Instant::now();
     let page = crate::endorsement_registry::EndorsementRegistry::get_project_endorsements(
-        &env,
-        project_id,
-        50_000,
-        100,
+        &env, project_id, 50_000, 100,
     );
     let elapsed = started.elapsed();
 
     assert_eq!(page.len(), 100);
-    assert!(crate::endorsement_registry::EndorsementRegistry::has_endorsed(
-        &env,
-        project_id,
-        &probe.expect("benchmark probe"),
-    ));
+    assert!(
+        crate::endorsement_registry::EndorsementRegistry::has_endorsed(
+            &env,
+            project_id,
+            &probe.expect("benchmark probe"),
+        )
+    );
     assert!(elapsed.as_millis() < 500, "retrieval took {elapsed:?}");
 }
 
@@ -235,7 +233,10 @@ fn endorsement_count_tracks_multiple_users_and_partial_removal() {
     assert!(client.has_endorsed(&project_id, &first_user));
     assert!(client.has_endorsed(&project_id, &second_user));
     assert!(client.has_endorsed(&project_id, &third_user));
-    assert_eq!(client.get_project_endorsements(&project_id, &0, &2).len(), 2);
+    assert_eq!(
+        client.get_project_endorsements(&project_id, &0, &2).len(),
+        2
+    );
 
     client.unendorse_project(&project_id, &second_user);
 

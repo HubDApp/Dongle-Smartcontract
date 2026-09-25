@@ -21,14 +21,14 @@ mod transfer;
 mod cleanup;
 mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
-mod pause_state_recovery;
 mod moderation;
 mod name_search;
 mod pagination;
+mod pause_state_recovery;
 // mod pagination;
 mod claim;
-mod claim_status;
 mod claim_state_machine;
+mod claim_status;
 mod config;
 mod dependencies;
 mod lifecycle_status;

@@ -179,7 +179,10 @@ fn cidv0_over_maximum_length_129_rejected() {
 fn cidv1_canonical_59_chars_accepted() {
     let e = env();
     // Real-world CIDv1 from IPFS docs.
-    let cid = s(&e, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
+    let cid = s(
+        &e,
+        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+    );
     assert!(cid.len() >= 40, "CIDv1 fixture must be at least 40 chars");
     assert!(Utils::is_valid_ipfs_cid(&cid));
 }
@@ -230,7 +233,9 @@ fn malformed_wrong_prefix_z_rejected() {
         v.push_str(&repeat('m', 45)); // total 46 chars, valid length but bad prefix
         v
     };
-    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(&e, &cid_str)));
+    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(
+        &e, &cid_str
+    )));
 }
 
 /// `Q` alone (without `m` as second char) must be rejected.
@@ -258,7 +263,9 @@ fn malformed_numeric_prefix_rejected() {
         v.push_str(&repeat('a', 45)); // total 46 chars
         v
     };
-    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(&e, &cid_str)));
+    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(
+        &e, &cid_str
+    )));
 }
 
 /// Whitespace-prefixed string must be rejected.
@@ -270,7 +277,9 @@ fn malformed_whitespace_prefix_rejected() {
         v.push_str(&repeat('a', 45));
         v
     };
-    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(&e, &cid_str)));
+    assert!(!Utils::is_valid_ipfs_cid(&SorobanString::from_str(
+        &e, &cid_str
+    )));
 }
 
 /// A single-character string must be rejected (too short).
@@ -365,7 +374,10 @@ fn valid_cidv0_accepted_by_all_validators() {
 #[test]
 fn valid_cidv1_accepted_by_all_validators() {
     let e = env();
-    let cid = s(&e, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
+    let cid = s(
+        &e,
+        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+    );
 
     assert!(Utils::validate_logo_cid(&cid).is_ok());
     assert!(Utils::validate_metadata_cid(&cid).is_ok());
@@ -379,7 +391,16 @@ fn invalid_cid_rejected_by_all_validators_with_correct_error() {
     // A CID with wrong prefix that is otherwise the right length.
     let bad = s(&e, "Xmnotavalidcidatallbuthastherightsortoflengthabcde");
 
-    assert_eq!(Utils::validate_logo_cid(&bad), Err(ContractError::InvalidCid));
-    assert_eq!(Utils::validate_metadata_cid(&bad), Err(ContractError::InvalidCid));
-    assert_eq!(Utils::validate_report_reason_cid(&bad), Err(ContractError::InvalidCid));
+    assert_eq!(
+        Utils::validate_logo_cid(&bad),
+        Err(ContractError::InvalidCid)
+    );
+    assert_eq!(
+        Utils::validate_metadata_cid(&bad),
+        Err(ContractError::InvalidCid)
+    );
+    assert_eq!(
+        Utils::validate_report_reason_cid(&bad),
+        Err(ContractError::InvalidCid)
+    );
 }

@@ -69,16 +69,16 @@ fn propose_set_threshold(
     proposer: &Address,
     new_threshold: u32,
 ) -> u64 {
-    client.create_proposal(proposer, &ProposalPayload::SetThreshold(new_threshold), &0u64)
+    client.create_proposal(
+        proposer,
+        &ProposalPayload::SetThreshold(new_threshold),
+        &0u64,
+    )
 }
 
 /// Approve a proposal with `approvers[0..count]` (skipping the proposer who
 /// already voted on creation).
-fn approve_by(
-    client: &crate::DongleContractClient<'_>,
-    proposal_id: u64,
-    approvers: &[&Address],
-) {
+fn approve_by(client: &crate::DongleContractClient<'_>, proposal_id: u64, approvers: &[&Address]) {
     for a in approvers {
         client.approve_proposal(a, &proposal_id);
     }
@@ -101,7 +101,10 @@ fn downgrade_with_exact_threshold_approvals_rejected() {
     let id = propose_set_threshold(&client, &admins[0], 2);
     approve_by(&client, id, &[&admins[1], &admins[2]]); // 3 total
 
-    assert_eq!(client.get_proposal(&id).unwrap().status, ProposalStatus::Approved);
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Approved
+    );
 
     // Execute: must fail with ThresholdDowngradeRequiresSupermajority.
     let result = client.try_execute_proposal(&admins[3], &id);
@@ -132,7 +135,10 @@ fn downgrade_with_below_threshold_approvals_cannot_execute() {
     let id = propose_set_threshold(&client, &admins[0], 2);
     approve_by(&client, id, &[&admins[1]]); // 2 total
 
-    assert_eq!(client.get_proposal(&id).unwrap().status, ProposalStatus::Pending);
+    assert_eq!(
+        client.get_proposal(&id).unwrap().status,
+        ProposalStatus::Pending
+    );
 
     let result = client.try_execute_proposal(&admins[3], &id);
     assert!(

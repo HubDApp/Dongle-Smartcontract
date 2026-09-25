@@ -21,22 +21,22 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod notification_registry;
 pub mod pagination;
 mod project_registry;
 pub mod rating_calculator;
 mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
+mod social_analytics_registry;
 pub mod storage_keys;
 pub mod storage_manager;
 mod subscription_registry;
-mod notification_registry;
 mod timelock_manager;
 pub mod types;
 pub mod utils;
 mod validation;
 mod verification_registry;
-mod social_analytics_registry;
 
 #[cfg(test)]
 mod tests;
@@ -59,15 +59,13 @@ use crate::types::{
     AdminActionEntry, AdminProposal, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest,
     ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
-    FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
-    TimelockAction, VerificationBatchAction, VerificationBatchReport, VerificationRecord,
-    VerificationStatus, VerificationStatusFilter,
-    NotificationDeliveryStatus, TimelockAction, VerificationExpiryNotification,
-    VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
+    FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
+    NotificationDeliveryStatus, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
+    ProjectUpdateParams, ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationBatchAction,
+    VerificationBatchReport, VerificationExpiryNotification, VerificationRecord,
+    VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
     VerificationStatusFilter, VerificationSuspension,
 };
 use crate::verification_registry::VerificationRegistry;
@@ -852,7 +850,7 @@ impl DongleContract {
         VerificationRegistry::get_verification_risk_assessment(&env, request_id)
     }
 
-    pub fn get_high_risk_verification_requests(env: Env) -> Vec<u64> {
+    pub fn get_high_risk_requests(env: Env) -> Vec<u64> {
         VerificationRegistry::get_high_risk_verification_requests(&env)
     }
 
@@ -957,7 +955,10 @@ impl DongleContract {
     }
 
     /// Read the appeal history for a rejected verification request.
-    pub fn get_verification_appeals(env: Env, project_id: u64) -> Vec<crate::types::VerificationAppeal> {
+    pub fn get_verification_appeals(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<crate::types::VerificationAppeal> {
         VerificationRegistry::get_verification_appeals(&env, project_id)
     }
 
@@ -1002,14 +1003,14 @@ impl DongleContract {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
-    pub fn get_verification_evidence_versions(
+    pub fn get_ver_evidence_versions(
         env: Env,
         request_id: u64,
     ) -> Vec<crate::types::VerificationEvidenceVersion> {
         VerificationRegistry::get_verification_evidence_versions(&env, request_id)
     }
 
-    pub fn get_verification_evidence_version(
+    pub fn get_ver_evidence_version(
         env: Env,
         request_id: u64,
         version: u32,
@@ -1031,11 +1032,7 @@ impl DongleContract {
         )
     }
 
-    pub fn get_pending_verifications(
-        env: Env,
-        start: u32,
-        limit: u32,
-    ) -> Vec<VerificationRecord> {
+    pub fn get_pending_verifications(env: Env, start: u32, limit: u32) -> Vec<VerificationRecord> {
         VerificationRegistry::get_pending_verifications(&env, start, limit)
     }
 
@@ -1087,10 +1084,7 @@ impl DongleContract {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
 
-    pub fn get_verification_suspension_timeline(
-        env: Env,
-        project_id: u64,
-    ) -> Vec<VerificationSuspension> {
+    pub fn get_ver_suspension_timeline(env: Env, project_id: u64) -> Vec<VerificationSuspension> {
         VerificationRegistry::get_verification_suspension_timeline(&env, project_id)
     }
 
@@ -1145,31 +1139,25 @@ impl DongleContract {
         VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
     }
 
-    pub fn process_verification_expiry_notification(
-        env: Env,
-        project_id: u64,
-    ) -> Result<bool, ContractError> {
+    pub fn proc_ver_expiry_notif(env: Env, project_id: u64) -> Result<bool, ContractError> {
         VerificationRegistry::process_verification_expiry_notification(&env, project_id)
     }
 
-    pub fn get_verification_expiry_notification(
+    pub fn get_ver_expiry_notif(
         env: Env,
         project_id: u64,
     ) -> Option<VerificationExpiryNotification> {
         VerificationRegistry::get_verification_expiry_notification(&env, project_id)
     }
 
-    pub fn record_verification_expiry_notification_delivery(
+    pub fn rec_ver_expiry_notif_delivery(
         env: Env,
         project_id: u64,
         admin: Address,
         delivered: bool,
     ) -> Result<(), ContractError> {
         VerificationRegistry::record_verification_expiry_notification_delivery(
-            &env,
-            project_id,
-            admin,
-            delivered,
+            &env, project_id, admin, delivered,
         )
     }
 
@@ -1898,13 +1886,24 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Address> {
         crate::subscription_registry::SubscriptionRegistry::get_project_followers(
-            &env, project_id, start_index, limit,
+            &env,
+            project_id,
+            start_index,
+            limit,
         )
     }
 
-    pub fn get_user_subscriptions(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(
+        env: Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
-            &env, user, start_index, limit,
+            &env,
+            user,
+            start_index,
+            limit,
         )
     }
 
@@ -1920,7 +1919,12 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         crate::notification_registry::NotificationRegistry::set_notification_prefs(
-            &env, user, opted_out, notify_on_all, digest_frequency, kinds,
+            &env,
+            user,
+            opted_out,
+            notify_on_all,
+            digest_frequency,
+            kinds,
         )
     }
 
@@ -1954,14 +1958,12 @@ impl DongleContract {
         )
     }
 
-    pub fn get_digest_queue(
-        env: Env,
-        user: Address,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<u64> {
+    pub fn get_digest_queue(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         crate::notification_registry::NotificationRegistry::get_digest_queue(
-            &env, user, start_index, limit,
+            &env,
+            user,
+            start_index,
+            limit,
         )
     }
 
@@ -1990,7 +1992,12 @@ impl DongleContract {
     }
 
     pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
-        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start_index, limit)
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(
+            &env,
+            user,
+            start_index,
+            limit,
+        )
     }
 
     // --- Bookmark Folders (#815) ---
@@ -2117,11 +2124,7 @@ impl DongleContract {
         smart_folder_id: u64,
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(
-            &env,
-            user,
-            smart_folder_id,
-        )
+        crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(&env, user, smart_folder_id)
     }
 
     /// Get a smart folder by ID.
@@ -2336,7 +2339,7 @@ impl DongleContract {
     }
 
     /// Number of recommendations stored against a specific target project.
-    pub fn get_recommendation_count_for_project(env: Env, target_project_id: u64) -> u32 {
+    pub fn get_rec_count_for_proj(env: Env, target_project_id: u64) -> u32 {
         crate::recommendation_registry::RecommendationRegistry::get_recommendation_count_for_project(
             &env,
             target_project_id,
@@ -2344,11 +2347,7 @@ impl DongleContract {
     }
 
     /// List recommendations with pagination (oldest-first insertion order).
-    pub fn list_recommendations(
-        env: Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<Recommendation> {
+    pub fn list_recommendations(env: Env, start_index: u32, limit: u32) -> Vec<Recommendation> {
         crate::recommendation_registry::RecommendationRegistry::list_recommendations(
             &env,
             start_index,
@@ -2468,7 +2467,7 @@ impl DongleContract {
     /// Provides the "improvement based on feedback" primitive: callers and future
     /// on-chain recommendation engines use this list to surface the recommendations
     /// that users actually find useful.
-    pub fn list_recommendations_sorted_by_effectiveness(
+    pub fn list_recs_by_effectiveness(
         env: Env,
         start_index: u32,
         limit: u32,
@@ -2511,7 +2510,7 @@ impl DongleContract {
 
     /// Admin-only: create a built-in template collection that users can clone
     /// (AC4 — templates for common collections).
-    pub fn create_community_collection_template(
+    pub fn create_comm_col_template(
         env: Env,
         admin: Address,
         template_id: CommunityCollectionTemplateId,
@@ -2533,7 +2532,7 @@ impl DongleContract {
     /// Clone any community collection (typically a template collection with
     /// `is_template = true`) into a brand-new non-template one owned by the
     /// caller. Copies metadata and project set skeleton (AC4).
-    pub fn create_community_collection_from_template(
+    pub fn create_comm_col_from_tmpl(
         env: Env,
         caller: Address,
         source_collection_id: u64,
@@ -2580,7 +2579,7 @@ impl DongleContract {
         )
     }
 
-    pub fn list_community_collections_by_creator(
+    pub fn list_comm_cols_by_creator(
         env: Env,
         creator: Address,
         start_index: u32,
@@ -2594,7 +2593,7 @@ impl DongleContract {
         )
     }
 
-    pub fn list_community_collections_by_curator(
+    pub fn list_comm_cols_by_curator(
         env: Env,
         curator: Address,
         start_index: u32,
@@ -2608,24 +2607,22 @@ impl DongleContract {
         )
     }
 
-    pub fn get_community_collection_project_count(env: Env, id: u64) -> u32 {
+    pub fn get_comm_col_proj_count(env: Env, id: u64) -> u32 {
         crate::community_collection_registry::CommunityCollectionRegistry::get_project_count(
             &env, id,
         )
     }
 
-    pub fn list_community_collection_projects(
-        env: Env,
-        id: u64,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<u64> {
+    pub fn list_comm_col_projects(env: Env, id: u64, start_index: u32, limit: u32) -> Vec<u64> {
         crate::community_collection_registry::CommunityCollectionRegistry::list_projects(
-            &env, id, start_index, limit,
+            &env,
+            id,
+            start_index,
+            limit,
         )
     }
 
-    pub fn update_community_collection_metadata(
+    pub fn update_comm_col_metadata(
         env: Env,
         id: u64,
         updater: Address,
@@ -2635,11 +2632,16 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         crate::community_collection_registry::CommunityCollectionRegistry::update_metadata(
-            &env, id, updater, name, description, tags,
+            &env,
+            id,
+            updater,
+            name,
+            description,
+            tags,
         )
     }
 
-    pub fn set_community_collection_thresholds(
+    pub fn set_comm_col_thresholds(
         env: Env,
         id: u64,
         updater: Address,
@@ -2656,7 +2658,7 @@ impl DongleContract {
         )
     }
 
-    pub fn set_community_collection_revenue_share(
+    pub fn set_comm_col_rev_share(
         env: Env,
         id: u64,
         updater: Address,
@@ -2679,11 +2681,14 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         crate::community_collection_registry::CommunityCollectionRegistry::add_curator(
-            &env, id, actor, new_curator,
+            &env,
+            id,
+            actor,
+            new_curator,
         )
     }
 
-    pub fn remove_community_collection_curator(
+    pub fn remove_comm_col_curator(
         env: Env,
         id: u64,
         actor: Address,
@@ -2698,7 +2703,7 @@ impl DongleContract {
         )
     }
 
-    pub fn curator_add_project_to_community_collection(
+    pub fn curator_add_proj_to_comm_col(
         env: Env,
         id: u64,
         curator: Address,
@@ -2710,7 +2715,7 @@ impl DongleContract {
         )
     }
 
-    pub fn curator_remove_project_from_community_collection(
+    pub fn curator_rm_proj_from_comm_col(
         env: Env,
         id: u64,
         curator: Address,
@@ -2747,7 +2752,7 @@ impl DongleContract {
         )
     }
 
-    pub fn get_community_collection_inclusion_status(
+    pub fn get_comm_col_incl_status(
         env: Env,
         id: u64,
         project_id: u64,
@@ -2770,7 +2775,7 @@ impl DongleContract {
         )
     }
 
-    pub fn list_featured_community_collections(
+    pub fn list_featured_comm_cols(
         env: Env,
         start_index: u32,
         limit: u32,
@@ -2782,14 +2787,12 @@ impl DongleContract {
         )
     }
 
-    pub fn get_featured_community_collection_count(env: Env) -> u32 {
-        crate::community_collection_registry::CommunityCollectionRegistry::get_featured_count(
-            &env,
-        )
+    pub fn get_featured_comm_col_count(env: Env) -> u32 {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_featured_count(&env)
     }
 
     // AC3 — revenue sharing (recording cumulative attribution for off-chain payout)
-    pub fn attribute_community_collection_revenue(
+    pub fn attr_comm_col_rev(
         env: Env,
         caller: Address,
         id: u64,
@@ -2797,14 +2800,14 @@ impl DongleContract {
     ) -> Result<CommunityColRevenueSnapshot, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         crate::community_collection_registry::CommunityCollectionRegistry::attribute_revenue(
-            &env, caller, id, total_amount_scaled,
+            &env,
+            caller,
+            id,
+            total_amount_scaled,
         )
     }
 
-    pub fn get_community_collection_revenue_snapshot(
-        env: Env,
-        id: u64,
-    ) -> Option<CommunityColRevenueSnapshot> {
+    pub fn get_comm_col_rev_snapshot(env: Env, id: u64) -> Option<CommunityColRevenueSnapshot> {
         crate::community_collection_registry::CommunityCollectionRegistry::get_revenue_snapshot(
             &env, id,
         )
@@ -2821,7 +2824,7 @@ impl DongleContract {
     /// day with the latest counts. When the rolling 730-day window is full,
     /// the oldest day's checkpoint is FIFO-evicted. Any authenticated caller
     /// may checkpoint (keepers / indexers are the expected operators).
-    pub fn record_project_social_daily_checkpoint(
+    pub fn rec_proj_social_daily_cp(
         env: Env,
         caller: Address,
         project_id: u64,
@@ -2851,12 +2854,15 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<ProjectSocialDailyCheckpoint> {
         crate::social_analytics_registry::SocialAnalyticsRegistry::list_checkpoints(
-            &env, project_id, start_index, limit,
+            &env,
+            project_id,
+            start_index,
+            limit,
         )
     }
 
     /// How many daily checkpoints currently exist for a project.
-    pub fn get_project_social_checkpoint_count(env: Env, project_id: u64) -> u32 {
+    pub fn get_proj_social_cp_count(env: Env, project_id: u64) -> u32 {
         crate::social_analytics_registry::SocialAnalyticsRegistry::get_checkpoint_count(
             &env, project_id,
         )
@@ -2865,18 +2871,17 @@ impl DongleContract {
     /// Return (oldest_day, newest_day) of stored checkpoints for a project,
     /// both optional (None if no checkpoints yet written). Fast metadata
     /// without scanning the whole list.
-    pub fn get_project_social_checkpoint_day_bounds(
-        env: Env,
-        project_id: u64,
-    ) -> (Option<u32>, Option<u32>) {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::get_oldest_newest_checkpoint_days(&env, project_id)
+    pub fn get_proj_social_cp_bounds(env: Env, project_id: u64) -> (Option<u32>, Option<u32>) {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::get_oldest_newest_checkpoint_days(
+            &env, project_id,
+        )
     }
 
     // AC2 — Engagement rate calculations over arbitrary windows.
 
     /// Engagement metric (ppm rate, gains by signal, rating delta) for a
     /// custom window [window_start_day, window_end_day] inclusive.
-    pub fn compute_project_engagement_metric(
+    pub fn comp_proj_eng_metric(
         env: Env,
         project_id: u64,
         window_start_day: u32,
@@ -2897,7 +2902,7 @@ impl DongleContract {
     /// target project is always included (so percentile is pos/len on the
     /// client side), and up to `max_peers` additional projects are returned
     /// (cap = SOCIAL_ANALYTICS_MAX_PEERS = 50).
-    pub fn compare_social_to_similar_projects(
+    pub fn compare_social_similar(
         env: Env,
         project_id: u64,
         max_peers: u32,
@@ -2915,18 +2920,16 @@ impl DongleContract {
     /// incrementing report nonce so export consumers can dedupe repeated
     /// runs. Also emits `ProjectSocialAnalyticsExportEvent` with the key
     /// numbers for indexer consumption.
-    pub fn export_project_social_analytics_report(
+    pub fn export_proj_social_report(
         env: Env,
         project_id: u64,
     ) -> Result<ProjectSocialAnalyticsExport, ContractError> {
-        crate::social_analytics_registry::SocialAnalyticsRegistry::export_report(
-            &env, project_id,
-        )
+        crate::social_analytics_registry::SocialAnalyticsRegistry::export_report(&env, project_id)
     }
 
     /// Last-generated export report nonce for a project. 0 if `export_*` has
     /// never been called.
-    pub fn get_project_social_analytics_report_nonce(env: Env, project_id: u64) -> u64 {
+    pub fn get_proj_social_analytics_nonce(env: Env, project_id: u64) -> u64 {
         crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
             &env, project_id,
         )

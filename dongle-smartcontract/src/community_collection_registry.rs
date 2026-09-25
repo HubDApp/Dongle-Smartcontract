@@ -1,18 +1,19 @@
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::constants::{
-    MAX_COMMUNITY_COLLECTIONS, MAX_COMMUNITY_COL_CREATOR_SHARE_BPS, MAX_COMMUNITY_COL_CURATORS,
+    DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD, DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS,
+    DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD, MAX_COMMUNITY_COLLECTIONS,
+    MAX_COMMUNITY_COL_CREATOR_SHARE_BPS, MAX_COMMUNITY_COL_CURATORS,
     MAX_COMMUNITY_COL_DESCRIPTION_LEN, MAX_COMMUNITY_COL_NAME_LEN, MAX_COMMUNITY_COL_PROJECTS,
     MAX_COMMUNITY_COL_TAGS_LEN, MAX_FEATURED_COMMUNITY_COLLECTIONS,
-    DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD, DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS,
-    DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD, MIN_COMMUNITY_COL_CREATOR_SHARE_BPS,
+    MIN_COMMUNITY_COL_CREATOR_SHARE_BPS,
 };
 use crate::errors::ContractError;
 use crate::events::{
-    publish_community_collection_created_event, publish_community_collection_updated_event,
     publish_community_col_curators_changed_event, publish_community_col_featured_event,
     publish_community_col_proj_added_event, publish_community_col_proj_removed_event,
     publish_community_col_revenue_attributed_event, publish_community_col_vote_cast_event,
+    publish_community_collection_created_event, publish_community_collection_updated_event,
 };
 use crate::pagination::paginate;
 use crate::project_registry::ProjectRegistry;
@@ -20,9 +21,8 @@ use crate::storage_keys::CommunityCollectionKey as CCKey;
 use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, CommunityCollection, CommunityCollectionRole,
-    CommunityCollectionTemplateId, CommunityCollectionVote, CommunityColInclusionStatus,
-    CommunityColRevenueSnapshot,
+    AdminActionType, CommunityColInclusionStatus, CommunityColRevenueSnapshot, CommunityCollection,
+    CommunityCollectionRole, CommunityCollectionTemplateId, CommunityCollectionVote,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -34,7 +34,9 @@ impl CommunityCollectionRegistry {
 
     fn next_id(env: &Env) -> u64 {
         let current: u64 = env.storage().persistent().get(&CCKey::NextId).unwrap_or(1);
-        env.storage().persistent().set(&CCKey::NextId, &(current + 1));
+        env.storage()
+            .persistent()
+            .set(&CCKey::NextId, &(current + 1));
         StorageManager::extend_community_collection_global_ttl(env);
         current
     }
@@ -65,10 +67,7 @@ impl CommunityCollectionRegistry {
         Ok(())
     }
 
-    fn validate_thresholds(
-        approval: u32,
-        disapproval: u32,
-    ) -> Result<(), ContractError> {
+    fn validate_thresholds(approval: u32, disapproval: u32) -> Result<(), ContractError> {
         // Both zero = fully-gated (voting disabled); both > 0 = symmetric gate.
         if (approval == 0) != (disapproval == 0) {
             return Err(ContractError::CommunityColThresholdInvalid);
@@ -100,10 +99,7 @@ impl CommunityCollectionRegistry {
         col.curators.iter().any(|c| &c == addr)
     }
 
-    fn require_curator(
-        col: &CommunityCollection,
-        addr: &Address,
-    ) -> Result<(), ContractError> {
+    fn require_curator(col: &CommunityCollection, addr: &Address) -> Result<(), ContractError> {
         if Self::check_curator(col, addr) {
             Ok(())
         } else {
@@ -125,7 +121,10 @@ impl CommunityCollectionRegistry {
         exclude_id: Option<u64>,
     ) -> Result<(), ContractError> {
         let norm = Self::normalize_name(name);
-        if let Some(existing_id) = env.storage().persistent().get::<_, u64>(&CCKey::NameIndex(norm))
+        if let Some(existing_id) = env
+            .storage()
+            .persistent()
+            .get::<_, u64>(&CCKey::NameIndex(norm))
         {
             if exclude_id.map_or(true, |eid| eid != existing_id) {
                 return Err(ContractError::CommunityColNameExists);
@@ -152,22 +151,22 @@ impl CommunityCollectionRegistry {
         env.storage().persistent().set(&CCKey::ProjectIds(id), &ids);
     }
 
-    fn append_to_list(
-        env: &Env,
-        key: CCKey,
-        item: u64,
-    ) {
-        let mut list: Vec<u64> = env.storage().persistent().get(&key).unwrap_or_else(|| Vec::new(env));
+    fn append_to_list(env: &Env, key: CCKey, item: u64) {
+        let mut list: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(env));
         list.push_back(item);
         env.storage().persistent().set(&key, &list);
     }
 
-    fn remove_from_list(
-        env: &Env,
-        key: CCKey,
-        item: &u64,
-    ) -> Vec<u64> {
-        let list: Vec<u64> = env.storage().persistent().get(&key).unwrap_or_else(|| Vec::new(env));
+    fn remove_from_list(env: &Env, key: CCKey, item: &u64) -> Vec<u64> {
+        let list: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(env));
         let updated = Utils::remove_item_from_vec(env, &list, item);
         env.storage().persistent().set(&key, &updated);
         updated
@@ -221,7 +220,9 @@ impl CommunityCollectionRegistry {
     }
 
     fn write_collection(env: &Env, col: &CommunityCollection) {
-        env.storage().persistent().set(&CCKey::Collection(col.id), col);
+        env.storage()
+            .persistent()
+            .set(&CCKey::Collection(col.id), col);
         StorageManager::extend_community_collection_ttl(env, col.id);
     }
 
@@ -321,7 +322,8 @@ impl CommunityCollectionRegistry {
         if curators.len() > MAX_COMMUNITY_COL_CURATORS {
             return Err(ContractError::CommunityColCuratorsEmpty);
         }
-        let share_bps = creator_revenue_share_bps.unwrap_or(DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS);
+        let share_bps =
+            creator_revenue_share_bps.unwrap_or(DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS);
         Self::validate_revenue_share(share_bps, curators.len())?;
 
         let global_list: Vec<u64> = env
@@ -359,7 +361,9 @@ impl CommunityCollectionRegistry {
 
         let mut global = global_list;
         global.push_back(id);
-        env.storage().persistent().set(&CCKey::CollectionList, &global);
+        env.storage()
+            .persistent()
+            .set(&CCKey::CollectionList, &global);
         StorageManager::extend_community_collection_global_ttl(env);
 
         Self::append_to_list(env, CCKey::ByCreator(creator.clone()), id);
@@ -469,7 +473,8 @@ impl CommunityCollectionRegistry {
         if curators.len() > MAX_COMMUNITY_COL_CURATORS {
             return Err(ContractError::CommunityColCuratorsEmpty);
         }
-        let share_bps = creator_revenue_share_bps.unwrap_or(DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS);
+        let share_bps =
+            creator_revenue_share_bps.unwrap_or(DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS);
         Self::validate_revenue_share(share_bps, curators.len())?;
 
         let global_list: Vec<u64> = env
@@ -520,7 +525,9 @@ impl CommunityCollectionRegistry {
 
         let mut global = global_list;
         global.push_back(id);
-        env.storage().persistent().set(&CCKey::CollectionList, &global);
+        env.storage()
+            .persistent()
+            .set(&CCKey::CollectionList, &global);
         StorageManager::extend_community_collection_global_ttl(env);
 
         Self::append_to_list(env, CCKey::ByCreator(caller.clone()), id);
@@ -541,7 +548,8 @@ impl CommunityCollectionRegistry {
     }
 
     pub fn get(env: &Env, id: u64) -> Option<CommunityCollection> {
-        let col: Option<CommunityCollection> = env.storage().persistent().get(&CCKey::Collection(id));
+        let col: Option<CommunityCollection> =
+            env.storage().persistent().get(&CCKey::Collection(id));
         if col.is_some() {
             StorageManager::extend_community_collection_ttl(env, id);
         }
@@ -641,9 +649,13 @@ impl CommunityCollectionRegistry {
             Self::ensure_name_unique(env, &name, Some(id))?;
             // remove old name-index, add new
             let old_norm = Self::normalize_name(&col.name);
-            env.storage().persistent().remove(&CCKey::NameIndex(old_norm));
+            env.storage()
+                .persistent()
+                .remove(&CCKey::NameIndex(old_norm));
             let new_norm = Self::normalize_name(&name);
-            env.storage().persistent().set(&CCKey::NameIndex(new_norm), &id);
+            env.storage()
+                .persistent()
+                .set(&CCKey::NameIndex(new_norm), &id);
         }
 
         col.name = name;
@@ -830,7 +842,9 @@ impl CommunityCollectionRegistry {
                 .get::<_, u32>(&CCKey::ApprovalCount(id, project_id))
                 .unwrap_or(0)
                 .saturating_add(1);
-            env.storage().persistent().set(&CCKey::ApprovalCount(id, project_id), &a);
+            env.storage()
+                .persistent()
+                .set(&CCKey::ApprovalCount(id, project_id), &a);
             let d = env
                 .storage()
                 .persistent()
@@ -844,7 +858,9 @@ impl CommunityCollectionRegistry {
                 .get::<_, u32>(&CCKey::DisapprovalCount(id, project_id))
                 .unwrap_or(0)
                 .saturating_add(1);
-            env.storage().persistent().set(&CCKey::DisapprovalCount(id, project_id), &d);
+            env.storage()
+                .persistent()
+                .set(&CCKey::DisapprovalCount(id, project_id), &d);
             let a = env
                 .storage()
                 .persistent()
@@ -890,7 +906,9 @@ impl CommunityCollectionRegistry {
         project_id: u64,
         voter: Address,
     ) -> Option<CommunityCollectionVote> {
-        env.storage().persistent().get(&CCKey::Vote(id, project_id, voter))
+        env.storage()
+            .persistent()
+            .get(&CCKey::Vote(id, project_id, voter))
     }
 
     pub fn get_inclusion_status(
@@ -956,9 +974,11 @@ impl CommunityCollectionRegistry {
                 let oldest_id = oldest;
                 // If we just inserted and list was over cap and evicted, reset
                 // is_featured on the evicted entry.
-                if let Some(mut evicted) = env.storage().persistent().get::<_, CommunityCollection>(
-                    &CCKey::Collection(oldest_id),
-                ) {
+                if let Some(mut evicted) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, CommunityCollection>(&CCKey::Collection(oldest_id))
+                {
                     // If this specific call evicted a different entry than the
                     // newly featured one, unflag it.
                     let count_now = env
@@ -970,13 +990,14 @@ impl CommunityCollectionRegistry {
                     // Because we evicted *before* push, FeaturedList length is now
                     // MAX_FEATURED_COMMUNITY_COLLECTIONS. The evicted id is no longer present.
                     // Check existence:
-                    if evicted.is_featured && !env
-                        .storage()
-                        .persistent()
-                        .get::<_, Vec<u64>>(&CCKey::FeaturedList)
-                        .unwrap_or_else(|| Vec::new(env))
-                        .iter()
-                        .any(|x| x == evicted.id)
+                    if evicted.is_featured
+                        && !env
+                            .storage()
+                            .persistent()
+                            .get::<_, Vec<u64>>(&CCKey::FeaturedList)
+                            .unwrap_or_else(|| Vec::new(env))
+                            .iter()
+                            .any(|x| x == evicted.id)
                     {
                         evicted.is_featured = false;
                         evicted.updated_at = env.ledger().timestamp();
@@ -998,7 +1019,9 @@ impl CommunityCollectionRegistry {
             AdminActionLog::record_action(env, admin, at, Some(id), None, None);
         } else if !featured && already {
             let updated = Utils::remove_item_from_vec(env, &ids, &id);
-            env.storage().persistent().set(&CCKey::FeaturedList, &updated);
+            env.storage()
+                .persistent()
+                .set(&CCKey::FeaturedList, &updated);
             col.is_featured = false;
             col.updated_at = env.ledger().timestamp();
             Self::write_collection(env, &col);
@@ -1015,11 +1038,7 @@ impl CommunityCollectionRegistry {
         Ok(())
     }
 
-    pub fn list_featured(
-        env: &Env,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<CommunityCollection> {
+    pub fn list_featured(env: &Env, start_index: u32, limit: u32) -> Vec<CommunityCollection> {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
@@ -1124,10 +1143,7 @@ impl CommunityCollectionRegistry {
         Ok(snap)
     }
 
-    pub fn get_revenue_snapshot(
-        env: &Env,
-        id: u64,
-    ) -> Option<CommunityColRevenueSnapshot> {
+    pub fn get_revenue_snapshot(env: &Env, id: u64) -> Option<CommunityColRevenueSnapshot> {
         let col = Self::require_collection(env, id).ok()?;
         if col.is_template {
             return None;

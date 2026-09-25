@@ -688,7 +688,12 @@ pub fn publish_verification_expiry_notification_event(
         resend_count,
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("REMINDER"), project_id, owner),
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("REMINDER"),
+            project_id,
+            owner,
+        ),
         event_data,
     );
 }
@@ -927,7 +932,15 @@ pub fn publish_verification_appeal_reviewed_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), if approved { symbol_short!("APPRV") } else { symbol_short!("APDENY") }, project_id),
+        (
+            symbol_short!("VERIFY"),
+            if approved {
+                symbol_short!("APPRV")
+            } else {
+                symbol_short!("APDENY")
+            },
+            project_id,
+        ),
         event_data,
     );
 }
@@ -971,23 +984,27 @@ pub fn publish_verification_suspended_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("SUSPENDED"), project_id),
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("SUSPENDED"),
+            project_id,
+        ),
         event_data,
     );
 }
 
-pub fn publish_verification_restored_event(
-    env: &Env,
-    project_id: u64,
-    admin: Option<Address>,
-) {
+pub fn publish_verification_restored_event(env: &Env, project_id: u64, admin: Option<Address>) {
     let event_data = VerificationRestoredEvent {
         project_id,
         admin,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (symbol_short!("VERIFY"), symbol_short!("RESTORED"), project_id),
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("RESTORED"),
+            project_id,
+        ),
         event_data,
     );
 }
@@ -2411,11 +2428,7 @@ pub fn publish_project_update_notification_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("PROJECT"),
-            symbol_short!("NOTIF"),
-            project_id,
-        ),
+        (symbol_short!("PROJECT"), symbol_short!("NOTIF"), project_id),
         event_data,
     );
 }
@@ -2433,11 +2446,7 @@ pub fn publish_user_digest_scheduled_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("USER"),
-            symbol_short!("DIGEST"),
-            user,
-        ),
+        (symbol_short!("USER"), symbol_short!("DIGEST"), user),
         event_data,
     );
 }
@@ -2455,11 +2464,7 @@ pub fn publish_notification_prefs_updated_event(
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
-        (
-            symbol_short!("USER"),
-            symbol_short!("NFPREF"),
-            user,
-        ),
+        (symbol_short!("USER"), symbol_short!("NFPREF"), user),
         event_data,
     );
 }
