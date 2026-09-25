@@ -58,20 +58,19 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ArchivedReview, BatchTtlResult, BookmarkFolder,
-    ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest,
-    ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
-    FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload, Review,
-    ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
-    TimelockAction, VerificationBatchAction, VerificationBatchReport, VerificationRecord,
-    VerificationStatus, VerificationStatusFilter,
-    NotificationDeliveryStatus, TimelockAction, VerificationExpiryNotification,
-    VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
-    VerificationStatusFilter, VerificationSuspension, AdminWorkload, VerificationAssignment,
-    VerificationAssignmentStatus,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
+    BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
+    ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
+    ProjectUpdateParams, ProposalComment, ProposalPayload, Review, ReviewRevision, ReviewSortMode,
+    ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction,
+    VerificationBatchAction, VerificationBatchReport, VerificationRecord, VerificationStatus,
+    VerificationStatusFilter, NotificationDeliveryStatus, TimelockAction,
+    VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
+    VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
+    AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -214,6 +213,73 @@ impl DongleContract {
         batch_size: u32,
     ) -> Result<u32, ContractError> {
         AdminManager::cleanup_expired_proposals(&env, caller, batch_size)
+    }
+
+    // --- #736: Proposal comment/discussion system ---
+
+    /// Add a comment to a proposal. Comments are immutable once voting starts.
+    pub fn add_proposal_comment(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+        content: String,
+    ) -> Result<u64, ContractError> {
+        AdminManager::add_proposal_comment(&env, caller, proposal_id, content)
+    }
+
+    /// Get comments for a proposal with pagination.
+    pub fn get_proposal_comments(
+        env: Env,
+        proposal_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ProposalComment> {
+        AdminManager::get_proposal_comments(&env, proposal_id, start_index, limit)
+    }
+
+    // --- #738: Emergency admin recovery ---
+
+    /// Initiate an emergency admin recovery request. Requires 2/3 of remaining
+    /// admins to approve, with a 7-day voting period.
+    pub fn initiate_emergency_recovery(
+        env: Env,
+        caller: Address,
+        lost_admin: Address,
+        new_admin: Address,
+    ) -> Result<u64, ContractError> {
+        AdminManager::initiate_emergency_recovery(&env, caller, lost_admin, new_admin)
+    }
+
+    /// Approve an emergency recovery request.
+    pub fn approve_emergency_recovery(
+        env: Env,
+        admin: Address,
+        request_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::approve_emergency_recovery(&env, admin, request_id)
+    }
+
+    /// Get an emergency recovery request by ID.
+    pub fn get_emergency_recovery(
+        env: Env,
+        request_id: u64,
+    ) -> Option<crate::types::EmergencyRecoveryRequest> {
+        AdminManager::get_emergency_recovery(&env, request_id)
+    }
+
+    // --- #739: Inactive admin tracking ---
+
+    /// Get the admin activity record for an address.
+    pub fn get_admin_activity(
+        env: Env,
+        admin: Address,
+    ) -> Option<crate::types::AdminActivityRecord> {
+        AdminManager::get_admin_activity(&env, &admin)
+    }
+
+    /// Check if an admin has been inactive for more than the specified days.
+    pub fn is_admin_inactive(env: Env, admin: Address, days: u64) -> bool {
+        AdminManager::is_admin_inactive(&env, &admin, days)
     }
 
     /// Admin-only: set the monthly veto limit per admin (#730).
@@ -970,6 +1036,8 @@ impl DongleContract {
         admin: Address,
     ) -> Result<VerificationBatchReport, ContractError> {
         VerificationRegistry::reject_verifications_batch(&env, request_ids, admin)
+    }
+
     /// Submit additional evidence to appeal a rejection.
     pub fn submit_verification_appeal(
         env: Env,

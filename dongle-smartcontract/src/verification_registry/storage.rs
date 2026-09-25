@@ -855,6 +855,8 @@ impl VerificationRegistry {
             admin,
             VerificationBatchAction::Reject,
         )
+    }
+
     pub fn submit_verification_appeal(
         env: &Env,
         project_id: u64,
