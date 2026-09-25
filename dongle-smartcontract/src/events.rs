@@ -1,3 +1,4 @@
+use crate::auto_archive_types::{AutoArchiveConfig, AutoArchiveNoticeStatus, AutoArchiveRecord};
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
     ReviewAction, ReviewEventData, VerificationStatus,
@@ -2840,6 +2841,100 @@ pub fn publish_review_archived_event(
             project_id,
             reviewer,
         ),
+        event_data,
+    );
+}
+
+// ── Automatic archival events (#753) ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoArchiveConfigEvent {
+    pub admin: Address,
+    pub enabled: bool,
+    pub inactivity_threshold_secs: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoArchiveNoticeEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub last_activity_at: u64,
+    pub archive_eligible_at: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoArchiveNoticeDeliveryEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub status: AutoArchiveNoticeStatus,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectAutoArchivedEvent {
+    pub archive_record: AutoArchiveRecord,
+    pub timestamp: u64,
+}
+
+pub fn publish_auto_archive_config_event(env: &Env, config: &AutoArchiveConfig, admin: Address) {
+    let event_data = AutoArchiveConfigEvent {
+        admin: admin.clone(),
+        enabled: config.enabled,
+        inactivity_threshold_secs: config.inactivity_threshold_secs,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events()
+        .publish((symbol_short!("ARCHIVE"), symbol_short!("CONFIG")), event_data);
+}
+
+pub fn publish_auto_archive_notice_event(
+    env: &Env,
+    notice: &crate::auto_archive_types::AutoArchiveNotice,
+) {
+    let event_data = AutoArchiveNoticeEvent {
+        project_id: notice.project_id,
+        owner: notice.owner.clone(),
+        last_activity_at: notice.last_activity_at,
+        archive_eligible_at: notice.archive_eligible_at,
+        timestamp: notice.notified_at,
+    };
+    env.events().publish(
+        (symbol_short!("ARCHIVE"), symbol_short!("NOTICE"), notice.project_id),
+        event_data,
+    );
+}
+
+pub fn publish_auto_archive_notice_delivery_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    status: AutoArchiveNoticeStatus,
+) {
+    let event_data = AutoArchiveNoticeDeliveryEvent {
+        project_id,
+        admin: admin.clone(),
+        status,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ARCHIVE"), symbol_short!("DELIVER"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_project_auto_archived_event(env: &Env, record: &AutoArchiveRecord) {
+    let event_data = ProjectAutoArchivedEvent {
+        archive_record: record.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ARCHIVE"), symbol_short!("AUTO"), record.project_id),
         event_data,
     );
 }
