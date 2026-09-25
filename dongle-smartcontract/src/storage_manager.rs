@@ -757,6 +757,42 @@ impl StorageManager {
             LEDGER_BUMP_USER,
         );
     }
+
+    // ── Fork relationship TTL Management (#748) ───────────────────────────
+
+    /// Extend TTL for a child relationship and its parent pointer.
+    pub fn extend_fork_relationship_ttl(env: &Env, child_project_id: u64, parent_project_id: u64) {
+        use crate::storage_keys::ForkKey;
+        Self::extend_if_exists(
+            env,
+            &ForkKey::Relationship(child_project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &ForkKey::ParentForChild(child_project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &ForkKey::ChildProjects(parent_project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    /// Extend TTL for a parent's child-project index.
+    pub fn extend_fork_children_ttl(env: &Env, parent_project_id: u64) {
+        use crate::storage_keys::ForkKey;
+        Self::extend_if_exists(
+            env,
+            &ForkKey::ChildProjects(parent_project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
 }
 
 #[cfg(test)]

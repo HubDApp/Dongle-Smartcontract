@@ -21,6 +21,8 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod fork_registry;
+pub mod fork_types;
 pub mod pagination;
 mod project_registry;
 pub mod rating_calculator;
@@ -2927,6 +2929,63 @@ impl DongleContract {
     pub fn get_project_social_analytics_report_nonce(env: Env, project_id: u64) -> u64 {
         crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
             &env, project_id,
+        )
+    }
+
+    // ── Fork and migration detection (#748) ─────────────────────────────────
+
+    /// Compare two registered projects and return deterministic fork or
+    /// migration signals without changing contract state.
+    pub fn detect_project_fork(
+        env: Env,
+        child_project_id: u64,
+        parent_project_id: u64,
+    ) -> Result<crate::fork_types::ForkDetection, ContractError> {
+        crate::fork_registry::ForkRegistry::detect(&env, child_project_id, parent_project_id)
+    }
+
+    /// Link a detected child to its parent. Callable by the child owner or an
+    /// admin. When `merge_parent_data` is true, provenance-preserving parent
+    /// review and verification snapshots are attached to the relationship.
+    pub fn link_project_fork(
+        env: Env,
+        child_project_id: u64,
+        parent_project_id: u64,
+        caller: Address,
+        merge_parent_data: bool,
+    ) -> Result<crate::fork_types::ForkRelationship, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::fork_registry::ForkRegistry::link(
+            &env,
+            child_project_id,
+            parent_project_id,
+            caller,
+            merge_parent_data,
+        )
+    }
+
+    pub fn get_fork_relationship(
+        env: Env,
+        child_project_id: u64,
+    ) -> Option<crate::fork_types::ForkRelationship> {
+        crate::fork_registry::ForkRegistry::get_relationship(&env, child_project_id)
+    }
+
+    pub fn get_fork_parent(env: Env, child_project_id: u64) -> Option<u64> {
+        crate::fork_registry::ForkRegistry::get_parent(&env, child_project_id)
+    }
+
+    pub fn list_fork_children(
+        env: Env,
+        parent_project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::fork_registry::ForkRegistry::list_children(
+            &env,
+            parent_project_id,
+            start_index,
+            limit,
         )
     }
 }

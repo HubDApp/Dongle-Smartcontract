@@ -1,3 +1,4 @@
+use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
     ReviewAction, ReviewEventData, VerificationStatus,
@@ -2839,6 +2840,41 @@ pub fn publish_review_archived_event(
             symbol_short!("ARCHIVED"),
             project_id,
             reviewer,
+        ),
+        event_data,
+    );
+}
+
+// ── Fork relationship events (#748) ──────────────────────────────────────────
+
+/// Emitted when a child project is linked to a detected parent fork or
+/// migration source. Indexers and community notification services can fan this
+/// event out to followers of either project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ForkLinkedEvent {
+    pub child_project_id: u64,
+    pub parent_project_id: u64,
+    pub confidence_bps: u32,
+    pub linked_by: Address,
+    pub data_merged: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_fork_linked_event(env: &Env, relationship: &ForkRelationship) {
+    let event_data = ForkLinkedEvent {
+        child_project_id: relationship.child_project_id,
+        parent_project_id: relationship.parent_project_id,
+        confidence_bps: relationship.confidence_bps,
+        linked_by: relationship.linked_by.clone(),
+        data_merged: relationship.merged_data.is_some(),
+        timestamp: relationship.created_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("FORK"),
+            symbol_short!("LINKED"),
+            relationship.child_project_id,
         ),
         event_data,
     );
