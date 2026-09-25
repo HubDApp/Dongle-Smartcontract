@@ -304,6 +304,14 @@ pub enum ExtensionKey2 {
     AdminVetoCount(Address, String),
     /// Maximum number of vetoes (rejections) an admin may cast per month (u32). Default: 0 = unlimited.
     VetoMonthlyLimit,
+    /// Admin session by session ID.
+    AdminSession(u64),
+    /// List of session IDs for an admin.
+    AdminSessionList(Address),
+    /// Session audit history for an admin.
+    AdminSessionHistory(Address),
+    /// Next admin session ID counter.
+    NextAdminSessionId,
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
