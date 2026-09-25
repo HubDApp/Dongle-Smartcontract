@@ -61,9 +61,14 @@ use crate::types::{
     ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
     FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
     ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
+    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload, Review,
+    ReviewRevision,
     ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
-    TimelockAction, VerificationRecord, VerificationStatus, VerificationStatusFilter,
+    TimelockAction, VerificationBatchAction, VerificationBatchReport, VerificationRecord,
+    VerificationStatus, VerificationStatusFilter,
+    NotificationDeliveryStatus, TimelockAction, VerificationExpiryNotification,
+    VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
+    VerificationStatusFilter, VerificationSuspension,
 };
 use crate::verification_registry::VerificationRegistry;
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -235,6 +240,41 @@ impl DongleContract {
     ) -> Result<Project, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
+    }
+
+    pub fn schedule_project_sunset(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        sunset_at: u64,
+        alternative_project_ids: Vec<u64>,
+        redirect_project_id: Option<u64>,
+    ) -> Result<ProjectSunsetPlan, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::schedule_project_sunset(
+            &env,
+            project_id,
+            caller,
+            sunset_at,
+            alternative_project_ids,
+            redirect_project_id,
+        )
+    }
+
+    pub fn get_project_sunset_plan(env: Env, project_id: u64) -> Option<ProjectSunsetPlan> {
+        ProjectRegistry::get_project_sunset_plan(&env, project_id)
+    }
+
+    pub fn get_project_redirect(env: Env, project_id: u64) -> Option<u64> {
+        ProjectRegistry::get_project_redirect(&env, project_id)
+    }
+
+    pub fn process_project_sunset(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::process_project_sunset(&env, project_id, caller)
     }
 
     pub fn update_security_contact(
@@ -793,13 +833,45 @@ impl DongleContract {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
+    pub fn get_verification_risk_model(env: Env) -> VerificationRiskModel {
+        VerificationRegistry::get_verification_risk_model(&env)
+    }
+
+    pub fn set_verification_risk_model(
+        env: Env,
+        admin: Address,
+        model: VerificationRiskModel,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_verification_risk_model(&env, admin, model)
+    }
+
+    pub fn get_verification_risk_assessment(
+        env: Env,
+        request_id: u64,
+    ) -> Option<VerificationRiskAssessment> {
+        VerificationRegistry::get_verification_risk_assessment(&env, request_id)
+    }
+
+    pub fn get_high_risk_verification_requests(env: Env) -> Vec<u64> {
+        VerificationRegistry::get_high_risk_verification_requests(&env)
+    }
+
+    pub fn override_verification_risk(
+        env: Env,
+        request_id: u64,
+        admin: Address,
+        flagged: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::override_verification_risk(&env, request_id, admin, flagged)
+    }
+
     /// Update the verification evidence CID for a pending verification request.
     ///
     /// # Restrictions
     /// - Only the project owner can update the evidence.
-    /// - Updates are allowed only when the request status is `Pending`.
-    /// - Once a request is finalized (either Approved/Verified or Rejected), it is immutable
-    ///   and further updates will be rejected with an error.
+    /// - Updates are allowed while the request is `Pending` or `Verified`.
+    /// - Updating a verified request resets it to `Pending` and requires a new approval.
+    /// - Rejected and revoked requests are immutable and reject further updates.
     ///
     /// # Validation
     /// - The new evidence CID is validated using the project's standard IPFS CID rules.
@@ -837,6 +909,56 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    /// Atomically approve or reject up to 100 verification requests.
+    /// The entire batch is validated before any request is changed.
+    pub fn decide_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+        action: VerificationBatchAction,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::decide_verifications_batch(&env, request_ids, admin, action)
+    }
+
+    pub fn approve_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::approve_verifications_batch(&env, request_ids, admin)
+    }
+
+    pub fn reject_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::reject_verifications_batch(&env, request_ids, admin)
+    /// Submit additional evidence to appeal a rejection.
+    pub fn submit_verification_appeal(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::submit_verification_appeal(&env, project_id, owner, evidence_cid)
+    }
+
+    /// Review the latest appeal for a rejected verification.
+    pub fn review_verification_appeal(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::review_verification_appeal(&env, project_id, admin, approved)
+    }
+
+    /// Read the appeal history for a rejected verification request.
+    pub fn get_verification_appeals(env: Env, project_id: u64) -> Vec<crate::types::VerificationAppeal> {
+        VerificationRegistry::get_verification_appeals(&env, project_id)
+    }
+
     pub fn revoke_verification(
         env: Env,
         project_id: u64,
@@ -846,12 +968,65 @@ impl DongleContract {
         VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
     }
 
+    pub fn suspend_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+        investigation_ticket: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::suspend_verification(
+            &env,
+            project_id,
+            admin,
+            reason,
+            investigation_ticket,
+        )
+    }
+
+    pub fn restore_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::restore_verification(&env, project_id, admin)
+    }
+
     pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
     pub fn get_verification_record(env: Env, request_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
+    }
+
+    pub fn get_verification_evidence_versions(
+        env: Env,
+        request_id: u64,
+    ) -> Vec<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_versions(&env, request_id)
+    }
+
+    pub fn get_verification_evidence_version(
+        env: Env,
+        request_id: u64,
+        version: u32,
+    ) -> Option<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_version(&env, request_id, version)
+    }
+
+    pub fn compare_verification_evidence(
+        env: Env,
+        request_id: u64,
+        first_version: u32,
+        second_version: u32,
+    ) -> Option<crate::types::VerificationEvidenceComparison> {
+        VerificationRegistry::compare_verification_evidence(
+            &env,
+            request_id,
+            first_version,
+            second_version,
+        )
     }
 
     pub fn get_pending_verifications(
@@ -910,6 +1085,13 @@ impl DongleContract {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
 
+    pub fn get_verification_suspension_timeline(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<VerificationSuspension> {
+        VerificationRegistry::get_verification_suspension_timeline(&env, project_id)
+    }
+
     pub fn request_renewal(
         env: Env,
         project_id: u64,
@@ -959,6 +1141,42 @@ impl DongleContract {
         threshold_seconds: u64,
     ) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
+    }
+
+    pub fn process_verification_expiry_notification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn get_verification_expiry_notification(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationExpiryNotification> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn record_verification_expiry_notification_delivery(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        delivered: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::record_verification_expiry_notification_delivery(
+            &env,
+            project_id,
+            admin,
+            delivered,
+        )
+    }
+
+    pub fn get_notification_delivery_status(
+        env: Env,
+        project_id: u64,
+    ) -> Option<NotificationDeliveryStatus> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+            .map(|notification| notification.delivery_status)
     }
 
     /// Admin: prune verification history, keeping the most recent `keep_count` records.

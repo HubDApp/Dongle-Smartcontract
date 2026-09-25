@@ -555,6 +555,8 @@ pub enum VerificationStatus {
     Pending,
     /// The project has been verified by an admin.
     Verified,
+    /// The project's verification is temporarily unavailable while it is investigated.
+    Suspended,
     /// The most recent verification request was rejected by an admin.
     /// The owner may re-pay the fee and re-submit.
     Rejected,
@@ -575,6 +577,18 @@ pub enum ProjectLifecycleStatus {
     Deprecated,
     /// Sunset - officially discontinued
     Sunset,
+}
+
+/// Scheduled deprecation and sunset metadata for a project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSunsetPlan {
+    pub project_id: u64,
+    pub announced_at: u64,
+    pub sunset_at: u64,
+    pub alternative_project_ids: Vec<u64>,
+    pub redirect_project_id: Option<u64>,
+    pub archived_at: Option<u64>,
 }
 
 /// Complete record of a single verification request, including its outcome.
@@ -625,6 +639,135 @@ pub struct VerificationRecord {
     /// Admin assigned to review this verification request via
     /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
+}
+
+/// Immutable snapshot of the evidence CID used by a verification request.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceVersion {
+    /// One-based version number within the verification request.
+    pub version: u32,
+    /// Evidence CID at this version.
+    pub evidence_cid: String,
+    /// Address that submitted this version.
+    pub submitted_by: Address,
+    /// Unix timestamp when this version was recorded.
+    pub submitted_at: u64,
+}
+
+/// Pair of immutable evidence snapshots selected for comparison.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceComparison {
+    pub first: VerificationEvidenceVersion,
+    pub second: VerificationEvidenceVersion,
+    pub changed: bool,
+}
+
+/// Operation applied by a batch verification decision.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationBatchAction {
+    Approve,
+    Reject,
+}
+
+/// Result for one request in a successful batch decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchResult {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub status: VerificationStatus,
+    pub decided_at: u64,
+}
+
+/// Report returned after an atomic batch verification decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchReport {
+    pub action: VerificationBatchAction,
+    pub total: u32,
+    pub results: Vec<VerificationBatchResult>,
+/// A formal appeal against a rejection, including the additional evidence
+/// submitted by the owner and the result of the appeal review.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppeal {
+    /// Project whose verification was rejected.
+    pub project_id: u64,
+    /// Request ID that was rejected.
+    pub request_id: u64,
+    /// Project owner that submitted the appeal.
+    pub owner: Address,
+    /// Admin whose rejection is being appealed.
+    pub rejected_by: Address,
+    /// Additional evidence CID submitted with the appeal.
+    pub evidence_cid: String,
+    /// Ledger timestamp when the appeal was submitted.
+    pub submitted_at: u64,
+    /// Admin who reviewed the appeal, if reviewed.
+    pub reviewed_by: Option<Address>,
+    /// The appeal outcome, if a review has occurred.
+    pub approved: Option<bool>,
+    /// Timestamp when the appeal was reviewed, or zero if still pending.
+    pub reviewed_at: u64,
+}
+
+/// Per-project rejection state used to track the current rejection and the
+/// number of appeals already filed for it.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRejectionState {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub rejected_by: Address,
+    pub rejected_at: u64,
+    pub appeal_count: u32,
+}
+
+/// An auditable verification suspension and its eventual restoration.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSuspension {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub investigation_ticket: String,
+    pub suspended_at: u64,
+    pub restore_at: u64,
+    pub restored_at: Option<u64>,
+    pub restored_by: Option<Address>,
+}
+
+/// Configurable coefficients for the deterministic on-chain risk model.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRiskModel {
+    pub model_version: u32,
+    pub age_weight: u32,
+    pub reputation_weight: u32,
+    pub rating_weight: u32,
+    pub threshold: u32,
+}
+
+/// Risk assessment captured when a verification request is submitted.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRiskAssessment {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub model_version: u32,
+    pub project_age_score: u32,
+    pub reputation_score: u32,
+    pub rating_score: u32,
+    pub score: u32,
+    pub threshold: u32,
+    pub flagged: bool,
+    pub override_flag: Option<bool>,
+    pub overridden_by: Option<Address>,
+    pub assessed_at: u64,
 }
 
 /// Record of a completed verification renewal.
@@ -1007,7 +1150,14 @@ pub enum AdminActionType {
     AdminRemoved,
     VerificationApproved,
     VerificationRejected,
+    VerificationAppealSubmitted,
+    VerificationAppealApproved,
+    VerificationAppealRejected,
     VerificationRevoked,
+    VerificationSuspended,
+    VerificationRestored,
+    VerificationRiskModelUpdated,
+    VerificationRiskOverridden,
     VerificationRenewalApproved,
     VerificationRenewalRejected,
     FeeChanged,
@@ -1512,10 +1662,37 @@ pub enum NotificationKind {
     VerificationRejected,
     /// The project's verification was revoked by an admin.
     VerificationRevoked,
+    /// Verification is within the renewal reminder window.
+    VerificationExpiringSoon,
     /// The project was archived.
     ProjectArchived,
     /// The project was reactivated from an archived state.
     ProjectReactivated,
+}
+
+/// Delivery state recorded for an expiry reminder attempt.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationDeliveryStatus {
+    Pending,
+    Delivered,
+    Failed,
+}
+
+/// Tracks expiry reminder delivery, resend timing, and owner response.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiryNotification {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub owner: Address,
+    pub expires_at: u64,
+    pub renewal_instructions: String,
+    pub first_sent_at: u64,
+    pub last_sent_at: u64,
+    pub resend_count: u32,
+    pub delivery_status: NotificationDeliveryStatus,
+    pub owner_responded: bool,
 }
 
 /// Global notification preferences for a user.

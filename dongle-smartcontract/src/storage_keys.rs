@@ -258,6 +258,8 @@ pub enum ExtensionKey {
     /// caps those at 50 cases; a per-entry key plus a separate count key would
     /// need two slots and push the enum over the limit.
     FeeConfigHistory,
+    /// Verification suspension timeline for a project, oldest-first.
+    ProjectVerificationSuspensions(u64),
 }
 
 /// Third overflow storage key enum, introduced because `ExtensionKey` has reached the
@@ -284,6 +286,20 @@ pub enum ExtensionKey2 {
     /// Index of reviewer addresses whose reviews have been archived for a project.
     /// Enables paginated enumeration of all archived reviews for a given project.
     ProjectArchivedReviews(u64),
+    /// Append-only evidence CID versions for a verification request.
+    VerificationEvidenceVersions(u64),
+    /// Scheduled deprecation, sunset, alternatives, and redirect for a project.
+    ProjectSunsetPlan(u64),
+    /// Risk assessment captured for a verification request.
+    VerificationRiskAssessment(u64),
+    /// Verification request IDs currently flagged for additional review.
+    HighRiskVerificationRequests,
+    /// Current coefficients and threshold for the verification risk model.
+    VerificationRiskModel,
+    /// Full appeal history for a rejected verification request.
+    VerificationAppeals(u64),
+    /// Active rejection metadata for a project to enforce the per-rejection appeal cap.
+    VerificationRejection(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
@@ -315,6 +331,8 @@ pub enum NotificationKey {
     /// Queue of project IDs with pending updates awaiting digest delivery.
     /// Cleared after a digest is emitted.
     UserDigestQueue(Address),
+    /// Owner-facing verification expiry reminder state by project.
+    VerificationExpiryNotification(u64),
 }
 
 /// Storage keys for review content integrity seals (#809).

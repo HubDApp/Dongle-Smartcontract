@@ -173,6 +173,20 @@ pub const RATING_MAX: u32 = 5;
 /// After this period, verified projects need to renew their verification.
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
+/// Maximum duration of a temporary verification suspension.
+pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
+/// Feature thresholds used by the default verification risk model.
+pub const RISK_MODEL_MONTH_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
+
+/// Verification expiry reminder and resend windows.
+pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Maximum duration of a temporary verification suspension.
+pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
 /// TTL for critical contract data (admin list, fee config, treasury).
@@ -241,6 +255,8 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
 /// Admins can override this via set_verification_duration.
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
+/// Minimum notice required between announcing a sunset and its effective date.
+pub const PROJECT_SUNSET_MIN_NOTICE_SECS: u64 = 180 * 24 * 60 * 60;
 /// Minimum timelock delay in seconds (1 day).
 ///
 /// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,

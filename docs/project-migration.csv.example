@@ -1,0 +1,2 @@
+sourceId,owner,name,slug,description,category,website,repository,license,logoCid,metadataCid,tags,socialLinks,launchTimestamp,bountyUrl,maintainers
+example-project-001,GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF,Example Project,example-project,A concise project description.,Infrastructure,https://example.org,https://github.com/example/project,MIT,,,stellar|open-source,community=https://example.org/community,,,Example Team
