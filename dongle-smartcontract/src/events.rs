@@ -3082,3 +3082,22 @@ pub fn publish_verification_sla_set_event(
     );
 }
 
+// ── Expired proposal cleanup (#728) ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalsCleanedUpEvent {
+    pub removed_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_proposals_cleaned_up_event(env: &Env, removed_count: u32, timestamp: u64) {
+    env.events().publish(
+        (symbol_short!("PROPOSAL"), symbol_short!("CLEANUP")),
+        ProposalsCleanedUpEvent {
+            removed_count,
+            timestamp,
+        },
+    );
+}
+
