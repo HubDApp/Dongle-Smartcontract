@@ -17,6 +17,7 @@ use crate::events::{
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
+use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
     ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
     ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
@@ -182,6 +183,7 @@ impl ProjectRegistry {
 
         // ── Validation (read-only, no storage writes) ──────────────────────
         Self::validate_registration_fields(env, &params)?;
+        ProjectOperationLimiter::consume_registration(env, &params.owner)?;
 
         // ── Fee payment ────────────────────────────────────────────────────
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -349,6 +351,7 @@ impl ProjectRegistry {
         if !is_owner && !is_maintainer {
             return Err(ContractError::Unauthorized);
         }
+        ProjectOperationLimiter::consume_update(env, &params.caller)?;
 
         // ── Metadata freeze guard ──────────────────────────────────────────
         // For verified projects, identity-critical fields are frozen.
@@ -1087,6 +1090,164 @@ impl ProjectRegistry {
             }
         }
         projects
+    }
+
+    fn search_match_index(text: &String, query: &String) -> Option<u32> {
+        let text_len = text.len();
+        let query_len = query.len();
+        if query_len == 0 || query_len > text_len {
+            return None;
+        }
+
+        let mut text_bytes = vec![0u8; text_len as usize];
+        let mut query_bytes = vec![0u8; query_len as usize];
+        text.copy_into_slice(&mut text_bytes);
+        query.copy_into_slice(&mut query_bytes);
+
+        for start in 0..=text_len - query_len {
+            let mut matches = true;
+            for offset in 0..query_len {
+                let mut text_byte = text_bytes[(start + offset) as usize];
+                let mut query_byte = query_bytes[offset as usize];
+                if text_byte >= b'A' && text_byte <= b'Z' {
+                    text_byte += 32;
+                }
+                if query_byte >= b'A' && query_byte <= b'Z' {
+                    query_byte += 32;
+                }
+                if text_byte != query_byte {
+                    matches = false;
+                    break;
+                }
+            }
+            if matches {
+                return Some(start);
+            }
+        }
+        None
+    }
+
+    fn project_search_score(env: &Env, project: &Project, query: &String) -> Option<u32> {
+        let mut score = 0u32;
+
+        if let Some(index) = Self::search_match_index(&project.name, query) {
+            score += if project.name.len() == query.len() {
+                1_000
+            } else if index == 0 {
+                800
+            } else {
+                600
+            };
+        }
+        if Self::search_match_index(&project.description, query).is_some() {
+            score += 300;
+        }
+        if Self::search_match_index(&project.category, query).is_some() {
+            score += 200;
+        }
+        if let Some(tags) = &project.tags {
+            for tag in tags.iter() {
+                if Self::search_match_index(&tag, query).is_some() {
+                    score += 350;
+                }
+            }
+        }
+        if score == 0 {
+            return None;
+        }
+
+        let stats = crate::review_registry::ReviewRegistry::get_project_stats(env, project.id);
+        score += stats.average_rating / 10;
+        score += match project.verification_status {
+            VerificationStatus::Verified => 100,
+            VerificationStatus::Pending => 20,
+            VerificationStatus::Probationary => 10,
+            _ => 0,
+        };
+        Some(score)
+    }
+
+    /// Search active projects and rank matches by field quality, rating, and verification.
+    /// `start_index` is a zero-based offset into the ranked results; pages are capped at 100.
+    pub fn search_projects(
+        env: &Env,
+        query: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        let mut result = Vec::new(env);
+        if query.is_empty() {
+            return result;
+        }
+
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+        let mut candidates: Vec<Project> = Vec::new(env);
+        let mut scores: Vec<u32> = Vec::new(env);
+
+        for id in 1..=count {
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+            if project.archived {
+                continue;
+            }
+            if let Some(score) = Self::project_search_score(env, &project, &query) {
+                candidates.push_back(project);
+                scores.push_back(score);
+            }
+        }
+
+        let total = candidates.len();
+        if start_index >= total {
+            return result;
+        }
+        let wanted = core::cmp::min(start_index.saturating_add(effective_limit), total);
+        let mut taken: Vec<bool> = Vec::new(env);
+        for _ in 0..total {
+            taken.push_back(false);
+        }
+
+        for rank in 0..wanted {
+            let mut best: Option<u32> = None;
+            for index in 0..total {
+                if taken.get(index).unwrap_or(false) {
+                    continue;
+                }
+                let Some(best_index) = best else {
+                    best = Some(index);
+                    continue;
+                };
+                let candidate_score = scores.get(index).unwrap_or(0);
+                let best_score = scores.get(best_index).unwrap_or(0);
+                let candidate_id = candidates.get(index).unwrap().id;
+                let best_id = candidates.get(best_index).unwrap().id;
+                if candidate_score > best_score
+                    || (candidate_score == best_score && candidate_id < best_id)
+                {
+                    best = Some(index);
+                }
+            }
+
+            let Some(best_index) = best else {
+                break;
+            };
+            taken.set(best_index, true);
+            if rank >= start_index {
+                if let Some(project) = candidates.get(best_index) {
+                    result.push_back(project);
+                }
+            }
+        }
+        result
     }
 
     pub fn list_projects_by_category(

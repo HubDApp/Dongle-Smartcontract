@@ -24,6 +24,7 @@ mod events;
 mod pause_state_recovery;
 mod moderation;
 mod name_search;
+mod project_search;
 mod pagination;
 // mod pagination;
 mod claim;

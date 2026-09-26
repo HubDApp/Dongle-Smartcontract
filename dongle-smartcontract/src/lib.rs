@@ -23,6 +23,7 @@ mod featured_registry;
 mod fee_manager;
 pub mod pagination;
 mod project_registry;
+mod project_operation_limiter;
 pub mod rating_calculator;
 mod recommendation_registry;
 mod report_registry;
@@ -527,6 +528,17 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
+    }
+
+    /// Search active projects by name, description, tags, or category.
+    /// Results are relevance-ranked with rating and verification boosts.
+    pub fn search_projects(
+        env: Env,
+        query: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::search_projects(&env, query, start_index, limit)
     }
 
     /// List projects filtered by lifecycle status.

@@ -7,6 +7,13 @@
 /// blocks Sybil-style index bloat. Raise only with a matching pagination story.
 pub const MAX_PROJECTS_PER_USER: u32 = 50;
 
+/// Default project operation budgets for unverified addresses.
+pub const PROJECT_REGISTRATIONS_PER_DAY: u32 = 10;
+pub const PROJECT_UPDATES_PER_DAY: u32 = 100;
+pub const PROJECT_QUERIES_PER_MINUTE: u32 = 1_000;
+/// Verified project owners receive ten times the unverified operation budget.
+pub const VERIFIED_PROJECT_OPERATION_LIMIT_MULTIPLIER: u32 = 10;
+
 // ── Storage index size limits ───────────────────────────────────────────────
 // Vec-based indexes are capped on write to avoid unbounded per-user/project growth.
 // See STORAGE_INDEXES.md for the full index catalog and pagination strategy.

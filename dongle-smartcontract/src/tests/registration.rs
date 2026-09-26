@@ -126,3 +126,51 @@ fn test_register_different_projects_success() {
     let id2 = client.register_project(&params2);
     assert_eq!(id2, 2);
 }
+
+#[test]
+fn registration_limit_is_ten_per_address_per_day() {
+    let env = Env::default();
+    let (client, owner) = setup(&env);
+
+    for index in 0..10 {
+        let name = String::from_str(&env, &format!("Limited Project {index}"));
+        let params = ProjectRegistrationParams {
+            owner: owner.clone(),
+            name: name.clone(),
+            slug: String::from_str(&env, &format!("limited-project-{index}")),
+            description: String::from_str(&env, "Description"),
+            category: String::from_str(&env, "DeFi"),
+            website: None,
+            logo_cid: None,
+            metadata_cid: None,
+            tags: None,
+            social_links: None,
+            launch_timestamp: None,
+            bounty_url: None,
+            repository_url: None,
+        };
+        client.register_project(&params);
+    }
+
+    let name = String::from_str(&env, "Limited Project 10");
+    let params = ProjectRegistrationParams {
+        owner,
+        name,
+        slug: String::from_str(&env, "limited-project-10"),
+        description: String::from_str(&env, "Description"),
+        category: String::from_str(&env, "DeFi"),
+        website: None,
+        logo_cid: None,
+        metadata_cid: None,
+        tags: None,
+        social_links: None,
+        launch_timestamp: None,
+        bounty_url: None,
+        repository_url: None,
+    };
+
+    assert_eq!(
+        client.try_register_project(&params),
+        Err(Ok(ContractError::OperationLimitExceeded.into()))
+    );
+}

@@ -23,6 +23,14 @@ export interface SecurityContact {
   verified: boolean;
 }
 
+export interface RepositorySyncSettings {
+  enabled: boolean;
+  intervalMinutes: number;
+  lastSyncedAt?: number;
+  lastAttemptAt?: number;
+  lastError?: string;
+}
+
 export interface Project {
   id: number;
   slug: string;
@@ -30,6 +38,8 @@ export interface Project {
   description: string;
   website: string;
   repository?: string;
+  license?: string;
+  repositorySync?: RepositorySyncSettings;
   documentation?: string;
   category: string;
   tags: string[];
