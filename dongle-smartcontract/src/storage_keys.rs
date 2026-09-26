@@ -457,3 +457,46 @@ pub enum AssignmentKey {
     VerificationSlaDuration,
 }
 
+
+/// Storage keys for security contact email verification (#757).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SecurityContactVerifKey {
+    /// Full verification record for a project's security contact.
+    /// Keyed by project_id (u64) → SecurityContactVerificationRecord.
+    SecurityContactVerifRecord(u64),
+}
+
+/// Storage keys for project health scores (#756).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HealthScoreKey {
+    /// Global health score configuration.
+    HealthScoreConfig,
+    /// Latest computed health score for a project.
+    /// Keyed by project_id (u64) → ProjectHealthScore.
+    ProjectHealthScore(u64),
+    /// Historical score snapshots for a project (Vec<HealthScoreSnapshot>).
+    /// Keyed by project_id (u64).
+    ProjectHealthHistory(u64),
+}
+
+/// Storage keys for the project activity feed / timeline (#759).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ActivityFeedKey {
+    /// Activity feed entries for a project (Vec<ActivityEntry>).
+    /// Keyed by project_id (u64).
+    ProjectActivityFeed(u64),
+}
+
+/// Storage keys for automatic metadata enrichment (#760).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MetadataEnrichmentKey {
+    /// Auto-increment suggestion ID counter.
+    NextSuggestionId,
+    /// List of enrichment suggestions for a project (Vec<EnrichmentSuggestion>).
+    /// Keyed by project_id (u64).
+    EnrichmentSuggestions(u64),
+}

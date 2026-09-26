@@ -38,6 +38,10 @@ mod validation;
 mod verification_registry;
 mod social_analytics_registry;
 mod probation_registry;
+mod security_contact_verification;
+mod health_score_registry;
+mod activity_feed_registry;
+mod metadata_enrichment_registry;
 
 #[cfg(test)]
 mod tests;
@@ -57,6 +61,10 @@ use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
+use crate::activity_feed_registry::ActivityFeedRegistry;
+use crate::health_score_registry::HealthScoreRegistry;
+use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
+use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
     BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
@@ -71,6 +79,14 @@ use crate::types::{
     VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
     VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
     AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
+    // #757 security contact verification
+    SecurityContactVerificationRecord, SecurityContactVerificationStatus,
+    // #756 health score
+    HealthScoreBreakdown, HealthScoreConfig, HealthScoreSnapshot, ProjectHealthScore,
+    // #759 activity feed
+    ActivityEntry, ActivityKind,
+    // #760 metadata enrichment
+    EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -3267,5 +3283,170 @@ impl DongleContract {
         crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
             &env, project_id,
         )
+    }
+
+    // ── #757: Security Contact Email Verification ─────────────────────────
+
+    /// Initiate a challenge-response verification for a project's security
+    /// contact. Emits a `SC_CHALL` event containing the one-time token.
+    /// Caller must be the project owner.
+    pub fn initiate_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<SecurityContactVerificationRecord, ContractError> {
+        SecurityContactVerificationRegistry::initiate_verification(&env, project_id, &caller)
+    }
+
+    /// Confirm receipt of the challenge token to mark the security contact as
+    /// verified. Caller must be the project owner.
+    pub fn confirm_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        token: String,
+    ) -> Result<SecurityContactVerificationRecord, ContractError> {
+        SecurityContactVerificationRegistry::confirm_verification(&env, project_id, &caller, token)
+    }
+
+    /// Return the current security contact verification status for a project.
+    pub fn get_security_contact_verification_status(
+        env: Env,
+        project_id: u64,
+    ) -> SecurityContactVerificationStatus {
+        SecurityContactVerificationRegistry::get_status(&env, project_id)
+    }
+
+    /// Admin: revoke a security contact verification to force re-verification.
+    pub fn admin_revoke_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        SecurityContactVerificationRegistry::admin_revoke(&env, project_id, &admin)
+    }
+
+    /// Check whether annual re-verification is required for a project's
+    /// security contact.
+    pub fn security_contact_requires_reverification(env: Env, project_id: u64) -> bool {
+        SecurityContactVerificationRegistry::requires_reverification(&env, project_id)
+    }
+
+    // ── #756: Project Health Score ────────────────────────────────────────
+
+    /// Return (and lazily compute) the current health score for a project.
+    pub fn get_project_health_score(
+        env: Env,
+        project_id: u64,
+    ) -> Result<ProjectHealthScore, ContractError> {
+        HealthScoreRegistry::get_health_score(&env, project_id)
+    }
+
+    /// Return paginated historical health score snapshots for a project
+    /// (oldest-first, up to 100 per page).
+    pub fn get_project_health_history(
+        env: Env,
+        project_id: u64,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<HealthScoreSnapshot>, ContractError> {
+        HealthScoreRegistry::get_health_history(&env, project_id, offset, limit)
+    }
+
+    /// Admin: recompute and store the health score for a project immediately.
+    pub fn refresh_project_health_score(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<ProjectHealthScore, ContractError> {
+        HealthScoreRegistry::refresh_health_score(&env, project_id, &caller)
+    }
+
+    /// Admin: configure the health score weights and update frequency.
+    /// `rating_weight + activity_weight + verification_weight` must equal 100.
+    pub fn set_health_score_config(
+        env: Env,
+        admin: Address,
+        config: HealthScoreConfig,
+    ) -> Result<(), ContractError> {
+        HealthScoreRegistry::set_config(&env, &admin, config)
+    }
+
+    /// Return the current health score configuration.
+    pub fn get_health_score_config(env: Env) -> HealthScoreConfig {
+        HealthScoreRegistry::get_config(&env)
+    }
+
+    // ── #759: Project Activity Feed / Timeline ───────────────────────────
+
+    /// Return a paginated page of the activity feed for a project, optionally
+    /// filtered by activity kind. Results are newest-first, max 100 per page.
+    pub fn get_project_activity_feed(
+        env: Env,
+        project_id: u64,
+        filter: Option<ActivityKind>,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<ActivityEntry>, ContractError> {
+        ActivityFeedRegistry::get_activity_feed(&env, project_id, filter, offset, limit)
+    }
+
+    /// Return the total number of activity entries for a project.
+    pub fn get_project_activity_count(
+        env: Env,
+        project_id: u64,
+    ) -> Result<u32, ContractError> {
+        ActivityFeedRegistry::get_activity_count(&env, project_id)
+    }
+
+    // ── #760: Automatic Metadata Enrichment ──────────────────────────────
+
+    /// Admin/relayer: submit an enrichment suggestion for a project.
+    /// Manual approval by the owner is required before changes are applied.
+    pub fn submit_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        source: String,
+        fields: MetadataEnrichmentFields,
+    ) -> Result<EnrichmentSuggestion, ContractError> {
+        MetadataEnrichmentRegistry::submit_suggestion(&env, project_id, &caller, source, fields)
+    }
+
+    /// Owner: approve a pending enrichment suggestion and apply the suggested
+    /// fields to the project.
+    pub fn approve_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        suggestion_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        MetadataEnrichmentRegistry::approve_suggestion(&env, project_id, suggestion_id, &owner)
+    }
+
+    /// Owner: reject a pending enrichment suggestion without applying it.
+    pub fn reject_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        suggestion_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        MetadataEnrichmentRegistry::reject_suggestion(&env, project_id, suggestion_id, &owner)
+    }
+
+    /// Return all enrichment suggestions (pending and reviewed) for a project.
+    pub fn get_enrichment_suggestions(
+        env: Env,
+        project_id: u64,
+    ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
+        MetadataEnrichmentRegistry::get_suggestions(&env, project_id)
+    }
+
+    /// Return only pending enrichment suggestions for a project.
+    pub fn get_pending_enrichment_suggestions(
+        env: Env,
+        project_id: u64,
+    ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
+        MetadataEnrichmentRegistry::get_pending_suggestions(&env, project_id)
     }
 }
