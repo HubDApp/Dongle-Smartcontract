@@ -352,6 +352,16 @@ pub enum NotificationKey {
     ExpiredProposalIds,
 }
 
+/// Per-address operation windows, stored in a separate namespace to keep the
+/// main storage key enums below Soroban's contract-type variant cap.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProjectRateLimitKey {
+    Registration(Address),
+    Update(Address),
+    Query(Address),
+}
+
 /// Storage keys for review content integrity seals (#809).
 ///
 /// `ExtensionKey` is at its 50-variant Soroban cap; review integrity

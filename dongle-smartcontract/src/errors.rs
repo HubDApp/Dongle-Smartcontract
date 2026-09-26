@@ -213,6 +213,8 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 99,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 100,
+    /// The address has exceeded its project operation budget for the current window.
+    OperationLimitExceeded = 101,
 }
 
 pub type Error = ContractError;

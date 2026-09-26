@@ -23,6 +23,7 @@ mod featured_registry;
 mod fee_manager;
 pub mod pagination;
 mod project_registry;
+mod project_operation_limiter;
 pub mod rating_calculator;
 mod recommendation_registry;
 mod report_registry;

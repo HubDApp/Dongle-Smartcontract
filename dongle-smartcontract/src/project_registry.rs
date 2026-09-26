@@ -17,6 +17,7 @@ use crate::events::{
 use crate::fee_manager::FeeManager;
 use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
+use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
     ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
     ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
@@ -182,6 +183,7 @@ impl ProjectRegistry {
 
         // ── Validation (read-only, no storage writes) ──────────────────────
         Self::validate_registration_fields(env, &params)?;
+        ProjectOperationLimiter::consume_registration(env, &params.owner)?;
 
         // ── Fee payment ────────────────────────────────────────────────────
         if let Ok(config) = FeeManager::get_fee_config(env) {
@@ -349,6 +351,7 @@ impl ProjectRegistry {
         if !is_owner && !is_maintainer {
             return Err(ContractError::Unauthorized);
         }
+        ProjectOperationLimiter::consume_update(env, &params.caller)?;
 
         // ── Metadata freeze guard ──────────────────────────────────────────
         // For verified projects, identity-critical fields are frozen.
