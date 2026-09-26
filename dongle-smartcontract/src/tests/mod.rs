@@ -41,6 +41,7 @@ mod verification;
 mod verification_features;
 mod verification_lifecycle;
 mod verification_replacement;
+mod verification_expert_assignment;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 // Issue #545: property-based fuzz tests for the CID and URL validators
@@ -148,3 +149,7 @@ mod notifications;
 mod bookmark_folders;
 // Issue #804: Review archival to cheaper storage
 mod review_archive;
+
+// Issues #720-#723: CID validation strengthening, string injection audit,
+// reentrancy analysis, and access control matrix
+mod issues_720_723;

@@ -173,6 +173,23 @@ pub const RATING_MAX: u32 = 5;
 /// After this period, verified projects need to renew their verification.
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
 
+/// Default probationary verification period duration in seconds (30 days).
+pub const DEFAULT_PROBATIONARY_DURATION_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum duration of a temporary verification suspension.
+pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
+/// Feature thresholds used by the default verification risk model.
+pub const RISK_MODEL_MONTH_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
+
+/// Verification expiry reminder and resend windows.
+pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// Maximum duration of a temporary verification suspension.
+pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
 /// TTL for critical contract data (admin list, fee config, treasury).
@@ -241,6 +258,8 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
 /// Admins can override this via set_verification_duration.
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
+/// Minimum notice required between announcing a sunset and its effective date.
+pub const PROJECT_SUNSET_MIN_NOTICE_SECS: u64 = 180 * 24 * 60 * 60;
 /// Minimum timelock delay in seconds (1 day).
 ///
 /// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,
@@ -388,3 +407,24 @@ pub const ACTIVITY_BENCHMARK: u32 = 50;
 
 /// Maximum number of description bytes for an A/B test experiment.
 pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Verification Assignment & Specialized Admin SLA Constants ─────────────
+
+/// Default review SLA duration for verification requests (3 days = 259,200 seconds).
+pub const DEFAULT_VERIFICATION_SLA_SECS: u64 = 3 * 24 * 60 * 60;
+
+/// Minimum allowed verification SLA duration (1 hour = 3,600 seconds).
+pub const MIN_VERIFICATION_SLA_SECS: u64 = 3600;
+
+/// Maximum allowed verification SLA duration (30 days = 2,592,000 seconds).
+pub const MAX_VERIFICATION_SLA_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum length of an admin expertise string (64 bytes).
+pub const MAX_EXPERTISE_LEN: usize = 64;
+
+/// Maximum number of expertise tags an admin can have.
+pub const MAX_EXPERTISE_TAGS_PER_ADMIN: u32 = 20;
+
+/// Maximum length of a decline or escalation reason string.
+pub const MAX_ASSIGNMENT_REASON_LEN: usize = 256;
+

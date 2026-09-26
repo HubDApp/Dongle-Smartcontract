@@ -31,11 +31,32 @@ impl VerificationStateMachine {
             // Pending -> Verified (admin approval)
             (VerificationStatus::Pending, VerificationStatus::Verified) => Ok(()),
 
+            // Pending -> Probationary (probationary verification)
+            (VerificationStatus::Pending, VerificationStatus::Probationary) => Ok(()),
+
+            // Probationary -> Verified (auto-promote after 30-day period)
+            (VerificationStatus::Probationary, VerificationStatus::Verified) => Ok(()),
+
+            // Probationary -> Unverified (revoke during probation without full review)
+            (VerificationStatus::Probationary, VerificationStatus::Unverified) => Ok(()),
+
+            // Probationary -> Suspended (temporary suspension during probation)
+            (VerificationStatus::Probationary, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Probationary (restoration back to probation)
+            (VerificationStatus::Suspended, VerificationStatus::Probationary) => Ok(()),
+
             // Pending -> Rejected (admin rejection)
             (VerificationStatus::Pending, VerificationStatus::Rejected) => Ok(()),
 
             // Verified -> Unverified (admin revocation)
             (VerificationStatus::Verified, VerificationStatus::Unverified) => Ok(()),
+
+            // Verified -> Suspended (temporary admin suspension)
+            (VerificationStatus::Verified, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Verified (explicit or automatic restoration)
+            (VerificationStatus::Suspended, VerificationStatus::Verified) => Ok(()),
 
             // Same state (no change) - this should fail as it's not a valid transition
             (current, target) if current == target => Err(ContractError::InvalidStatus),
@@ -126,6 +147,19 @@ impl VerificationStateMachine {
             VerificationStatus::Verified => {
                 let mut v = Vec::new(env);
                 v.push_back(VerificationStatus::Unverified); // revocable by admin
+                v.push_back(VerificationStatus::Suspended);
+                v
+            }
+            VerificationStatus::Suspended => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
+                v
+            }
+            VerificationStatus::Probationary => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
+                v.push_back(VerificationStatus::Unverified);
+                v.push_back(VerificationStatus::Suspended);
                 v
             }
         }

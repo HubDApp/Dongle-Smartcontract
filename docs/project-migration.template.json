@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "source": {
+    "registry": "example-registry",
+    "exportVersion": "1",
+    "exportedAt": "2026-09-24T00:00:00Z"
+  },
+  "projects": [
+    {
+      "sourceId": "example-project-001",
+      "owner": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "name": "Example Project",
+      "slug": "example-project",
+      "description": "A concise project description.",
+      "category": "Infrastructure",
+      "website": "https://example.org",
+      "repository": "https://github.com/example/project",
+      "license": "MIT",
+      "logoCid": null,
+      "metadataCid": null,
+      "tags": ["stellar", "open-source"],
+      "socialLinks": {
+        "community": "https://example.org/community"
+      },
+      "launchTimestamp": null,
+      "bountyUrl": null,
+      "maintainers": ["Example Team"]
+    }
+  ]
+}

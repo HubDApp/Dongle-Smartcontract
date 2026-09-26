@@ -258,6 +258,8 @@ pub enum ExtensionKey {
     /// caps those at 50 cases; a per-entry key plus a separate count key would
     /// need two slots and push the enum over the limit.
     FeeConfigHistory,
+    /// Verification suspension timeline for a project, oldest-first.
+    ProjectVerificationSuspensions(u64),
 }
 
 /// Third overflow storage key enum, introduced because `ExtensionKey` has reached the
@@ -284,6 +286,32 @@ pub enum ExtensionKey2 {
     /// Index of reviewer addresses whose reviews have been archived for a project.
     /// Enables paginated enumeration of all archived reviews for a given project.
     ProjectArchivedReviews(u64),
+    /// Append-only evidence CID versions for a verification request.
+    VerificationEvidenceVersions(u64),
+    /// Scheduled deprecation, sunset, alternatives, and redirect for a project.
+    ProjectSunsetPlan(u64),
+    /// Risk assessment captured for a verification request.
+    VerificationRiskAssessment(u64),
+    /// Verification request IDs currently flagged for additional review.
+    HighRiskVerificationRequests,
+    /// Current coefficients and threshold for the verification risk model.
+    VerificationRiskModel,
+    /// Full appeal history for a rejected verification request.
+    VerificationAppeals(u64),
+    /// Active rejection metadata for a project to enforce the per-rejection appeal cap.
+    VerificationRejection(u64),
+    /// Veto (rejection) count for an admin in a given month key (e.g. "2026-09") (#730).
+    AdminVetoCount(Address, String),
+    /// Maximum number of vetoes (rejections) an admin may cast per month (u32). Default: 0 = unlimited.
+    VetoMonthlyLimit,
+    /// Admin session by session ID.
+    AdminSession(u64),
+    /// List of session IDs for an admin.
+    AdminSessionList(Address),
+    /// Session audit history for an admin.
+    AdminSessionHistory(Address),
+    /// Next admin session ID counter.
+    NextAdminSessionId,
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
@@ -315,6 +343,13 @@ pub enum NotificationKey {
     /// Queue of project IDs with pending updates awaiting digest delivery.
     /// Cleared after a digest is emitted.
     UserDigestQueue(Address),
+    /// Owner-facing verification expiry reminder state by project.
+    VerificationExpiryNotification(u64),
+    /// Set of admin proposal IDs eligible for expired-proposal cleanup (#728).
+    /// Proposals whose `expires_at` is non-zero and in the past are added here
+    /// by `cleanup_expired_proposals` so callers can discover them without
+    /// scanning the full proposal list.
+    ExpiredProposalIds,
 }
 
 /// Storage keys for review content integrity seals (#809).
@@ -397,3 +432,41 @@ pub enum TrustAndSafetyKey {
     /// Reviewer reward points and stats. Keyed by reviewer address. (#791)
     ReviewerPoints(Address),
 }
+/// Storage keys for governance features (#736-#739).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GovKey {
+    /// Comments on a proposal: Vec<ProposalComment> keyed by proposal_id.
+    ProposalComments(u64),
+    /// Admin activity record keyed by admin address.
+    AdminActivity(Address),
+    /// Emergency recovery request by ID.
+    EmergencyRecovery(u64),
+    /// List of all emergency recovery request IDs.
+    EmergencyRecoveryIds,
+    /// Next emergency recovery request ID counter.
+    NextEmergencyRecoveryId,
+}
+
+/// Storage keys for verification assignment, admin expertise routing, and SLA tracking.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AssignmentKey {
+    /// Next assignment ID counter (auto-increment).
+    NextAssignmentId,
+    /// Assignment record by ID: assignment_id (u64) -> VerificationAssignment
+    Assignment(u64),
+    /// Current active assignment ID for a project: project_id (u64) -> u64
+    ActiveProjectAssignment(u64),
+    /// Assignment history for a project: project_id (u64) -> Vec<u64>
+    ProjectAssignmentHistory(u64),
+    /// Assignment IDs assigned to an admin: admin (Address) -> Vec<u64>
+    AdminAssignments(Address),
+    /// Admin expertise tags: admin (Address) -> Vec<String>
+    AdminExpertise(Address),
+    /// Admin addresses having a specific expertise: expertise (String) -> Vec<Address>
+    ExpertiseAdmins(String),
+    /// Configured verification review SLA in seconds.
+    VerificationSlaDuration,
+}
+

@@ -184,6 +184,35 @@ pub enum ContractError {
     /// The requested review has not been archived; the operation requires an
     /// archived review (e.g., `set_archived_review_arweave_tx`).
     ReviewNotArchived = 86,
+    /// Maximum number of appeals for the current rejection has been reached.
+    /// The project must follow the manual review process after the cap is hit.
+    AppealLimitExceeded = 87,
+    /// The requested verification appeal does not exist or is no longer valid.
+    AppealNotFound = 88,
+    /// The verification appeal has already been reviewed and cannot be changed.
+    AppealAlreadyReviewed = 89,
+    /// Admin lacks the required expertise for this verification assignment.
+    AdminLacksExpertise = 90,
+    /// Verification assignment record not found.
+    AssignmentNotFound = 91,
+    /// Invalid assignment status for the requested transition.
+    InvalidAssignmentStatus = 92,
+    /// SLA has not been breached yet; cannot escalate without cause.
+    SlaNotBreached = 93,
+    /// Caller is not the assigned admin for this verification.
+    NotAssignedAdmin = 94,
+    /// No active assignment exists for this verification request.
+    NoActiveAssignment = 95,
+    /// Admin has exceeded the monthly veto (rejection) limit (#730).
+    VetoLimitExceeded = 96,
+    /// Comment on a proposal is not allowed because voting has already started.
+    CommentLocked = 97,
+    /// Emergency recovery request not found.
+    EmergencyRecoveryNotFound = 98,
+    /// Emergency recovery request is not in the pending state.
+    EmergencyRecoveryNotPending = 99,
+    /// Threshold increase requires all admins to approve.
+    ThresholdRequiresUnanimousApproval = 100,
 }
 
 pub type Error = ContractError;

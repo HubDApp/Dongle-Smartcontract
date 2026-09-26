@@ -38,6 +38,7 @@ pub mod utils;
 mod validation;
 mod verification_registry;
 mod social_analytics_registry;
+mod probation_registry;
 
 #[cfg(test)]
 mod tests;
@@ -51,22 +52,28 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ArchivedReview, BatchTtlResult, BookmarkFolder,
-    ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, ContractClaimRequest,
-    ContractConfigView, DependencyRef, DisputeResolutionAction, DuplicateDispute, EvidenceLink,
-    FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
-    ProjectSortMode, ProjectStats, ProjectUpdateParams, ProposalPayload, Review, ReviewRevision,
-    ReviewSortMode, ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter,
-    TimelockAction, VerificationRecord, VerificationStatus, VerificationStatusFilter,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
+    BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
+    ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
+    ProjectUpdateParams, ProposalComment, ProposalPayload, Review, ReviewRevision, ReviewSortMode,
+    ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction,
+    VerificationBatchAction, VerificationBatchReport, VerificationRecord, VerificationStatus,
+    VerificationStatusFilter, NotificationDeliveryStatus, TimelockAction,
+    VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
+    VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
+    AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
 };
-use crate::verification_registry::VerificationRegistry;
+use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
@@ -196,6 +203,106 @@ impl DongleContract {
         AdminManager::list_proposals(&env, start_index, limit)
     }
 
+    /// Batch-remove expired admin proposals to prevent storage bloat (#728).
+    ///
+    /// Scans at most `batch_size` proposals (capped at 100). Expired proposals
+    /// are those whose `expires_at` is non-zero and has passed. Returns the
+    /// number of proposals removed.
+    pub fn cleanup_expired_proposals(
+        env: Env,
+        caller: Address,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        AdminManager::cleanup_expired_proposals(&env, caller, batch_size)
+    }
+
+    // --- #736: Proposal comment/discussion system ---
+
+    /// Add a comment to a proposal. Comments are immutable once voting starts.
+    pub fn add_proposal_comment(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+        content: String,
+    ) -> Result<u64, ContractError> {
+        AdminManager::add_proposal_comment(&env, caller, proposal_id, content)
+    }
+
+    /// Get comments for a proposal with pagination.
+    pub fn get_proposal_comments(
+        env: Env,
+        proposal_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ProposalComment> {
+        AdminManager::get_proposal_comments(&env, proposal_id, start_index, limit)
+    }
+
+    // --- #738: Emergency admin recovery ---
+
+    /// Initiate an emergency admin recovery request. Requires 2/3 of remaining
+    /// admins to approve, with a 7-day voting period.
+    pub fn initiate_emergency_recovery(
+        env: Env,
+        caller: Address,
+        lost_admin: Address,
+        new_admin: Address,
+    ) -> Result<u64, ContractError> {
+        AdminManager::initiate_emergency_recovery(&env, caller, lost_admin, new_admin)
+    }
+
+    /// Approve an emergency recovery request.
+    pub fn approve_emergency_recovery(
+        env: Env,
+        admin: Address,
+        request_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::approve_emergency_recovery(&env, admin, request_id)
+    }
+
+    /// Get an emergency recovery request by ID.
+    pub fn get_emergency_recovery(
+        env: Env,
+        request_id: u64,
+    ) -> Option<crate::types::EmergencyRecoveryRequest> {
+        AdminManager::get_emergency_recovery(&env, request_id)
+    }
+
+    // --- #739: Inactive admin tracking ---
+
+    /// Get the admin activity record for an address.
+    pub fn get_admin_activity(
+        env: Env,
+        admin: Address,
+    ) -> Option<crate::types::AdminActivityRecord> {
+        AdminManager::get_admin_activity(&env, &admin)
+    }
+
+    /// Check if an admin has been inactive for more than the specified days.
+    pub fn is_admin_inactive(env: Env, admin: Address, days: u64) -> bool {
+        AdminManager::is_admin_inactive(&env, &admin, days)
+    }
+
+    /// Admin-only: set the monthly veto limit per admin (#730).
+    /// 0 = unlimited (default).
+    pub fn set_veto_monthly_limit(
+        env: Env,
+        caller: Address,
+        limit: u32,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_veto_monthly_limit(&env, caller, limit)
+    }
+
+    /// Return the current monthly veto limit (0 = unlimited).
+    pub fn get_veto_monthly_limit(env: Env) -> u32 {
+        AdminManager::get_veto_monthly_limit(&env)
+    }
+
+    /// Return how many vetoes `admin` has cast in the current calendar month.
+    pub fn get_veto_count(env: Env, admin: Address) -> u32 {
+        AdminManager::get_veto_count(&env, &admin)
+    }
+
     // --- Contract Pause / Emergency Stop ---
 
     /// Pause the contract (admin-only). All non-admin mutating operations will fail.
@@ -236,6 +343,41 @@ impl DongleContract {
     ) -> Result<Project, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
+    }
+
+    pub fn schedule_project_sunset(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        sunset_at: u64,
+        alternative_project_ids: Vec<u64>,
+        redirect_project_id: Option<u64>,
+    ) -> Result<ProjectSunsetPlan, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::schedule_project_sunset(
+            &env,
+            project_id,
+            caller,
+            sunset_at,
+            alternative_project_ids,
+            redirect_project_id,
+        )
+    }
+
+    pub fn get_project_sunset_plan(env: Env, project_id: u64) -> Option<ProjectSunsetPlan> {
+        ProjectRegistry::get_project_sunset_plan(&env, project_id)
+    }
+
+    pub fn get_project_redirect(env: Env, project_id: u64) -> Option<u64> {
+        ProjectRegistry::get_project_redirect(&env, project_id)
+    }
+
+    pub fn process_project_sunset(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::process_project_sunset(&env, project_id, caller)
     }
 
     pub fn update_security_contact(
@@ -794,13 +936,45 @@ impl DongleContract {
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
+    pub fn get_verification_risk_model(env: Env) -> VerificationRiskModel {
+        VerificationRegistry::get_verification_risk_model(&env)
+    }
+
+    pub fn set_verification_risk_model(
+        env: Env,
+        admin: Address,
+        model: VerificationRiskModel,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_verification_risk_model(&env, admin, model)
+    }
+
+    pub fn get_verification_risk_assessment(
+        env: Env,
+        request_id: u64,
+    ) -> Option<VerificationRiskAssessment> {
+        VerificationRegistry::get_verification_risk_assessment(&env, request_id)
+    }
+
+    pub fn get_high_risk_verification_requests(env: Env) -> Vec<u64> {
+        VerificationRegistry::get_high_risk_verification_requests(&env)
+    }
+
+    pub fn override_verification_risk(
+        env: Env,
+        request_id: u64,
+        admin: Address,
+        flagged: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::override_verification_risk(&env, request_id, admin, flagged)
+    }
+
     /// Update the verification evidence CID for a pending verification request.
     ///
     /// # Restrictions
     /// - Only the project owner can update the evidence.
-    /// - Updates are allowed only when the request status is `Pending`.
-    /// - Once a request is finalized (either Approved/Verified or Rejected), it is immutable
-    ///   and further updates will be rejected with an error.
+    /// - Updates are allowed while the request is `Pending` or `Verified`.
+    /// - Updating a verified request resets it to `Pending` and requires a new approval.
+    /// - Rejected and revoked requests are immutable and reject further updates.
     ///
     /// # Validation
     /// - The new evidence CID is validated using the project's standard IPFS CID rules.
@@ -838,6 +1012,58 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    /// Atomically approve or reject up to 100 verification requests.
+    /// The entire batch is validated before any request is changed.
+    pub fn decide_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+        action: VerificationBatchAction,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::decide_verifications_batch(&env, request_ids, admin, action)
+    }
+
+    pub fn approve_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::approve_verifications_batch(&env, request_ids, admin)
+    }
+
+    pub fn reject_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::reject_verifications_batch(&env, request_ids, admin)
+    }
+
+    /// Submit additional evidence to appeal a rejection.
+    pub fn submit_verification_appeal(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::submit_verification_appeal(&env, project_id, owner, evidence_cid)
+    }
+
+    /// Review the latest appeal for a rejected verification.
+    pub fn review_verification_appeal(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::review_verification_appeal(&env, project_id, admin, approved)
+    }
+
+    /// Read the appeal history for a rejected verification request.
+    pub fn get_verification_appeals(env: Env, project_id: u64) -> Vec<crate::types::VerificationAppeal> {
+        VerificationRegistry::get_verification_appeals(&env, project_id)
+    }
+
     pub fn revoke_verification(
         env: Env,
         project_id: u64,
@@ -847,12 +1073,65 @@ impl DongleContract {
         VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
     }
 
+    pub fn suspend_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+        investigation_ticket: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::suspend_verification(
+            &env,
+            project_id,
+            admin,
+            reason,
+            investigation_ticket,
+        )
+    }
+
+    pub fn restore_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::restore_verification(&env, project_id, admin)
+    }
+
     pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification(&env, project_id)
     }
 
     pub fn get_verification_record(env: Env, request_id: u64) -> Option<VerificationRecord> {
         VerificationRegistry::get_verification_record(&env, request_id)
+    }
+
+    pub fn get_verification_evidence_versions(
+        env: Env,
+        request_id: u64,
+    ) -> Vec<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_versions(&env, request_id)
+    }
+
+    pub fn get_verification_evidence_version(
+        env: Env,
+        request_id: u64,
+        version: u32,
+    ) -> Option<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_version(&env, request_id, version)
+    }
+
+    pub fn compare_verification_evidence(
+        env: Env,
+        request_id: u64,
+        first_version: u32,
+        second_version: u32,
+    ) -> Option<crate::types::VerificationEvidenceComparison> {
+        VerificationRegistry::compare_verification_evidence(
+            &env,
+            request_id,
+            first_version,
+            second_version,
+        )
     }
 
     pub fn get_pending_verifications(
@@ -872,6 +1151,75 @@ impl DongleContract {
         request_ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
+    // --- Probationary Verification & Enhanced Monitoring ---
+
+    /// Returns the configured probationary duration in seconds (default: 30 days).
+    pub fn get_probation_duration(env: Env) -> u64 {
+        ProbationRegistry::get_probation_duration(&env)
+    }
+
+    /// Admin-only: configure probationary duration in seconds.
+    pub fn set_probation_duration(
+        env: Env,
+        admin: Address,
+        duration_secs: u64,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::set_probation_duration(&env, admin, duration_secs)
+    }
+
+    /// Checks if a project is currently within its 30-day probationary period.
+    pub fn is_in_probation(env: Env, project_id: u64) -> bool {
+        ProbationRegistry::is_in_probation(&env, project_id)
+    }
+
+    /// Fetches the probation status record for a project.
+    pub fn get_probation_record(env: Env, project_id: u64) -> Option<ProbationRecord> {
+        ProbationRegistry::get_probation_record(&env, project_id)
+    }
+
+    /// Returns effective verification status (Probationary if in active 30-day probation).
+    pub fn get_effective_verification(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationStatus> {
+        ProbationRegistry::get_effective_verification_status(&env, project_id)
+    }
+
+    /// Auto-promotes a project to full verification after the 30-day probationary period.
+    pub fn check_and_promote_probation(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        ProbationRegistry::check_and_promote_probation(&env, project_id)
+    }
+
+    /// Fast-track revocation during probation without requiring full review.
+    pub fn revoke_during_probation(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::revoke_during_probation(&env, admin, project_id, reason)
+    }
+
+    /// Enhanced monitoring: records an incident or discrepancy against a project in probation.
+    pub fn record_probation_incident(
+        env: Env,
+        reporter: Address,
+        project_id: u64,
+        details: String,
+    ) -> Result<u32, ContractError> {
+        ProbationRegistry::record_probation_incident(&env, reporter, project_id, details)
+    }
+
+    /// Returns the incident count recorded for a project during probation.
+    pub fn get_probation_incident_count(env: Env, project_id: u64) -> u32 {
+        ProbationRegistry::get_probation_incident_count(&env, project_id)
+    }
+
+    /// Lists project IDs currently under active probation and enhanced monitoring.
+    pub fn list_probationary_projects(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        ProbationRegistry::list_probationary_projects(&env, start_index, limit)
     }
 
     /// Read the refund recorded after a rejected verification (issue #472).
@@ -909,6 +1257,13 @@ impl DongleContract {
 
     pub fn get_verification_history(env: Env, project_id: u64) -> Vec<VerificationRecord> {
         VerificationRegistry::get_verification_history(&env, project_id)
+    }
+
+    pub fn get_verification_suspension_timeline(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<VerificationSuspension> {
+        VerificationRegistry::get_verification_suspension_timeline(&env, project_id)
     }
 
     pub fn request_renewal(
@@ -962,6 +1317,42 @@ impl DongleContract {
         VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
     }
 
+    pub fn process_verification_expiry_notification(
+        env: Env,
+        project_id: u64,
+    ) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn get_verification_expiry_notification(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationExpiryNotification> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn record_verification_expiry_notification_delivery(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        delivered: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::record_verification_expiry_notification_delivery(
+            &env,
+            project_id,
+            admin,
+            delivered,
+        )
+    }
+
+    pub fn get_notification_delivery_status(
+        env: Env,
+        project_id: u64,
+    ) -> Option<NotificationDeliveryStatus> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+            .map(|notification| notification.delivery_status)
+    }
+
     /// Admin: prune verification history, keeping the most recent `keep_count` records.
     /// Returns the number of records removed.
     pub fn clear_verification_history(
@@ -998,6 +1389,172 @@ impl DongleContract {
     /// Get the admin assigned to review a verification request.
     pub fn get_assigned_admin(env: Env, project_id: u64) -> Option<Address> {
         VerificationRegistry::get_assigned_admin(&env, project_id)
+    }
+
+    // --- Verification Assignment & Specialized Admin Routing ---
+
+    /// Admin: assign a pending verification request to an admin with specific expertise.
+    pub fn assign_verification_with_expertise(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+        expertise: String,
+    ) -> Result<u64, ContractError> {
+        VerificationAssignmentRegistry::assign_verification_with_expertise(
+            &env,
+            project_id,
+            admin,
+            assignee,
+            Some(expertise),
+        )
+    }
+
+    /// Admin: automatically route a pending verification request to an admin specialized in the given expertise.
+    pub fn route_verification_to_expert(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        expertise: String,
+    ) -> Result<Address, ContractError> {
+        VerificationAssignmentRegistry::route_verification_to_expert(
+            &env,
+            project_id,
+            admin,
+            expertise,
+        )
+    }
+
+    /// Admin: set or update the specialized expertise domains for an admin.
+    pub fn set_admin_expertise(
+        env: Env,
+        caller: Address,
+        admin: Address,
+        expertise: Vec<String>,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_admin_expertise(&env, caller, admin, expertise)
+    }
+
+    /// Get the expertise domains registered for an admin.
+    pub fn get_admin_expertise(env: Env, admin: Address) -> Vec<String> {
+        VerificationAssignmentRegistry::get_admin_expertise(&env, admin)
+    }
+
+    /// Get all admins registered with a specific expertise domain.
+    pub fn get_admins_by_expertise(env: Env, expertise: String) -> Vec<Address> {
+        VerificationAssignmentRegistry::get_admins_by_expertise(&env, expertise)
+    }
+
+    /// Assigned Admin: accept the verification assignment to begin review.
+    pub fn accept_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::accept_verification_assignment(&env, project_id, admin)
+    }
+
+    /// Assigned Admin: decline the verification assignment with a reason, releasing it for reassignment.
+    pub fn decline_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::decline_verification_assignment(
+            &env,
+            project_id,
+            admin,
+            reason,
+        )
+    }
+
+    /// Get the active assignment record for a project's verification request, if any.
+    pub fn get_current_verification_assignment(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_current_verification_assignment(&env, project_id)
+    }
+
+    /// Get a specific verification assignment by its unique assignment ID.
+    pub fn get_verification_assignment(
+        env: Env,
+        assignment_id: u64,
+    ) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment(&env, assignment_id)
+    }
+
+    /// Get the complete historical log of verification assignments for a project.
+    pub fn get_verification_assignment_history(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history(&env, project_id)
+    }
+
+    /// Get paginated verification assignment history for a project.
+    pub fn get_verification_assignment_history_paginated(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history_paginated(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get all verification assignments associated with a specific admin.
+    pub fn get_admin_assignments(
+        env: Env,
+        admin: Address,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_admin_assignments(&env, admin)
+    }
+
+    /// Get workload statistics for an admin.
+    pub fn get_admin_workload(env: Env, admin: Address) -> AdminWorkload {
+        VerificationAssignmentRegistry::get_admin_workload(&env, admin)
+    }
+
+    /// Admin: set the global SLA duration (in seconds) for verification assignments.
+    pub fn set_verification_sla(
+        env: Env,
+        admin: Address,
+        sla_seconds: u64,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_verification_sla(&env, admin, sla_seconds)
+    }
+
+    /// Get the current verification review SLA duration (in seconds).
+    pub fn get_verification_sla(env: Env) -> u64 {
+        VerificationAssignmentRegistry::get_verification_sla(&env)
+    }
+
+    /// Check if the active assignment for a project has breached its review SLA deadline.
+    pub fn is_assignment_sla_breached(env: Env, project_id: u64) -> bool {
+        VerificationAssignmentRegistry::is_assignment_sla_breached(&env, project_id)
+    }
+
+    /// Get remaining seconds until the active assignment's SLA deadline lapses.
+    pub fn get_assignment_sla_remaining(env: Env, project_id: u64) -> Option<u64> {
+        VerificationAssignmentRegistry::get_assignment_sla_remaining(&env, project_id)
+    }
+
+    /// Admin: escalate an overdue or unhandled verification assignment that breached SLA.
+    pub fn escalate_verification_assignment(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::escalate_verification_assignment(
+            &env, caller, project_id, reason,
+        )
     }
 
     // --- Reserved Project Names ---

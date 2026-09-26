@@ -565,9 +565,13 @@ pub enum VerificationStatus {
     Pending,
     /// The project has been verified by an admin.
     Verified,
+    /// The project's verification is temporarily unavailable while it is investigated.
+    Suspended,
     /// The most recent verification request was rejected by an admin.
     /// The owner may re-pay the fee and re-submit.
     Rejected,
+    /// The project is within its initial 30-day probationary period under enhanced monitoring.
+    Probationary,
 }
 
 /// Project lifecycle status for managing project activity state.
@@ -585,6 +589,18 @@ pub enum ProjectLifecycleStatus {
     Deprecated,
     /// Sunset - officially discontinued
     Sunset,
+}
+
+/// Scheduled deprecation and sunset metadata for a project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSunsetPlan {
+    pub project_id: u64,
+    pub announced_at: u64,
+    pub sunset_at: u64,
+    pub alternative_project_ids: Vec<u64>,
+    pub redirect_project_id: Option<u64>,
+    pub archived_at: Option<u64>,
 }
 
 /// Complete record of a single verification request, including its outcome.
@@ -635,6 +651,187 @@ pub struct VerificationRecord {
     /// Admin assigned to review this verification request via
     /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
+}
+
+/// Immutable snapshot of the evidence CID used by a verification request.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceVersion {
+    /// One-based version number within the verification request.
+    pub version: u32,
+    /// Evidence CID at this version.
+    pub evidence_cid: String,
+    /// Address that submitted this version.
+    pub submitted_by: Address,
+    /// Unix timestamp when this version was recorded.
+    pub submitted_at: u64,
+}
+
+/// Probationary verification status record tracking the initial monitoring period after approval.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationRecord {
+    /// ID of the project in probation.
+    pub project_id: u64,
+    /// ID of the verification request that was approved into probation.
+    pub request_id: u64,
+    /// Admin that approved the verification.
+    pub approved_by: Address,
+    /// Ledger timestamp when the 30-day probationary period started.
+    pub started_at: u64,
+    /// Ledger timestamp when the probationary period ends (started_at + 30 days).
+    pub probation_until: u64,
+    /// Whether the project has completed probation and auto-promoted to full verification.
+    pub is_promoted: bool,
+    /// Whether the project was revoked during probation without a full review.
+    pub is_revoked: bool,
+    /// Whether enhanced monitoring rules and lower reporting thresholds apply.
+    pub enhanced_monitoring: bool,
+    /// Count of incidents or flags recorded during the probationary period.
+    pub incident_count: u32,
+}
+
+/// Incident or alert recorded against a probationary project during enhanced monitoring.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationIncident {
+    /// Sequential incident index for this project.
+    pub incident_id: u32,
+    /// Project ID under monitoring.
+    pub project_id: u64,
+    /// Address that reported the incident or alert.
+    pub reporter: Address,
+    /// Description of the incident or discrepancy observed.
+    pub details: String,
+    /// Ledger timestamp when the incident was recorded.
+    pub recorded_at: u64,
+}
+
+/// Configuration settings for the probationary verification system.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationConfig {
+    /// Configured probationary duration in seconds (default: 30 days).
+    pub duration_secs: u64,
+    /// Whether enhanced monitoring is actively enforced during probation.
+    pub enhanced_monitoring_active: bool,
+}
+
+/// Pair of immutable evidence snapshots selected for comparison.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationEvidenceComparison {
+    pub first: VerificationEvidenceVersion,
+    pub second: VerificationEvidenceVersion,
+    pub changed: bool,
+}
+
+/// Operation applied by a batch verification decision.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationBatchAction {
+    Approve,
+    Reject,
+}
+
+/// Result for one request in a successful batch decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchResult {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub status: VerificationStatus,
+    pub decided_at: u64,
+}
+
+/// Report returned after an atomic batch verification decision.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationBatchReport {
+    pub action: VerificationBatchAction,
+    pub total: u32,
+    pub results: Vec<VerificationBatchResult>,
+}
+
+/// A formal appeal against a rejection, including the additional evidence
+/// submitted by the owner and the result of the appeal review.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppeal {
+    /// Project whose verification was rejected.
+    pub project_id: u64,
+    /// Request ID that was rejected.
+    pub request_id: u64,
+    /// Project owner that submitted the appeal.
+    pub owner: Address,
+    /// Admin whose rejection is being appealed.
+    pub rejected_by: Address,
+    /// Additional evidence CID submitted with the appeal.
+    pub evidence_cid: String,
+    /// Ledger timestamp when the appeal was submitted.
+    pub submitted_at: u64,
+    /// Admin who reviewed the appeal, if reviewed.
+    pub reviewed_by: Option<Address>,
+    /// The appeal outcome, if a review has occurred.
+    pub approved: Option<bool>,
+    /// Timestamp when the appeal was reviewed, or zero if still pending.
+    pub reviewed_at: u64,
+}
+
+/// Per-project rejection state used to track the current rejection and the
+/// number of appeals already filed for it.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRejectionState {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub rejected_by: Address,
+    pub rejected_at: u64,
+    pub appeal_count: u32,
+}
+
+/// An auditable verification suspension and its eventual restoration.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSuspension {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub investigation_ticket: String,
+    pub suspended_at: u64,
+    pub restore_at: u64,
+    pub restored_at: Option<u64>,
+    pub restored_by: Option<Address>,
+}
+
+/// Configurable coefficients for the deterministic on-chain risk model.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRiskModel {
+    pub model_version: u32,
+    pub age_weight: u32,
+    pub reputation_weight: u32,
+    pub rating_weight: u32,
+    pub threshold: u32,
+}
+
+/// Risk assessment captured when a verification request is submitted.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRiskAssessment {
+    pub request_id: u64,
+    pub project_id: u64,
+    pub model_version: u32,
+    pub project_age_score: u32,
+    pub reputation_score: u32,
+    pub rating_score: u32,
+    pub score: u32,
+    pub threshold: u32,
+    pub flagged: bool,
+    pub override_flag: Option<bool>,
+    pub overridden_by: Option<Address>,
+    pub assessed_at: u64,
 }
 
 /// Record of a completed verification renewal.
@@ -1013,7 +1210,14 @@ pub enum AdminActionType {
     AdminRemoved,
     VerificationApproved,
     VerificationRejected,
+    VerificationAppealSubmitted,
+    VerificationAppealApproved,
+    VerificationAppealRejected,
     VerificationRevoked,
+    VerificationSuspended,
+    VerificationRestored,
+    VerificationRiskModelUpdated,
+    VerificationRiskOverridden,
     VerificationRenewalApproved,
     VerificationRenewalRejected,
     FeeChanged,
@@ -1049,6 +1253,16 @@ pub enum AdminActionType {
     ClaimRequestApproved,
     /// Admin rejected an ownership claim request.
     ClaimRequestRejected,
+    /// Admin accepted a verification assignment.
+    VerificationAssignmentAccepted,
+    /// Admin declined a verification assignment.
+    VerificationAssignmentDeclined,
+    /// Verification assignment escalated due to SLA breach.
+    VerificationAssignmentEscalated,
+    /// Admin expertise was set or updated.
+    AdminExpertiseSet,
+    /// Verification SLA was configured.
+    VerificationSlaSet,
 }
 
 /// Current state of a duplicate-project dispute.
@@ -1098,6 +1312,65 @@ pub enum DisputeResolutionAction {
     ArchiveProject(u64),
     /// Link the two projects as related rather than archiving either.
     LinkDuplicates,
+}
+
+/// A comment/discussion entry on a proposal (#736).
+///
+/// Comments are attached to proposals and are immutable once voting starts.
+/// They provide a transparent discussion thread before governance decisions.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalComment {
+    /// Unique comment identifier within a proposal's comment list.
+    pub comment_id: u64,
+    /// ID of the proposal this comment belongs to.
+    pub proposal_id: u64,
+    /// Admin address that posted the comment.
+    pub author: Address,
+    /// Comment content (IPFS CID or inline text).
+    pub content: String,
+    /// Unix timestamp when the comment was created.
+    pub created_at: u64,
+}
+
+/// Tracks admin activity timestamps for inactive admin detection (#739).
+///
+/// Stored under `GovKey::AdminActivity(address)`. Updated on every admin
+/// action (proposal creation, approval, rejection, etc.).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminActivityRecord {
+    /// Unix timestamp of the last admin action by this address.
+    pub last_action_at: u64,
+    /// Unix timestamp when the admin was first recorded as inactive (> 90 days).
+    pub flagged_inactive_at: Option<u64>,
+    /// Whether the admin has been auto-flagged for removal due to > 180 days inactivity.
+    pub removal_proposed: bool,
+}
+
+/// Emergency admin recovery request (#738).
+///
+/// Allows recovery of admin access in case of key loss. Requires approval
+/// from 2/3 of remaining admins and has a 7-day voting period.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyRecoveryRequest {
+    /// Unique recovery request ID.
+    pub request_id: u64,
+    /// Address of the admin whose key was lost (the account being recovered).
+    pub lost_admin: Address,
+    /// New admin address to replace the lost key.
+    pub new_admin: Address,
+    /// Map of admin addresses that have approved this recovery.
+    pub approvals: Map<Address, bool>,
+    /// Number of approvals required (2/3 of remaining admins).
+    pub required_approvals: u32,
+    /// Unix timestamp when the request was created.
+    pub created_at: u64,
+    /// Unix timestamp when the 7-day voting period ends.
+    pub voting_deadline: u64,
+    /// Whether the recovery has been executed.
+    pub executed: bool,
 }
 
 /// A single entry in the admin action log.
@@ -1518,10 +1791,37 @@ pub enum NotificationKind {
     VerificationRejected,
     /// The project's verification was revoked by an admin.
     VerificationRevoked,
+    /// Verification is within the renewal reminder window.
+    VerificationExpiringSoon,
     /// The project was archived.
     ProjectArchived,
     /// The project was reactivated from an archived state.
     ProjectReactivated,
+}
+
+/// Delivery state recorded for an expiry reminder attempt.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationDeliveryStatus {
+    Pending,
+    Delivered,
+    Failed,
+}
+
+/// Tracks expiry reminder delivery, resend timing, and owner response.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiryNotification {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub owner: Address,
+    pub expires_at: u64,
+    pub renewal_instructions: String,
+    pub first_sent_at: u64,
+    pub last_sent_at: u64,
+    pub resend_count: u32,
+    pub delivery_status: NotificationDeliveryStatus,
+    pub owner_responded: bool,
 }
 
 /// Global notification preferences for a user.
@@ -1713,3 +2013,63 @@ pub struct ReviewerPoints {
     pub quality_reviews_count: u32,
     pub badges: Vec<String>,
 }
+// ── Verification Assignment & Routing Types ─────────────────────────────────
+
+/// Lifecycle status of an admin verification assignment.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationAssignmentStatus {
+    /// Assignment created and awaiting admin acceptance.
+    Assigned = 0,
+    /// Admin accepted the assignment to review.
+    Accepted = 1,
+    /// Admin declined the assignment.
+    Declined = 2,
+    /// Assignment exceeded SLA without completion and was escalated.
+    Escalated = 3,
+    /// Verification has been approved or rejected (completed).
+    Completed = 4,
+}
+
+/// A persistent record tracking a verification assignment to a specialized admin.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignment {
+    /// Unique monotonically-increasing assignment ID.
+    pub assignment_id: u64,
+    /// ID of the project being verified.
+    pub project_id: u64,
+    /// ID of the underlying verification request.
+    pub request_id: u64,
+    /// Admin who made or routed the assignment.
+    pub assigner: Address,
+    /// Admin assigned to review the request.
+    pub assignee: Address,
+    /// Specialized expertise area required for this assignment (if specified).
+    pub expertise: Option<String>,
+    /// Current lifecycle status of the assignment.
+    pub status: VerificationAssignmentStatus,
+    /// Unix timestamp when the assignment was made.
+    pub assigned_at: u64,
+    /// Unix timestamp when the assignee accepted or declined (if responded).
+    pub responded_at: Option<u64>,
+    /// Unix timestamp representing the SLA deadline for review completion.
+    pub sla_deadline: u64,
+    /// Reason provided by admin if the assignment was declined.
+    pub decline_reason: Option<String>,
+    /// Reason provided when the assignment was escalated.
+    pub escalation_reason: Option<String>,
+}
+
+/// Summary of an admin's current assignment workload.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminWorkload {
+    pub admin: Address,
+    pub active_assignments: u32,
+    pub total_assigned: u32,
+    pub total_completed: u32,
+    pub total_declined: u32,
+    pub total_escalated: u32,
+}
+

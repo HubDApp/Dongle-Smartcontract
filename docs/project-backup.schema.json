@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DongleProjectBackupSnapshot",
+  "description": "Schema for Dongle smart contract project state backup snapshots and point-in-time recovery points.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "snapshotId",
+    "timestamp",
+    "ledgerSequence",
+    "network",
+    "contractId",
+    "totalProjects",
+    "stateIntegrityHash",
+    "merkleRoot",
+    "decentralizedStorage",
+    "projects"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer schema version of the backup format."
+    },
+    "snapshotId": {
+      "type": "string",
+      "pattern": "^snap-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z-[a-f0-9]{8}$",
+      "description": "Unique deterministic snapshot identifier."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO-8601 creation timestamp."
+    },
+    "unixTimestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix timestamp in seconds at snapshot creation."
+    },
+    "ledgerSequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Stellar ledger sequence number at which the snapshot was captured."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["testnet", "mainnet", "futurenet", "standalone", "local"],
+      "description": "Target Stellar / Soroban network."
+    },
+    "contractId": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$",
+      "description": "Stellar contract address for Dongle."
+    },
+    "totalProjects": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of project records captured in this snapshot."
+    },
+    "stateIntegrityHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 digest of the canonical project state array."
+    },
+    "merkleRoot": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Cryptographic Merkle tree root hash computed from sorted project hashes."
+    },
+    "decentralizedStorage": {
+      "type": "object",
+      "required": ["cid", "storageProviders"],
+      "additionalProperties": false,
+      "properties": {
+        "cid": {
+          "type": "string",
+          "description": "IPFS Content Identifier (CIDv1 or CIDv0) of the canonical snapshot payload."
+        },
+        "cidVersion": {
+          "type": "integer",
+          "enum": [0, 1]
+        },
+        "arweaveTxId": {
+          "type": ["string", "null"],
+          "pattern": "^[a-zA-Z0-9_-]{43}$",
+          "description": "Optional Arweave transaction identifier."
+        },
+        "storageProviders": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ipfs", "pinata", "web3.storage", "filecoin", "arweave", "local-pin"]
+          }
+        },
+        "pinStatus": {
+          "type": "string",
+          "enum": ["pinned", "queued", "local_only", "replicated"]
+        },
+        "gatewayUrls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner",
+          "name",
+          "slug",
+          "description",
+          "category",
+          "verificationStatus",
+          "archived",
+          "claimable",
+          "lifecycleStatus",
+          "createdAt",
+          "updatedAt",
+          "integrityHash"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "website": {
+            "type": ["string", "null"],
+            "format": "uri"
+          },
+          "license": {
+            "type": ["string", "null"],
+            "maxLength": 64
+          },
+          "logoCid": {
+            "type": ["string", "null"],
+            "maxLength": 128
+          },
+          "metadataCid": {
+            "type": ["string", "null"],
+            "maxLength": 128
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": ["Unverified", "Pending", "Verified", "Rejected", "Revoked"]
+          },
+          "currentVerificationId": {
+            "type": ["integer", "null"]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "claimable": {
+            "type": "boolean"
+          },
+          "lifecycleStatus": {
+            "type": "string",
+            "enum": ["Active", "Beta", "Paused", "Deprecated", "Sunset"]
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "maxItems": 10
+          },
+          "socialLinks": {
+            "type": ["object", "null"],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "launchTimestamp": {
+            "type": ["integer", "null"]
+          },
+          "maintainers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "pattern": "^G[A-Z2-7]{55}$"
+            }
+          },
+          "bountyUrl": {
+            "type": ["string", "null"]
+          },
+          "repositoryUrl": {
+            "type": ["string", "null"]
+          },
+          "securityContact": {
+            "type": ["string", "null"]
+          },
+          "securityContactProofCid": {
+            "type": ["string", "null"]
+          },
+          "securityContactVerified": {
+            "type": "boolean"
+          },
+          "region": {
+            "type": ["string", "null"]
+          },
+          "integrityHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 hash matching ProjectRegistry::compute_integrity_hash."
+          },
+          "stats": {
+            "type": ["object", "null"],
+            "properties": {
+              "ratingSum": { "type": "integer" },
+              "reviewCount": { "type": "integer" },
+              "averageRating": { "type": "integer" }
+            }
+          },
+          "linkedProjects": {
+            "type": ["array", "null"],
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
