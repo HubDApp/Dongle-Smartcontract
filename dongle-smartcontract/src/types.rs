@@ -2033,3 +2033,220 @@ pub struct AdminWorkload {
     pub total_escalated: u32,
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #757 — Security contact email verification (challenge-response)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Full verification record for a security contact challenge-response flow.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactVerificationRecord {
+    /// Project this record belongs to.
+    pub project_id: u64,
+    /// The security contact string at the time the challenge was issued.
+    pub contact: String,
+    /// One-time token the contact must confirm.
+    pub token: String,
+    /// Ledger timestamp when the token was generated.
+    pub token_issued_at: u64,
+    /// Ledger timestamp after which the pending token is expired.
+    pub token_expires_at: u64,
+    /// Whether the contact has been successfully verified.
+    pub verified: bool,
+    /// Ledger timestamp of the successful confirmation (0 if unverified).
+    pub verified_at: u64,
+    /// Ledger timestamp after which annual re-verification is required (0 if unverified).
+    pub verification_expires_at: u64,
+}
+
+/// Read-only view returned by `get_security_contact_verification_status`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactVerificationStatus {
+    pub project_id: u64,
+    /// Current security contact string, if set.
+    pub contact: Option<String>,
+    /// Whether verification is current (verified and not expired).
+    pub verified: bool,
+    /// Timestamp of most recent successful verification (0 if never verified).
+    pub verified_at: u64,
+    /// Timestamp when annual re-verification is due (0 if unverified).
+    pub verification_expires_at: u64,
+    /// Whether annual re-verification is now required (verified but expired).
+    pub re_verification_required: bool,
+    /// Whether a challenge token has been issued and is still pending confirmation.
+    pub challenge_pending: bool,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #756 — Project health score
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Configuration for the health score weights (must sum to 100).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HealthScoreConfig {
+    /// Points allocated to the rating component (0–100).
+    pub rating_weight: u32,
+    /// Points allocated to the activity (recency) component (0–100).
+    pub activity_weight: u32,
+    /// Points allocated to the verification status component (0–100).
+    pub verification_weight: u32,
+    /// Minimum interval (seconds) between automatic recomputations.
+    pub update_frequency_secs: u64,
+}
+
+/// Breakdown of score contributions from each component.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HealthScoreBreakdown {
+    /// Points contributed by the rating component.
+    pub rating_score: u32,
+    /// Points contributed by the activity/recency component.
+    pub activity_score: u32,
+    /// Points contributed by the verification status component.
+    pub verification_score: u32,
+    /// Number of reviews at time of computation.
+    pub review_count: u32,
+    /// Bayesian average rating × 100 at time of computation.
+    pub average_rating: u32,
+    /// Timestamp of the project's most recent update.
+    pub last_updated_at: u64,
+    /// Verification status at time of computation.
+    pub verification_status: VerificationStatus,
+}
+
+/// A historical snapshot of a project's health score.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HealthScoreSnapshot {
+    /// Score at time of snapshot (0–100).
+    pub score: u32,
+    /// Ledger timestamp when the snapshot was taken.
+    pub computed_at: u64,
+    /// Component breakdown at time of snapshot.
+    pub breakdown: HealthScoreBreakdown,
+}
+
+/// The current health score for a project plus the latest breakdown.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectHealthScore {
+    pub project_id: u64,
+    /// Composite score 0–100.
+    pub score: u32,
+    /// Ledger timestamp of the most recent computation.
+    pub computed_at: u64,
+    /// Breakdown of how the score was arrived at.
+    pub breakdown: HealthScoreBreakdown,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #759 — Project activity feed / timeline
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Discriminant for the kind of activity recorded in the feed.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ActivityKind {
+    /// A new review was submitted.
+    ReviewSubmitted,
+    /// An existing review was updated.
+    ReviewUpdated,
+    /// A review was deleted.
+    ReviewDeleted,
+    /// Project metadata was updated.
+    ProjectUpdated,
+    /// Verification was requested.
+    VerificationRequested,
+    /// Verification was approved.
+    VerificationApproved,
+    /// Verification was rejected.
+    VerificationRejected,
+    /// Verification was revoked.
+    VerificationRevoked,
+    /// Project ownership was transferred.
+    OwnershipTransferred,
+    /// Project was archived.
+    ProjectArchived,
+    /// Project was reactivated.
+    ProjectReactivated,
+    /// A project link was added.
+    ProjectLinked,
+    /// Security contact was updated.
+    SecurityContactUpdated,
+    /// Metadata enrichment suggestion was approved.
+    EnrichmentApproved,
+}
+
+/// A single entry in a project's activity feed.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActivityEntry {
+    /// ID of the project this activity belongs to.
+    pub project_id: u64,
+    /// Address that performed the action.
+    pub actor: Address,
+    /// Type of activity.
+    pub kind: ActivityKind,
+    /// Optional detail string (e.g. reviewer address, new owner, etc.).
+    pub detail: Option<String>,
+    /// Ledger timestamp when the activity occurred.
+    pub timestamp: u64,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #760 — Automatic metadata enrichment
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Status of an enrichment suggestion.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EnrichmentSuggestionStatus {
+    /// Awaiting owner review.
+    Pending,
+    /// Approved and applied by the owner.
+    Approved,
+    /// Rejected by the owner.
+    Rejected,
+}
+
+/// Fields that may be populated by the enrichment suggestion.
+/// Each `Option` field is `None` if not suggested by the source.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MetadataEnrichmentFields {
+    /// Suggested tags (from GitHub topics, NPM keywords, etc.).
+    pub tags: Option<Vec<String>>,
+    /// Suggested social links map (platform → URL).
+    pub social_links: Option<Map<String, String>>,
+    /// Suggested repository URL.
+    pub repository_url: Option<String>,
+    /// Suggested website URL.
+    pub website: Option<String>,
+    /// Suggested description.
+    pub description: Option<String>,
+}
+
+/// A pending or resolved enrichment suggestion for a project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EnrichmentSuggestion {
+    /// Unique monotonically-increasing suggestion ID.
+    pub id: u64,
+    /// Project this suggestion applies to.
+    pub project_id: u64,
+    /// Data source label (e.g. `"github"`, `"npm"`, `"crates_io"`).
+    pub source: String,
+    /// Suggested metadata fields.
+    pub fields: MetadataEnrichmentFields,
+    /// Current status.
+    pub status: EnrichmentSuggestionStatus,
+    /// Admin/relayer that submitted the suggestion.
+    pub submitted_by: Address,
+    /// Ledger timestamp of submission.
+    pub submitted_at: u64,
+    /// Ledger timestamp when the suggestion was reviewed (0 if still pending).
+    pub reviewed_at: u64,
+}
