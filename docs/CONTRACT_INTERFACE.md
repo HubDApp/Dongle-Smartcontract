@@ -818,6 +818,34 @@ let defi_projects = list_projects_by_category(env, String::from_slice(&env, "DeF
 
 ---
 
+### `search_projects`
+
+**Purpose**: Search active projects by name, description, tags, or category and return the most relevant matches first. Matching is case-insensitive for ASCII letters.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `query` (String): Text to find in project metadata; an empty query returns no results
+- `start_index` (u32): Zero-based offset into the ranked results
+- `limit` (u32): Maximum number of projects to return; zero or values above 100 use the 100-result maximum
+
+**Relevance**: Exact name matches score 1000, name prefixes 800, and other name matches 600. Description matches add 300, category matches add 200, and each matching tag adds 350. The project's weighted rating adds up to 50 points, and verification status adds 100 for verified, 20 for pending, or 10 for probationary. Ties are ordered by ascending project ID.
+
+**Return Value**: `Vec<Project>`
+- A page of unarchived matching projects in descending relevance order
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let results = search_projects(env, String::from_slice(&env, "lending"), 0, 100);
+```
+
+---
+
 ### `list_projects_by_tag`
 
 **Purpose**: Retrieve projects filtered by tag with pagination.

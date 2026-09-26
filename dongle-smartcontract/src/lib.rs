@@ -529,6 +529,17 @@ impl DongleContract {
         ProjectRegistry::list_projects_by_category(&env, category, start_index, limit)
     }
 
+    /// Search active projects by name, description, tags, or category.
+    /// Results are relevance-ranked with rating and verification boosts.
+    pub fn search_projects(
+        env: Env,
+        query: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::search_projects(&env, query, start_index, limit)
+    }
+
     /// List projects filtered by lifecycle status.
     ///
     /// Named `list_projects_by_lifecycle` rather than
