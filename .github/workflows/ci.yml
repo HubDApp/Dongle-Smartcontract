@@ -92,6 +92,15 @@ jobs:
       - name: Build WASM (release) — catch no_std incompatibilities early
         run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 
+      - name: Verify WASM binary exists
+        run: |
+          WASM=target/wasm32-unknown-unknown/release/dongle_contract.wasm
+          if [ ! -f "$WASM" ]; then
+            echo "ERROR: WASM binary not found at $WASM" >&2
+            exit 1
+          fi
+          echo "WASM binary produced: $(du -h $WASM | cut -f1) at $WASM"
+
   clippy:
     name: Linting
     runs-on: ubuntu-latest
