@@ -40,7 +40,40 @@ for the full policy.
 
 ### Added
 
-- **#804: Review archival to cheaper storage with query access and automatic job.**
+- **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
+  configuration) covering vulnerability, license, duplicate-crate, and source
+  checks. New `audit` CI job runs `cargo deny check` on every PR and push to
+  main; the `build` job now gates on `audit`. Added `make audit` target to the
+  Makefile and updated `dev`/`ci` composite targets to include it. Dependency
+  review should be performed quarterly via `cargo update` + PR.
+
+- **#714: Enforce clippy warnings as build failures.** Added
+  `.cargo/config.toml` with `RUSTFLAGS = ["-D", "warnings"]` so every local
+  `cargo build` / `cargo check` / `cargo clippy` run fails on any warning,
+  mirroring CI behaviour exactly. Added `clippy.toml` documenting active lint
+  thresholds. The existing CI clippy job already used `-D warnings`; this
+  change closes the local/CI divergence gap.
+
+### Changed
+
+- **#715: Documented all `#[allow(dead_code)]` attributes.** Every suppression
+  now includes an inline justification comment explaining why the item is kept
+  (catalogue completeness, off-chain tooling, immutability stub, test fixture,
+  etc.). The `#![allow(dead_code)]` crate-level attribute in `constants.rs` is
+  similarly annotated. Policy: a suppression without a justification comment is
+  a review blocker.
+
+### Fixed
+
+- **#717: Replace `.unwrap()` calls with proper error returns in production
+  paths.** All reachable `.unwrap()` calls on `Vec::get(i)` in
+  `verification_registry/assignment.rs` have been replaced with
+  `.ok_or(ContractError::InvalidInput)?` or `if let Some(…)` patterns,
+  eliminating any denial-of-service vector reachable from public entry points.
+  Test-only `.unwrap()` / `.expect()` calls (inside `#[cfg(test)]` blocks) are
+  intentionally left in place per Rust convention.
+
+
   Reviews older than 2 years (configurable via `REVIEW_ARCHIVE_AGE_SECONDS = 63_072_000`)
   can now be archived by an admin to a compact, shorter-TTL on-chain record, freeing
   primary persistent storage rent. New contract entrypoints:

@@ -1,4 +1,8 @@
 //! Tests for project launch timestamp feature (Issue #156)
+// This module uses fixtures from `tests::fixtures` which expose helpers not
+// called by every test in this file.  `#![allow(dead_code)]` prevents
+// spurious warnings when the test binary is compiled as part of the larger
+// test suite.
 #![allow(dead_code)]
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::ProjectRegistrationParams;

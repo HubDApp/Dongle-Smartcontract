@@ -87,15 +87,17 @@ impl VerificationAssignmentRegistry {
             return Err(ContractError::InvalidInput);
         }
 
-        // Validate each expertise tag and ensure no duplicates
+        // Validate each expertise tag and ensure no duplicates.
+        // `Vec::get(i)` returns `Option<T>`; we use `ok_or` to propagate any
+        // out-of-bounds access as `InvalidInput` rather than panicking.
         for i in 0..expertise.len() {
-            let tag = expertise.get(i).unwrap();
+            let tag = expertise.get(i).ok_or(ContractError::InvalidInput)?;
             let len = tag.len() as usize;
             if len == 0 || len > MAX_EXPERTISE_LEN {
                 return Err(ContractError::InvalidInput);
             }
             for j in (i + 1)..expertise.len() {
-                if expertise.get(j).unwrap() == tag {
+                if expertise.get(j).ok_or(ContractError::InvalidInput)? == tag {
                     return Err(ContractError::InvalidInput);
                 }
             }
@@ -104,13 +106,13 @@ impl VerificationAssignmentRegistry {
         // Remove old tags from inverted index
         let old_expertise = Self::get_admin_expertise(env, admin.clone());
         for i in 0..old_expertise.len() {
-            let old_tag = old_expertise.get(i).unwrap();
+            let old_tag = old_expertise.get(i).ok_or(ContractError::InvalidInput)?;
             Self::remove_admin_from_expertise_index(env, &old_tag, &admin);
         }
 
         // Add new tags to inverted index
         for i in 0..expertise.len() {
-            let new_tag = expertise.get(i).unwrap();
+            let new_tag = expertise.get(i).ok_or(ContractError::InvalidInput)?;
             Self::add_admin_to_expertise_index(env, &new_tag, &admin);
         }
 
@@ -163,9 +165,12 @@ impl VerificationAssignmentRegistry {
 
         let mut out = Vec::new(env);
         for i in 0..candidate_admins.len() {
-            let addr = candidate_admins.get(i).unwrap();
-            if AdminManager::is_admin(env, &addr) {
-                out.push_back(addr);
+            // `get(i)` is infallible for i < len, but we use `if let` to
+            // avoid any theoretical panic at a public entry point.
+            if let Some(addr) = candidate_admins.get(i) {
+                if AdminManager::is_admin(env, &addr) {
+                    out.push_back(addr);
+                }
             }
         }
         out
@@ -289,11 +294,11 @@ impl VerificationAssignmentRegistry {
             return Err(ContractError::AdminLacksExpertise);
         }
 
-        let mut best_admin = candidates.get(0).unwrap();
+        let mut best_admin = candidates.get(0).ok_or(ContractError::AdminLacksExpertise)?;
         let mut min_workload = u32::MAX;
 
         for i in 0..candidates.len() {
-            let candidate = candidates.get(i).unwrap();
+            let candidate = candidates.get(i).ok_or(ContractError::AdminLacksExpertise)?;
             let workload = Self::get_admin_active_assignment_count(env, candidate.clone());
             if workload < min_workload {
                 min_workload = workload;
@@ -933,9 +938,11 @@ impl VerificationAssignmentRegistry {
             .unwrap_or_else(|| Vec::new(env));
         let mut found_idx: Option<u32> = None;
         for i in 0..admins.len() {
-            if admins.get(i).unwrap() == *admin {
-                found_idx = Some(i);
-                break;
+            if let Some(a) = admins.get(i) {
+                if a == *admin {
+                    found_idx = Some(i);
+                    break;
+                }
             }
         }
         if let Some(idx) = found_idx {
@@ -954,9 +961,11 @@ impl VerificationAssignmentRegistry {
             .unwrap_or_else(|| Vec::new(env));
         let mut found = false;
         for i in 0..admins.len() {
-            if admins.get(i).unwrap() == *admin {
-                found = true;
-                break;
+            if let Some(a) = admins.get(i) {
+                if a == *admin {
+                    found = true;
+                    break;
+                }
             }
         }
         if !found {

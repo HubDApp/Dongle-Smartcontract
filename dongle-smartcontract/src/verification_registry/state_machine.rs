@@ -66,7 +66,15 @@ impl VerificationStateMachine {
         }
     }
 
-    /// Gets a descriptive error message for invalid transitions
+    /// Gets a descriptive error message for invalid transitions.
+    ///
+    /// This function is intentionally kept private and not exposed through the
+    /// public contract interface because Soroban panics on host-side string
+    /// allocations in some contexts.  It is retained for use in off-chain
+    /// tooling, test harnesses, and future diagnostic logging once the
+    /// SDK supports richer error payloads.
+    // Dead-code justification: diagnostic helper kept for off-chain tooling
+    // and test harnesses; not yet wired to a public contract entry point.
     #[allow(dead_code)]
     fn get_transition_error_message(
         from: VerificationStatus,
@@ -109,19 +117,38 @@ impl VerificationStateMachine {
         )
     }
 
-    /// Checks if a project can be approved based on its current status
+    /// Checks if a project can be approved based on its current status.
+    ///
+    /// Mirrors `can_request_verification` for symmetry.  Currently unused in
+    /// production paths because approval logic is inlined in
+    /// `VerificationRegistry::approve_verification`, but kept here so the
+    /// state-machine module remains the single source of truth for all
+    /// state queries.
+    // Dead-code justification: state-machine symmetry helper; approval logic
+    // is currently inlined in VerificationRegistry::approve_verification.
     #[allow(dead_code)]
     pub fn can_be_approved(status: VerificationStatus) -> bool {
         matches!(status, VerificationStatus::Pending)
     }
 
-    /// Checks if a project can be rejected based on its current status
+    /// Checks if a project can be rejected based on its current status.
+    ///
+    /// See `can_be_approved` for the same rationale.
+    // Dead-code justification: state-machine symmetry helper; rejection logic
+    // is currently inlined in VerificationRegistry::reject_verification.
     #[allow(dead_code)]
     pub fn can_be_rejected(status: VerificationStatus) -> bool {
         matches!(status, VerificationStatus::Pending)
     }
 
-    /// Gets all possible next states from the current state
+    /// Gets all possible next states from the current state.
+    ///
+    /// Returns a `Vec` of every status that a project in `status` may legally
+    /// transition to.  Intended for off-chain tooling (indexers, admin UIs)
+    /// that need to enumerate valid actions; not used in the on-chain
+    /// execution paths.
+    // Dead-code justification: helper for off-chain tooling/admin UIs;
+    // on-chain paths call validate_transition directly.
     #[allow(dead_code)]
     pub fn get_possible_next_states(
         env: &Env,
