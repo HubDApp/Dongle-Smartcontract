@@ -1,5 +1,9 @@
 //! Reusable test fixtures and helper functions for contract testing.
 
+// Many helper functions in this module are used by only a subset of the test
+// files that `use` it.  `#![allow(dead_code)]` suppresses warnings for helpers
+// that are compiled in but not exercised by every individual test binary; this
+// is standard practice for shared test utility modules.
 #![allow(dead_code)]
 
 use crate::types::{Project, ProjectRegistrationParams, VerificationStatus};

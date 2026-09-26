@@ -1498,6 +1498,14 @@ impl VerificationRegistry {
         record.assigned_admin
     }
 
+    /// Returns `true` if a verification record exists for `project_id`.
+    ///
+    /// This is a low-cost existence check (single storage `has` call) kept
+    /// as a convenience for admin tooling and integration tests.  On-chain
+    /// callers currently use `get_verification` directly and check `is_some()`,
+    /// so this helper has no callers in production paths yet.
+    // Dead-code justification: convenience helper for integration tests and
+    // off-chain tooling; not yet called from on-chain paths.
     #[allow(dead_code)]
     pub fn verification_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
@@ -1612,7 +1620,14 @@ impl VerificationRegistry {
             .unwrap_or(crate::constants::VERIFICATION_VALIDITY_PERIOD)
     }
 
-    /// Set verification validity duration (admin only)
+    /// Set verification validity duration (admin only).
+    ///
+    /// This function is implemented but not yet wired to a `lib.rs` entry
+    /// point.  It is kept here so that the getter/setter pair is complete
+    /// and the setter can be exposed in a follow-up PR without touching this
+    /// module again.
+    // Dead-code justification: setter is implemented but not yet exposed via
+    // lib.rs; will be wired in a follow-up PR adding the admin config endpoint.
     #[allow(dead_code)]
     pub fn set_verification_duration(
         env: &Env,

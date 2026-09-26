@@ -622,9 +622,13 @@ impl SocialAnalyticsRegistry {
             .unwrap_or(0)
     }
 
-    // Silence unused import for ExtensionKey (kept so it remains available
-    // for future bookmark-count cross-reading after bookmark_registry
-    // enhancement).
+    // `ExtensionKey` is imported for use in future cross-registry reads
+    // (e.g. reading bookmark counts from BookmarkRegistry).  The import
+    // would be flagged as unused without this stub, which would break the
+    // `-D warnings` build.  Remove this stub once a production caller in
+    // this module uses ExtensionKey directly.
+    // Dead-code justification: anchor for `ExtensionKey` import pending
+    // bookmark-count cross-registry feature.
     #[allow(dead_code)]
     fn _keep_extension_key_imported(_x: ExtensionKey) {}
 }
