@@ -320,10 +320,16 @@ impl Utils {
         license.copy_into_slice(&mut buf[..cap]);
 
         for &b in buf[..cap].iter() {
-            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' && b != b' ' && b != b'(' && b != b')' {
                 return Err(ContractError::InvalidProjectData);
             }
         }
+        
+        let s_upper = alloc::string::String::from_utf8_lossy(&buf[..cap]).to_ascii_uppercase();
+        if s_upper.contains("GPL") && s_upper.contains("APACHE") {
+            return Err(ContractError::InvalidProjectData);
+        }
+        
         Ok(())
     }
 

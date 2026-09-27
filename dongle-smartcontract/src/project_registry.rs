@@ -246,6 +246,19 @@ impl ProjectRegistry {
 
         // Issue #483: keep the inverted tag index current from registration.
         Self::index_project_tags(env, count, &project.tags);
+        
+        if let Some(ref lic) = project.license {
+            let mut lic_count: u32 = env
+                .storage()
+                .persistent()
+                .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                .unwrap_or(0);
+            lic_count = lic_count.saturating_add(1);
+            env.storage()
+                .persistent()
+                .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &lic_count);
+        }
+
         // Ids are handed out sequentially, so a new project extends the covered
         // range by exactly one whenever it lands directly after the watermark.
         if count == Self::get_tag_index_watermark(env).saturating_add(1) {
@@ -507,6 +520,38 @@ impl ProjectRegistry {
             if let Some(ref license) = value {
                 Utils::validate_license(license)?;
             }
+            
+            let old_lic = project.license.clone();
+            if old_lic != value {
+                if let Some(ref lic) = old_lic {
+                    let mut count: u32 = env
+                        .storage()
+                        .persistent()
+                        .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                        .unwrap_or(0);
+                    count = count.saturating_sub(1);
+                    env.storage()
+                        .persistent()
+                        .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &count);
+                }
+                if let Some(ref lic) = value {
+                    let mut count: u32 = env
+                        .storage()
+                        .persistent()
+                        .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                        .unwrap_or(0);
+                    count = count.saturating_add(1);
+                    env.storage()
+                        .persistent()
+                        .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &count);
+                }
+                
+                env.events().publish(
+                    (soroban_sdk::symbol_short!("Project"), soroban_sdk::symbol_short!("LicChange"), project.id),
+                    (old_lic.clone(), value.clone()),
+                );
+            }
+
             project.license = value;
         }
         if let Some(value) = params.logo_cid {

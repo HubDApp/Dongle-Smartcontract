@@ -199,6 +199,8 @@ pub enum ExtensionKey {
     EndorsementAt(u64, u32),
     /// Zero-based position of an endorser in a project's index.
     EndorsementIndex(u64, Address),
+    /// Tally of projects using a specific license.
+    LicenseStats(String),
     /// Endorsement count for a project.
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
