@@ -1,4 +1,11 @@
 #![allow(dead_code)]
+// Dead-code policy: this module defines contract-wide limits that are imported
+// by other modules.  Some constants are defined for completeness / future use
+// (e.g. MIN_STRING_LEN) and are not yet referenced in every code path.
+// Silencing the lint here is intentional: removing "unused" constants would
+// make the limit catalogue incomplete, and re-adding them later would be a
+// larger PR than necessary.  Any constant that remains unused for more than
+// two release cycles should be re-evaluated and removed if still unneeded.
 //! Contract limits and validation constants. Kept in one place for easy future updates.
 
 /// Maximum number of projects a single user (address) can register.
@@ -48,6 +55,9 @@ pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 /// Minimum length for name, description, category (must be non-empty after trim in validation).
 /// Enforced as "non-empty and not whitespace-only" — a zero-length field carries no information
 /// and would break slug/URL generation and list rendering.
+// Dead-code justification: validation currently checks "not empty" inline rather than
+// comparing against this constant, but the constant is kept here so the lower bound
+// is documented alongside MAX_NAME_LEN and can be referenced in future refactors.
 #[allow(dead_code)]
 pub const MIN_STRING_LEN: usize = 1;
 
