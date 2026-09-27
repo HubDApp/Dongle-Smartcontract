@@ -23,9 +23,9 @@
 //! is_admin(addr)  <=>  admin_list.contains(addr)
 //! ```
 
+use crate::errors::ContractError;
 use crate::DongleContract;
 use crate::DongleContractClient;
-use crate::errors::ContractError;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, Env};
 
@@ -266,11 +266,7 @@ fn test_admin_list_reflects_all_mapping_entries() {
 
     // Every address we added must be in the list
     for e in &extra {
-        assert!(
-            list.contains(e),
-            "Added address missing from list: {:?}",
-            e
-        );
+        assert!(list.contains(e), "Added address missing from list: {:?}", e);
     }
 
     assert_count_matches_list(&client);

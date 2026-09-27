@@ -342,7 +342,7 @@ impl AdminManager {
         let id: u64 = env
             .storage()
             .persistent()
-            .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
+            .get(&crate::storage_keys::ExtensionKey2::NextAdminProposalId)
             .unwrap_or(0);
 
         let action_type = match &payload {
@@ -395,6 +395,8 @@ impl AdminManager {
             .set(&crate::storage_keys::ExtensionKey::AdminProposalIds, &ids);
 
         env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey2::NextAdminProposalId,
+            &(id + 1),
             &crate::storage_keys::ExtensionKey::NextAdminProposalId,
             &id.checked_add(1).ok_or(ContractError::ArithmeticOverflow)?,
         );
@@ -593,6 +595,24 @@ impl AdminManager {
 
                 // Supermajority rule for threshold downgrades:
                 // If this proposal would *lower* the current threshold, the number
+                // of approvals must be strictly greater than the *current* threshold
+                // — not merely greater than the proposed new threshold.
+                //
+                // Rationale: the quorum that is being dismantled must itself be
+                // exceeded, not just the smaller quorum being installed. With a
+                // guard of `> new_threshold` only, exactly `current_threshold`
+                // colluding admins could create a proposal that passes the live
+                // threshold check and yet immediately reduces future quorum.
+                // Requiring `> current_threshold` means at least one admin beyond
+                // the current quorum must sign off on any reduction.
+                //
+                // For threshold *increases* or no-ops the normal threshold check
+                // (approvals.len() >= current_threshold) already performed above
+                // is sufficient; no additional requirement is added.
+                let current_threshold = Self::get_admin_approval_threshold(env);
+                if new_threshold < current_threshold
+                    && proposal.approvals.len() <= current_threshold
+                {
                 // of approvals must be strictly greater than the *current* threshold.
                 if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
                     return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
