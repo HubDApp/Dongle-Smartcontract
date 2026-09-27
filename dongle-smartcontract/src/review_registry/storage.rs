@@ -356,13 +356,19 @@ impl ReviewRegistry {
         publish_review_event(
             env,
             project_id,
-            reviewer,
+            reviewer.clone(), // Clone to pass to TrustAndSafety
             ReviewAction::Submitted,
             comment_cid.clone(),
             None,
             now,
             now,
         );
+
+        // #791 Reward Reviewers
+        let is_detailed = comment_cid.is_some();
+        let points = if is_detailed { 30 } else { 10 };
+        crate::trust_and_safety::TrustAndSafety::award_reviewer_points(env, &reviewer, points, is_detailed);
+
         Ok(())
     }
 
