@@ -21,8 +21,8 @@
 //! tracks the current folder so callers do not need to search every folder.
 
 use crate::constants::{
-    MAX_BOOKMARKS_PER_FOLDER, MAX_BOOKMARK_FOLDERS_PER_USER, MAX_FOLDER_DEPTH,
-    MAX_FOLDER_NAME_LEN, MAX_PAGE_LIMIT, MAX_SMART_FOLDERS_PER_USER,
+    MAX_BOOKMARKS_PER_FOLDER, MAX_BOOKMARK_FOLDERS_PER_USER, MAX_FOLDER_DEPTH, MAX_FOLDER_NAME_LEN,
+    MAX_PAGE_LIMIT, MAX_SMART_FOLDERS_PER_USER,
 };
 use crate::errors::ContractError;
 use crate::events::{
@@ -203,12 +203,10 @@ impl BookmarkRegistry {
         env.storage()
             .persistent()
             .set(&BookmarkKey::BookmarkFolder(user.clone(), id), &folder);
-        env.storage()
-            .persistent()
-            .set(
-                &BookmarkKey::FolderBookmarks(user.clone(), id),
-                &Vec::<u64>::new(env),
-            );
+        env.storage().persistent().set(
+            &BookmarkKey::FolderBookmarks(user.clone(), id),
+            &Vec::<u64>::new(env),
+        );
 
         // Append to user's folder-ID list.
         let mut ids = folder_ids;
@@ -280,9 +278,10 @@ impl BookmarkRegistry {
         folder.name = new_name.clone();
         folder.updated_at = env.ledger().timestamp();
 
-        env.storage()
-            .persistent()
-            .set(&BookmarkKey::BookmarkFolder(user.clone(), folder_id), &folder);
+        env.storage().persistent().set(
+            &BookmarkKey::BookmarkFolder(user.clone(), folder_id),
+            &folder,
+        );
 
         StorageManager::extend_folder_ttl(env, &user, folder_id);
 
@@ -316,11 +315,7 @@ impl BookmarkRegistry {
     }
 
     /// List direct children (sub-folders) of a given parent folder.
-    pub fn list_child_folders(
-        env: &Env,
-        user: Address,
-        parent_id: u64,
-    ) -> Vec<BookmarkFolder> {
+    pub fn list_child_folders(env: &Env, user: Address, parent_id: u64) -> Vec<BookmarkFolder> {
         let ids = Self::get_user_folder_ids(env, &user);
         let mut result = Vec::new(env);
         for i in 0..ids.len() {
@@ -678,12 +673,10 @@ impl BookmarkRegistry {
             .persistent()
             .get(&BookmarkKey::NextSmartFolderIdForUser(user.clone()))
             .unwrap_or(1u64);
-        env.storage()
-            .persistent()
-            .set(
-                &BookmarkKey::NextSmartFolderIdForUser(user.clone()),
-                &(id + 1),
-            );
+        env.storage().persistent().set(
+            &BookmarkKey::NextSmartFolderIdForUser(user.clone()),
+            &(id + 1),
+        );
         id
     }
 
@@ -723,12 +716,10 @@ impl BookmarkRegistry {
             .get(&BookmarkKey::FolderBookmarks(user.clone(), folder_id))
             .unwrap_or_else(|| Vec::new(env));
         let updated = Utils::remove_item_from_vec(env, &list, &project_id);
-        env.storage()
-            .persistent()
-            .set(
-                &BookmarkKey::FolderBookmarks(user.clone(), folder_id),
-                &updated,
-            );
+        env.storage().persistent().set(
+            &BookmarkKey::FolderBookmarks(user.clone(), folder_id),
+            &updated,
+        );
         Ok(())
     }
 
