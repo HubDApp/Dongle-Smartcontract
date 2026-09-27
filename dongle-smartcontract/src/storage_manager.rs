@@ -7,6 +7,7 @@ use crate::constants::*;
 use crate::storage_keys::{
     ActivityFeedKey, BookmarkKey, ExtensionKey, HealthScoreKey, MetadataEnrichmentKey,
     ReviewIntegrityKey, SecurityContactVerifKey, StorageKey,
+    BookmarkKey, ExtensionKey, ExtensionKey2, ReviewIntegrityKey, StorageKey,
 };
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 

@@ -98,6 +98,14 @@ pub const MAX_CID_LEN: usize = 128;
 /// A CIDv0 is exactly 46 base58 characters; anything shorter cannot be a valid CID.
 pub const MIN_CID_LEN: usize = 46;
 
+/// Lower bound used by the **lenient** CID validator (issue #667).
+///
+/// The lenient check only verifies prefix + length window, so it accepts the
+/// shorter `[40, 46)` window that pre-existing proof CIDs live in. Use
+/// `MIN_CID_LEN` (or `Utils::is_valid_ipfs_cid_strict`) where the canonical
+/// 46-byte CIDv0 minimum must be enforced.
+pub const MIN_CID_FLOOR: usize = 40;
+
 /// Maximum stored edit revisions per review (oldest dropped when exceeded).
 /// 50: revision history is a bounded ring buffer so an actively-edited review
 /// cannot grow its storage entry without limit.
@@ -186,9 +194,6 @@ pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
 /// Verification expiry reminder and resend windows.
 pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
 pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
-
-/// Maximum duration of a temporary verification suspension.
-pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
@@ -410,15 +415,17 @@ pub const MAX_AB_TEST_DESC_LEN: usize = 200;
 
 // ── Verification Assignment & Specialized Admin SLA Constants ─────────────
 
-/// Default review SLA duration for verification requests (3 days = 259,200 seconds).
-pub const DEFAULT_VERIFICATION_SLA_SECS: u64 = 3 * 24 * 60 * 60;
+/// Default verification SLA: 7 days from request to decision (issue #741).
+///
+/// 7 days matches the acceptance criterion for the SLA tracker and is the
+/// value used when neither a region override nor an admin override is set.
+pub const DEFAULT_VERIFICATION_SLA_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// Minimum allowed verification SLA duration (1 hour = 3,600 seconds).
 pub const MIN_VERIFICATION_SLA_SECS: u64 = 3600;
 
 /// Maximum allowed verification SLA duration (30 days = 2,592,000 seconds).
 pub const MAX_VERIFICATION_SLA_SECS: u64 = 30 * 24 * 60 * 60;
-
 /// Maximum length of an admin expertise string (64 bytes).
 pub const MAX_EXPERTISE_LEN: usize = 64;
 
@@ -428,3 +435,186 @@ pub const MAX_EXPERTISE_TAGS_PER_ADMIN: u32 = 20;
 /// Maximum length of a decline or escalation reason string.
 pub const MAX_ASSIGNMENT_REASON_LEN: usize = 256;
 
+// ── Verification SLA Tracking (#741) ───────────────────────────────────────
+
+/// How long before an SLA breach an alert is emitted (24 hours).
+///
+/// `check_sla_alerts` emits a `VerificationSlaAlert` event for every pending
+/// request whose deadline falls inside this window and which has not been
+/// alerted yet, so an alerting service has one full day of lead time.
+pub const SLA_ALERT_LEAD_SECONDS: u64 = 24 * 60 * 60;
+
+/// Maximum number of pending verification requests scanned by a single
+/// `check_sla_alerts` call. The scan resumes from the last position it
+/// reached so a large backlog is drained over multiple invocations instead of
+/// blowing the per-transaction budget.
+pub const MAX_SLA_SCAN_BATCH: u32 = 100;
+
+// ── Governance Parameter Ranges (#740) ─────────────────────────────────────
+
+/// Lower bound (inclusive) for the admin approval threshold.
+pub const MIN_APPROVAL_THRESHOLD: u64 = 1;
+
+/// Upper bound (inclusive) for the admin approval threshold. 20 admins is far
+/// above any realistic review quorum while still leaving room for a testnet
+/// with a large validator set.
+pub const MAX_APPROVAL_THRESHOLD: u64 = 20;
+
+/// Upper bound (inclusive) for the verification fee, in token base units.
+/// 1e12 = 1,000,000 whole units of an 6-decimal token.
+pub const MAX_VERIFICATION_FEE: u64 = 1_000_000_000_000;
+
+/// Upper bound (inclusive) for the registration fee, in token base units.
+pub const MAX_REGISTRATION_FEE: u64 = 1_000_000_000_000;
+
+/// Upper bound (inclusive) for the review fee, in token base units.
+pub const MAX_REVIEW_FEE: u64 = 1_000_000_000_000;
+
+/// Lower bound (inclusive) for the verification validity duration (1 hour).
+pub const MIN_VERIFICATION_DURATION_SECS: u64 = 3600;
+
+/// Upper bound (inclusive) for the verification validity duration (10 years).
+pub const MAX_VERIFICATION_DURATION_SECS: u64 = 10 * 365 * 24 * 60 * 60;
+
+/// Lower bound (inclusive) for the configurable maximum reviews per project.
+pub const MIN_MAX_REVIEWS_PER_PROJECT: u64 = 1;
+
+/// Upper bound (inclusive) for the configurable maximum reviews per project.
+pub const MAX_MAX_REVIEWS_PER_PROJECT: u64 = 100_000;
+
+// ── Bulk Project Import (#742) ─────────────────────────────────────────────
+
+/// Maximum number of projects accepted by a single bulk-import call.
+///
+/// A bulk import writes one `Project` entry plus its name / slug / normalized
+/// name / category / owner / tag-index keys per project, so the cap bounds the
+/// storage rent a single transaction can commit. Larger migrations must be
+/// split into several calls.
+pub const MAX_BULK_IMPORT_PROJECTS: u32 = 1000;
+
+// ── Project Ownership Recovery (#747) ──────────────────────────────────────
+
+/// Endorsements required before an ownership-recovery nomination opens a vote.
+pub const RECOVERY_REQUIRED_ENDORSEMENTS: u32 = 10;
+
+/// Duration of the community vote on an ownership recovery (7 days).
+pub const RECOVERY_VOTE_PERIOD_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// Approval percentage (out of 100) required for the community vote to pass.
+pub const RECOVERY_APPROVAL_PERCENT: u32 = 75;
+
+/// Window during which the original owner may reclaim the project after a
+/// successful ownership transfer (30 days).
+pub const RECOVERY_RECLAIM_WINDOW_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum length of the optional reason supplied with an ownership-recovery
+/// nomination.
+pub const MAX_RECOVERY_REASON_LEN: usize = 256;
+
+// ── Constants restored from the recommendation / community-collection /
+// social-analytics features (issues #820, #821, #822) ──────────────────────
+//
+// These were lost when merge 5608c72 resolved `types.rs`, `constants.rs`,
+// `errors.rs`, `events.rs` and `storage_keys.rs` in favour of the `main` side
+// while keeping the three registry modules that depend on them. The registry
+// modules (`recommendation_registry.rs`, `community_collection_registry.rs`,
+// `social_analytics_registry.rs`) reference every symbol below; without them
+// the crate does not compile. Content is verbatim from f74e102.
+
+// ── Recommendation Constants (Issue #820) ──────────────────────────────────
+/// Maximum length for a recommendation `label` in bytes. Labels are short
+/// display strings ("Trending", "You might like", …); the limit is generous
+/// enough for UI copy but tight enough to avoid storage-entry bloat.
+pub const MAX_RECOMMENDATION_LABEL_LEN: usize = 128;
+/// Maximum number of recommendations a single target project can have across
+/// all algorithms. Acts as a flood-gate against storage-key spam for popular
+/// projects; 200 is ~5-10 full recommendation surfaces (20 recs × 10 views).
+pub const MAX_RECOMMENDATIONS_PER_PROJECT: u32 = 200;
+/// Maximum recommendations stored globally (RecommendationList length cap).
+/// 10_000 is comfortably above what a single contract instance needs and
+/// keeps `list_recommendations` pagination bounded.
+pub const MAX_RECOMMENDATIONS_GLOBAL: u32 = 10_000;
+/// Weight of click-through rate in the composite effectiveness score.
+/// (Scaled basis-point weight; all weights sum to 10_000.)
+pub const EFFECTIVENESS_WEIGHT_CTR_BPS: u32 = 3_500;
+/// Weight of helpful-ratio in the composite effectiveness score.
+pub const EFFECTIVENESS_WEIGHT_HELPFUL_BPS: u32 = 3_500;
+/// Weight of downstream engagements (follow + bookmark + endorse + review)
+/// in the composite effectiveness score.
+pub const EFFECTIVENESS_WEIGHT_ENGAGEMENT_BPS: u32 = 3_000;
+/// Scaling factor used for CTR and helpful ratio (ppm = parts per million).
+pub const RATIO_SCALE_PPM: u32 = 1_000_000;
+/// Composite effectiveness score scale (basis points, 0–10_000).
+pub const SCORE_SCALE_BPS: u32 = 10_000;
+/// Minimum impressions required before CTR contributes a non-zero signal to
+/// the effectiveness score. Prevents a single-click "1/1 = 100%" fluke from
+/// dominating the ranking.
+pub const MIN_IMPRESSIONS_FOR_CTR_SIGNAL: u64 = 5;
+/// Minimum feedback votes required before helpful-ratio contributes a non-zero
+/// signal to the effectiveness score (same rationale as CTR floor above).
+pub const MIN_FEEDBACK_FOR_HELPFUL_SIGNAL: u64 = 3;
+// ── Community Collection Constants (Issue #821) ─────────────────────────────
+/// Maximum length of a community collection `name` in bytes (same generous limit
+/// as admin-only collections: 100 bytes).
+pub const MAX_COMMUNITY_COL_NAME_LEN: usize = 100;
+/// Maximum length of a community collection `description` in bytes (short blurb,
+/// 500 bytes, same as admin-only collections).
+pub const MAX_COMMUNITY_COL_DESCRIPTION_LEN: usize = 500;
+/// Maximum length of the optional comma-separated `tags` string in bytes.
+/// 256 bytes covers ~20 typical tag tokens.
+pub const MAX_COMMUNITY_COL_TAGS_LEN: usize = 256;
+/// Maximum number of projects a community collection can contain. Kept lower
+/// than admin-only collections (200 vs 500) because these are user-generated
+/// and the voting/curation loop is O(|project_ids|) in several places.
+pub const MAX_COMMUNITY_COL_PROJECTS: u32 = 200;
+/// Maximum curators allowed per community collection. Prevents runaway
+/// TTL-extend loops on the curator list.
+pub const MAX_COMMUNITY_COL_CURATORS: u32 = 30;
+/// Global cap on community collection count. Much higher than admin-only
+/// collections since *any* user can create them, but still bounded so
+/// `list_community_collections` pagination remains tractable.
+pub const MAX_COMMUNITY_COLLECTIONS: u32 = 5_000;
+/// Global cap on featured community collections (AC1). Matches the
+/// featured-projects cap (20). Admin toggles FIFO-evict the oldest entry
+/// when the cap is reached.
+pub const MAX_FEATURED_COMMUNITY_COLLECTIONS: u32 = 20;
+/// Default approval-vote threshold for newly-created community collections.
+/// 3 community yays auto-include unless a curator explicitly vetoes.
+pub const DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD: u32 = 3;
+/// Default disapproval-vote threshold for newly-created community collections.
+/// Symmetric with the approval threshold.
+pub const DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD: u32 = 3;
+/// Default creator revenue share (basis points) applied to new community
+/// collections when the creator does not explicitly specify one. 60% to
+/// the creator leaves 40% to be split evenly across curators.
+pub const DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 6_000;
+/// Maximum valid creator revenue share (basis points). Leaves at least 10%
+/// to curators to keep curation incentives aligned.
+pub const MAX_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 9_000;
+/// Minimum valid creator revenue share (basis points). Ensures the creator
+/// is meaningfully compensated for originating and stewarding the collection.
+pub const MIN_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 1_000;
+// ── Social Analytics Constants (Issue #822) ────────────────────────────────
+/// Daily checkpoint per-project cap. 730 days = ~2 years of daily history.
+/// After the cap is reached, `record_project_social_daily_checkpoint` evicts
+/// the oldest checkpoint (FIFO) before appending a new one so growth
+/// analytics retain a rolling 2-year window rather than failing.
+pub const MAX_SOCIAL_CHECKPOINTS_PER_PROJECT: u32 = 730;
+/// Scaling factor for engagement-rate ratios. 1e6 ppm = 1.0 (100%).
+pub const SOCIAL_ENGAGEMENT_RATE_SCALE_PPM: u64 = 1_000_000;
+/// Rating scale used by `ProjectStats.average_rating` (review_registry).
+/// Values are 0–50_000 for a 0–5 star rating (10_000 bps per star).
+pub const SOCIAL_RATING_BPS_PER_STAR: u32 = 10_000;
+/// Maximum number of peer projects to include in the peer comparison
+/// snapshot used for AC3. Limiting the peer set to 50 keeps the export
+/// report payload small while still representing a broad percentile rank.
+pub const SOCIAL_ANALYTICS_MAX_PEERS: u32 = 50;
+/// Minimum number of checkpoints required for a "growth over time"
+/// export report (AC1 + AC4). With >= 2 checkpoints we can derive at
+/// least one delta window. Callers with 1 checkpoint will still get a
+/// report but the export will note that deltas are zero.
+pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
+/// Number of days in the "last-week" preset window used by export (6 days + today inclusive = 7).
+pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
+/// Number of days in the "last-30-days" preset window used by export.
+pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;
