@@ -79,6 +79,21 @@ impl StorageManager {
         );
     }
 
+    pub fn extend_project_version_ttl(env: &Env, project_id: u64, version: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersionCount(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersion(project_id, version),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project count
     pub fn extend_project_count_ttl(env: &Env) {
         Self::extend_if_exists(

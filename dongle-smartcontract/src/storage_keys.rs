@@ -169,6 +169,12 @@ pub enum ExtensionKey {
     ReservedNames,
     /// Optional region/market metadata for a project.
     ProjectRegion(u64),
+    /// Hierarchical geographic region for a project.
+    ProjectRegionHierarchy(u64),
+    /// Number of immutable project snapshots stored for a project.
+    ProjectVersionCount(u64),
+    /// Immutable project snapshot by project and one-based version number.
+    ProjectVersion(u64, u32),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.

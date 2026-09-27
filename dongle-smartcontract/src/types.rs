@@ -227,6 +227,34 @@ pub struct Project {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionHierarchy {
+    pub continent: String,
+    pub country_code: String,
+    pub region: Option<String>,
+    pub city: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ProjectVersion {
+    pub project_id: u64,
+    pub version: u32,
+    pub project: Project,
+    pub region: Option<ProjectRegionHierarchy>,
+    pub legacy_region: Option<String>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionStats {
+    pub project_count: u64,
+    pub review_count: u32,
+    pub rating_sum: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SecurityContactStatus {
     pub contact: Option<String>,
     pub proof_cid: Option<String>,
@@ -266,6 +294,8 @@ pub enum ProjectLifecycleStatus {
     Deprecated,
     /// Sunset - officially discontinued
     Sunset,
+    /// Abandoned with no expected further maintenance
+    Abandoned,
 }
 
 #[contracttype]
@@ -448,6 +478,7 @@ pub enum AdminActionType {
     VerificationDurationSet,
     ThresholdChanged,
     FeeRefunded,
+    ProjectVersionRestored,
     VerificationAssigned,
     ReservedNameAdded,
     ReservedNameRemoved,
@@ -557,6 +588,7 @@ pub enum ProposalPayload {
     ApproveVerification(u64),
     RejectVerification(u64),
     RevokeVerification(u64, String),
+    RestoreProjectVersion(u64, u32),
 }
 
 #[contracttype]

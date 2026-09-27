@@ -35,8 +35,10 @@ pub struct ProjectUpdatedEvent {
 pub struct ProjectLifecycleStatusUpdatedEvent {
     pub project_id: u64,
     pub owner: Address,
+    pub actor: Address,
     pub previous_status: ProjectLifecycleStatus,
     pub new_status: ProjectLifecycleStatus,
+    pub reason: Option<String>,
     pub timestamp: u64,
 }
 
@@ -443,14 +445,18 @@ pub fn publish_project_lifecycle_status_updated_event(
     env: &Env,
     project_id: u64,
     owner: Address,
+    actor: Address,
     previous_status: ProjectLifecycleStatus,
     new_status: ProjectLifecycleStatus,
+    reason: Option<String>,
 ) {
     let event_data = ProjectLifecycleStatusUpdatedEvent {
         project_id,
         owner,
+        actor,
         previous_status,
         new_status,
+        reason,
         timestamp: env.ledger().timestamp(),
     };
     env.events().publish(
