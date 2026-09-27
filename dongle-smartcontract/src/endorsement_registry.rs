@@ -1,10 +1,10 @@
+use crate::constants::MAX_PAGE_LIMIT;
 use crate::errors::ContractError;
 use crate::events::{publish_project_endorsed_event, publish_project_unendorsed_event};
+use crate::pagination::paginate;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
-use crate::constants::MAX_PAGE_LIMIT;
-use crate::pagination::paginate;
 use soroban_sdk::{Address, Env, Vec};
 
 pub struct EndorsementRegistry;
@@ -21,10 +21,9 @@ impl EndorsementRegistry {
         }
 
         let count = Self::current_count(env, project_id);
-        env.storage().persistent().set(
-            &ExtensionKey::EndorsementAt(project_id, count),
-            &user,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::EndorsementAt(project_id, count), &user);
         env.storage().persistent().set(
             &ExtensionKey::EndorsementIndex(project_id, user.clone()),
             &count,
@@ -69,10 +68,9 @@ impl EndorsementRegistry {
                 .persistent()
                 .get(&ExtensionKey::EndorsementAt(project_id, last_index))
                 .expect("endorsement index must be populated");
-            env.storage().persistent().set(
-                &ExtensionKey::EndorsementAt(project_id, index),
-                &last_user,
-            );
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::EndorsementAt(project_id, index), &last_user);
             env.storage().persistent().set(
                 &ExtensionKey::EndorsementIndex(project_id, last_user.clone()),
                 &index,
@@ -179,14 +177,12 @@ impl EndorsementRegistry {
             .unwrap_or_else(|| Vec::new(env));
         for index in 0..legacy.len() {
             let user = legacy.get(index).expect("legacy endorsement index");
-            env.storage().persistent().set(
-                &ExtensionKey::EndorsementAt(project_id, index),
-                &user,
-            );
-            env.storage().persistent().set(
-                &ExtensionKey::EndorsementIndex(project_id, user),
-                &index,
-            );
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::EndorsementAt(project_id, index), &user);
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::EndorsementIndex(project_id, user), &index);
         }
     }
 }

@@ -523,7 +523,6 @@ fn test_list_projects_by_category_update_moves_project() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     };
     client.mock_all_auths().update_project(&update_params);
 

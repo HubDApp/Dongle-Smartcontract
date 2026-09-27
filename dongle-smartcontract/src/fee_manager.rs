@@ -8,7 +8,7 @@ use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::types::{
     AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
 };
@@ -68,12 +68,12 @@ impl FeeManager {
         let mut history: Vec<FeeConfigHistoryEntry> = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::FeeConfigHistory)
+            .get(&ExtensionKey2::FeeConfigHistory)
             .unwrap_or_else(|| Vec::new(env));
         history.push_back(history_entry);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::FeeConfigHistory, &history);
+            .set(&ExtensionKey2::FeeConfigHistory, &history);
 
         publish_fee_set_event(
             env,
@@ -237,8 +237,8 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
-        let record = Self::get_fee_payment_details(env, project_id)
-            .ok_or(ContractError::InsufficientFee)?;
+        let record =
+            Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
         let now = env.ledger().timestamp();
         if now >= record.paid_at.checked_add(FEE_PAYMENT_EXPIRY_SECONDS).ok_or(ContractError::ArithmeticOverflow)? {
             return Err(ContractError::FeePaymentExpired);
@@ -265,7 +265,7 @@ impl FeeManager {
     pub fn get_fee_config_history(env: &Env) -> Vec<FeeConfigHistoryEntry> {
         env.storage()
             .persistent()
-            .get(&ExtensionKey::FeeConfigHistory)
+            .get(&ExtensionKey2::FeeConfigHistory)
             .unwrap_or_else(|| Vec::new(env))
     }
 

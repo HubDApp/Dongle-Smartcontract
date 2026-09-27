@@ -1701,7 +1701,7 @@ impl ProjectRegistry {
         if env
             .storage()
             .persistent()
-            .has(&ExtensionKey::ClaimReqProjClaimant(
+            .has(&ExtensionKey2::ClaimReqProjClaimant(
                 project_id,
                 claimant.clone(),
             ))
@@ -1732,7 +1732,7 @@ impl ProjectRegistry {
             &claim_request,
         );
         env.storage().persistent().set(
-            &ExtensionKey::ClaimReqProjClaimant(project_id, claimant.clone()),
+            &ExtensionKey2::ClaimReqProjClaimant(project_id, claimant.clone()),
             &claim_request_id,
         );
 
@@ -2775,10 +2775,9 @@ impl ProjectRegistry {
             redirect_project_id,
             archived_at: None,
         };
-        env.storage().persistent().set(
-            &ExtensionKey2::ProjectSunsetPlan(project_id),
-            &plan,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey2::ProjectSunsetPlan(project_id), &plan);
 
         if previous_status != ProjectLifecycleStatus::Deprecated {
             publish_project_lifecycle_status_updated_event(
@@ -2815,8 +2814,8 @@ impl ProjectRegistry {
         caller.require_auth();
         let mut project =
             Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        let mut plan = Self::get_project_sunset_plan(env, project_id)
-            .ok_or(ContractError::InvalidStatus)?;
+        let mut plan =
+            Self::get_project_sunset_plan(env, project_id).ok_or(ContractError::InvalidStatus)?;
         if project.archived {
             return Err(ContractError::AlreadyArchived);
         }
@@ -2836,10 +2835,9 @@ impl ProjectRegistry {
         StorageManager::extend_project_ttl(env, project_id);
 
         plan.archived_at = Some(now);
-        env.storage().persistent().set(
-            &ExtensionKey2::ProjectSunsetPlan(project_id),
-            &plan,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey2::ProjectSunsetPlan(project_id), &plan);
         if previous_status != ProjectLifecycleStatus::Sunset {
             publish_project_lifecycle_status_updated_event(
                 env,

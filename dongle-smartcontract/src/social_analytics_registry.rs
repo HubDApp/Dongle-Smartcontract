@@ -6,7 +6,8 @@ use crate::constants::{
 use crate::endorsement_registry::EndorsementRegistry;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_project_engagement_metric_computed_event, publish_project_social_analytics_export_event,
+    publish_project_engagement_metric_computed_event,
+    publish_project_social_analytics_export_event,
     publish_project_social_checkpoint_recorded_event, publish_project_social_peers_compared_event,
 };
 use crate::pagination::paginate;
@@ -33,10 +34,7 @@ impl SocialAnalyticsRegistry {
         (env.ledger().timestamp() / SECONDS_PER_DAY) as u32
     }
 
-    fn snapshot_counts(
-        env: &Env,
-        project_id: u64,
-    ) -> (u32, u32, u32, u32, u32) {
+    fn snapshot_counts(env: &Env, project_id: u64) -> (u32, u32, u32, u32, u32) {
         let followers = SubscriptionRegistry::get_follower_count(env, project_id);
         let endorsements = EndorsementRegistry::get_endorsement_count(env, project_id);
         // No per-project bookmark counter exists today; ExtensionKey is at the 50-variant
@@ -48,7 +46,9 @@ impl SocialAnalyticsRegistry {
         // Normalise average_rating to basis points: review_registry stores
         // average_rating scaled by 100 (e.g. 400 = 4.00 stars) per the
         // existing `ProjectStats.average_rating` definition.
-        let avg_bps = review_stats.average_rating.saturating_mul(SOCIAL_RATING_BPS_PER_STAR / 100);
+        let avg_bps = review_stats
+            .average_rating
+            .saturating_mul(SOCIAL_RATING_BPS_PER_STAR / 100);
         (
             followers,
             endorsements,
@@ -74,8 +74,12 @@ impl SocialAnalyticsRegistry {
     fn update_boundary_cache(env: &Env, project_id: u64, days: &Vec<u32>) {
         let len = days.len();
         if len == 0 {
-            env.storage().persistent().remove(&SAK::OldestCheckpointDay(project_id));
-            env.storage().persistent().remove(&SAK::NewestCheckpointDay(project_id));
+            env.storage()
+                .persistent()
+                .remove(&SAK::OldestCheckpointDay(project_id));
+            env.storage()
+                .persistent()
+                .remove(&SAK::NewestCheckpointDay(project_id));
             return;
         }
         if let Some(oldest) = days.get(0) {
@@ -90,11 +94,7 @@ impl SocialAnalyticsRegistry {
         }
     }
 
-    fn evict_oldest_if_needed(
-        env: &Env,
-        project_id: u64,
-        days: &mut Vec<u32>,
-    ) -> Option<u32> {
+    fn evict_oldest_if_needed(env: &Env, project_id: u64, days: &mut Vec<u32>) -> Option<u32> {
         if days.len() < MAX_SOCIAL_CHECKPOINTS_PER_PROJECT {
             return None;
         }
@@ -148,7 +148,10 @@ impl SocialAnalyticsRegistry {
         }
         if let Some(i) = best_i {
             if let Some(d) = days.get(i) {
-                return env.storage().persistent().get(&SAK::DailyCheckpoint(project_id, d));
+                return env
+                    .storage()
+                    .persistent()
+                    .get(&SAK::DailyCheckpoint(project_id, d));
             }
         }
         None
@@ -161,13 +164,10 @@ impl SocialAnalyticsRegistry {
     ) -> ProjectSocialDailyCheckpoint {
         // Priority: exact, or nearest <= day_index, else nearest > day_index,
         // else a synthetic zero-checkpoint built from empty state.
-        if let Some(exact) =
-            env.storage()
-                .persistent()
-                .get::<_, ProjectSocialDailyCheckpoint>(&SAK::DailyCheckpoint(
-                    project_id,
-                    day_index,
-                ))
+        if let Some(exact) = env
+            .storage()
+            .persistent()
+            .get::<_, ProjectSocialDailyCheckpoint>(&SAK::DailyCheckpoint(project_id, day_index))
         {
             return exact;
         }
@@ -254,15 +254,25 @@ impl SocialAnalyticsRegistry {
             Self::set_checkpoint_days(env, project_id, &days);
         }
         Self::update_boundary_cache(env, project_id, &days);
-        env.storage()
-            .persistent()
-            .set(&SAK::LastCheckpointRecordedAt(project_id), &env.ledger().timestamp());
+        env.storage().persistent().set(
+            &SAK::LastCheckpointRecordedAt(project_id),
+            &env.ledger().timestamp(),
+        );
 
         StorageManager::extend_social_analytics_project_ttl(env, project_id);
         StorageManager::extend_project_ttl(env, project_id);
 
         publish_project_social_checkpoint_recorded_event(
-            env, project_id, day_index, f, e, b, r, avg_bps, total_units, evicted,
+            env,
+            project_id,
+            day_index,
+            f,
+            e,
+            b,
+            r,
+            avg_bps,
+            total_units,
+            evicted,
         );
         Ok(day_index)
     }
@@ -313,8 +323,12 @@ impl SocialAnalyticsRegistry {
         project_id: u64,
     ) -> (Option<u32>, Option<u32>) {
         (
-            env.storage().persistent().get(&SAK::OldestCheckpointDay(project_id)),
-            env.storage().persistent().get(&SAK::NewestCheckpointDay(project_id)),
+            env.storage()
+                .persistent()
+                .get(&SAK::OldestCheckpointDay(project_id)),
+            env.storage()
+                .persistent()
+                .get(&SAK::NewestCheckpointDay(project_id)),
         )
     }
 
@@ -324,7 +338,7 @@ impl SocialAnalyticsRegistry {
     /// `[window_start_day, window_end_day]` inclusive. Deltas are computed
     /// by subtracting the checkpoint nearest-but-not-after the start day
     /// from the checkpoint nearest-but-not-after the end day. ppm-scaled.
-    pub fn compute_engagement_metric(
+    pub fn compute_project_engagement_metric(
         env: &Env,
         project_id: u64,
         window_start_day: u32,
@@ -401,7 +415,7 @@ impl SocialAnalyticsRegistry {
         let start_30 = today.saturating_sub(SOCIAL_WINDOW_30_DAYS - 1);
 
         let target_metric =
-            Self::compute_engagement_metric(env, project_id, start_30, today)?;
+            Self::compute_project_engagement_metric(env, project_id, start_30, today)?;
         let target_follower_count = SubscriptionRegistry::get_follower_count(env, project_id);
         let target_avg = ReviewRegistry::get_project_stats(env, project_id)
             .average_rating
@@ -430,7 +444,7 @@ impl SocialAnalyticsRegistry {
         // we stop collecting once we have max peers and just still finish
         // calculating sort).
         'outer: loop {
-            let list = ProjectRegistry::list_projects(env, scanned, page_limit);
+            let list = ProjectRegistry::list_projects(env, scanned as u64, page_limit);
             if list.is_empty() {
                 break 'outer;
             }
@@ -444,11 +458,15 @@ impl SocialAnalyticsRegistry {
                     if peer_proj.category != project.category {
                         continue;
                     }
-                    let peer_metric =
-                        match Self::compute_engagement_metric(env, peer_proj.id, start_30, today) {
-                            Ok(m) => m,
-                            Err(_) => continue,
-                        };
+                    let peer_metric = match Self::compute_project_engagement_metric(
+                        env,
+                        peer_proj.id,
+                        start_30,
+                        today,
+                    ) {
+                        Ok(m) => m,
+                        Err(_) => continue,
+                    };
                     let peer_followers =
                         SubscriptionRegistry::get_follower_count(env, peer_proj.id);
                     let peer_avg = ReviewRegistry::get_project_stats(env, peer_proj.id)
@@ -470,7 +488,7 @@ impl SocialAnalyticsRegistry {
             if chunk_size < page_limit {
                 break 'outer;
             }
-            if scanned >= project_count {
+            if scanned as u64 >= project_count {
                 break 'outer;
             }
         }
@@ -527,7 +545,7 @@ impl SocialAnalyticsRegistry {
         let start_7 = today.saturating_sub(SOCIAL_WINDOW_7_DAYS - 1);
         let start_30 = today.saturating_sub(SOCIAL_WINDOW_30_DAYS - 1);
 
-        let m7 = Self::compute_engagement_metric(env, project_id, start_7, today)
+        let m7 = Self::compute_project_engagement_metric(env, project_id, start_7, today)
             .unwrap_or_else(|_| ProjectEngagementMetric {
                 project_id,
                 window_start_day: start_7,
@@ -541,7 +559,7 @@ impl SocialAnalyticsRegistry {
                 engagement_rate_ppm: 0,
                 rating_delta_bps: 0,
             });
-        let m30 = Self::compute_engagement_metric(env, project_id, start_30, today)
+        let m30 = Self::compute_project_engagement_metric(env, project_id, start_30, today)
             .unwrap_or_else(|_| ProjectEngagementMetric {
                 project_id,
                 window_start_day: start_30,
@@ -556,9 +574,8 @@ impl SocialAnalyticsRegistry {
                 rating_delta_bps: 0,
             });
 
-        let peer_rows =
-            Self::compare_similar_projects(env, project_id, SOCIAL_ANALYTICS_MAX_PEERS)
-                .unwrap_or_else(|_| Vec::new(env));
+        let peer_rows = Self::compare_similar_projects(env, project_id, SOCIAL_ANALYTICS_MAX_PEERS)
+            .unwrap_or_else(|_| Vec::new(env));
         let self_index: u32 = {
             let mut found = 0u32;
             for (i, row) in peer_rows.iter().enumerate() {
@@ -574,7 +591,7 @@ impl SocialAnalyticsRegistry {
             .storage()
             .persistent()
             .get(&SAK::ExportReportCounter(project_id))
-            .unwrap_or(0)
+            .unwrap_or(0u64)
             .saturating_add(1);
         env.storage()
             .persistent()
@@ -588,9 +605,9 @@ impl SocialAnalyticsRegistry {
             newest_checkpoint_day: newest,
             last_7_days: m7.clone(),
             last_30_days: m30.clone(),
-            growth_last_30_days_total_engagement: m30.net_engagement_gain,
+            growth_30d_total_engagement: m30.net_engagement_gain,
             growth_last_30_days_followers: m30.follower_gain,
-            growth_last_30_days_endorsements: m30.endorsement_gain,
+            growth_30d_endorsements: m30.endorsement_gain,
             growth_last_30_days_bookmarks: m30.bookmark_gain,
             growth_last_30_days_reviews: m30.review_gain,
             peer_comparison: peer_rows.clone(),
