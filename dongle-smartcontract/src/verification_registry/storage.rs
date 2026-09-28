@@ -365,9 +365,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Pending;
         project.current_verification_id = Some(request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_requested_event(
             env,
@@ -544,9 +542,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Verified;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_approved_event(env, project_id, admin.clone(), now);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
@@ -616,9 +612,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Rejected;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         // Issue #472: a rejected request must not keep the requester's fee.
         // The payout is recorded as claimable rather than transferred here —
@@ -1553,9 +1547,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Unverified;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_revoked_event(env, project_id, admin.clone(), reason.clone());
         crate::notification_registry::NotificationRegistry::emit_project_notification(
@@ -1810,9 +1802,7 @@ impl VerificationRegistry {
 
         project.updated_at = now;
         project.current_verification_id = Some(verification.request_id);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         let history_index: u32 = env
             .storage()

@@ -468,6 +468,25 @@ impl DongleContract {
         ProjectRegistry::get_project(&env, project_id)
     }
 
+    pub fn get_project_versions(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<ProjectVersion> {
+        ProjectRegistry::get_project_versions(&env, project_id, start, limit)
+    }
+
+    pub fn restore_project_version(
+        env: Env,
+        project_id: u64,
+        version: u32,
+        admin: Address,
+    ) -> Result<Project, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::restore_project_version(&env, project_id, version, admin)
+    }
+
     pub fn get_project_by_slug(env: Env, slug: String) -> Option<Project> {
         ProjectRegistry::get_project_by_slug(&env, slug)
     }
@@ -533,6 +552,59 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::set_project_region(&env, project_id, caller, region)
+    }
+
+    pub fn set_project_region_hierarchy(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        region: Option<ProjectRegionHierarchy>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_region_hierarchy(&env, project_id, caller, region)
+    }
+
+    pub fn get_project_region_hierarchy(
+        env: Env,
+        project_id: u64,
+    ) -> Option<ProjectRegionHierarchy> {
+        ProjectRegistry::get_project_region_hierarchy(&env, project_id)
+    }
+
+    pub fn list_projects_by_region(
+        env: Env,
+        continent: Option<String>,
+        country_code: Option<String>,
+        region: Option<String>,
+        city: Option<String>,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::list_projects_by_region(
+            &env,
+            continent,
+            country_code,
+            region,
+            city,
+            start_id,
+            limit,
+        )
+    }
+
+    pub fn get_project_region_stats(
+        env: Env,
+        continent: Option<String>,
+        country_code: Option<String>,
+        region: Option<String>,
+        city: Option<String>,
+    ) -> ProjectRegionStats {
+        ProjectRegistry::get_project_region_stats(
+            &env,
+            continent,
+            country_code,
+            region,
+            city,
+        )
     }
 
     /// Returns the region tag for a project, if set.

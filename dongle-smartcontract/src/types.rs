@@ -503,6 +503,34 @@ pub struct Project {
 /// struct when only the security-contact fields are needed.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionHierarchy {
+    pub continent: String,
+    pub country_code: String,
+    pub region: Option<String>,
+    pub city: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ProjectVersion {
+    pub project_id: u64,
+    pub version: u32,
+    pub project: Project,
+    pub region: Option<ProjectRegionHierarchy>,
+    pub legacy_region: Option<String>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionStats {
+    pub project_count: u64,
+    pub review_count: u32,
+    pub rating_sum: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SecurityContactStatus {
     /// The published security contact string (e-mail, URL, etc.), if any.
     pub contact: Option<String>,
@@ -574,6 +602,8 @@ pub enum ProjectLifecycleStatus {
     Deprecated,
     /// Sunset - officially discontinued
     Sunset,
+    /// Abandoned with no expected further maintenance
+    Abandoned,
 }
 
 /// Scheduled deprecation and sunset metadata for a project.
@@ -1225,6 +1255,7 @@ pub enum AdminActionType {
     VerificationDurationSet,
     ThresholdChanged,
     FeeRefunded,
+    ProjectVersionRestored,
     VerificationAssigned,
     ReservedNameAdded,
     ReservedNameRemoved,
@@ -1487,6 +1518,7 @@ pub enum ProposalPayload {
     /// Revoke the verification for the project with the enclosed `project_id`,
     /// with the enclosed reason string.
     RevokeVerification(u64, String),
+    RestoreProjectVersion(u64, u32),
 }
 
 /// An admin proposal in the multi-sig workflow.

@@ -353,6 +353,9 @@ impl AdminManager {
             ProposalPayload::ApproveVerification(_) => AdminActionType::VerificationApproved,
             ProposalPayload::RejectVerification(_) => AdminActionType::VerificationRejected,
             ProposalPayload::RevokeVerification(_, _) => AdminActionType::VerificationRevoked,
+            ProposalPayload::RestoreProjectVersion(_, _) => {
+                AdminActionType::ProjectVersionRestored
+            }
         };
 
         let payload_hash = Self::compute_payload_hash(env, &payload);
@@ -660,9 +663,7 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Verified;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_approved_event(
                     env,
                     project_id,
@@ -695,9 +696,7 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Rejected;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_rejected_event(
                     env,
                     project_id,
@@ -729,15 +728,21 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Unverified;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_revoked_event(
                     env,
                     project_id,
                     caller.clone(),
                     reason,
                 );
+            }
+            ProposalPayload::RestoreProjectVersion(project_id, version) => {
+                crate::project_registry::ProjectRegistry::restore_project_version_after_approval(
+                    env,
+                    project_id,
+                    version,
+                    caller.clone(),
+                )?;
             }
         }
 
