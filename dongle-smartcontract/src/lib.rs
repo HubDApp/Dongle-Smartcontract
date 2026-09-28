@@ -1,5 +1,8 @@
 #![no_std]
-#![allow(warnings)]
+
+extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
@@ -7,6 +10,7 @@ pub mod auth;
 mod bookmark_registry;
 mod changelog_registry;
 mod collection_registry;
+mod community_collection_registry;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
@@ -17,18 +21,30 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod notification_registry;
 pub mod pagination;
+mod probation_registry;
 mod project_registry;
 pub mod rating_calculator;
+mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
+mod social_analytics_registry;
 pub mod storage_keys;
+pub mod trust_and_safety;
 pub mod storage_manager;
 mod subscription_registry;
 mod timelock_manager;
 pub mod types;
 pub mod utils;
+mod validation;
 mod verification_registry;
+mod social_analytics_registry;
+mod probation_registry;
+mod security_contact_verification;
+mod health_score_registry;
+mod activity_feed_registry;
+mod metadata_enrichment_registry;
 
 #[cfg(test)]
 mod tests;
@@ -42,22 +58,55 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
-use crate::storage_keys::ExtensionKey;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
+use crate::activity_feed_registry::ActivityFeedRegistry;
+use crate::health_score_registry::HealthScoreRegistry;
+use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
+use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
-    AdminActionEntry, AdminProposal, ChangelogEntry, ChangelogSortMode, ClaimRequest, ClaimStatus,
-    Collection, ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DisputeStatus, DuplicateDispute, FeeConfig, FeePaymentRecord, FeeRefundRecord, Project,
-    ProjectDependency, ProjectLifecycleStatus, ProjectRegionHierarchy, ProjectRegionStats,
-    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectUpdateParams,
-    ProjectVersion, ProposalPayload, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
-    SecurityContactStatus, TimelockAction, VerificationRecord, VerificationStatus,
+    AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
+    ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
+    CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
+    CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
+    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    FeeRefundRecord, NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
+    ProjectEngagementMetric, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
+    ProjectSocialAnalyticsExport, ProjectSocialDailyCheckpoint, ProjectSocialPeerRow,
+    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload,
+    Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
+    RecommendationFeedback, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
+    SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationAssignment,
+    VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
+    VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
+    VerificationSuspension,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
+    BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
+    ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
+    ProjectUpdateParams, ProposalComment, ProposalPayload, Review, ReviewRevision, ReviewSortMode,
+    ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction,
+    VerificationBatchAction, VerificationBatchReport, VerificationRecord, VerificationStatus,
+    VerificationStatusFilter, NotificationDeliveryStatus, TimelockAction,
+    VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
+    VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
+    AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
+    // #757 security contact verification
+    SecurityContactVerificationRecord, SecurityContactVerificationStatus,
+    // #756 health score
+    HealthScoreBreakdown, HealthScoreConfig, HealthScoreSnapshot, ProjectHealthScore,
+    // #759 activity feed
+    ActivityEntry, ActivityKind,
+    // #760 metadata enrichment
+    EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
 };
-use crate::verification_registry::VerificationRegistry;
+use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
@@ -115,6 +164,26 @@ impl DongleContract {
         ConfigRegistry::get_config(&env)
     }
 
+    /// Returns the current maximum number of reviews allowed per project.
+    ///
+    /// Falls back to the compile-time default of 500 if no value has been
+    /// configured by an admin.
+    pub fn get_max_reviews_per_project(env: Env) -> u32 {
+        ConfigRegistry::get_max_reviews_per_project(&env)
+    }
+
+    /// Admin-only: set the maximum number of reviews allowed per project.
+    ///
+    /// `max` must be ≥ 1. Affects all future review submissions; existing
+    /// reviews beyond a lowered limit are not removed.
+    pub fn set_max_reviews_per_project(
+        env: Env,
+        admin: Address,
+        max: u32,
+    ) -> Result<(), ContractError> {
+        ConfigRegistry::set_max_reviews_per_project(&env, admin, max)
+    }
+
     pub fn set_admin_approval_threshold(
         env: Env,
         caller: Address,
@@ -140,6 +209,14 @@ impl DongleContract {
         AdminManager::approve_proposal(&env, admin, proposal_id)
     }
 
+    pub fn reject_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::reject_proposal(&env, admin, proposal_id)
+    }
+
     pub fn execute_proposal(
         env: Env,
         caller: Address,
@@ -154,9 +231,109 @@ impl DongleContract {
 
     /// List admin proposals with pagination.
     ///
-    /// `start` is a zero-based offset and `limit` caps the page size.
-    pub fn list_proposals(env: Env, start: u32, limit: u32) -> Vec<AdminProposal> {
-        AdminManager::list_proposals(&env, start, limit)
+    /// `start_index` is a zero-based offset and `limit` caps the page size.
+    pub fn list_proposals(env: Env, start_index: u32, limit: u32) -> Vec<AdminProposal> {
+        AdminManager::list_proposals(&env, start_index, limit)
+    }
+
+    /// Batch-remove expired admin proposals to prevent storage bloat (#728).
+    ///
+    /// Scans at most `batch_size` proposals (capped at 100). Expired proposals
+    /// are those whose `expires_at` is non-zero and has passed. Returns the
+    /// number of proposals removed.
+    pub fn cleanup_expired_proposals(
+        env: Env,
+        caller: Address,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        AdminManager::cleanup_expired_proposals(&env, caller, batch_size)
+    }
+
+    // --- #736: Proposal comment/discussion system ---
+
+    /// Add a comment to a proposal. Comments are immutable once voting starts.
+    pub fn add_proposal_comment(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+        content: String,
+    ) -> Result<u64, ContractError> {
+        AdminManager::add_proposal_comment(&env, caller, proposal_id, content)
+    }
+
+    /// Get comments for a proposal with pagination.
+    pub fn get_proposal_comments(
+        env: Env,
+        proposal_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ProposalComment> {
+        AdminManager::get_proposal_comments(&env, proposal_id, start_index, limit)
+    }
+
+    // --- #738: Emergency admin recovery ---
+
+    /// Initiate an emergency admin recovery request. Requires 2/3 of remaining
+    /// admins to approve, with a 7-day voting period.
+    pub fn initiate_emergency_recovery(
+        env: Env,
+        caller: Address,
+        lost_admin: Address,
+        new_admin: Address,
+    ) -> Result<u64, ContractError> {
+        AdminManager::initiate_emergency_recovery(&env, caller, lost_admin, new_admin)
+    }
+
+    /// Approve an emergency recovery request.
+    pub fn approve_emergency_recovery(
+        env: Env,
+        admin: Address,
+        request_id: u64,
+    ) -> Result<(), ContractError> {
+        AdminManager::approve_emergency_recovery(&env, admin, request_id)
+    }
+
+    /// Get an emergency recovery request by ID.
+    pub fn get_emergency_recovery(
+        env: Env,
+        request_id: u64,
+    ) -> Option<crate::types::EmergencyRecoveryRequest> {
+        AdminManager::get_emergency_recovery(&env, request_id)
+    }
+
+    // --- #739: Inactive admin tracking ---
+
+    /// Get the admin activity record for an address.
+    pub fn get_admin_activity(
+        env: Env,
+        admin: Address,
+    ) -> Option<crate::types::AdminActivityRecord> {
+        AdminManager::get_admin_activity(&env, &admin)
+    }
+
+    /// Check if an admin has been inactive for more than the specified days.
+    pub fn is_admin_inactive(env: Env, admin: Address, days: u64) -> bool {
+        AdminManager::is_admin_inactive(&env, &admin, days)
+    }
+
+    /// Admin-only: set the monthly veto limit per admin (#730).
+    /// 0 = unlimited (default).
+    pub fn set_veto_monthly_limit(
+        env: Env,
+        caller: Address,
+        limit: u32,
+    ) -> Result<(), ContractError> {
+        AdminManager::set_veto_monthly_limit(&env, caller, limit)
+    }
+
+    /// Return the current monthly veto limit (0 = unlimited).
+    pub fn get_veto_monthly_limit(env: Env) -> u32 {
+        AdminManager::get_veto_monthly_limit(&env)
+    }
+
+    /// Return how many vetoes `admin` has cast in the current calendar month.
+    pub fn get_veto_count(env: Env, admin: Address) -> u32 {
+        AdminManager::get_veto_count(&env, &admin)
     }
 
     // --- Contract Pause / Emergency Stop ---
@@ -201,17 +378,39 @@ impl DongleContract {
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
-    pub fn set_project_lifecycle_status_with_reason(
+    pub fn schedule_project_sunset(
         env: Env,
         project_id: u64,
         caller: Address,
-        status: ProjectLifecycleStatus,
-        reason: Option<String>,
-    ) -> Result<Project, ContractError> {
+        sunset_at: u64,
+        alternative_project_ids: Vec<u64>,
+        redirect_project_id: Option<u64>,
+    ) -> Result<ProjectSunsetPlan, ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ProjectRegistry::set_project_lifecycle_status_with_reason(
-            &env, project_id, caller, status, reason,
+        ProjectRegistry::schedule_project_sunset(
+            &env,
+            project_id,
+            caller,
+            sunset_at,
+            alternative_project_ids,
+            redirect_project_id,
         )
+    }
+
+    pub fn get_project_sunset_plan(env: Env, project_id: u64) -> Option<ProjectSunsetPlan> {
+        ProjectRegistry::get_project_sunset_plan(&env, project_id)
+    }
+
+    pub fn get_project_redirect(env: Env, project_id: u64) -> Option<u64> {
+        ProjectRegistry::get_project_redirect(&env, project_id)
+    }
+
+    pub fn process_project_sunset(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<Project, ContractError> {
+        ProjectRegistry::process_project_sunset(&env, project_id, caller)
     }
 
     pub fn update_security_contact(
@@ -290,6 +489,10 @@ impl DongleContract {
 
     pub fn get_project_by_slug(env: Env, slug: String) -> Option<Project> {
         ProjectRegistry::get_project_by_slug(&env, slug)
+    }
+
+    pub fn get_project_by_name(env: Env, name: String) -> Option<Project> {
+        ProjectRegistry::get_project_by_name(&env, name)
     }
 
     pub fn initiate_transfer(
@@ -406,16 +609,12 @@ impl DongleContract {
 
     /// Returns the region tag for a project, if set.
     pub fn get_project_region(env: Env, project_id: u64) -> Option<String> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectRegion(project_id))
+        ProjectRegistry::get_project_region(&env, project_id)
     }
 
     /// Returns the stored integrity hash for a project, if any.
     pub fn get_project_integrity_hash(env: Env, project_id: u64) -> Option<soroban_sdk::Bytes> {
-        env.storage()
-            .persistent()
-            .get(&ExtensionKey::ProjectIntegrityHash(project_id))
+        ProjectRegistry::get_project_integrity_hash(&env, project_id)
     }
 
     pub fn list_projects_by_status(
@@ -505,6 +704,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
@@ -513,6 +713,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
@@ -522,6 +723,7 @@ impl DongleContract {
         caller: Address,
         maintainer: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
@@ -549,8 +751,13 @@ impl DongleContract {
         FeaturedRegistry::set_featured(&env, admin, project_id, featured)
     }
 
-    pub fn list_featured_projects(env: Env, start: u32, limit: u32) -> Vec<Project> {
-        FeaturedRegistry::list_featured_projects(&env, start, limit)
+    pub fn list_featured_projects(env: Env, start_index: u32, limit: u32) -> Vec<Project> {
+        FeaturedRegistry::list_featured_projects(&env, start_index, limit)
+    }
+
+    /// Return the number of projects currently in the featured list.
+    pub fn get_featured_count(env: Env) -> u32 {
+        FeaturedRegistry::get_featured_count(&env)
     }
 
     // --- Review Registry ---
@@ -562,7 +769,8 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid)
+        EmergencyPause::require_not_paused(&env)?;
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None)
     }
 
     pub fn update_review(
@@ -625,6 +833,70 @@ impl DongleContract {
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         ReviewRegistry::list_reviews(&env, project_id, start_index, limit)
+    }
+
+    /// Admin-only: archive reviews older than 2 years for a project.
+    ///
+    /// Moves eligible reviews to compact archived storage, removes them from
+    /// primary storage and active indexes, and emits `ReviewArchivedEvent` for
+    /// each archived review so off-chain jobs can persist the full payload to
+    /// permanent storage (e.g., Arweave/IPFS).
+    ///
+    /// `batch_size` limits how many reviews are processed per call
+    /// (capped at `MAX_ARCHIVE_BATCH_SIZE = 50`). Call repeatedly to process
+    /// large projects. Returns the number of reviews archived.
+    pub fn archive_old_reviews(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        batch_size: u32,
+    ) -> Result<u32, ContractError> {
+        ReviewRegistry::archive_old_reviews(&env, admin, project_id, batch_size)
+    }
+
+    /// Retrieve the compact archived record for a review that has been archived.
+    ///
+    /// Returns `None` when the review was never archived or its on-chain
+    /// archived record has expired. For active reviews, use `get_review`.
+    pub fn get_archived_review(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<ArchivedReview> {
+        ReviewRegistry::get_archived_review(&env, project_id, reviewer)
+    }
+
+    /// Return a paginated list of archived reviews for a project.
+    ///
+    /// Results are in archival order (oldest archived first). Use
+    /// `start_index` / `limit` for pagination.
+    pub fn list_archived_reviews(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ArchivedReview> {
+        ReviewRegistry::list_archived_reviews(&env, project_id, start_index, limit)
+    }
+
+    /// Admin-only: record the Arweave transaction ID for an archived review.
+    ///
+    /// Off-chain archival jobs call this after successfully writing the full
+    /// review payload to Arweave permanent storage.
+    pub fn set_archived_review_arweave_tx(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reviewer: Address,
+        arweave_tx_id: String,
+    ) -> Result<(), ContractError> {
+        ReviewRegistry::set_archived_review_arweave_tx(
+            &env,
+            admin,
+            project_id,
+            reviewer,
+            arweave_tx_id,
+        )
     }
 
     pub fn get_project_stats(env: Env, project_id: u64) -> ProjectStats {
@@ -713,8 +985,7 @@ impl DongleContract {
         ReviewRegistry::get_review_tombstone(&env, project_id, reviewer)
     }
 
-    /// List reviews sorted by the given sort mode with pagination.
-    /// Sorting is performed on-chain in-memory; compute cost scales with review count.
+    /// List a bounded review page. Sort the returned pages client-side.
     pub fn list_reviews_sorted(
         env: Env,
         project_id: u64,
@@ -725,6 +996,39 @@ impl DongleContract {
         ReviewRegistry::list_reviews_sorted(&env, project_id, start_index, limit, sort_mode)
     }
 
+    // --- Review Content Integrity (#809) ---
+
+    /// Verify the content integrity of a stored review.
+    ///
+    /// Recomputes the SHA-256 seal over the review's current on-chain fields
+    /// (`project_id`, `reviewer`, `rating`, `content_cid`) and compares it
+    /// against the integrity record written at create / update time.
+    ///
+    /// Returns:
+    /// - `ReviewIntegrityStatus::Valid` — content matches the seal.
+    /// - `ReviewIntegrityStatus::Tampered` — mismatch detected; a
+    ///   `ReviewIntegrityViolationEvent` is emitted as a warning.
+    /// - `ReviewIntegrityStatus::Unverifiable` — no seal exists (review
+    ///   predates sealing, or the review itself does not exist).
+    pub fn verify_review_integrity(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> crate::types::ReviewIntegrityStatus {
+        ReviewRegistry::verify_review_integrity(&env, project_id, reviewer)
+    }
+
+    /// Return the stored integrity seal record for a review.
+    ///
+    /// Returns `None` when no seal exists (review predates integrity sealing).
+    pub fn get_review_integrity_record(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<crate::types::ReviewIntegrityRecord> {
+        ReviewRegistry::get_review_integrity_record(&env, project_id, reviewer)
+    }
+
     // --- Verification Registry ---
 
     pub fn request_verification(
@@ -733,16 +1037,49 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
+    }
+
+    pub fn get_verification_risk_model(env: Env) -> VerificationRiskModel {
+        VerificationRegistry::get_verification_risk_model(&env)
+    }
+
+    pub fn set_verification_risk_model(
+        env: Env,
+        admin: Address,
+        model: VerificationRiskModel,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::set_verification_risk_model(&env, admin, model)
+    }
+
+    pub fn get_verification_risk_assessment(
+        env: Env,
+        request_id: u64,
+    ) -> Option<VerificationRiskAssessment> {
+        VerificationRegistry::get_verification_risk_assessment(&env, request_id)
+    }
+
+    pub fn get_high_risk_requests(env: Env) -> Vec<u64> {
+        VerificationRegistry::get_high_risk_verification_requests(&env)
+    }
+
+    pub fn override_verification_risk(
+        env: Env,
+        request_id: u64,
+        admin: Address,
+        flagged: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::override_verification_risk(&env, request_id, admin, flagged)
     }
 
     /// Update the verification evidence CID for a pending verification request.
     ///
     /// # Restrictions
     /// - Only the project owner can update the evidence.
-    /// - Updates are allowed only when the request status is `Pending`.
-    /// - Once a request is finalized (either Approved/Verified or Rejected), it is immutable
-    ///   and further updates will be rejected with an error.
+    /// - Updates are allowed while the request is `Pending` or `Verified`.
+    /// - Updating a verified request resets it to `Pending` and requires a new approval.
+    /// - Rejected and revoked requests are immutable and reject further updates.
     ///
     /// # Validation
     /// - The new evidence CID is validated using the project's standard IPFS CID rules.
@@ -780,6 +1117,61 @@ impl DongleContract {
         VerificationRegistry::reject_verification(&env, project_id, admin)
     }
 
+    /// Atomically approve or reject up to 100 verification requests.
+    /// The entire batch is validated before any request is changed.
+    pub fn decide_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+        action: VerificationBatchAction,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::decide_verifications_batch(&env, request_ids, admin, action)
+    }
+
+    pub fn approve_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::approve_verifications_batch(&env, request_ids, admin)
+    }
+
+    pub fn reject_verifications_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+        admin: Address,
+    ) -> Result<VerificationBatchReport, ContractError> {
+        VerificationRegistry::reject_verifications_batch(&env, request_ids, admin)
+    }
+
+    /// Submit additional evidence to appeal a rejection.
+    pub fn submit_verification_appeal(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::submit_verification_appeal(&env, project_id, owner, evidence_cid)
+    }
+
+    /// Review the latest appeal for a rejected verification.
+    pub fn review_verification_appeal(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::review_verification_appeal(&env, project_id, admin, approved)
+    }
+
+    /// Read the appeal history for a rejected verification request.
+    pub fn get_verification_appeals(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<crate::types::VerificationAppeal> {
+        VerificationRegistry::get_verification_appeals(&env, project_id)
+    }
+
     pub fn revoke_verification(
         env: Env,
         project_id: u64,
@@ -787,6 +1179,30 @@ impl DongleContract {
         reason: String,
     ) -> Result<(), ContractError> {
         VerificationRegistry::revoke_verification(&env, project_id, admin, reason)
+    }
+
+    pub fn suspend_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+        investigation_ticket: String,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::suspend_verification(
+            &env,
+            project_id,
+            admin,
+            reason,
+            investigation_ticket,
+        )
+    }
+
+    pub fn restore_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::restore_verification(&env, project_id, admin)
     }
 
     pub fn get_verification(env: Env, project_id: u64) -> Option<VerificationRecord> {
@@ -797,8 +1213,114 @@ impl DongleContract {
         VerificationRegistry::get_verification_record(&env, request_id)
     }
 
+    pub fn get_evidence_versions(
+        env: Env,
+        request_id: u64,
+    ) -> Vec<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_versions(&env, request_id)
+    }
+
+    pub fn get_evidence_version(
+        env: Env,
+        request_id: u64,
+        version: u32,
+    ) -> Option<crate::types::VerificationEvidenceVersion> {
+        VerificationRegistry::get_verification_evidence_version(&env, request_id, version)
+    }
+
+    pub fn compare_verification_evidence(
+        env: Env,
+        request_id: u64,
+        first_version: u32,
+        second_version: u32,
+    ) -> Option<crate::types::VerificationEvidenceComparison> {
+        VerificationRegistry::compare_verification_evidence(
+            &env,
+            request_id,
+            first_version,
+            second_version,
+        )
+    }
+
+    pub fn get_pending_verifications(env: Env, start: u32, limit: u32) -> Vec<VerificationRecord> {
+        VerificationRegistry::get_pending_verifications(&env, start, limit)
+    }
+
     pub fn get_verifications_batch(env: Env, ids: Vec<u64>) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verifications_batch(&env, ids)
+    }
+
+    pub fn get_verification_records_batch(
+        env: Env,
+        request_ids: Vec<u64>,
+    ) -> Vec<(u64, VerificationRecord)> {
+        VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
+    // --- Probationary Verification & Enhanced Monitoring ---
+
+    /// Returns the configured probationary duration in seconds (default: 30 days).
+    pub fn get_probation_duration(env: Env) -> u64 {
+        ProbationRegistry::get_probation_duration(&env)
+    }
+
+    /// Admin-only: configure probationary duration in seconds.
+    pub fn set_probation_duration(
+        env: Env,
+        admin: Address,
+        duration_secs: u64,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::set_probation_duration(&env, admin, duration_secs)
+    }
+
+    /// Checks if a project is currently within its 30-day probationary period.
+    pub fn is_in_probation(env: Env, project_id: u64) -> bool {
+        ProbationRegistry::is_in_probation(&env, project_id)
+    }
+
+    /// Fetches the probation status record for a project.
+    pub fn get_probation_record(env: Env, project_id: u64) -> Option<ProbationRecord> {
+        ProbationRegistry::get_probation_record(&env, project_id)
+    }
+
+    /// Returns effective verification status (Probationary if in active 30-day probation).
+    pub fn get_effective_verification(env: Env, project_id: u64) -> Option<VerificationStatus> {
+        ProbationRegistry::get_effective_verification_status(&env, project_id)
+    }
+
+    /// Auto-promotes a project to full verification after the 30-day probationary period.
+    pub fn check_and_promote_probation(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        ProbationRegistry::check_and_promote_probation(&env, project_id)
+    }
+
+    /// Fast-track revocation during probation without requiring full review.
+    pub fn revoke_during_probation(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        ProbationRegistry::revoke_during_probation(&env, admin, project_id, reason)
+    }
+
+    /// Enhanced monitoring: records an incident or discrepancy against a project in probation.
+    pub fn record_probation_incident(
+        env: Env,
+        reporter: Address,
+        project_id: u64,
+        details: String,
+    ) -> Result<u32, ContractError> {
+        ProbationRegistry::record_probation_incident(&env, reporter, project_id, details)
+    }
+
+    /// Returns the incident count recorded for a project during probation.
+    pub fn get_probation_incident_count(env: Env, project_id: u64) -> u32 {
+        ProbationRegistry::get_probation_incident_count(&env, project_id)
+    }
+
+    /// Lists project IDs currently under active probation and enhanced monitoring.
+    pub fn list_probationary_projects(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        ProbationRegistry::list_probationary_projects(&env, start_index, limit)
     }
 
     /// Read the refund recorded after a rejected verification (issue #472).
@@ -838,6 +1360,10 @@ impl DongleContract {
         VerificationRegistry::get_verification_history(&env, project_id)
     }
 
+    pub fn get_suspension_timeline(env: Env, project_id: u64) -> Vec<VerificationSuspension> {
+        VerificationRegistry::get_verification_suspension_timeline(&env, project_id)
+    }
+
     pub fn request_renewal(
         env: Env,
         project_id: u64,
@@ -875,6 +1401,10 @@ impl DongleContract {
         VerificationRegistry::is_verification_expired(&env, project_id)
     }
 
+    pub fn process_verification_expiry(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry(&env, project_id)
+    }
+
     /// Returns whether a non-expired verification will expire within the
     /// supplied threshold. This is a read-only renewal-warning helper.
     pub fn is_verification_expiring_soon(
@@ -883,6 +1413,36 @@ impl DongleContract {
         threshold_seconds: u64,
     ) -> Result<bool, ContractError> {
         VerificationRegistry::is_verification_expiring_soon(&env, project_id, threshold_seconds)
+    }
+
+    pub fn process_expiry_notification(env: Env, project_id: u64) -> Result<bool, ContractError> {
+        VerificationRegistry::process_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn get_expiry_notification(
+        env: Env,
+        project_id: u64,
+    ) -> Option<VerificationExpiryNotification> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+    }
+
+    pub fn record_expiry_notification_sent(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        delivered: bool,
+    ) -> Result<(), ContractError> {
+        VerificationRegistry::record_verification_expiry_notification_delivery(
+            &env, project_id, admin, delivered,
+        )
+    }
+
+    pub fn get_notification_delivery_status(
+        env: Env,
+        project_id: u64,
+    ) -> Option<NotificationDeliveryStatus> {
+        VerificationRegistry::get_verification_expiry_notification(&env, project_id)
+            .map(|notification| notification.delivery_status)
     }
 
     /// Admin: prune verification history, keeping the most recent `keep_count` records.
@@ -921,6 +1481,157 @@ impl DongleContract {
     /// Get the admin assigned to review a verification request.
     pub fn get_assigned_admin(env: Env, project_id: u64) -> Option<Address> {
         VerificationRegistry::get_assigned_admin(&env, project_id)
+    }
+
+    // --- Verification Assignment & Specialized Admin Routing ---
+
+    /// Admin: assign a pending verification request to an admin with specific expertise.
+    pub fn assign_verification_expertise(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        assignee: Address,
+        expertise: String,
+    ) -> Result<u64, ContractError> {
+        VerificationAssignmentRegistry::assign_verification_with_expertise(
+            &env,
+            project_id,
+            admin,
+            assignee,
+            Some(expertise),
+        )
+    }
+
+    /// Admin: automatically route a pending verification request to an admin specialized in the given expertise.
+    pub fn route_verification_to_expert(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        expertise: String,
+    ) -> Result<Address, ContractError> {
+        VerificationAssignmentRegistry::route_verification_to_expert(
+            &env, project_id, admin, expertise,
+        )
+    }
+
+    /// Admin: set or update the specialized expertise domains for an admin.
+    pub fn set_admin_expertise(
+        env: Env,
+        caller: Address,
+        admin: Address,
+        expertise: Vec<String>,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_admin_expertise(&env, caller, admin, expertise)
+    }
+
+    /// Get the expertise domains registered for an admin.
+    pub fn get_admin_expertise(env: Env, admin: Address) -> Vec<String> {
+        VerificationAssignmentRegistry::get_admin_expertise(&env, admin)
+    }
+
+    /// Get all admins registered with a specific expertise domain.
+    pub fn get_admins_by_expertise(env: Env, expertise: String) -> Vec<Address> {
+        VerificationAssignmentRegistry::get_admins_by_expertise(&env, expertise)
+    }
+
+    /// Assigned Admin: accept the verification assignment to begin review.
+    pub fn accept_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::accept_verification_assignment(&env, project_id, admin)
+    }
+
+    /// Assigned Admin: decline the verification assignment with a reason, releasing it for reassignment.
+    pub fn decline_verification_assignment(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::decline_verification_assignment(
+            &env, project_id, admin, reason,
+        )
+    }
+
+    /// Get the active assignment record for a project's verification request, if any.
+    pub fn get_current_assignment(env: Env, project_id: u64) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_current_verification_assignment(&env, project_id)
+    }
+
+    /// Get a specific verification assignment by its unique assignment ID.
+    pub fn get_verification_assignment(
+        env: Env,
+        assignment_id: u64,
+    ) -> Option<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment(&env, assignment_id)
+    }
+
+    /// Get the complete historical log of verification assignments for a project.
+    pub fn get_assignment_history(env: Env, project_id: u64) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history(&env, project_id)
+    }
+
+    /// Get paginated verification assignment history for a project.
+    pub fn list_assignment_history(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_verification_assignment_history_paginated(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get all verification assignments associated with a specific admin.
+    pub fn get_admin_assignments(env: Env, admin: Address) -> Vec<VerificationAssignment> {
+        VerificationAssignmentRegistry::get_admin_assignments(&env, admin)
+    }
+
+    /// Get workload statistics for an admin.
+    pub fn get_admin_workload(env: Env, admin: Address) -> AdminWorkload {
+        VerificationAssignmentRegistry::get_admin_workload(&env, admin)
+    }
+
+    /// Admin: set the global SLA duration (in seconds) for verification assignments.
+    pub fn set_verification_sla(
+        env: Env,
+        admin: Address,
+        sla_seconds: u64,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::set_verification_sla(&env, admin, sla_seconds)
+    }
+
+    /// Get the current verification review SLA duration (in seconds).
+    pub fn get_verification_sla(env: Env) -> u64 {
+        VerificationAssignmentRegistry::get_verification_sla(&env)
+    }
+
+    /// Check if the active assignment for a project has breached its review SLA deadline.
+    pub fn is_assignment_sla_breached(env: Env, project_id: u64) -> bool {
+        VerificationAssignmentRegistry::is_assignment_sla_breached(&env, project_id)
+    }
+
+    /// Get remaining seconds until the active assignment's SLA deadline lapses.
+    pub fn get_assignment_sla_remaining(env: Env, project_id: u64) -> Option<u64> {
+        VerificationAssignmentRegistry::get_assignment_sla_remaining(&env, project_id)
+    }
+
+    /// Admin: escalate an overdue or unhandled verification assignment that breached SLA.
+    pub fn escalate_verification_assignment(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        VerificationAssignmentRegistry::escalate_verification_assignment(
+            &env, caller, project_id, reason,
+        )
     }
 
     // --- Reserved Project Names ---
@@ -975,6 +1686,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -1005,6 +1717,10 @@ impl DongleContract {
         FeeManager::get_fee_config(&env)
     }
 
+    pub fn get_fee_config_history(env: Env) -> Vec<FeeConfigHistoryEntry> {
+        FeeManager::get_fee_config_history(&env)
+    }
+
     /// Get fee payment details for a project (payer, amount, token, timestamp).
     pub fn get_fee_payment_details(env: Env, project_id: u64) -> Option<FeePaymentRecord> {
         FeeManager::get_fee_payment_details(&env, project_id)
@@ -1024,22 +1740,48 @@ impl DongleContract {
         }
     }
 
-    /// Extend TTL for many project IDs. Missing projects are skipped.
-    pub fn extend_projects_ttl(env: Env, project_ids: Vec<u64>) -> Result<u32, ContractError> {
+    /// Extend TTL for many project IDs.
+    ///
+    /// ## Semantics (closes #666)
+    ///
+    /// - **Batch size guard**: returns `InvalidInput` immediately when the input
+    ///   exceeds `MAX_TTL_BATCH_SIZE` — no work is done.
+    /// - **Continue on missing**: a project ID that does not exist in storage is
+    ///   recorded in `BatchTtlResult::skipped_ids`; processing continues for the
+    ///   rest of the batch. This is *not* a failure — the caller can inspect
+    ///   `skipped_ids` to see which IDs were not found.
+    /// - **Fail-fast on hard errors**: if the underlying storage layer panics
+    ///   (budget exhausted, ledger entry too large, etc.) the transaction is
+    ///   aborted atomically. Partial-state is only possible across separate
+    ///   invocations, never within a single call.
+    ///
+    /// Use `result.skipped_ids.len() == 0` to confirm all-or-nothing success.
+    pub fn extend_projects_ttl(
+        env: Env,
+        project_ids: Vec<u64>,
+    ) -> Result<BatchTtlResult, ContractError> {
         if project_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
             return Err(ContractError::InvalidInput);
         }
 
         let mut refreshed = 0u32;
+        let mut skipped_ids: Vec<u64> = Vec::new(&env);
+
         for i in 0..project_ids.len() {
             if let Some(project_id) = project_ids.get(i) {
                 if let Some(project) = ProjectRegistry::get_project(&env, project_id) {
                     StorageManager::extend_project_full_ttl(&env, project_id, &project.name);
                     refreshed = refreshed.saturating_add(1);
+                } else {
+                    skipped_ids.push_back(project_id);
                 }
             }
         }
-        Ok(refreshed)
+
+        Ok(BatchTtlResult {
+            refreshed,
+            skipped_ids,
+        })
     }
 
     /// Extend TTL for a specific review
@@ -1047,16 +1789,27 @@ impl DongleContract {
         StorageManager::extend_review_ttl(&env, project_id, &reviewer);
     }
 
-    /// Extend TTL for many review records. Missing reviews are skipped.
+    /// Extend TTL for many review records.
+    ///
+    /// ## Semantics (closes #666)
+    ///
+    /// Same continue-on-missing / fail-fast rules as `extend_projects_ttl`.
+    /// `BatchTtlResult::skipped_ids` contains the **project IDs** of reviews
+    /// that could not be found (the reviewer index within the input slice is
+    /// discarded because `Vec<u64>` cannot carry `Address` values).
+    ///
+    /// Use `result.skipped_ids.len() == 0` to confirm all-or-nothing success.
     pub fn extend_reviews_ttl(
         env: Env,
         review_ids: Vec<(u64, Address)>,
-    ) -> Result<u32, ContractError> {
+    ) -> Result<BatchTtlResult, ContractError> {
         if review_ids.len() > crate::constants::MAX_TTL_BATCH_SIZE {
             return Err(ContractError::InvalidInput);
         }
 
         let mut refreshed = 0u32;
+        let mut skipped_ids: Vec<u64> = Vec::new(&env);
+
         for i in 0..review_ids.len() {
             if let Some((project_id, reviewer)) = review_ids.get(i) {
                 if ReviewRegistry::get_review(&env, project_id, reviewer.clone()).is_some() {
@@ -1065,10 +1818,16 @@ impl DongleContract {
                     StorageManager::extend_project_stats_ttl(&env, project_id);
                     StorageManager::extend_user_reviews_ttl(&env, &reviewer);
                     refreshed = refreshed.saturating_add(1);
+                } else {
+                    skipped_ids.push_back(project_id);
                 }
             }
         }
-        Ok(refreshed)
+
+        Ok(BatchTtlResult {
+            refreshed,
+            skipped_ids,
+        })
     }
 
     /// Extend TTL for all admin-related data
@@ -1116,6 +1875,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -1144,6 +1904,27 @@ impl DongleContract {
     }
 
     /// List projects by tag - Issue #125
+    /// Look projects up by one or more tags using the inverted index (issue #483).
+    ///
+    /// `list_projects_by_tag` scans every project id on every call. This serves
+    /// the indexed range directly and scans only the range a backfill has not
+    /// reached yet, so a single call can also cover several tags at once instead
+    /// of one round trip per tag.
+    pub fn get_projects_by_tag_batch(env: Env, tags: Vec<String>, limit: u32) -> Vec<Project> {
+        ProjectRegistry::get_projects_by_tag_batch(&env, tags, limit)
+    }
+
+    /// Backfill the tag index for projects registered before it existed.
+    /// Admin only. Processes at most `limit` ids and returns the new watermark.
+    pub fn reindex_tags(env: Env, caller: Address, limit: u32) -> Result<u64, ContractError> {
+        ProjectRegistry::reindex_tags(&env, caller, limit)
+    }
+
+    /// Highest project id guaranteed to be present in the tag index.
+    pub fn get_tag_index_watermark(env: Env) -> u64 {
+        ProjectRegistry::get_tag_index_watermark(&env)
+    }
+
     pub fn list_projects_by_tag(
         env: Env,
         tag: String,
@@ -1211,18 +1992,18 @@ impl DongleContract {
     }
 
     /// List all collections with pagination.
-    pub fn list_collections(env: Env, start: u32, limit: u32) -> Vec<Collection> {
-        CollectionRegistry::list_collections(&env, start, limit)
+    pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
     /// List project IDs in a collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<u64> {
-        CollectionRegistry::list_collection_projects(&env, collection_id, start, limit)
+        CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.
@@ -1243,8 +2024,8 @@ impl DongleContract {
     }
 
     /// List admin action log entries with pagination (most recent first).
-    pub fn list_admin_actions(env: Env, start: u32, limit: u32) -> Vec<AdminActionEntry> {
-        AdminActionLog::list_admin_actions(&env, start, limit)
+    pub fn list_admin_actions(env: Env, start_index: u32, limit: u32) -> Vec<AdminActionEntry> {
+        AdminActionLog::list_admin_actions(&env, start_index, limit)
     }
 
     /// List admin action log entries filtered to a specific admin address (most recent first).
@@ -1254,10 +2035,10 @@ impl DongleContract {
     pub fn get_admin_action_log_by_admin(
         env: Env,
         admin: Address,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<AdminActionEntry> {
-        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start, limit)
+        AdminActionLog::get_admin_action_log_by_admin(&env, admin, start_index, limit)
     }
 
     /// Get the total number of admin action log entries.
@@ -1476,11 +2257,11 @@ impl DongleContract {
     pub fn get_project_changelog(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
-        ChangelogRegistry::get_project_changelog(&env, project_id, start, limit, sort_mode)
+        ChangelogRegistry::get_project_changelog(&env, project_id, start_index, limit, sort_mode)
     }
 
     /// Get changelog entry count for a project.
@@ -1501,6 +2282,7 @@ impl DongleContract {
         project_id: u64,
         follower: Address,
     ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::subscription_registry::SubscriptionRegistry::follow_project(
             &env, project_id, follower,
         )
@@ -1527,23 +2309,100 @@ impl DongleContract {
     pub fn get_project_followers(
         env: Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
     ) -> Vec<Address> {
         crate::subscription_registry::SubscriptionRegistry::get_project_followers(
-            &env, project_id, start, limit,
+            &env,
+            project_id,
+            start_index,
+            limit,
         )
     }
 
-    pub fn get_user_subscriptions(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(
+        env: Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
         crate::subscription_registry::SubscriptionRegistry::get_user_subscriptions(
-            &env, user, start, limit,
+            &env,
+            user,
+            start_index,
+            limit,
         )
+    }
+
+    // --- Notification Preferences ---
+
+    pub fn set_notification_prefs(
+        env: Env,
+        user: Address,
+        opted_out: bool,
+        notify_on_all: bool,
+        digest_frequency: crate::types::DigestFrequency,
+        kinds: soroban_sdk::Vec<crate::types::NotificationKind>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_notification_prefs(
+            &env,
+            user,
+            opted_out,
+            notify_on_all,
+            digest_frequency,
+            kinds,
+        )
+    }
+
+    pub fn get_notification_prefs(
+        env: Env,
+        user: Address,
+    ) -> Option<crate::types::UserNotificationPrefs> {
+        crate::notification_registry::NotificationRegistry::get_notification_prefs(&env, user)
+    }
+
+    pub fn set_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        opted_out: bool,
+        kinds: Option<soroban_sdk::Vec<crate::types::NotificationKind>>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::set_project_notification_override(
+            &env, user, project_id, opted_out, kinds,
+        )
+    }
+
+    pub fn get_project_notif_override(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Option<crate::types::ProjectNotificationOverride> {
+        crate::notification_registry::NotificationRegistry::get_project_notification_override(
+            &env, user, project_id,
+        )
+    }
+
+    pub fn get_digest_queue(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::notification_registry::NotificationRegistry::get_digest_queue(
+            &env,
+            user,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn flush_digest_queue(env: Env, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::notification_registry::NotificationRegistry::flush_digest_queue(&env, user)
     }
 
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -1559,13 +2418,173 @@ impl DongleContract {
         crate::bookmark_registry::BookmarkRegistry::is_bookmarked(&env, project_id, &user)
     }
 
-    pub fn get_user_bookmarks(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
-        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(&env, user, start, limit)
+    pub fn get_user_bookmarks(env: Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmarks(
+            &env,
+            user,
+            start_index,
+            limit,
+        )
+    }
+
+    // --- Bookmark Folders (#815) ---
+
+    /// Create a new folder for organising bookmarks.
+    pub fn create_bookmark_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        parent_id: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_folder(&env, user, name, parent_id)
+    }
+
+    /// Delete a bookmark folder (bookmarks are retained in the flat list).
+    pub fn delete_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_folder(&env, user, folder_id)
+    }
+
+    /// Rename a bookmark folder.
+    pub fn rename_bookmark_folder(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        new_name: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::rename_folder(&env, user, folder_id, new_name)
+    }
+
+    /// Get a bookmark folder by ID.
+    pub fn get_bookmark_folder_by_id(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+    ) -> Option<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder(&env, user, folder_id)
+    }
+
+    /// List all folders owned by the user.
+    pub fn list_bookmark_folders(env: Env, user: Address) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_folders(&env, user)
+    }
+
+    /// List direct child folders of a given parent folder.
+    pub fn list_child_bookmark_folders(
+        env: Env,
+        user: Address,
+        parent_id: u64,
+    ) -> Vec<BookmarkFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_child_folders(&env, user, parent_id)
+    }
+
+    /// Move a bookmarked project into a folder.
+    pub fn move_bookmark_to_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::move_bookmark_to_folder(
+            &env, user, project_id, folder_id,
+        )
+    }
+
+    /// Remove a bookmark from its current folder.
+    pub fn remove_bookmark_from_folder(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::remove_bookmark_from_folder(
+            &env, user, project_id,
+        )
+    }
+
+    /// Get bookmarks in a folder, paginated.
+    pub fn get_folder_bookmarks(
+        env: Env,
+        user: Address,
+        folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_folder_bookmarks(
+            &env,
+            user,
+            folder_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Get the folder ID that a bookmarked project currently lives in, if any.
+    pub fn get_bookmark_folder(env: Env, user: Address, project_id: u64) -> Option<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_bookmark_folder(&env, project_id, &user)
+    }
+
+    // --- Smart Folders (#815) ---
+
+    /// Create a smart folder (dynamically filtered bookmark view).
+    pub fn create_smart_folder(
+        env: Env,
+        user: Address,
+        name: String,
+        filter: SmartFolderFilter,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::create_smart_folder(&env, user, name, filter)
+    }
+
+    /// Delete a smart folder.
+    pub fn delete_smart_folder(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(&env, user, smart_folder_id)
+    }
+
+    /// Get a smart folder by ID.
+    pub fn get_smart_folder(env: Env, user: Address, smart_folder_id: u64) -> Option<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder(&env, user, smart_folder_id)
+    }
+
+    /// List all smart folders owned by the user.
+    pub fn list_smart_folders(env: Env, user: Address) -> Vec<SmartFolder> {
+        crate::bookmark_registry::BookmarkRegistry::list_smart_folders(&env, user)
+    }
+
+    /// Get the resolved bookmark list for a smart folder (paginated).
+    pub fn get_smart_folder_bookmarks(
+        env: Env,
+        user: Address,
+        smart_folder_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        crate::bookmark_registry::BookmarkRegistry::get_smart_folder_bookmarks(
+            &env,
+            user,
+            smart_folder_id,
+            start_index,
+            limit,
+        )
     }
 
     // --- Endorsement Registry ---
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -1579,6 +2598,20 @@ impl DongleContract {
 
     pub fn get_endorsement_count(env: Env, project_id: u64) -> u32 {
         crate::endorsement_registry::EndorsementRegistry::get_endorsement_count(&env, project_id)
+    }
+
+    pub fn get_project_endorsements(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        crate::endorsement_registry::EndorsementRegistry::get_project_endorsements(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
     }
 
     pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {
@@ -1661,8 +2694,8 @@ impl DongleContract {
         TimelockManager::get_action(&env, action_id)
     }
 
-    pub fn list_scheduled_actions(env: Env, start: u32, limit: u32) -> Vec<TimelockAction> {
-        TimelockManager::list_scheduled_actions(&env, start, limit)
+    pub fn list_scheduled_actions(env: Env, start_index: u32, limit: u32) -> Vec<TimelockAction> {
+        TimelockManager::list_scheduled_actions(&env, start_index, limit)
     }
 
     pub fn get_scheduled_action_count(env: Env) -> u64 {
@@ -1691,5 +2724,852 @@ impl DongleContract {
     /// future pause-enforcement ticket.
     pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<bool, ContractError> {
         ConfigRegistry::set_pause(&env, admin, paused)
+    }
+
+    // ── Recommendation Registry (Issue #820) ──────────────────────────────
+
+    /// Create a new recommendation. The `creator` address is always authenticated.
+    pub fn create_recommendation(
+        env: Env,
+        creator: Address,
+        target_project_id: u64,
+        algorithm: RecommendationAlgorithm,
+        reference_project_id: Option<u64>,
+        audience: Option<Address>,
+        score: Option<u64>,
+        label: Option<String>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::create_recommendation(
+            &env,
+            creator,
+            target_project_id,
+            algorithm,
+            reference_project_id,
+            audience,
+            score,
+            label,
+        )
+    }
+
+    /// Look up a single recommendation by id.
+    pub fn get_recommendation(env: Env, recommendation_id: u64) -> Option<Recommendation> {
+        crate::recommendation_registry::RecommendationRegistry::get_recommendation(
+            &env,
+            recommendation_id,
+        )
+    }
+
+    /// Total number of recommendations currently stored.
+    pub fn get_recommendation_count(env: Env) -> u32 {
+        crate::recommendation_registry::RecommendationRegistry::get_recommendation_count(&env)
+    }
+
+    /// Number of recommendations stored against a specific target project.
+    pub fn get_project_recommendation_count(env: Env, target_project_id: u64) -> u32 {
+        crate::recommendation_registry::RecommendationRegistry::get_recommendation_count_for_project(
+            &env,
+            target_project_id,
+        )
+    }
+
+    /// List recommendations with pagination (oldest-first insertion order).
+    pub fn list_recommendations(env: Env, start_index: u32, limit: u32) -> Vec<Recommendation> {
+        crate::recommendation_registry::RecommendationRegistry::list_recommendations(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    /// List recommendations targeting a specific project.
+    pub fn list_recommendations_for_project(
+        env: Env,
+        target_project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Recommendation> {
+        crate::recommendation_registry::RecommendationRegistry::list_recommendations_for_project(
+            &env,
+            target_project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Record that a recommendation was shown to `viewer` (impression / denominator
+    /// for CTR). Idempotent per viewer: repeat calls do not double-count.
+    pub fn record_recommendation_impression(
+        env: Env,
+        recommendation_id: u64,
+        viewer: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::record_impression(
+            &env,
+            recommendation_id,
+            viewer,
+        )
+    }
+
+    /// Record that `viewer` clicked the recommendation (CTR numerator / click-through tracking).
+    /// Requires `record_recommendation_impression` to have been called first for the same viewer.
+    pub fn record_recommendation_click(
+        env: Env,
+        recommendation_id: u64,
+        viewer: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::record_click(
+            &env,
+            recommendation_id,
+            viewer,
+        )
+    }
+
+    /// Generic engagement recorder for follow / bookmark / endorse / review
+    /// downstream signals. Impressions and clicks have dedicated entry points and
+    /// are not repeated here.
+    pub fn record_recommendation_engagement(
+        env: Env,
+        recommendation_id: u64,
+        user: Address,
+        kind: RecommendationEngagementKind,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::record_engagement(
+            &env,
+            recommendation_id,
+            user,
+            kind,
+        )
+    }
+
+    /// Record a user's thumbs-up or thumbs-down recommendation feedback.
+    /// Append-only: once a user has submitted feedback for a recommendation they
+    /// cannot change it — keeps the on-chain audit trail honest for the
+    /// recommendation-improvement loop.
+    pub fn give_recommendation_feedback(
+        env: Env,
+        recommendation_id: u64,
+        user: Address,
+        helpful: bool,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::give_feedback(
+            &env,
+            recommendation_id,
+            user,
+            helpful,
+        )
+    }
+
+    /// Look up what feedback a specific user left (if any) on a recommendation.
+    pub fn get_recommendation_user_feedback(
+        env: Env,
+        recommendation_id: u64,
+        user: Address,
+    ) -> Option<RecommendationFeedback> {
+        crate::recommendation_registry::RecommendationRegistry::get_user_feedback(
+            &env,
+            recommendation_id,
+            user,
+        )
+    }
+
+    /// Produce the aggregated RecommendationAnalytics snapshot (CTR, helpful ratio,
+    /// composite effectiveness score). Always emits `RecommendationAnalyticsSnapshotEvent`
+    /// so indexers can consume the result without additional reads.
+    pub fn get_recommendation_analytics(
+        env: Env,
+        recommendation_id: u64,
+    ) -> Option<RecommendationAnalytics> {
+        crate::recommendation_registry::RecommendationRegistry::get_analytics(
+            &env,
+            recommendation_id,
+        )
+    }
+
+    /// Return recommendations ordered from highest effectiveness score to lowest.
+    /// Provides the "improvement based on feedback" primitive: callers and future
+    /// on-chain recommendation engines use this list to surface the recommendations
+    /// that users actually find useful.
+    pub fn list_recommendations_sorted(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<Recommendation> {
+        crate::recommendation_registry::RecommendationRegistry::list_sorted_by_effectiveness(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    // ── Community Collections (Issue #821) ──────────────────────────────────
+
+    /// Create a community collection. Any authenticated address can call this
+    /// (unlike admin-only `Collection`).
+    pub fn create_community_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        tags: Option<String>,
+        approval_threshold: Option<u32>,
+        disapproval_threshold: Option<u32>,
+        creator_revenue_share_bps: Option<u32>,
+        initial_curators: Option<Vec<Address>>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::create(
+            &env,
+            creator,
+            name,
+            description,
+            tags,
+            approval_threshold,
+            disapproval_threshold,
+            creator_revenue_share_bps,
+            initial_curators,
+        )
+    }
+
+    /// Admin-only: create a built-in template collection that users can clone
+    /// (AC4 — templates for common collections).
+    pub fn create_ccol_template(
+        env: Env,
+        admin: Address,
+        template_id: CommunityCollectionTemplateId,
+        override_name: Option<String>,
+        override_description: Option<String>,
+        seed_projects: Option<Vec<u64>>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::create_template(
+            &env,
+            admin,
+            template_id,
+            override_name,
+            override_description,
+            seed_projects,
+        )
+    }
+
+    /// Clone any community collection (typically a template collection with
+    /// `is_template = true`) into a brand-new non-template one owned by the
+    /// caller. Copies metadata and project set skeleton (AC4).
+    pub fn create_ccol_from_template(
+        env: Env,
+        caller: Address,
+        source_collection_id: u64,
+        name: String,
+        description: String,
+        tags: Option<String>,
+        approval_threshold: Option<u32>,
+        disapproval_threshold: Option<u32>,
+        creator_revenue_share_bps: Option<u32>,
+        initial_curators: Option<Vec<Address>>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::create_from_template(
+            &env,
+            caller,
+            source_collection_id,
+            name,
+            description,
+            tags,
+            approval_threshold,
+            disapproval_threshold,
+            creator_revenue_share_bps,
+            initial_curators,
+        )
+    }
+
+    pub fn get_community_collection(env: Env, id: u64) -> Option<CommunityCollection> {
+        crate::community_collection_registry::CommunityCollectionRegistry::get(&env, id)
+    }
+
+    pub fn get_community_collection_count(env: Env) -> u32 {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_count(&env)
+    }
+
+    pub fn list_community_collections(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CommunityCollection> {
+        crate::community_collection_registry::CommunityCollectionRegistry::list(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn list_ccols_by_creator(
+        env: Env,
+        creator: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CommunityCollection> {
+        crate::community_collection_registry::CommunityCollectionRegistry::list_by_creator(
+            &env,
+            creator,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn list_ccols_by_curator(
+        env: Env,
+        curator: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CommunityCollection> {
+        crate::community_collection_registry::CommunityCollectionRegistry::list_by_curator(
+            &env,
+            curator,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn get_ccol_project_count(env: Env, id: u64) -> u32 {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_project_count(
+            &env, id,
+        )
+    }
+
+    pub fn list_ccol_projects(env: Env, id: u64, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::community_collection_registry::CommunityCollectionRegistry::list_projects(
+            &env,
+            id,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn update_ccol_metadata(
+        env: Env,
+        id: u64,
+        updater: Address,
+        name: String,
+        description: String,
+        tags: Option<String>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::update_metadata(
+            &env,
+            id,
+            updater,
+            name,
+            description,
+            tags,
+        )
+    }
+
+    pub fn set_ccol_thresholds(
+        env: Env,
+        id: u64,
+        updater: Address,
+        approval_threshold: u32,
+        disapproval_threshold: u32,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::set_thresholds(
+            &env,
+            id,
+            updater,
+            approval_threshold,
+            disapproval_threshold,
+        )
+    }
+
+    pub fn set_ccol_revenue_share(
+        env: Env,
+        id: u64,
+        updater: Address,
+        creator_revenue_share_bps: u32,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::set_revenue_share(
+            &env,
+            id,
+            updater,
+            creator_revenue_share_bps,
+        )
+    }
+
+    pub fn add_community_collection_curator(
+        env: Env,
+        id: u64,
+        actor: Address,
+        new_curator: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::add_curator(
+            &env,
+            id,
+            actor,
+            new_curator,
+        )
+    }
+
+    pub fn remove_ccol_curator(
+        env: Env,
+        id: u64,
+        actor: Address,
+        curator_to_remove: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::remove_curator(
+            &env,
+            id,
+            actor,
+            curator_to_remove,
+        )
+    }
+
+    pub fn curator_add_ccol_project(
+        env: Env,
+        id: u64,
+        curator: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::curator_add_project(
+            &env, id, curator, project_id,
+        )
+    }
+
+    pub fn curator_remove_ccol_project(
+        env: Env,
+        id: u64,
+        curator: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::curator_remove_project(
+            &env, id, curator, project_id,
+        )
+    }
+
+    // AC2 — community voting / curation mechanism
+    pub fn cast_community_collection_vote(
+        env: Env,
+        id: u64,
+        voter: Address,
+        project_id: u64,
+        approve: bool,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::cast_vote(
+            &env, id, voter, project_id, approve,
+        )
+    }
+
+    pub fn get_community_collection_vote(
+        env: Env,
+        id: u64,
+        project_id: u64,
+        voter: Address,
+    ) -> Option<CommunityCollectionVote> {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_vote(
+            &env, id, project_id, voter,
+        )
+    }
+
+    pub fn get_ccol_inclusion_status(
+        env: Env,
+        id: u64,
+        project_id: u64,
+    ) -> CommunityColInclusionStatus {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_inclusion_status(
+            &env, id, project_id,
+        )
+    }
+
+    // AC1 — featured community collections (admin-only, FIFO eviction at cap)
+    pub fn feature_community_collection(
+        env: Env,
+        admin: Address,
+        id: u64,
+        featured: bool,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::set_featured(
+            &env, admin, id, featured,
+        )
+    }
+
+    pub fn list_featured_ccols(env: Env, start_index: u32, limit: u32) -> Vec<CommunityCollection> {
+        crate::community_collection_registry::CommunityCollectionRegistry::list_featured(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    pub fn get_featured_ccol_count(env: Env) -> u32 {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_featured_count(&env)
+    }
+
+    // AC3 — revenue sharing (recording cumulative attribution for off-chain payout)
+    pub fn attribute_ccol_revenue(
+        env: Env,
+        caller: Address,
+        id: u64,
+        total_amount_scaled: u128,
+    ) -> Result<CommunityColRevenueSnapshot, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::community_collection_registry::CommunityCollectionRegistry::attribute_revenue(
+            &env,
+            caller,
+            id,
+            total_amount_scaled,
+        )
+    }
+
+    pub fn get_ccol_revenue_snapshot(env: Env, id: u64) -> Option<CommunityColRevenueSnapshot> {
+        crate::community_collection_registry::CommunityCollectionRegistry::get_revenue_snapshot(
+            &env, id,
+        )
+    }
+
+    // ── Social Analytics (Issue #822) ──────────────────────────────────────
+
+    // AC1 — Growth metrics over time: daily checkpoint snapshots that
+    // accumulate and support any-window delta computations.
+
+    /// Record today's social-signal snapshot (followers, endorsements,
+    /// bookmarks, reviews, rating) for the project. Idempotent per-day;
+    /// repeated calls on the same day overwrite the prior snapshot of the
+    /// day with the latest counts. When the rolling 730-day window is full,
+    /// the oldest day's checkpoint is FIFO-evicted. Any authenticated caller
+    /// may checkpoint (keepers / indexers are the expected operators).
+    pub fn record_social_daily_checkpoint(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::social_analytics_registry::SocialAnalyticsRegistry::record_daily_checkpoint(
+            &env, caller, project_id,
+        )
+    }
+
+    /// Retrieve a single checkpoint by project + day (if persisted).
+    pub fn get_project_social_checkpoint(
+        env: Env,
+        project_id: u64,
+        day_index: u32,
+    ) -> Option<ProjectSocialDailyCheckpoint> {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::get_checkpoint(
+            &env, project_id, day_index,
+        )
+    }
+
+    /// List stored checkpoints for a project in oldest-first order, paginated.
+    pub fn list_project_social_checkpoints(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ProjectSocialDailyCheckpoint> {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::list_checkpoints(
+            &env,
+            project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// How many daily checkpoints currently exist for a project.
+    pub fn get_social_checkpoint_count(env: Env, project_id: u64) -> u32 {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::get_checkpoint_count(
+            &env, project_id,
+        )
+    }
+
+    /// Return (oldest_day, newest_day) of stored checkpoints for a project,
+    /// both optional (None if no checkpoints yet written). Fast metadata
+    /// without scanning the whole list.
+    pub fn get_social_checkpoint_bounds(env: Env, project_id: u64) -> (Option<u32>, Option<u32>) {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::get_oldest_newest_checkpoint_days(
+            &env, project_id,
+        )
+    }
+
+    // AC2 — Engagement rate calculations over arbitrary windows.
+
+    /// Engagement metric (ppm rate, gains by signal, rating delta) for a
+    /// custom window [window_start_day, window_end_day] inclusive.
+    pub fn compute_engagement_metric(
+        env: Env,
+        project_id: u64,
+        window_start_day: u32,
+        window_end_day: u32,
+    ) -> Result<ProjectEngagementMetric, ContractError> {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::compute_project_engagement_metric(
+            &env,
+            project_id,
+            window_start_day,
+            window_end_day,
+        )
+    }
+
+    // AC3 — Peer comparison.
+
+    /// Last-30-day engagement-rate comparison of the target project with
+    /// other projects in the same category, sorted by rate descending. The
+    /// target project is always included (so percentile is pos/len on the
+    /// client side), and up to `max_peers` additional projects are returned
+    /// (cap = SOCIAL_ANALYTICS_MAX_PEERS = 50).
+    pub fn compare_social_peers(
+        env: Env,
+        project_id: u64,
+        max_peers: u32,
+    ) -> Result<Vec<ProjectSocialPeerRow>, ContractError> {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::compare_similar_projects(
+            &env, project_id, max_peers,
+        )
+    }
+
+    // AC4 — Export analytics report: one-shot payload combining everything.
+
+    /// Compute and return a `ProjectSocialAnalyticsExport` payload combining
+    /// checkpoints horizon, last-7d + last-30d engagement metrics, 30-day
+    /// growth deltas, peer comparison ranking, and a monotonically
+    /// incrementing report nonce so export consumers can dedupe repeated
+    /// runs. Also emits `ProjectSocialAnalyticsExportEvent` with the key
+    /// numbers for indexer consumption.
+    pub fn export_social_analytics_report(
+        env: Env,
+        project_id: u64,
+    ) -> Result<ProjectSocialAnalyticsExport, ContractError> {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::export_report(&env, project_id)
+    }
+
+    /// Last-generated export report nonce for a project. 0 if `export_*` has
+    /// never been called.
+    pub fn get_social_report_nonce(env: Env, project_id: u64) -> u64 {
+        crate::social_analytics_registry::SocialAnalyticsRegistry::get_export_report_nonce(
+            &env, project_id,
+        )
+    }
+
+    // ── #757: Security Contact Email Verification ─────────────────────────
+
+    /// Initiate a challenge-response verification for a project's security
+    /// contact. Emits a `SC_CHALL` event containing the one-time token.
+    /// Caller must be the project owner.
+    pub fn initiate_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<SecurityContactVerificationRecord, ContractError> {
+        SecurityContactVerificationRegistry::initiate_verification(&env, project_id, &caller)
+    }
+
+    /// Confirm receipt of the challenge token to mark the security contact as
+    /// verified. Caller must be the project owner.
+    pub fn confirm_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        token: String,
+    ) -> Result<SecurityContactVerificationRecord, ContractError> {
+        SecurityContactVerificationRegistry::confirm_verification(&env, project_id, &caller, token)
+    }
+
+    /// Return the current security contact verification status for a project.
+    pub fn get_security_contact_verification_status(
+        env: Env,
+        project_id: u64,
+    ) -> SecurityContactVerificationStatus {
+        SecurityContactVerificationRegistry::get_status(&env, project_id)
+    }
+
+    /// Admin: revoke a security contact verification to force re-verification.
+    pub fn admin_revoke_security_contact_verification(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        SecurityContactVerificationRegistry::admin_revoke(&env, project_id, &admin)
+    }
+
+    /// Check whether annual re-verification is required for a project's
+    /// security contact.
+    pub fn security_contact_requires_reverification(env: Env, project_id: u64) -> bool {
+        SecurityContactVerificationRegistry::requires_reverification(&env, project_id)
+    }
+
+    // ── #756: Project Health Score ────────────────────────────────────────
+
+    /// Return (and lazily compute) the current health score for a project.
+    pub fn get_project_health_score(
+        env: Env,
+        project_id: u64,
+    ) -> Result<ProjectHealthScore, ContractError> {
+        HealthScoreRegistry::get_health_score(&env, project_id)
+    }
+
+    /// Return paginated historical health score snapshots for a project
+    /// (oldest-first, up to 100 per page).
+    pub fn get_project_health_history(
+        env: Env,
+        project_id: u64,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<HealthScoreSnapshot>, ContractError> {
+        HealthScoreRegistry::get_health_history(&env, project_id, offset, limit)
+    }
+
+    /// Admin: recompute and store the health score for a project immediately.
+    pub fn refresh_project_health_score(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<ProjectHealthScore, ContractError> {
+        HealthScoreRegistry::refresh_health_score(&env, project_id, &caller)
+    }
+
+    /// Admin: configure the health score weights and update frequency.
+    /// `rating_weight + activity_weight + verification_weight` must equal 100.
+    pub fn set_health_score_config(
+        env: Env,
+        admin: Address,
+        config: HealthScoreConfig,
+    ) -> Result<(), ContractError> {
+        HealthScoreRegistry::set_config(&env, &admin, config)
+    }
+
+    /// Return the current health score configuration.
+    pub fn get_health_score_config(env: Env) -> HealthScoreConfig {
+        HealthScoreRegistry::get_config(&env)
+    }
+
+    // ── #759: Project Activity Feed / Timeline ───────────────────────────
+
+    /// Return a paginated page of the activity feed for a project, optionally
+    /// filtered by activity kind. Results are newest-first, max 100 per page.
+    pub fn get_project_activity_feed(
+        env: Env,
+        project_id: u64,
+        filter: Option<ActivityKind>,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<ActivityEntry>, ContractError> {
+        ActivityFeedRegistry::get_activity_feed(&env, project_id, filter, offset, limit)
+    }
+
+    /// Return the total number of activity entries for a project.
+    pub fn get_project_activity_count(
+        env: Env,
+        project_id: u64,
+    ) -> Result<u32, ContractError> {
+        ActivityFeedRegistry::get_activity_count(&env, project_id)
+    }
+
+    // ── #760: Automatic Metadata Enrichment ──────────────────────────────
+
+    /// Admin/relayer: submit an enrichment suggestion for a project.
+    /// Manual approval by the owner is required before changes are applied.
+    pub fn submit_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        source: String,
+        fields: MetadataEnrichmentFields,
+    ) -> Result<EnrichmentSuggestion, ContractError> {
+        MetadataEnrichmentRegistry::submit_suggestion(&env, project_id, &caller, source, fields)
+    }
+
+    /// Owner: approve a pending enrichment suggestion and apply the suggested
+    /// fields to the project.
+    pub fn approve_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        suggestion_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        MetadataEnrichmentRegistry::approve_suggestion(&env, project_id, suggestion_id, &owner)
+    }
+
+    /// Owner: reject a pending enrichment suggestion without applying it.
+    pub fn reject_enrichment_suggestion(
+        env: Env,
+        project_id: u64,
+        suggestion_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        MetadataEnrichmentRegistry::reject_suggestion(&env, project_id, suggestion_id, &owner)
+    }
+
+    /// Return all enrichment suggestions (pending and reviewed) for a project.
+    pub fn get_enrichment_suggestions(
+        env: Env,
+        project_id: u64,
+    ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
+        MetadataEnrichmentRegistry::get_suggestions(&env, project_id)
+    }
+
+    /// Return only pending enrichment suggestions for a project.
+    pub fn get_pending_enrichment_suggestions(
+        env: Env,
+        project_id: u64,
+    ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
+        MetadataEnrichmentRegistry::get_pending_suggestions(&env, project_id)
+    // =========================================================================
+    // Trust and Safety Features (#788, #789, #790, #791)
+    // =========================================================================
+
+    /// Get fraud record for a project (#788)
+    pub fn get_fraud_record(env: Env, project_id: u64) -> crate::types::FraudRecord {
+        crate::trust_and_safety::TrustAndSafety::get_fraud_record(&env, project_id)
+    }
+
+    /// Admin flags a project for fraud manually (#788)
+    pub fn flag_project_fraud(env: Env, admin: Address, project_id: u64, reason: String) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::flag_project_fraud(&env, &admin, project_id, reason)
+    }
+
+    /// Set approved licenses for a category (#789)
+    pub fn set_category_license_config(
+        env: Env,
+        admin: Address,
+        category: String,
+        approved_licenses: Vec<String>,
+        exceptions_allowed: bool,
+    ) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::set_category_license_config(&env, &admin, category, approved_licenses, exceptions_allowed)
+    }
+
+    /// Get approved licenses config for a category (#789)
+    pub fn get_category_license_config(env: Env, category: String) -> Option<crate::types::CategoryLicenseConfig> {
+        crate::trust_and_safety::TrustAndSafety::get_category_license_config(&env, &category)
+    }
+
+    /// Verify reviewer identity (#790)
+    pub fn verify_reviewer_identity(
+        env: Env,
+        admin: Address,
+        reviewer: Address,
+        email_verified: bool,
+        social_proof_verified: bool,
+        verification_method: Option<String>,
+    ) -> Result<(), ContractError> {
+        crate::trust_and_safety::TrustAndSafety::verify_reviewer_identity(&env, &admin, reviewer, email_verified, social_proof_verified, verification_method)
+    }
+
+    /// Get reviewer identity (#790)
+    pub fn get_reviewer_identity(env: Env, reviewer: Address) -> crate::types::ReviewerIdentity {
+        crate::trust_and_safety::TrustAndSafety::get_reviewer_identity(&env, &reviewer)
+    }
+
+    /// Get reviewer points (#791)
+    pub fn get_reviewer_points(env: Env, reviewer: Address) -> crate::types::ReviewerPoints {
+        crate::trust_and_safety::TrustAndSafety::get_reviewer_points(&env, &reviewer)
     }
 }

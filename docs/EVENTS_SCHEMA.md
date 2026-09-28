@@ -71,6 +71,48 @@ All project-related events start with the topic `PROJECT` (Symbol).
   * `new_owner` (`Address`): The new owner address.
   * `timestamp` (`u64`): Unix timestamp.
 
+### Project Linked
+* **Topic:** `(Symbol("PROJECT"), Symbol("LINKED"), project_id: u64)`
+* **Payload (`ProjectLinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project that initiated the link.
+  * `linked_project_id` (`u64`): The ID of the project being linked to.
+  * `owner` (`Address`): Address of the project owner (or admin) who created the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was created.
+
+#### Project Linked Event Example
+```json
+{
+  "topics": ["PROJECT", "LINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390400
+  }
+}
+```
+
+### Project Unlinked
+* **Topic:** `(Symbol("PROJECT"), Symbol("UNLINKED"), project_id: u64)`
+* **Payload (`ProjectUnlinkedEvent`):**
+  * `project_id` (`u64`): The ID of the project from which the link was removed.
+  * `linked_project_id` (`u64`): The ID of the project that was unlinked.
+  * `owner` (`Address`): Address of the project owner (or admin) who removed the link.
+  * `timestamp` (`u64`): Unix timestamp when the link was removed.
+
+#### Project Unlinked Event Example
+```json
+{
+  "topics": ["PROJECT", "UNLINKED", 1],
+  "data": {
+    "project_id": 1,
+    "linked_project_id": 2,
+    "owner": "GBXX...XXXX",
+    "timestamp": 1782390500
+  }
+}
+```
+
 ---
 
 ## 2. Review Events
@@ -162,6 +204,12 @@ All verification-related events start with the topic `VERIFY` (Symbol).
   * `requester` (`Address`): The requester's address.
   * `evidence_cid` (`String`): The IPFS/content CID containing supporting verification evidence.
   * `timestamp` (`u64`): Unix timestamp.
+  * `request_id` (`u64`): ID of the newly created `VerificationRecord` for this request.
+  * `previous_request_id` (`Option<u64>`): ID of the project's previous verification
+    request, if any. `None` for a project's first-ever request; `Some(id)` marks
+    this as a re-request (e.g. after rejection or revocation) that **versions**
+    rather than overwrites the record identified by `id` — see
+    [`VERIFICATION.md`](VERIFICATION.md#requesting-verification-and-re-request-replacement-rules).
 
 #### Verification Requested Event Example
 ```json
@@ -171,7 +219,9 @@ All verification-related events start with the topic `VERIFY` (Symbol).
     "project_id": 1,
     "requester": "GDXX...XXXX",
     "evidence_cid": "QmZ4tUD4vC5P16G1sA1nemtYgPpHdWEz79ojWnPbdG",
-    "timestamp": 1782390600
+    "timestamp": 1782390600,
+    "request_id": 2,
+    "previous_request_id": 1
   }
 }
 ```
@@ -301,3 +351,26 @@ Verification configuration events use the `CONFIG` topic namespace.
   * `previous_duration_seconds` (`u64`): Previous verification duration.
   * `duration_seconds` (`u64`): New verification duration.
   * `timestamp` (`u64`): Unix timestamp.
+
+---
+
+## 7. Reserved Name Events
+
+Reserved project-name changes use the `CONFIG` topic namespace. See
+[`RESERVED_NAMES.md`](./RESERVED_NAMES.md) for the feature overview.
+
+### Reserved Name Added
+* **Topic:** `(Symbol("CONFIG"), Symbol("RSVD_ADD"))`
+* **Payload (`ReservedNameAddedEvent`):**
+  * `name` (`String`): The name that was added to the reserved list.
+  * `admin` (`Address`): Admin address that added the name.
+  * `timestamp` (`u64`): Unix timestamp.
+* Not emitted when the name was already reserved (idempotent no-op).
+
+### Reserved Name Removed
+* **Topic:** `(Symbol("CONFIG"), Symbol("RSVD_REM"))`
+* **Payload (`ReservedNameRemovedEvent`):**
+  * `name` (`String`): The name that was removed from the reserved list.
+  * `admin` (`Address`): Admin address that removed the name.
+  * `timestamp` (`u64`): Unix timestamp.
+* Not emitted when the name was not present (idempotent no-op).

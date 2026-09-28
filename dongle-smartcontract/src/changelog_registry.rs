@@ -1,10 +1,27 @@
 //! Project changelog registry for publishing update notes and release history.
+//!
+//! # Immutability Contract (#655)
+//!
+//! Changelog entries are **write-once**. Once an entry is created via
+//! [`ChangelogRegistry::add_changelog_entry`] it cannot be modified. The only
+//! mutation allowed is deletion via [`ChangelogRegistry::remove_changelog_entry`].
+//!
+//! If a changelog entry needs to be corrected, the workflow is:
+//! 1. Call `remove_changelog_entry` to delete the existing entry.
+//! 2. Call `add_changelog_entry` with the corrected CID / metadata.
+//!
+//! There is deliberately **no** `update_changelog_entry` function. Attempting to
+//! call a non-existent update function will produce a compile-time error, which
+//! is the strongest possible enforcement of this contract.
+//!
+//! All changes (add and remove) emit on-chain events so indexers can reconstruct
+//! the full audit trail.
 
 use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
 use crate::events::{publish_changelog_added_event, publish_changelog_removed_event};
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::ExtensionKey;
+use crate::storage_keys::{ExtensionKey, ExtensionKey2};
 use crate::storage_manager::StorageManager;
 use crate::types::ChangelogEntry;
 use crate::utils::Utils;
@@ -67,7 +84,10 @@ impl ChangelogRegistry {
 
         // Validate optional secondary changelog CID when provided
         if let Some(ref ccid) = changelog_cid {
-            if ccid.is_empty() || !Utils::is_valid_ipfs_cid(ccid) || ccid.len() as usize > MAX_CID_LEN {
+            if ccid.is_empty()
+                || !Utils::is_valid_ipfs_cid(ccid)
+                || ccid.len() as usize > MAX_CID_LEN
+            {
                 return Err(ContractError::InvalidCid);
             }
         }
@@ -88,7 +108,7 @@ impl ChangelogRegistry {
         let changelog_id: u64 = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::NextChangelogEntryId)
+            .get(&ExtensionKey2::NextChangelogEntryId)
             .unwrap_or(1);
 
         // Create changelog entry
@@ -119,7 +139,7 @@ impl ChangelogRegistry {
         // Increment next ID
         env.storage()
             .persistent()
-            .set(&ExtensionKey::NextChangelogEntryId, &(changelog_id + 1));
+            .set(&ExtensionKey2::NextChangelogEntryId, &(changelog_id + 1));
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);
@@ -164,7 +184,7 @@ impl ChangelogRegistry {
         }
 
         // Remove from project's changelog list
-        let mut project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
         let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
         env.storage().persistent().set(
             &ExtensionKey::ProjectChangelogEntries(entry.project_id),
@@ -190,7 +210,7 @@ impl ChangelogRegistry {
     /// # Arguments
     /// - `env`: The Soroban environment
     /// - `project_id`: The project ID to get changelog for
-    /// - `start`: Starting index for pagination
+    /// - `start_index`: Starting index for pagination
     /// - `limit`: Maximum number of entries to return (capped at MAX_PAGE_LIMIT)
     /// - `sort_mode`: Sort order (Newest or Oldest)
     ///
@@ -199,7 +219,7 @@ impl ChangelogRegistry {
     pub fn get_project_changelog(
         env: &Env,
         project_id: u64,
-        start: u32,
+        start_index: u32,
         limit: u32,
         sort_mode: crate::types::ChangelogSortMode,
     ) -> Vec<ChangelogEntry> {
@@ -220,7 +240,7 @@ impl ChangelogRegistry {
         let changelog_ids = Self::get_project_changelog_entries(env, project_id);
         let total = changelog_ids.len();
 
-        if total == 0 || start >= total {
+        if total == 0 || start_index >= total {
             return Vec::new(env);
         }
 
@@ -247,10 +267,10 @@ impl ChangelogRegistry {
         }
 
         // Apply pagination
-        let end = (start + effective_limit).min(total);
+        let end = (start_index + effective_limit).min(total);
         let mut paginated = Vec::new(env);
 
-        for i in start..end {
+        for i in start_index..end {
             if let Some(entry) = entries.get(i) {
                 paginated.push_back(entry.clone());
             }
@@ -283,6 +303,38 @@ impl ChangelogRegistry {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: &Env, project_id: u64) -> u32 {
         Self::get_project_changelog_entries(env, project_id).len()
+    }
+
+    /// Explicitly reject any attempt to update a changelog entry in-place.
+    ///
+    /// # Immutability enforcement (#655)
+    ///
+    /// Changelog entries are write-once. This function exists purely to provide
+    /// a clear, discoverable API surface that documents the "no update" contract
+    /// and returns a typed error when called, rather than silently not existing.
+    /// Intentionally unimplemented update function — changelog entries are
+    /// write-once (immutable after creation).
+    ///
+    /// To change a changelog entry:
+    /// 1. Call [`remove_changelog_entry`] to delete it.
+    /// 2. Call [`add_changelog_entry`] with the corrected data.
+    ///
+    /// # Returns
+    /// Always returns `Err(ContractError::Unauthorized)` — changelog entries
+    /// cannot be updated; they can only be removed and recreated.
+    // Dead-code justification: intentional stub that enforces the immutability
+    // invariant.  It is kept (rather than deleted) so that call-sites that
+    // accidentally invoke "update" get a clear compile-time or runtime error
+    // instead of silently missing the function.
+    #[allow(dead_code)]
+    pub fn update_changelog_entry(
+        _env: &Env,
+        _changelog_id: u64,
+        _owner: Address,
+    ) -> Result<(), ContractError> {
+        // Changelog entries are write-once (immutable after creation).
+        // Use remove_changelog_entry + add_changelog_entry instead.
+        Err(ContractError::Unauthorized)
     }
 
     // Internal helper function to get project changelog entry IDs

@@ -181,7 +181,7 @@ fn test_zero_fee_no_token_succeeds() {
 // --- Native fee rejection ---
 
 /// Configuring a non-zero fee without a token address (i.e. native asset) must
-/// be rejected at set_fee time with NativeFeeNotSupported.
+/// be rejected at set_fee time with FeeConfigNotSet.
 #[test]
 fn test_native_fee_rejected_at_config() {
     let env = Env::default();
@@ -227,7 +227,7 @@ fn test_fee_consumed_after_request_verification() {
     let result = client.try_request_verification(
         &project_id,
         &owner,
-        &String::from_str(&env, "ipfs://evidence2"),
+        &String::from_str(&env, "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj"),
     );
     assert_eq!(result, Err(Ok(ContractError::InsufficientFee)));
 }

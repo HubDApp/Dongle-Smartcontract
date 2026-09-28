@@ -2,14 +2,17 @@
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth::{require_admin_auth, require_self_auth};
+use crate::constants::FEE_PAYMENT_EXPIRY_SECONDS;
 use crate::errors::ContractError;
 use crate::events::{
     publish_fee_consumed_event, publish_fee_paid_event, publish_fee_set_event, FeeOperation,
 };
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, StorageKey};
-use crate::types::{AdminActionType, FeeConfig, FeePaymentRecord, FeeRefundRecord};
-use soroban_sdk::{Address, Env};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::types::{
+    AdminActionType, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord, FeeRefundRecord,
+};
+use soroban_sdk::{Address, Env, Vec};
 
 pub struct FeeManager;
 
@@ -29,6 +32,15 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        let old_config = env
+            .storage()
+            .persistent()
+            .get::<_, FeeConfig>(&StorageKey::FeeConfig);
+        let old_treasury = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&StorageKey::Treasury);
+
         let config = FeeConfig {
             token,
             verification_fee,
@@ -40,6 +52,28 @@ impl FeeManager {
         env.storage()
             .persistent()
             .set(&StorageKey::Treasury, &treasury);
+
+        let history_entry = FeeConfigHistoryEntry {
+            admin: admin.clone(),
+            old_token: old_config.as_ref().and_then(|config| config.token.clone()),
+            old_verification_fee: old_config.as_ref().map(|config| config.verification_fee),
+            old_registration_fee: old_config.as_ref().map(|config| config.registration_fee),
+            old_treasury,
+            token: config.token.clone(),
+            verification_fee,
+            registration_fee,
+            treasury: treasury.clone(),
+            timestamp: env.ledger().timestamp(),
+        };
+        let mut history: Vec<FeeConfigHistoryEntry> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey2::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env));
+        history.push_back(history_entry);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey2::FeeConfigHistory, &history);
 
         publish_fee_set_event(
             env,
@@ -59,6 +93,7 @@ impl FeeManager {
     ///
     /// Validates fee config/treasury, transfers tokens (when amount > 0), sets the
     /// paid flag, stores a [`FeePaymentRecord`], and emits a fee-paid event.
+    #[allow(clippy::too_many_arguments)]
     fn execute_fee_payment(
         env: &Env,
         payer: Address,
@@ -140,6 +175,22 @@ impl FeeManager {
             return Err(ContractError::Unauthorized);
         }
 
+        // Guard: archived projects can never proceed to verification, so paying
+        // the fee would permanently lock the owner's tokens.
+        if project.archived {
+            return Err(ContractError::AlreadyArchived);
+        }
+
+        // Guard: a Pending request is already in-flight; a Verified project does
+        // not need a new verification fee until its current status is revoked or
+        // expires. Accepting a payment in either state would create an orphaned
+        // payment record that can never be consumed by `request_verification`.
+        if project.verification_status == crate::types::VerificationStatus::Pending
+            || project.verification_status == crate::types::VerificationStatus::Verified
+        {
+            return Err(ContractError::InvalidStatus);
+        }
+
         let amount = Self::get_fee_config(env)?.verification_fee;
         Self::execute_fee_payment(
             env,
@@ -186,6 +237,12 @@ impl FeeManager {
         if !Self::is_fee_paid(env, project_id) {
             return Err(ContractError::InsufficientFee);
         }
+        let record =
+            Self::get_fee_payment_details(env, project_id).ok_or(ContractError::InsufficientFee)?;
+        let now = env.ledger().timestamp();
+        if now >= record.paid_at.checked_add(FEE_PAYMENT_EXPIRY_SECONDS).ok_or(ContractError::ArithmeticOverflow)? {
+            return Err(ContractError::FeePaymentExpired);
+        }
         Self::execute_consume_fee_payment(
             env,
             StorageKey::FeePaidForProject(project_id),
@@ -204,35 +261,12 @@ impl FeeManager {
             .ok_or(ContractError::FeeConfigNotSet)
     }
 
-    /// Set the treasury address (admin only)
-    #[allow(dead_code)]
-    pub fn set_treasury(env: &Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
-        require_admin_auth(env, &admin)?;
-
+    /// Get all fee configuration changes in chronological order (oldest first).
+    pub fn get_fee_config_history(env: &Env) -> Vec<FeeConfigHistoryEntry> {
         env.storage()
             .persistent()
-            .set(&StorageKey::Treasury, &treasury);
-        Ok(())
-    }
-
-    /// Get the current treasury address
-    #[allow(dead_code)]
-    pub fn get_treasury(env: &Env) -> Result<Address, ContractError> {
-        env.storage()
-            .persistent()
-            .get(&StorageKey::Treasury)
-            .ok_or(ContractError::TreasuryNotSet)
-    }
-
-    /// Get fee for a specific operation
-    #[allow(dead_code)]
-    pub fn get_operation_fee(env: &Env, operation_type: &str) -> Result<u128, ContractError> {
-        let config = Self::get_fee_config(env)?;
-        match operation_type {
-            "verification" => Ok(config.verification_fee),
-            "registration" => Ok(config.registration_fee),
-            _ => Err(ContractError::InvalidProjectData),
-        }
+            .get(&ExtensionKey2::FeeConfigHistory)
+            .unwrap_or_else(|| Vec::new(env))
     }
 
     /// Pay the registration fee for a project.
@@ -302,6 +336,12 @@ impl FeeManager {
         if !Self::is_registration_fee_paid(env, address) {
             return Err(ContractError::InsufficientFee);
         }
+        let record = Self::get_registration_fee_payment_details(env, address)
+            .ok_or(ContractError::InsufficientFee)?;
+        let now = env.ledger().timestamp();
+        if now >= record.paid_at.checked_add(FEE_PAYMENT_EXPIRY_SECONDS).ok_or(ContractError::ArithmeticOverflow)? {
+            return Err(ContractError::FeePaymentExpired);
+        }
         Self::execute_consume_fee_payment(
             env,
             StorageKey::RegistrationFeePaidForAddress(address.clone()),
@@ -345,21 +385,40 @@ impl FeeManager {
         // Process refund if fee amount > 0 and token is configured
         if record.amount > 0 {
             let token_address = record.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
-            let treasury = Self::get_treasury(env)?;
+            let treasury: Address = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::Treasury)
+                .ok_or(ContractError::TreasuryNotSet)?;
+
+            // Remove payment records from storage BEFORE executing the token transfer.
+            // This follows the checks-effects-interactions pattern: the state
+            // transition (Pending → Cancelled) is written atomically before the
+            // outbound transfer, so that even if re-entrant logic were possible
+            // in a future Soroban version the payment flag could never be
+            // consumed a second time.  In the current Soroban WASM sandbox,
+            // re-entrancy is not possible, but the ordering is preserved here
+            // for correctness and consistency with `claim_fee_refund`.
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::FeePaidForProject(project_id));
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::FeePaymentDetails(project_id));
 
             // Treasury authorization is required to transfer tokens out of the treasury
             treasury.require_auth();
             let token_client = soroban_sdk::token::Client::new(env, &token_address);
             token_client.transfer(&treasury, &record.payer, &(record.amount as i128));
+        } else {
+            // Zero-fee cancellation: just remove the storage flags.
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::FeePaidForProject(project_id));
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::FeePaymentDetails(project_id));
         }
-
-        // Remove payment records from storage
-        env.storage()
-            .persistent()
-            .remove(&StorageKey::FeePaidForProject(project_id));
-        env.storage()
-            .persistent()
-            .remove(&ExtensionKey::FeePaymentDetails(project_id));
 
         // Publish event
         crate::events::publish_fee_cancelled_event(
@@ -465,9 +524,31 @@ impl FeeManager {
 
     /// Pay out a recorded refund.
     ///
+    /// # Idempotency guarantee (#657)
+    ///
+    /// This function is **idempotent by design**: the first successful call marks
+    /// the refund as `claimed_at = Some(timestamp)` in persistent storage *before*
+    /// executing the token transfer. Any subsequent call with the same `project_id`
+    /// will find `claimed_at.is_some()` and immediately return
+    /// [`ContractError::RefundAlreadyClaimed`] without touching treasury balances.
+    ///
+    /// Because Soroban transactions are atomic, the `claimed_at` write and the token
+    /// transfer either both commit or both revert. There is no window in which the
+    /// record is marked claimed but tokens were not sent, or tokens were sent but
+    /// the record was not marked.
+    ///
+    /// # Authorization
+    ///
     /// Callable by the payer or any admin; the tokens always go to the
     /// recorded payer regardless of who calls, so an admin settling on
     /// someone's behalf cannot redirect the funds.
+    ///
+    /// # Storage cleanup
+    ///
+    /// The `FeeRefundRecord` is **not removed** after claiming — it is preserved
+    /// with `claimed_at` set so that indexers can audit the full refund lifecycle
+    /// (opened, claimed, timestamp). Callers that want to reclaim storage may
+    /// call `cleanup_claimed_refund` (if available) after the TTL window.
     pub fn claim_fee_refund(
         env: &Env,
         caller: Address,
@@ -478,6 +559,10 @@ impl FeeManager {
         let mut refund =
             Self::get_fee_refund(env, project_id).ok_or(ContractError::NoRefundAvailable)?;
 
+        // Idempotency guard: a refund can only be claimed once.
+        // claimed_at is set to Some before the transfer executes (checks-effects-interactions).
+        // Any re-entrant or subsequent call will hit this guard and return an error
+        // without moving any tokens.
         if refund.claimed_at.is_some() {
             return Err(ContractError::RefundAlreadyClaimed);
         }
@@ -488,11 +573,17 @@ impl FeeManager {
         }
 
         let token_address = refund.token.clone().ok_or(ContractError::FeeConfigNotSet)?;
-        let treasury = Self::get_treasury(env)?;
+        let treasury: Address = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Treasury)
+            .ok_or(ContractError::TreasuryNotSet)?;
 
-        // Mark claimed before transferring. If the transfer panics the whole
-        // invocation reverts, so this cannot leave a claimed-but-unpaid
-        // record — but it does close the door on re-entrant double claims.
+        // Checks-Effects-Interactions: mark claimed before transferring.
+        // If the transfer panics the whole invocation reverts atomically,
+        // so this cannot leave a claimed-but-unpaid record.
+        // The persistent write here ensures re-entrant calls see claimed_at = Some
+        // and return RefundAlreadyClaimed before reaching the transfer below.
         refund.claimed_at = Some(env.ledger().timestamp());
         env.storage()
             .persistent()

@@ -19,6 +19,27 @@ All paginated list endpoints clamp `limit` to `MAX_PAGE_LIMIT` (**100**). When `
 
 Indexers should page through large indexes using these parameters rather than assuming a single call returns all entries.
 
+### Project endorsements — indexed storage
+
+Endorsements use two persistent entries per active endorsement:
+
+| Key | Value | Access |
+|-----|-------|--------|
+| `ExtensionKey::EndorsementAt(project_id, index)` | `Address` | Page retrieval by position |
+| `ExtensionKey::EndorsementIndex(project_id, user)` | `u32` | Membership and swap-remove position |
+
+`get_project_endorsements(project_id, start_index, limit)` reads at most 100 individual
+entries and never deserializes the complete project index. Endorse and unendorse operations
+are O(1) storage operations (apart from one-time migration of the legacy vector), while
+retrieval is O(page size). Removing an entry swaps the last entry into the freed position,
+so callers should treat ordering as unspecified.
+
+For a project with 100,000 endorsements, the index contains 200,000 ledger entries. The
+address payload is 32 bytes and the `u32` position payload is 4 bytes; including Soroban
+XDR key/value overhead, the expected footprint is approximately 16–24 MB per project.
+The checked-in performance test populates 100,000 positional entries and verifies a 100-item
+page is retrieved in under 500 ms. Actual rent and ledger limits remain network-configured.
+
 ## Primary indexes (live)
 
 ### Owner projects — `StorageKey::OwnerProjects(Address)` → `Vec<u64>`
@@ -83,10 +104,13 @@ These are written in production code and belong to the live scheme, but do not c
 | `ExtensionKey::ProjectFollowers(u64)` | followers | Subscription followers |
 | `ExtensionKey::UserSubscriptions(Address)` | subscriptions | User follows |
 | `ExtensionKey::UserBookmarks(Address)` | `Vec<u64>` | Bookmarked projects |
-| `ExtensionKey::ProjectEndorsements(u64)` | endorsers | Endorsement list |
+| `ExtensionKey::ProjectEndorsements(u64)` | legacy `Vec<Address>` | Read-only compatibility for pre-indexed deployments |
+| `ExtensionKey::EndorsementAt(u64, u32)` | `Address` | O(1) positional endorsement index |
+| `ExtensionKey::EndorsementIndex(u64, Address)` | `u32` | O(1) membership and removal index |
 | `ExtensionKey::TimelockActionIds` | action IDs | Timelock queue |
 | `ExtensionKey::AdminProposalIds` | proposal IDs | Admin governance |
 | `ExtensionKey::ReservedNames` | `Vec<String>` | Reserved project names |
+| `ExtensionKey::FeeConfigHistoryEntry(u32)` | `FeeConfigHistoryEntry` | Fee changes in chronological order; count stored in `FeeConfigHistoryCount` |
 
 Lookup / singleton keys (not Vec indexes) such as `Project`, `ProjectBySlug`, `FeeConfig`, `FeePaidForProject`, claim records, etc. live in the same enums but are outside the scope of this size-strategy doc. See `docs/STORAGE_SCHEMA.md` for project field layout.
 
@@ -98,10 +122,7 @@ Cross-check against `storage_keys.rs` / `types.rs` found keys and types that are
 |------|----------|--------|
 | `DataKey` enum | `types.rs` | Legacy duplicate of `StorageKey` / partial keys; unused |
 | `ExtensionKey::FeeRefundRecord(u64)` | `storage_keys.rs` | Defined only; no read/write path |
-| `ExtensionKey::FeeConfigHistoryCount` | `storage_keys.rs` | Defined only; no read/write path |
-| `ExtensionKey::FeeConfigHistoryEntry(u32)` | `storage_keys.rs` | Defined only; no read/write path |
 | `FeeRefundRecord` struct | `types.rs` | Dead type paired with unused key |
-| `FeeConfigHistoryEntry` struct | `types.rs` | Dead type paired with unused keys |
 | `StorageKey::NextProjectId` | `storage_keys.rs` | Unused (counter is `ProjectCount`) |
 | `StorageKey::ProjectLaunchTimestamp(u64)` | `storage_keys.rs` | Unused |
 

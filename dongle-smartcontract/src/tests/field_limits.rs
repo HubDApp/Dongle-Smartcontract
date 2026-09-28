@@ -341,7 +341,6 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     }
 }
 

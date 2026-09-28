@@ -56,124 +56,113 @@ graph TD
 
 ## 4. Panic-as-Denial-of-Service (DoS) Risk
 
-### Threat Description
+### 4.1 Threat Description
 
-A panic condition in Soroban contracts terminates execution and can be exploited by an attacker to trigger contract halts. If panic call sites are reachable from external entry points via untrusted inputs (e.g., malformed data, adversarial registry state, or out-of-bounds operations), an attacker can cause a denial of service by crafting inputs that trigger the panic.
+A panic inside a Soroban contract aborts the current invocation. Under the
+release profile this crate builds with (`panic = "abort"`, see
+`dongle-smartcontract/Cargo.toml`), a panic unwinds the whole host call frame
+and the transaction fails. This is **not** a persistent contract halt — the
+next invocation starts from clean ledger state — but it is still an
+availability problem:
 
-### Affected Components
+* **Griefing / targeted DoS:** if an attacker can craft an input that makes a
+  *victim's* transaction panic (for example a paginated getter over a project
+  the attacker can influence), the victim's operation can be blocked
+  repeatedly at the cost of one failed transaction per attempt.
+* **Fee loss:** the victim still pays the Soroban resource fee for the failed
+  invocation.
+* **Indexer / frontend breakage:** read paths that panic instead of returning
+  an empty result force every downstream consumer to special-case the failure.
 
-The following modules contain panic/unwrap/expect call sites reachable from external entry points:
+The risk is only material when a panic site is **reachable from an external
+entry point** with **attacker-influenced input or state**. Panics that can
+only fire on genuine contract bugs (invariant violations) are lower priority
+but are still tracked below.
 
-#### 1. **Timelock Manager** (`src/timelock_manager.rs`)
-- **Lines 49, 52:** Panic on invalid execution timestamp (future timestamp and minimum delay validation)
-  ```rust
-  panic!("Timelock: execution timestamp must be in the future");
-  panic!("Timelock: minimum delay not met");
-  ```
-- **Line 60:** `unwrap_or_else(|| panic!(...))` when action not found
-  ```rust
-  .unwrap_or_else(|| panic!("Timelock: action not found"))
-  ```
-- **Lines 74, 77, 85:** Panic on invalid action state (already executed, already cancelled, timelock not expired)
-  ```rust
-  panic!("Timelock: action already executed");
-  panic!("Timelock: action already cancelled");
-  panic!("Timelock: action cannot execute before timelock expires");
-  ```
-- **Lines 268, 300, 325:** `.expect()` calls on storage retrieval that may fail if data is corrupted or missing
-  ```rust
-  .expect("Timelock: fee params not found");
-  .expect("Timelock: admin add params not found");
-  .expect("Timelock: admin remove params not found");
-  ```
+### 4.2 Panic Site Inventory
 
-**Entry Point:** `execute_timelock_action()` (publicly callable)
+The inventory was produced by scanning every non-test module under
+`dongle-smartcontract/src/` for `panic!`, `unreachable!`, `todo!`,
+`unimplemented!`, `.unwrap()`, `.expect(...)`, `panic_with_error!`, and
+unchecked slice / index / arithmetic operations, then tracing each hit back to
+the public entry points in `lib.rs` that can reach it.
 
-#### 2. **Endorsement Registry** (`src/endorsement_registry.rs`)
-- **Line 26:** Panic when project not found
-  ```rust
-  panic!("project not found");
-  ```
+**Result: there are currently no reachable panic sites in production contract
+code.** Every module listed in the original draft has been remediated. The
+table below records each historical panic site, where it lived, and how it was
+resolved, so that regressions are easy to spot in review.
 
-**Entry Point:** Endorsement operations reachable from external users
+| # | Module | Historical panic site | Entry point(s) | Attacker-influenced? | Status | Resolution |
+|---|--------|-----------------------|----------------|----------------------|--------|------------|
+| 1 | `timelock_manager.rs` | `panic!` on future-timestamp / min-delay validation | `schedule_set_fee`, `schedule_add_admin`, `schedule_remove_admin` | Admin-only input | ✅ Resolved | `validate_timelock()` returns `Err(ContractError)` |
+| 2 | `timelock_manager.rs` | `unwrap_or_else(\|\| panic!(...))` when action not found | `execute_scheduled_*`, `cancel_scheduled_action` | Action id (public) | ✅ Resolved | `get_action_unchecked()` → `.ok_or(ContractError::InvalidStatus)?` |
+| 3 | `timelock_manager.rs` | `panic!` on invalid action state (executed / cancelled / not expired) | `execute_scheduled_*` | Action id (public) | ✅ Resolved | `require_pending()` / `require_expired()` return typed errors |
+| 4 | `timelock_manager.rs` | `.expect()` on stored fee / admin-add / admin-remove params | `execute_scheduled_*` | Corrupt storage only | ✅ Resolved | `.ok_or(ContractError::InvalidStatus)?` |
+| 5 | `endorsement_registry.rs` | `panic!("project not found")` | `endorse_project`, `unendorse_project` | Project id (public) | ✅ Resolved | `ProjectRegistry::get_project(...).ok_or(ContractError::ProjectNotFound)?` |
+| 6 | `bookmark_registry.rs` | `panic!("project not found")` | `bookmark_project`, `unbookmark_project` | Project id (public) | ✅ Resolved | `return Err(ContractError::ProjectNotFound)` |
+| 7 | `dependency_registry.rs` | `.unwrap()` on `core::str::from_utf8` of a key buffer (4 sites) | `add_project_dependency`, `update_project_dependency`, `remove_project_dependency`, `get_project_dependencies` | Dep metadata (public) | ✅ Resolved | `.map_err(\|_\| ContractError::InvalidProjectData)?` |
+| 8 | `review_registry` (bubble sort) | `all.get(j).unwrap()` / `all.get(j + 1).unwrap()` in sort loop | `list_reviews_sorted` | Review volume (public) | ✅ Resolved | Extracted to `utils::bubble_sort_by`, which uses `if let (Some(a), Some(b))` + `saturating_sub` |
+| 9 | `project_registry.rs` (bubble sort) | `all.get(j).unwrap()` / `all.get(j + 1).unwrap()` in sort loop | `list_projects_sorted` | Project volume (public) | ✅ Resolved | Same shared `utils::bubble_sort_by` helper |
+| 10 | `admin_manager.rs` | `panic!("Contract already initialized")` | `initialize` | One-shot, pre-auth | ✅ Resolved | `return Err(ContractError::AlreadyInitialized)` |
 
-#### 3. **Bookmark Registry** (`src/bookmark_registry.rs`)
-- **Line 28:** Panic when project not found
-  ```rust
-  panic!("project not found");
-  ```
+Remaining `.unwrap()` occurrences in the tree are all inside `#[cfg(test)]`
+modules (`src/tests/`, `src/verification_registry/state_machine.rs` test
+block) or in doc-comments explaining why a call is safe — none are compiled
+into the deployed WASM.
 
-**Entry Point:** Bookmark operations reachable from external users
+### 4.3 Structural Defences Against New Panic Sites
 
-#### 4. **Dependency Registry** (`src/dependency_registry.rs`)
-- **Lines 100, 111, 122, 130:** `.unwrap()` on UTF-8 string conversion
-  ```rust
-  let key_str = core::str::from_utf8(&buf[..4 + num_len]).unwrap();
-  let key_str = core::str::from_utf8(&buf[..4 + cid_len as usize]).unwrap();
-  let key_str = core::str::from_utf8(&buf[..4 + url_len as usize]).unwrap();
-  let key_str = core::str::from_utf8(&buf[..60]).unwrap();
-  ```
+| Defence | Where | Effect |
+|---------|-------|--------|
+| Uniform `Result<T, ContractError>` return type | Every state-mutating entry point in `lib.rs` | Errors are values, not aborts; callers get a typed code from `docs/ERROR_CODES.md` |
+| `#[repr(u32)] enum ContractError` with 74 variants | `src/errors.rs` | Every failure mode has a dedicated, stable code — no reason to reach for `panic!` |
+| `checked_add` / `checked_sub` / `checked_mul` / `saturating_*` (43 call sites) | Rating aggregation, counts, pagination math | Arithmetic returns `ContractError::ArithmeticOverflow` instead of overflow-panicking |
+| `overflow-checks = true` in `[profile.release]` | `Cargo.toml` | Any *un*checked arithmetic that slips through still traps deterministically rather than wrapping silently — a defence-in-depth backstop, not the primary control |
+| Bounds-safe `Vec` access (`.get()` + `if let Some`) | `utils::bubble_sort_by`, pagination helpers | Out-of-range indices yield `None`, never a panic |
+| Slice reads guarded by explicit length checks | `utils.rs` / `dependency_registry.rs` CID parsing | Buffers are validated before slicing; UTF-8 conversion failures map to `ContractError` |
+| `wasm-check` + `clippy -D warnings` CI gates | `.github/workflows/ci.yml` | `clippy::unwrap_used`-class regressions surface in review; see `docs/CI_CD.md` |
+| `no_std` crate | `#![no_std]` in `lib.rs` | No access to `std` panic machinery / unwind; keeps the panic surface minimal |
 
-**Risk:** If buffer slicing logic is incorrect, UTF-8 parsing can fail and trigger panic.
+### 4.4 Risk Assessment Matrix
 
-#### 5. **Review Registry** (`src/review_registry.rs`)
-- **Lines 1074, 1075:** `.unwrap()` on Vec access without bounds checking
-  ```rust
-  let a = all.get(j).unwrap();
-  let b = all.get(j + 1).unwrap();
-  ```
+Scoring: **Likelihood** and **Impact** are Low / Medium / High. "Residual"
+is the risk that remains *after* the resolution in §4.2 and the defences in
+§4.3.
 
-**Risk:** Out-of-bounds access if vector size assumptions are violated.
+| Panic class | Example entry point | Likelihood (pre-fix) | Impact (pre-fix) | Inherent risk | Residual risk | Notes |
+|-------------|---------------------|----------------------|------------------|---------------|---------------|-------|
+| Not-found lookups (project / action id) | `endorse_project`, `execute_scheduled_set_fee` | High — any caller passes an id | Medium — griefing + fee loss | **High** | **Low** | Now typed `ProjectNotFound` / `InvalidStatus` |
+| Malformed-buffer UTF-8 parse | `add_project_dependency` | Medium — needs crafted metadata | Medium — blocks the caller's own write | **Medium** | **Low** | `InvalidProjectData` returned; input length-validated first |
+| Sort / pagination out-of-bounds | `list_projects_sorted`, `list_reviews_sorted` | Low — needs an index-bounds bug | High — breaks a public read path for everyone | **Medium** | **Low** | Shared `bubble_sort_by` is bounds-safe by construction |
+| Arithmetic overflow in aggregates | `add_review` → stats update | Low — needs ~2³²–2⁶⁴ reviews | Medium — blocks further writes to one project | **Medium** | **Low** | `checked_*` → `ArithmeticOverflow`; `overflow-checks` backstop |
+| Re-initialization panic | `initialize` | Low — one-shot, guarded | Low — no funds/state at risk | **Low** | **Low** | `AlreadyInitialized` returned |
+| Storage-corruption `.expect()` | `execute_scheduled_*` | Very Low — implies host/ledger fault | Medium | **Low** | **Low** | `.ok_or(...)?`; only reachable if ledger data is already inconsistent |
+| Admin-only validation panic | `schedule_set_fee` | Low — requires admin auth | Low — admin can retry | **Low** | **Low** | Typed errors; not attacker-facing |
 
-#### 6. **Project Registry** (`src/project_registry.rs`)
-- **Lines 1973, 1974:** `.unwrap()` on Vec access without bounds checking
-  ```rust
-  let a = all.get(j).unwrap();
-  let b = all.get(j + 1).unwrap();
-  ```
+### 4.5 Remediation Priority & Status
 
-**Risk:** Out-of-bounds access if vector size assumptions are violated.
+| Priority | Item | State | Follow-up |
+|----------|------|-------|-----------|
+| P0 | Eliminate all attacker-reachable `panic!` / `unwrap` / `expect` from entry-point paths | ✅ **Done** (items 1–10, §4.2) | Keep the §4.2 table current in every PR that touches a registry module |
+| P1 | Enforce `checked_*` arithmetic on all counters and aggregates | ✅ **Done** — 43 call sites, `ArithmeticOverflow` variant | Add a clippy lint (`clippy::arithmetic_side_effects`) to make this mechanical |
+| P1 | Bounds-safe shared sort / pagination helpers | ✅ **Done** — `utils::bubble_sort_by`, `pagination.rs` | — |
+| P2 | CI lint to forbid new `.unwrap()` / `.expect()` / `panic!` in `src/` (excluding `src/tests/`) | ⬜ **Open** | Add `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic))]` or a `grep` gate in `ci.yml` |
+| P2 | Property-based / fuzz tests that assert "no entry point panics on arbitrary input" | 🟡 **Partial** — `proptest_pagination.rs` covers pagination; other modules rely on unit tests | Extend proptest coverage to dependency-metadata parsing and sorted listings; track in `docs/TEST_COVERAGE.md` |
+| P3 | Document panic semantics for integrators (indexers must still tolerate a failed read) | ✅ **Done** — this section + `docs/ERROR_CODES.md` | — |
 
-#### 7. **Admin Manager** (`src/admin_manager.rs`)
-- **Line 23:** Panic on re-initialization
-  ```rust
-  panic!("Contract already initialized");
-  ```
+### 4.6 Regression Guard for Reviewers
 
-**Risk:** If initialization state is corrupted, attacker may trigger panic.
+When reviewing a PR that touches any `src/*_registry*.rs`, `timelock_manager.rs`,
+`admin_manager.rs`, `utils.rs`, or `rating_calculator.rs`, reject the change if it:
 
-### Mitigation Strategy
-
-1. **Replace panic/unwrap with error returns:**
-   - Convert all `panic!()`, `unwrap()`, and `expect()` calls to use `Result<T, ContractError>` returns
-   - Handle errors gracefully with appropriate error variants in `src/errors.rs`
-
-2. **Bounds checking:**
-   - Verify vector/array indices before access using `.get()` instead of direct indexing
-   - Add length assertions with error returns, not panics
-
-3. **UTF-8 validation:**
-   - Use `.unwrap_or_else()` with fallback logic, or validate buffer contents before UTF-8 conversion
-   - Return `ContractError` on malformed UTF-8, do not panic
-
-4. **Storage invariants:**
-   - Use `.ok_or(ContractError::...)` instead of `.expect()` for storage retrievals
-   - Add assertions to validate storage consistency at entry points
-
-5. **Verification and testing:**
-   - Add property-based tests (proptest) to fuzz inputs and verify no panic conditions are reachable
-   - Use fuzzing tools to systematically test entry points with malformed data
-   - Add doc tests with panic-triggering inputs to catch regressions
-
-### Related Issues
-
-- **Issue #XXX:** Replace panics in timelock_manager.rs with error returns
-- **Issue #XXX:** Replace panics in endorsement_registry.rs with error returns
-- **Issue #XXX:** Replace panics in bookmark_registry.rs with error returns
-- **Issue #XXX:** Fix UTF-8 unwraps in dependency_registry.rs
-- **Issue #XXX:** Fix vector bounds panics in review_registry.rs
-- **Issue #XXX:** Fix vector bounds panics in project_registry.rs
-- **Issue #XXX:** Harden admin_manager initialization checks
+1. introduces `panic!`, `unreachable!`, `todo!`, `unimplemented!`, `.unwrap()`,
+   or `.expect(...)` outside a `#[cfg(test)]` block;
+2. performs bare `+`, `-`, `*` on balances / counts / indices instead of the
+   `checked_*` / `saturating_*` forms;
+3. indexes a `Vec` / slice with `[i]` or `.get(i).unwrap()` instead of pattern
+   -matching on `.get(i)`;
+4. adds a public entry point whose signature is not `-> Result<_, ContractError>`
+   for any state-mutating operation.
 
 ---
 
@@ -187,3 +176,32 @@ The following modules contain panic/unwrap/expect call sites reachable from exte
    - *Assumption:* The admin keys are held by separate, independent entities, and their private keys are secured.
 3. **Off-Chain Identity Verification Diligence:**
    - *Risk:* Verification approval depends on the manual, off-chain diligence of admins confirming that the requester owns the project. If admins perform poor validation, incorrect verifications can occur.
+4. **Soroban Host / SDK Faults:**
+   - *Risk:* A panic originating inside `soroban-sdk` or the host (rather than contract code) is outside this contract's control. The `.expect()`-replacement `.ok_or(...)?` sites in §4.2 assume the host returns consistent storage data.
+   - *Assumption:* The Stellar validator set and the pinned `soroban-sdk` 22.0.0 behave to spec.
+
+---
+
+## 6. Panic-as-DoS Audit Methodology
+
+To reproduce the §4.2 inventory:
+
+```bash
+cd dongle-smartcontract
+# Reachable panic surface in production code (should return only comments / test asserts):
+grep -rn "panic!\|unreachable!\|todo!\|unimplemented!\|\.unwrap()\|\.expect(" src --include="*.rs" \
+  | grep -v "/tests/"
+# Checked-arithmetic coverage:
+grep -rn "checked_add\|checked_sub\|checked_mul\|saturating_" src --include="*.rs" | grep -v "/tests/" | wc -l
+# Confirm every mutating entry point returns Result:
+grep -n "pub fn " src/lib.rs
+```
+
+Re-run this scan whenever a registry module changes and update the §4.2 table
+and §4.5 status column accordingly.
+
+---
+
+**Last Updated:** 2026-08-27
+**Scope:** `dongle-contract` v0.6.0, `soroban-sdk` 22.0.0, toolchain 1.85.0
+**Related docs:** [`ERROR_CODES.md`](ERROR_CODES.md), [`CI_CD.md`](CI_CD.md), [`TEST_COVERAGE.md`](TEST_COVERAGE.md), [`ARCHITECTURE.md`](ARCHITECTURE.md)

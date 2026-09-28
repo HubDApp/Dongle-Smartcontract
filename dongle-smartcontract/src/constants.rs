@@ -1,7 +1,17 @@
 #![allow(dead_code)]
+// Dead-code policy: this module defines contract-wide limits that are imported
+// by other modules.  Some constants are defined for completeness / future use
+// (e.g. MIN_STRING_LEN) and are not yet referenced in every code path.
+// Silencing the lint here is intentional: removing "unused" constants would
+// make the limit catalogue incomplete, and re-adding them later would be a
+// larger PR than necessary.  Any constant that remains unused for more than
+// two release cycles should be re-evaluated and removed if still unneeded.
 //! Contract limits and validation constants. Kept in one place for easy future updates.
 
-/// Maximum number of projects a single user (address) can register. Prevents abuse.
+/// Maximum number of projects a single user (address) can register.
+/// 50: the `OwnerProjects(Address)` index is a `Vec<u64>` rewritten on every
+/// register/transfer/archive; 50 entries keeps that read-modify-write cheap and
+/// blocks Sybil-style index bloat. Raise only with a matching pagination story.
 pub const MAX_PROJECTS_PER_USER: u32 = 50;
 
 // ── Storage index size limits ───────────────────────────────────────────────
@@ -9,7 +19,7 @@ pub const MAX_PROJECTS_PER_USER: u32 = 50;
 // See STORAGE_INDEXES.md for the full index catalog and pagination strategy.
 
 /// Maximum unique reviewers indexed per project (`ProjectReviews`).
-pub const MAX_REVIEWS_PER_PROJECT: u32 = 500;
+pub const MAX_REVIEWS_PER_PROJECT: u32 = 20_000;
 
 /// Maximum projects indexed per reviewer (`UserReviews`).
 /// Also used as the shared index-capacity error (`MaxProjectsExceeded`) for review indexes.
@@ -21,44 +31,110 @@ pub const MAX_PAGE_LIMIT: u32 = 100;
 /// Maximum records that can be refreshed by one batch TTL extension call.
 pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 
+// ── Field length limits (string byte lengths) ──────────────────────────────
+//
+// Every user-supplied string field is bounded on write. The limits balance
+// three constraints:
+//
+//   1. **Soroban ledger entry size.** A single persistent entry must stay well
+//      under the ~64 KiB XDR limit; project entries aggregate ~15 fields plus
+//      Vec indexes, so each field is kept to the smallest size that fits its
+//      purpose.
+//   2. **Validation cost.** Character-set checks copy the string into a
+//      fixed-size stack buffer (`[u8; N]`) in `utils.rs`; the buffer is sized
+//      from these constants, so smaller limits mean smaller stack frames and
+//      cheaper CPU metering.
+//   3. **Display/UX.** Names, categories and slugs appear in lists and URLs and
+//      are deliberately short; descriptions are the one "long form" field.
+//
+// Rationale for each value is on the constant. See `docs/STORAGE_SCHEMA.md` for
+// the integrator-facing table and `src/tests/field_limits.rs` for the
+// boundary tests that enforce every limit at `N` (accepted) and `N + 1`
+// (rejected).
+
 /// Minimum length for name, description, category (must be non-empty after trim in validation).
+/// Enforced as "non-empty and not whitespace-only" — a zero-length field carries no information
+/// and would break slug/URL generation and list rendering.
+// Dead-code justification: validation currently checks "not empty" inline rather than
+// comparing against this constant, but the constant is kept here so the lower bound
+// is documented alongside MAX_NAME_LEN and can be referenced in future refactors.
 #[allow(dead_code)]
 pub const MIN_STRING_LEN: usize = 1;
 
 /// Maximum length for project name.
+/// 50 bytes: long enough for real project names, short enough to render in a
+/// single list row and to derive a slug from. Validation buffer is `[u8; 128]`.
 pub const MAX_NAME_LEN: usize = 50;
 
 /// Maximum length for project slug.
+/// 64 bytes: URL path segment. Kept slightly larger than the name so a name at
+/// `MAX_NAME_LEN` can still be slugified (spaces → `-`) without truncation.
 pub const MAX_SLUG_LEN: usize = 64;
 
 /// Maximum length for project description.
+/// 2048 bytes: the only long-form field. One order of magnitude below the
+/// ledger entry ceiling so a project entry with a full description plus all
+/// other fields still serialises comfortably. Validation buffer is
+/// `[u8; MAX_DESCRIPTION_LEN]`.
 pub const MAX_DESCRIPTION_LEN: usize = 2048;
 
 /// Maximum length for category.
+/// 64 bytes: categories are a small controlled vocabulary ("DeFi", "NFT", …);
+/// the limit only guards against abuse of the free-text field.
 pub const MAX_CATEGORY_LEN: usize = 64;
 
 /// Maximum length for website URL.
+/// 256 bytes: comfortably covers real URLs (the de-facto practical URL length
+/// browsers rely on is ~2000, but project sites are short landing pages) while
+/// bounding the validation buffer `[u8; MAX_WEBSITE_LEN]`.
 pub const MAX_WEBSITE_LEN: usize = 256;
 
 /// Maximum length for a project's license description.
+/// 64 bytes: fits SPDX identifiers ("Apache-2.0", "GPL-3.0-or-later") and short
+/// free-text license notes.
 pub const MAX_LICENSE_LEN: usize = 64;
 
 /// Maximum length for a project's published security contact.
+/// 256 bytes: covers a `mailto:`, an HTTPS disclosure page, or a
+/// `security.txt`-style contact line.
 pub const MAX_SECURITY_CONTACT_LEN: usize = 256;
 
 /// Maximum length for any CID (logo, metadata, comment, evidence).
+/// 128 bytes: CIDv1 (base32) is ~59 chars; 128 leaves headroom for longer
+/// multibase/multicodec encodings without allowing arbitrary blobs.
 pub const MAX_CID_LEN: usize = 128;
 
 /// Minimum length for a valid IPFS CID (46 = shortest CIDv0 "Qm..." string).
+/// A CIDv0 is exactly 46 base58 characters; anything shorter cannot be a valid CID.
 pub const MIN_CID_LEN: usize = 46;
 
+/// Lower bound used by the **lenient** CID validator (issue #667).
+///
+/// The lenient check only verifies prefix + length window, so it accepts the
+/// shorter `[40, 46)` window that pre-existing proof CIDs live in. Use
+/// `MIN_CID_LEN` (or `Utils::is_valid_ipfs_cid_strict`) where the canonical
+/// 46-byte CIDv0 minimum must be enforced.
+pub const MIN_CID_FLOOR: usize = 40;
+
 /// Maximum stored edit revisions per review (oldest dropped when exceeded).
+/// 50: revision history is a bounded ring buffer so an actively-edited review
+/// cannot grow its storage entry without limit.
 pub const MAX_REVIEW_REVISIONS: u32 = 50;
 
 /// Bayesian prior review count for weighted rating (see RatingCalculator::calculate_weighted).
+/// Represents the "strength" of the prior belief vs actual data.
+/// A value of 5 means the prior is treated as if it were 5 hypothetical reviews.
+/// Higher values give more weight to the prior (more conservative ratings).
+/// Lower values give more weight to actual reviews (more volatile ratings).
+/// Chosen as 5 to balance stability with responsiveness to genuine feedback.
 pub const WEIGHTED_RATING_PRIOR_COUNT: u32 = 5;
 
 /// Bayesian prior mean rating scaled by 100 (350 = 3.50 stars).
+/// Represents the baseline rating for an "average" project.
+/// Set to 3.50 (middle of 1-5 scale, slightly above midpoint) to assume
+/// most projects are decent but not perfect.
+/// Prevents new projects from starting at the extremes (1.0 or 5.0).
+/// As review count grows, the actual average dominates this prior.
 pub const WEIGHTED_RATING_PRIOR_MEAN: u32 = 350;
 
 /// Project metadata fields whose changes invalidate an existing verification.
@@ -74,19 +150,37 @@ pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 
+/// Maximum depth of the transitive project-dependency graph.
+///
+/// When a project owner adds a dependency that points at another registered
+/// project (`DependencyRef::project_id`), the registry walks the transitive
+/// dependency graph starting from the new target. Adding an edge that would
+/// let the chain reach more than this many levels deep — or that would close
+/// a cycle back to the dependent project — is rejected. See
+/// `docs/DEPENDENCY_REGISTRY.md`.
+pub const MAX_DEPENDENCY_DEPTH: u32 = 5;
+
 /// Maximum number of tags per project.
+/// 10: tags are stored as a `Vec<String>` inside the project entry and are
+/// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.
 pub const MAX_TAGS_PER_PROJECT: u32 = 10;
 
 /// Maximum length for a single tag.
+/// 32 bytes: tags are single words / short slugs (`[A-Za-z0-9_-]`); the
+/// validation buffer is sized from this value.
 pub const MAX_TAG_LENGTH: usize = 32;
 
 /// Maximum number of social links per project.
+/// 10: same `Vec` bound-on-write reasoning as tags; covers every mainstream
+/// platform a project would list.
 pub const MAX_SOCIAL_LINKS: u32 = 10;
 
 /// Maximum length for social link URL.
+/// 256 bytes: matches `MAX_WEBSITE_LEN` — same "short landing/profile URL" shape.
 pub const MAX_SOCIAL_LINK_URL_LEN: usize = 256;
 
 /// Maximum length for social link platform name.
+/// 32 bytes: platform labels ("twitter", "discord", "github") are short.
 pub const MAX_SOCIAL_LINK_PLATFORM_LEN: usize = 32;
 
 /// Valid rating range (inclusive). Reviews must be in [RATING_MIN, RATING_MAX]. u32 for Soroban Val.
@@ -96,6 +190,20 @@ pub const RATING_MAX: u32 = 5;
 /// Verification validity period in seconds (365 days).
 /// After this period, verified projects need to renew their verification.
 pub const VERIFICATION_VALIDITY_PERIOD: u64 = 365 * 24 * 60 * 60;
+
+/// Default probationary verification period duration in seconds (30 days).
+pub const DEFAULT_PROBATIONARY_DURATION_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum duration of a temporary verification suspension.
+pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
+/// Feature thresholds used by the default verification risk model.
+pub const RISK_MODEL_MONTH_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
+
+/// Verification expiry reminder and resend windows.
+pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
+pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 
@@ -124,16 +232,28 @@ pub const LEDGER_THRESHOLD_VERIFICATION: u32 = 777_600;
 /// User data should persist reasonably long.
 pub const LEDGER_THRESHOLD_USER: u32 = 1_036_800;
 
+/// Maximum number of featured projects that can be active simultaneously.
+/// When the limit is reached and a new project is featured, the oldest
+/// featured project (front of the list) is evicted to make room.
+pub const MAX_FEATURED_PROJECTS: u32 = 20;
+
 /// Maximum number of collections that can exist.
+/// 100: collections are a curated, admin-scale feature, not user-generated at
+/// scale; the global cap keeps `list_collections` pagination bounded.
 pub const MAX_COLLECTIONS: u32 = 100;
 
 /// Maximum length for a collection name.
+/// 100 bytes: collection names are display titles (curator-authored), allowed
+/// to be more descriptive than a project name.
 pub const MAX_COLLECTION_NAME_LEN: usize = 100;
 
 /// Maximum length for a collection description.
+/// 500 bytes: a short blurb, not long-form prose like a project description.
 pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
 
 /// Maximum number of projects per collection.
+/// 500: the membership list is a `Vec<u64>` in the collection entry; 500 × 8
+/// bytes = 4 KiB, well within a single ledger entry.
 pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
 
 /// TTL bump amount - how much to extend when bumping.
@@ -153,9 +273,27 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 /// Defaults to 365 days (365 * 24 * 60 * 60 = 31_536_000 seconds).
 /// Admins can override this via set_verification_duration.
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
+/// Minimum notice required between announcing a sunset and its effective date.
+pub const PROJECT_SUNSET_MIN_NOTICE_SECS: u64 = 180 * 24 * 60 * 60;
 /// Minimum timelock delay in seconds (1 day).
-/// Scheduled actions must have execution_timestamp >= now + TIMELOCK_MIN_DELAY.
-pub const TIMELOCK_MIN_DELAY: u64 = 86400;
+///
+/// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,
+/// `schedule_remove_admin`) must have
+/// `execution_timestamp >= now + TIMELOCK_MIN_DELAY`. A delay of `0` (execute
+/// immediately) is therefore **not** allowed — it would defeat the purpose of
+/// the timelock, which is to give the community and the other admins a
+/// guaranteed window to react to a pending change. See `docs/TIMELOCK.md`.
+pub const TIMELOCK_MIN_DELAY: u64 = 86_400;
+
+/// Maximum timelock delay in seconds (90 days).
+///
+/// Scheduled admin actions must have
+/// `execution_timestamp <= now + TIMELOCK_MAX_DELAY`. The upper bound keeps
+/// the scheduled-action queue bounded and prevents "zombie" actions that sit
+/// executable far into the future after their context (admin set, fee model,
+/// threat model) has changed. Re-schedule instead of scheduling years out.
+/// See `docs/TIMELOCK.md`.
+pub const TIMELOCK_MAX_DELAY: u64 = 90 * 24 * 60 * 60;
 
 /// Fee payment validity window in seconds (7 days).
 /// After this window, the payment record is considered expired and the
@@ -170,6 +308,33 @@ pub const CLAIM_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
 /// Minimum seconds a reviewer must wait before updating their review again (default: 1 hour).
 /// Configurable by changing this constant.
 pub const REVIEW_UPDATE_COOLDOWN_SECONDS: u64 = 3600;
+
+/// Minimum age in seconds for a review before it becomes eligible for archival.
+/// Reviews older than this threshold (from `created_at`) are moved to cheaper
+/// storage via `archive_old_reviews`. Default is 2 years.
+///
+/// 2 years = 2 × 365 × 24 × 60 × 60 = 63_072_000 seconds.
+pub const REVIEW_ARCHIVE_AGE_SECONDS: u64 = 63_072_000;
+
+/// Maximum number of reviews that can be archived in a single `archive_old_reviews` call.
+/// Caps the per-invocation CPU and I/O budget so the call stays within Soroban limits.
+pub const MAX_ARCHIVE_BATCH_SIZE: u32 = 50;
+
+/// TTL for archived review records (uses cheaper, shorter-lived storage).
+/// Set to ~30 days — off-chain indexers should consume the archival event and
+/// store data permanently (e.g., on Arweave) within this window.
+/// 30 days = 30 * 24 * 60 * 60 / 5 seconds per ledger = 518_400 ledgers.
+pub const LEDGER_THRESHOLD_ARCHIVED_REVIEW: u32 = 518_400;
+pub const LEDGER_BUMP_ARCHIVED_REVIEW: u32 = LEDGER_THRESHOLD_ARCHIVED_REVIEW;
+
+/// Maximum number of evidence links that may be attached to a single review.
+/// Frontends should enforce this limit before submitting a transaction.
+/// Surfaced through `ContractLimits::max_evidence_links_per_review` in `get_config`.
+pub const MAX_EVIDENCE_LINKS_PER_REVIEW: u32 = 5;
+
+/// Maximum byte length of a single evidence link URL.
+/// URLs exceeding this limit are rejected with `ContractError::EvidenceLinkTooLong`.
+pub const MAX_EVIDENCE_LINK_URL_LEN: usize = 512;
 
 /// Minimum age in seconds for a reviewer before they can submit a review (default: 0, disabled).
 pub const DEFAULT_MIN_REVIEWER_AGE_SECONDS: u64 = 0;
@@ -186,3 +351,280 @@ pub const DEFAULT_REVIEW_FEE: u128 = 0;
 /// Bump when a non-backwards-compatible change to the public contract surface
 /// is released (storage layout, argument shape, new required fields, etc.).
 pub const CONTRACT_VERSION: &str = "1.0.0";
+
+// ── Bookmark Folder Constants (#815) ────────────────────────────────────────
+
+/// Maximum number of bookmark folders per user (regular folders, excluding smart folders).
+/// 50: each folder is a `BookmarkFolder` record plus a `FolderBookmarks` list;
+/// 50 folders keeps the per-user storage footprint predictable.
+pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
+
+/// Maximum number of smart folders per user.
+/// 20: smart folders are metadata-only (no stored list) but each query scans
+/// the full bookmark list, so a small cap keeps aggregate query cost bounded.
+pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
+
+/// Maximum number of bookmarks inside a single folder.
+/// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
+/// 4 KiB, well within a single ledger entry.
+pub const MAX_BOOKMARKS_PER_FOLDER: u32 = 500;
+
+/// Maximum depth of nested bookmark folders.
+/// 5: deep nesting is expensive to validate (requires walking up the parent
+/// chain on every create/rename call) and rarely needed in practice.
+pub const MAX_FOLDER_DEPTH: u32 = 5;
+
+/// Maximum byte length for a bookmark folder name.
+/// 100: matches `MAX_COLLECTION_NAME_LEN`; a folder name is a display title.
+pub const MAX_FOLDER_NAME_LEN: usize = 100;
+
+// ── Featured Algorithm & A/B Testing Constants (#816) ────────────────────────
+
+/// Scale factor in basis points for algorithmic weights (10_000 = 100.00%).
+pub const MAX_BASIS_POINTS: u32 = 10_000;
+
+/// Default rating weight for the Quality algorithm (40.00% = 4_000).
+pub const DEFAULT_QUALITY_RATING_WEIGHT: u32 = 4000;
+/// Default recency weight for the Quality algorithm (30.00% = 3_000).
+pub const DEFAULT_QUALITY_RECENCY_WEIGHT: u32 = 3000;
+/// Default activity weight for the Quality algorithm (30.00% = 3_000).
+pub const DEFAULT_QUALITY_ACTIVITY_WEIGHT: u32 = 3000;
+/// Default verification bonus for the Quality algorithm (10.00% = 1_000).
+pub const DEFAULT_QUALITY_VERIFICATION_BONUS: u32 = 1000;
+/// Default recency decay window for the Quality algorithm (30 days in seconds).
+pub const DEFAULT_QUALITY_RECENCY_WINDOW_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Default rating weight for the Trending algorithm (15.00% = 1_500).
+pub const DEFAULT_TRENDING_RATING_WEIGHT: u32 = 1500;
+/// Default recency weight for the Trending algorithm (50.00% = 5_000).
+pub const DEFAULT_TRENDING_RECENCY_WEIGHT: u32 = 5000;
+/// Default activity weight for the Trending algorithm (35.00% = 3_500).
+pub const DEFAULT_TRENDING_ACTIVITY_WEIGHT: u32 = 3500;
+/// Default verification bonus for the Trending algorithm (5.00% = 500).
+pub const DEFAULT_TRENDING_VERIFICATION_BONUS: u32 = 500;
+/// Default recency decay window for the Trending algorithm (7 days in seconds).
+pub const DEFAULT_TRENDING_RECENCY_WINDOW_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// Default rating weight for the HighRating algorithm (70.00% = 7_000).
+pub const DEFAULT_HIGH_RATING_WEIGHT: u32 = 7000;
+/// Default recency weight for the HighRating algorithm (10.00% = 1_000).
+pub const DEFAULT_HIGH_RATING_RECENCY_WEIGHT: u32 = 1000;
+/// Default activity weight for the HighRating algorithm (20.00% = 2_000).
+pub const DEFAULT_HIGH_RATING_ACTIVITY_WEIGHT: u32 = 2000;
+/// Default verification bonus for the HighRating algorithm (10.00% = 1_000).
+pub const DEFAULT_HIGH_RATING_VERIFICATION_BONUS: u32 = 1000;
+/// Default recency decay window for the HighRating algorithm (60 days in seconds).
+pub const DEFAULT_HIGH_RATING_RECENCY_WINDOW_SECS: u64 = 60 * 24 * 60 * 60;
+
+/// Activity benchmark: points needed to achieve 100% (10_000) activity score.
+/// Raw activity formula: (reviews * 3) + (endorsements * 2) + followers.
+pub const ACTIVITY_BENCHMARK: u32 = 50;
+
+/// Maximum number of description bytes for an A/B test experiment.
+pub const MAX_AB_TEST_DESC_LEN: usize = 200;
+
+// ── Verification Assignment & Specialized Admin SLA Constants ─────────────
+
+/// Default verification SLA: 7 days from request to decision (issue #741).
+///
+/// 7 days matches the acceptance criterion for the SLA tracker and is the
+/// value used when neither a region override nor an admin override is set.
+pub const DEFAULT_VERIFICATION_SLA_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// Minimum allowed verification SLA duration (1 hour = 3,600 seconds).
+pub const MIN_VERIFICATION_SLA_SECS: u64 = 3600;
+
+/// Maximum allowed verification SLA duration (30 days = 2,592,000 seconds).
+pub const MAX_VERIFICATION_SLA_SECS: u64 = 30 * 24 * 60 * 60;
+/// Maximum length of an admin expertise string (64 bytes).
+pub const MAX_EXPERTISE_LEN: usize = 64;
+
+/// Maximum number of expertise tags an admin can have.
+pub const MAX_EXPERTISE_TAGS_PER_ADMIN: u32 = 20;
+
+/// Maximum length of a decline or escalation reason string.
+pub const MAX_ASSIGNMENT_REASON_LEN: usize = 256;
+
+// ── Verification SLA Tracking (#741) ───────────────────────────────────────
+
+/// How long before an SLA breach an alert is emitted (24 hours).
+///
+/// `check_sla_alerts` emits a `VerificationSlaAlert` event for every pending
+/// request whose deadline falls inside this window and which has not been
+/// alerted yet, so an alerting service has one full day of lead time.
+pub const SLA_ALERT_LEAD_SECONDS: u64 = 24 * 60 * 60;
+
+/// Maximum number of pending verification requests scanned by a single
+/// `check_sla_alerts` call. The scan resumes from the last position it
+/// reached so a large backlog is drained over multiple invocations instead of
+/// blowing the per-transaction budget.
+pub const MAX_SLA_SCAN_BATCH: u32 = 100;
+
+// ── Governance Parameter Ranges (#740) ─────────────────────────────────────
+
+/// Lower bound (inclusive) for the admin approval threshold.
+pub const MIN_APPROVAL_THRESHOLD: u64 = 1;
+
+/// Upper bound (inclusive) for the admin approval threshold. 20 admins is far
+/// above any realistic review quorum while still leaving room for a testnet
+/// with a large validator set.
+pub const MAX_APPROVAL_THRESHOLD: u64 = 20;
+
+/// Upper bound (inclusive) for the verification fee, in token base units.
+/// 1e12 = 1,000,000 whole units of an 6-decimal token.
+pub const MAX_VERIFICATION_FEE: u64 = 1_000_000_000_000;
+
+/// Upper bound (inclusive) for the registration fee, in token base units.
+pub const MAX_REGISTRATION_FEE: u64 = 1_000_000_000_000;
+
+/// Upper bound (inclusive) for the review fee, in token base units.
+pub const MAX_REVIEW_FEE: u64 = 1_000_000_000_000;
+
+/// Lower bound (inclusive) for the verification validity duration (1 hour).
+pub const MIN_VERIFICATION_DURATION_SECS: u64 = 3600;
+
+/// Upper bound (inclusive) for the verification validity duration (10 years).
+pub const MAX_VERIFICATION_DURATION_SECS: u64 = 10 * 365 * 24 * 60 * 60;
+
+/// Lower bound (inclusive) for the configurable maximum reviews per project.
+pub const MIN_MAX_REVIEWS_PER_PROJECT: u64 = 1;
+
+/// Upper bound (inclusive) for the configurable maximum reviews per project.
+pub const MAX_MAX_REVIEWS_PER_PROJECT: u64 = 100_000;
+
+// ── Bulk Project Import (#742) ─────────────────────────────────────────────
+
+/// Maximum number of projects accepted by a single bulk-import call.
+///
+/// A bulk import writes one `Project` entry plus its name / slug / normalized
+/// name / category / owner / tag-index keys per project, so the cap bounds the
+/// storage rent a single transaction can commit. Larger migrations must be
+/// split into several calls.
+pub const MAX_BULK_IMPORT_PROJECTS: u32 = 1000;
+
+// ── Project Ownership Recovery (#747) ──────────────────────────────────────
+
+/// Endorsements required before an ownership-recovery nomination opens a vote.
+pub const RECOVERY_REQUIRED_ENDORSEMENTS: u32 = 10;
+
+/// Duration of the community vote on an ownership recovery (7 days).
+pub const RECOVERY_VOTE_PERIOD_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// Approval percentage (out of 100) required for the community vote to pass.
+pub const RECOVERY_APPROVAL_PERCENT: u32 = 75;
+
+/// Window during which the original owner may reclaim the project after a
+/// successful ownership transfer (30 days).
+pub const RECOVERY_RECLAIM_WINDOW_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Maximum length of the optional reason supplied with an ownership-recovery
+/// nomination.
+pub const MAX_RECOVERY_REASON_LEN: usize = 256;
+
+// ── Constants restored from the recommendation / community-collection /
+// social-analytics features (issues #820, #821, #822) ──────────────────────
+//
+// These were lost when merge 5608c72 resolved `types.rs`, `constants.rs`,
+// `errors.rs`, `events.rs` and `storage_keys.rs` in favour of the `main` side
+// while keeping the three registry modules that depend on them. The registry
+// modules (`recommendation_registry.rs`, `community_collection_registry.rs`,
+// `social_analytics_registry.rs`) reference every symbol below; without them
+// the crate does not compile. Content is verbatim from f74e102.
+
+// ── Recommendation Constants (Issue #820) ──────────────────────────────────
+/// Maximum length for a recommendation `label` in bytes. Labels are short
+/// display strings ("Trending", "You might like", …); the limit is generous
+/// enough for UI copy but tight enough to avoid storage-entry bloat.
+pub const MAX_RECOMMENDATION_LABEL_LEN: usize = 128;
+/// Maximum number of recommendations a single target project can have across
+/// all algorithms. Acts as a flood-gate against storage-key spam for popular
+/// projects; 200 is ~5-10 full recommendation surfaces (20 recs × 10 views).
+pub const MAX_RECOMMENDATIONS_PER_PROJECT: u32 = 200;
+/// Maximum recommendations stored globally (RecommendationList length cap).
+/// 10_000 is comfortably above what a single contract instance needs and
+/// keeps `list_recommendations` pagination bounded.
+pub const MAX_RECOMMENDATIONS_GLOBAL: u32 = 10_000;
+/// Weight of click-through rate in the composite effectiveness score.
+/// (Scaled basis-point weight; all weights sum to 10_000.)
+pub const EFFECTIVENESS_WEIGHT_CTR_BPS: u32 = 3_500;
+/// Weight of helpful-ratio in the composite effectiveness score.
+pub const EFFECTIVENESS_WEIGHT_HELPFUL_BPS: u32 = 3_500;
+/// Weight of downstream engagements (follow + bookmark + endorse + review)
+/// in the composite effectiveness score.
+pub const EFFECTIVENESS_WEIGHT_ENGAGEMENT_BPS: u32 = 3_000;
+/// Scaling factor used for CTR and helpful ratio (ppm = parts per million).
+pub const RATIO_SCALE_PPM: u32 = 1_000_000;
+/// Composite effectiveness score scale (basis points, 0–10_000).
+pub const SCORE_SCALE_BPS: u32 = 10_000;
+/// Minimum impressions required before CTR contributes a non-zero signal to
+/// the effectiveness score. Prevents a single-click "1/1 = 100%" fluke from
+/// dominating the ranking.
+pub const MIN_IMPRESSIONS_FOR_CTR_SIGNAL: u64 = 5;
+/// Minimum feedback votes required before helpful-ratio contributes a non-zero
+/// signal to the effectiveness score (same rationale as CTR floor above).
+pub const MIN_FEEDBACK_FOR_HELPFUL_SIGNAL: u64 = 3;
+// ── Community Collection Constants (Issue #821) ─────────────────────────────
+/// Maximum length of a community collection `name` in bytes (same generous limit
+/// as admin-only collections: 100 bytes).
+pub const MAX_COMMUNITY_COL_NAME_LEN: usize = 100;
+/// Maximum length of a community collection `description` in bytes (short blurb,
+/// 500 bytes, same as admin-only collections).
+pub const MAX_COMMUNITY_COL_DESCRIPTION_LEN: usize = 500;
+/// Maximum length of the optional comma-separated `tags` string in bytes.
+/// 256 bytes covers ~20 typical tag tokens.
+pub const MAX_COMMUNITY_COL_TAGS_LEN: usize = 256;
+/// Maximum number of projects a community collection can contain. Kept lower
+/// than admin-only collections (200 vs 500) because these are user-generated
+/// and the voting/curation loop is O(|project_ids|) in several places.
+pub const MAX_COMMUNITY_COL_PROJECTS: u32 = 200;
+/// Maximum curators allowed per community collection. Prevents runaway
+/// TTL-extend loops on the curator list.
+pub const MAX_COMMUNITY_COL_CURATORS: u32 = 30;
+/// Global cap on community collection count. Much higher than admin-only
+/// collections since *any* user can create them, but still bounded so
+/// `list_community_collections` pagination remains tractable.
+pub const MAX_COMMUNITY_COLLECTIONS: u32 = 5_000;
+/// Global cap on featured community collections (AC1). Matches the
+/// featured-projects cap (20). Admin toggles FIFO-evict the oldest entry
+/// when the cap is reached.
+pub const MAX_FEATURED_COMMUNITY_COLLECTIONS: u32 = 20;
+/// Default approval-vote threshold for newly-created community collections.
+/// 3 community yays auto-include unless a curator explicitly vetoes.
+pub const DEFAULT_COMMUNITY_COL_APPROVAL_THRESHOLD: u32 = 3;
+/// Default disapproval-vote threshold for newly-created community collections.
+/// Symmetric with the approval threshold.
+pub const DEFAULT_COMMUNITY_COL_DISAPPROVAL_THRESHOLD: u32 = 3;
+/// Default creator revenue share (basis points) applied to new community
+/// collections when the creator does not explicitly specify one. 60% to
+/// the creator leaves 40% to be split evenly across curators.
+pub const DEFAULT_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 6_000;
+/// Maximum valid creator revenue share (basis points). Leaves at least 10%
+/// to curators to keep curation incentives aligned.
+pub const MAX_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 9_000;
+/// Minimum valid creator revenue share (basis points). Ensures the creator
+/// is meaningfully compensated for originating and stewarding the collection.
+pub const MIN_COMMUNITY_COL_CREATOR_SHARE_BPS: u32 = 1_000;
+// ── Social Analytics Constants (Issue #822) ────────────────────────────────
+/// Daily checkpoint per-project cap. 730 days = ~2 years of daily history.
+/// After the cap is reached, `record_project_social_daily_checkpoint` evicts
+/// the oldest checkpoint (FIFO) before appending a new one so growth
+/// analytics retain a rolling 2-year window rather than failing.
+pub const MAX_SOCIAL_CHECKPOINTS_PER_PROJECT: u32 = 730;
+/// Scaling factor for engagement-rate ratios. 1e6 ppm = 1.0 (100%).
+pub const SOCIAL_ENGAGEMENT_RATE_SCALE_PPM: u64 = 1_000_000;
+/// Rating scale used by `ProjectStats.average_rating` (review_registry).
+/// Values are 0–50_000 for a 0–5 star rating (10_000 bps per star).
+pub const SOCIAL_RATING_BPS_PER_STAR: u32 = 10_000;
+/// Maximum number of peer projects to include in the peer comparison
+/// snapshot used for AC3. Limiting the peer set to 50 keeps the export
+/// report payload small while still representing a broad percentile rank.
+pub const SOCIAL_ANALYTICS_MAX_PEERS: u32 = 50;
+/// Minimum number of checkpoints required for a "growth over time"
+/// export report (AC1 + AC4). With >= 2 checkpoints we can derive at
+/// least one delta window. Callers with 1 checkpoint will still get a
+/// report but the export will note that deltas are zero.
+pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
+/// Number of days in the "last-week" preset window used by export (6 days + today inclusive = 7).
+pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
+/// Number of days in the "last-30-days" preset window used by export.
+pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;

@@ -1,4 +1,7 @@
-use crate::types::{AdminActionType, ProjectLifecycleStatus, ReviewAction, ReviewEventData, VerificationStatus};
+use crate::types::{
+    AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
+    ReviewAction, ReviewEventData, VerificationStatus,
+};
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
@@ -171,6 +174,12 @@ pub struct VerificationRequestedEvent {
     pub requester: Address,
     pub evidence_cid: String,
     pub timestamp: u64,
+    /// Id of the newly created `VerificationRecord` for this request.
+    pub request_id: u64,
+    /// Id of the previous verification request for this project, if any.
+    /// `Some(_)` marks this request as a re-request (e.g. after rejection or
+    /// revocation) rather than the project's first verification request.
+    pub previous_request_id: Option<u64>,
 }
 
 #[contracttype]
@@ -193,10 +202,48 @@ pub struct VerificationRejectedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppealSubmittedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub evidence_cid: String,
+    pub appeal_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAppealReviewedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub approved: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationRevokedEvent {
     pub project_id: u64,
     pub admin: Address,
     pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSuspendedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub investigation_ticket: String,
+    pub restore_at: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRestoredEvent {
+    pub project_id: u64,
+    pub admin: Option<Address>,
     pub timestamp: u64,
 }
 
@@ -207,6 +254,18 @@ pub struct VerificationExpiredEvent {
     pub project_id: u64,
     pub expired_at: u64,
     pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationExpiryNotificationEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub expires_at: u64,
+    pub renewal_instructions: String,
+    pub sent_at: u64,
+    pub resend: bool,
+    pub resend_count: u32,
 }
 
 /// Emitted when an admin renews (resets the expiry of) a verified project.
@@ -349,6 +408,7 @@ pub fn publish_review_event(
     owner_response: Option<String>,
     created_at: u64,
     updated_at: u64,
+    evidence_links: Vec<EvidenceLink>,
 ) {
     let event_data = ReviewEventData {
         project_id,
@@ -359,6 +419,7 @@ pub fn publish_review_event(
         created_at,
         updated_at,
         owner_response,
+        evidence_links,
     };
 
     let action_sym = match action {
@@ -372,6 +433,7 @@ pub fn publish_review_event(
         .publish((REVIEW, action_sym, project_id, reviewer), event_data);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn publish_review_revision_event(
     env: &Env,
     project_id: u64,
@@ -613,6 +675,35 @@ pub fn publish_verification_expired_event(env: &Env, project_id: u64, expired_at
     );
 }
 
+pub fn publish_verification_expiry_notification_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    expires_at: u64,
+    renewal_instructions: String,
+    resend: bool,
+    resend_count: u32,
+) {
+    let event_data = VerificationExpiryNotificationEvent {
+        project_id,
+        owner: owner.clone(),
+        expires_at,
+        renewal_instructions,
+        sent_at: env.ledger().timestamp(),
+        resend,
+        resend_count,
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("REMINDER"),
+            project_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_verification_renewed_event(
     env: &Env,
     project_id: u64,
@@ -674,6 +765,31 @@ pub fn publish_admin_removed_event(env: &Env, admin: Address) {
     env.events().publish(
         (symbol_short!("ADMIN"), symbol_short!("REMOVED")),
         event_data,
+    );
+}
+
+/// Emitted when an admin delegates their vote on a proposal (#727).
+pub fn publish_vote_delegated_event(
+    env: &Env,
+    proposal_id: u64,
+    delegator: Address,
+    delegate: Address,
+) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("DELEGATE")),
+        (proposal_id, delegator, delegate, env.ledger().timestamp()),
+    );
+}
+
+/// Emitted when an admin revokes their vote delegation (#727).
+pub fn publish_delegation_revoked_event(
+    env: &Env,
+    proposal_id: u64,
+    delegator: Address,
+) {
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("REVOKE")),
+        (proposal_id, delegator, env.ledger().timestamp()),
     );
 }
 
@@ -761,12 +877,16 @@ pub fn publish_verification_requested_event(
     project_id: u64,
     requester: Address,
     evidence_cid: String,
+    request_id: u64,
+    previous_request_id: Option<u64>,
 ) {
     let event_data = VerificationRequestedEvent {
         project_id,
         requester,
         evidence_cid,
         timestamp: env.ledger().timestamp(),
+        request_id,
+        previous_request_id,
     };
     env.events().publish(
         (symbol_short!("VERIFY"), symbol_short!("REQ"), project_id),
@@ -810,6 +930,52 @@ pub fn publish_verification_rejected_event(
     );
 }
 
+pub fn publish_verification_appeal_submitted_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    evidence_cid: String,
+    appeal_count: u32,
+) {
+    let event_data = VerificationAppealSubmittedEvent {
+        project_id,
+        owner,
+        evidence_cid,
+        appeal_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("APPEAL"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_verification_appeal_reviewed_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    approved: bool,
+) {
+    let event_data = VerificationAppealReviewedEvent {
+        project_id,
+        admin,
+        approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            if approved {
+                symbol_short!("APPRV")
+            } else {
+                symbol_short!("APDENY")
+            },
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 pub fn publish_verification_revoked_event(
     env: &Env,
     project_id: u64,
@@ -826,6 +992,48 @@ pub fn publish_verification_revoked_event(
         (
             symbol_short!("VERIFY"),
             symbol_short!("REVOKED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_suspended_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: String,
+    investigation_ticket: String,
+    restore_at: u64,
+) {
+    let event_data = VerificationSuspendedEvent {
+        project_id,
+        admin: admin.clone(),
+        reason,
+        investigation_ticket,
+        restore_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("SUSPENDED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_restored_event(env: &Env, project_id: u64, admin: Option<Address>) {
+    let event_data = VerificationRestoredEvent {
+        project_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("RESTORED"),
             project_id,
         ),
         event_data,
@@ -1497,19 +1705,43 @@ pub fn publish_project_removed_from_collection_event(
     );
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectLinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUnlinkedEvent {
+    pub project_id: u64,
+    pub linked_project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 pub fn publish_project_linked_event(
     env: &Env,
     project_id: u64,
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectLinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("LINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 
@@ -1519,13 +1751,19 @@ pub fn publish_project_unlinked_event(
     linked_project_id: u64,
     owner: Address,
 ) {
+    let event_data = ProjectUnlinkedEvent {
+        project_id,
+        linked_project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
         (
             symbol_short!("PROJECT"),
             symbol_short!("UNLINKED"),
             project_id,
         ),
-        (linked_project_id, owner, env.ledger().timestamp()),
+        event_data,
     );
 }
 
@@ -2149,3 +2387,1504 @@ pub fn publish_changelog_removed_event(
         event_data,
     );
 }
+
+// ── Notification Events (#811) ────────────────────────────────────────────────
+
+/// Emitted on a project update that followers should be notified about.
+///
+/// Indexers subscribe to `(PROJECT, NOTIF, project_id)` topics to fan out
+/// the notification to each follower. The `follower_count` field allows the
+/// indexer to allocate its fanout work without a separate chain read.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectUpdateNotificationEvent {
+    /// The project that was updated.
+    pub project_id: u64,
+    /// What kind of update occurred.
+    pub update_kind: NotificationKind,
+    /// Cached follower count at the time of the event.
+    pub follower_count: u32,
+    /// Ledger timestamp when the event was emitted.
+    pub timestamp: u64,
+}
+
+/// Emitted when a user's digest queue is flushed and a digest is scheduled
+/// for delivery.
+///
+/// Off-chain services consume this event to build and send the actual
+/// digest message (email, push, etc.).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UserDigestScheduledEvent {
+    /// The user whose digest is being dispatched.
+    pub user: Address,
+    /// Project IDs included in this digest batch.
+    pub queued_project_ids: Vec<u64>,
+    /// The frequency that triggered this digest.
+    pub frequency: DigestFrequency,
+    /// Ledger timestamp when the digest was scheduled.
+    pub timestamp: u64,
+}
+
+/// Emitted when a user updates their notification preferences.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NotificationPrefsUpdatedEvent {
+    pub user: Address,
+    pub opted_out: bool,
+    pub digest_frequency: DigestFrequency,
+    pub timestamp: u64,
+}
+
+/// Emitted when a user sets a per-project notification override.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectNotifOverrideSetEvent {
+    pub user: Address,
+    pub project_id: u64,
+    pub opted_out: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_update_notification_event(
+    env: &Env,
+    project_id: u64,
+    update_kind: NotificationKind,
+    follower_count: u32,
+) {
+    let event_data = ProjectUpdateNotificationEvent {
+        project_id,
+        update_kind: update_kind.clone(),
+        follower_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("NOTIF"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_user_digest_scheduled_event(
+    env: &Env,
+    user: Address,
+    queued_project_ids: Vec<u64>,
+    frequency: DigestFrequency,
+) {
+    let event_data = UserDigestScheduledEvent {
+        user: user.clone(),
+        queued_project_ids,
+        frequency,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("USER"), symbol_short!("DIGEST"), user),
+        event_data,
+    );
+}
+
+pub fn publish_notification_prefs_updated_event(
+    env: &Env,
+    user: Address,
+    opted_out: bool,
+    digest_frequency: DigestFrequency,
+) {
+    let event_data = NotificationPrefsUpdatedEvent {
+        user: user.clone(),
+        opted_out,
+        digest_frequency,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("USER"), symbol_short!("NFPREF"), user),
+        event_data,
+    );
+}
+
+pub fn publish_project_notif_override_set_event(
+    env: &Env,
+    user: Address,
+    project_id: u64,
+    opted_out: bool,
+) {
+    let event_data = ProjectNotifOverrideSetEvent {
+        user: user.clone(),
+        project_id,
+        opted_out,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("NFOVRRD"),
+            project_id,
+            user,
+        ),
+        event_data,
+    );
+}
+
+// ── Review Content Integrity Events (#809) ────────────────────────────────────
+
+/// Emitted when a review integrity seal is written (on create or update).
+///
+/// Indexers can subscribe to `(REVIEW, SEALED, project_id)` to track seal history.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewIntegritySealedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub sealed_rating: u32,
+    pub has_content_cid: bool,
+    pub timestamp: u64,
+}
+
+/// Emitted by `verify_review_integrity` when the live review content
+/// does NOT match its stored seal — indicating possible tampering.
+///
+/// Off-chain monitoring tools should alert on this event.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewIntegrityViolationEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    /// The rating currently stored on-chain.
+    pub current_rating: u32,
+    /// The rating that was present when the seal was written.
+    pub sealed_rating: u32,
+    /// Whether the current on-chain review has a content CID.
+    pub current_has_cid: bool,
+    /// Whether the sealed snapshot had a content CID.
+    pub sealed_has_cid: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_integrity_sealed_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    sealed_rating: u32,
+    has_content_cid: bool,
+) {
+    let event_data = ReviewIntegritySealedEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        sealed_rating,
+        has_content_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("SEALED"),
+            project_id,
+            reviewer,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_review_integrity_violation_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    current_rating: u32,
+    sealed_rating: u32,
+    current_has_cid: bool,
+    sealed_has_cid: bool,
+) {
+    let event_data = ReviewIntegrityViolationEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        current_rating,
+        sealed_rating,
+        current_has_cid,
+        sealed_has_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("TAMPER"),
+            project_id,
+            reviewer,
+        ),
+        event_data,
+    );
+}
+
+// ── Bookmark Folder Events (#815) ─────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderCreatedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub parent_id: Option<u64>,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderDeletedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderRenamedEvent {
+    pub folder_id: u64,
+    pub owner: Address,
+    pub new_name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkMovedToFolderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub folder_id: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkRemovedFromFolderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub folder_id: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolderCreatedEvent {
+    pub smart_folder_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartFolderDeletedEvent {
+    pub smart_folder_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_folder_created_event(
+    env: &Env,
+    folder_id: u64,
+    owner: Address,
+    name: String,
+    parent_id: Option<u64>,
+) {
+    let event_data = FolderCreatedEvent {
+        folder_id,
+        owner: owner.clone(),
+        name,
+        parent_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("CREATED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_folder_deleted_event(env: &Env, folder_id: u64, owner: Address) {
+    let event_data = FolderDeletedEvent {
+        folder_id,
+        owner: owner.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("DELETED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_folder_renamed_event(env: &Env, folder_id: u64, owner: Address, new_name: String) {
+    let event_data = FolderRenamedEvent {
+        folder_id,
+        owner: owner.clone(),
+        new_name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("FOLDER"),
+            symbol_short!("RENAMED"),
+            folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_moved_to_folder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    folder_id: u64,
+) {
+    let event_data = BookmarkMovedToFolderEvent {
+        project_id,
+        owner: owner.clone(),
+        folder_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("MOVED"),
+            project_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_removed_from_folder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    folder_id: u64,
+) {
+    let event_data = BookmarkRemovedFromFolderEvent {
+        project_id,
+        owner: owner.clone(),
+        folder_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("RMVDFDR"),
+            project_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_folder_created_event(
+    env: &Env,
+    smart_folder_id: u64,
+    owner: Address,
+    name: String,
+) {
+    let event_data = SmartFolderCreatedEvent {
+        smart_folder_id,
+        owner: owner.clone(),
+        name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SFOLDER"),
+            symbol_short!("CREATED"),
+            smart_folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_folder_deleted_event(env: &Env, smart_folder_id: u64, owner: Address) {
+    let event_data = SmartFolderDeletedEvent {
+        smart_folder_id,
+        owner: owner.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SFOLDER"),
+            symbol_short!("DELETED"),
+            smart_folder_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+// ── Review Archival Events (#804) ─────────────────────────────────────────────
+
+/// Emitted for each review archived by `archive_old_reviews`.
+///
+/// Off-chain consumers (indexers, archival jobs) should subscribe to
+/// `(REVIEW, ARCHIVED, project_id)` and persist the full review payload to
+/// permanent storage (e.g., Arweave, IPFS) using the included fields.
+/// The on-chain `ArchivedReview` record has a shorter TTL than active reviews,
+/// so off-chain persistence is required for long-term retention.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewArchivedEvent {
+    /// ID of the project the archived review belonged to.
+    pub project_id: u64,
+    /// Address of the reviewer whose review was archived.
+    pub reviewer: Address,
+    /// Rating of the archived review (1–5).
+    pub rating: u32,
+    /// Canonical content CID of the archived review (`None` if no off-chain content).
+    pub content_cid: Option<soroban_sdk::String>,
+    /// Unix timestamp (seconds) when the original review was submitted.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the review was last modified before archival.
+    pub updated_at: u64,
+    /// Unix timestamp (seconds) when the review was archived.
+    pub archived_at: u64,
+}
+
+pub fn publish_review_archived_event(
+    env: &Env,
+    project_id: u64,
+    reviewer: Address,
+    rating: u32,
+    content_cid: Option<soroban_sdk::String>,
+    created_at: u64,
+    updated_at: u64,
+) {
+    let archived_at = env.ledger().timestamp();
+    let event_data = ReviewArchivedEvent {
+        project_id,
+        reviewer: reviewer.clone(),
+        rating,
+        content_cid,
+        created_at,
+        updated_at,
+        archived_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("REVIEW"),
+            symbol_short!("ARCHIVED"),
+            project_id,
+            reviewer,
+        ),
+        event_data,
+    );
+}
+
+// ── Verification Assignment & Routing Events ────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignedWithExpertiseEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assigner: Address,
+    pub assignee: Address,
+    pub expertise: Option<String>,
+    pub sla_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentAcceptedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentDeclinedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAssignmentEscalatedEvent {
+    pub assignment_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub assignee: Address,
+    pub escalated_by: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminExpertiseSetEvent {
+    pub caller: Address,
+    pub admin: Address,
+    pub expertise_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationSlaSetEvent {
+    pub admin: Address,
+    pub sla_seconds: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_verification_assigned_with_expertise_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    assigner: Address,
+    assignee: Address,
+    expertise: Option<String>,
+    sla_deadline: u64,
+) {
+    let event_data = VerificationAssignedWithExpertiseEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        assigner,
+        assignee,
+        expertise,
+        sla_deadline,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ASSIGNEX"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_accepted_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+) {
+    let event_data = VerificationAssignmentAcceptedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ACCEPTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_declined_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = VerificationAssignmentDeclinedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        admin,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("DECLINED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_assignment_escalated_event(
+    env: &Env,
+    assignment_id: u64,
+    project_id: u64,
+    request_id: u64,
+    assignee: Address,
+    escalated_by: Address,
+    reason: String,
+) {
+    let event_data = VerificationAssignmentEscalatedEvent {
+        assignment_id,
+        project_id,
+        request_id,
+        assignee,
+        escalated_by,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("ESCALATE"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_admin_expertise_set_event(
+    env: &Env,
+    caller: Address,
+    admin: Address,
+    expertise_count: u32,
+) {
+    let event_data = AdminExpertiseSetEvent {
+        caller,
+        admin,
+        expertise_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("EXPERTS")),
+        event_data,
+    );
+}
+
+pub fn publish_verification_sla_set_event(env: &Env, admin: Address, sla_seconds: u64) {
+    let event_data = VerificationSlaSetEvent {
+        admin,
+        sla_seconds,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("VERIFY"), symbol_short!("SLA_SET")),
+        event_data,
+    );
+}
+
+// ── Probationary Verification Events ───────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationStartedEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub approved_by: Address,
+    pub started_at: u64,
+    pub probation_until: u64,
+}
+
+pub fn publish_probation_started_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    approved_by: Address,
+    started_at: u64,
+    probation_until: u64,
+) {
+    let event = ProbationStartedEvent {
+        project_id,
+        request_id,
+        approved_by,
+        started_at,
+        probation_until,
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROBATION"),
+            symbol_short!("STARTED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationAutoPromotedEvent {
+    pub project_id: u64,
+    pub promoted_at: u64,
+}
+
+pub fn publish_probation_auto_promoted_event(env: &Env, project_id: u64, promoted_at: u64) {
+    let event = ProbationAutoPromotedEvent {
+        project_id,
+        promoted_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROBATION"),
+            symbol_short!("PROMOTED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationRevokedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: soroban_sdk::String,
+    pub revoked_at: u64,
+}
+
+pub fn publish_probation_revoked_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: soroban_sdk::String,
+    revoked_at: u64,
+) {
+    let event = ProbationRevokedEvent {
+        project_id,
+        admin,
+        reason,
+        revoked_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROBATION"),
+            symbol_short!("REVOKED"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbationIncidentEvent {
+    pub project_id: u64,
+    pub incident_id: u32,
+    pub reporter: Address,
+    pub details: soroban_sdk::String,
+    pub recorded_at: u64,
+}
+
+pub fn publish_probation_incident_event(
+    env: &Env,
+    project_id: u64,
+    incident_id: u32,
+    reporter: Address,
+    details: soroban_sdk::String,
+    recorded_at: u64,
+) {
+    let event = ProbationIncidentEvent {
+        project_id,
+        incident_id,
+        reporter,
+        details,
+        recorded_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROBATION"),
+            symbol_short!("INCIDENT"),
+            project_id,
+        ),
+        event,
+    );
+}
+
+// ── Events restored from the recommendation / community-collection /
+// social-analytics features (issues #820, #821, #822) ───────────────────────
+//
+// Lost together with their types/constants when merge 5608c72 kept the three
+// registry modules but resolved `events.rs` to the `main` side. Content is
+// verbatim from f74e102.
+
+// ── Recommendation Events (Issue #820) ──────────────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationCreatedEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub algorithm: crate::types::RecommendationAlgorithm,
+    pub creator: Address,
+    pub timestamp: u64,
+}
+/// Broadcast when a recommendation is rendered / shown to a user.
+/// Used to compute click-through rate and as the denominator for CTR.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationImpressionEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub viewer: Address,
+    pub timestamp: u64,
+}
+/// Broadcast when a user clicks a recommendation card to view the target project.
+/// Together with impressions this produces the click-through tracking (#820 AC2).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationClickedEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub viewer: Address,
+    pub timestamp: u64,
+}
+/// Broadcast when a user records a downstream engagement from a recommendation
+/// (follow / bookmark / endorse / review). A single click may produce zero or
+/// many engagement events; each one is a positive signal for the effectiveness
+/// score used to improve recommendation ordering.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationEngagementEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub user: Address,
+    pub kind: crate::types::RecommendationEngagementKind,
+    pub timestamp: u64,
+}
+/// Broadcast when a user leaves thumbs-up or thumbs-down feedback on a
+/// recommendation (#820 AC1). The explicit helpful/not-helpful signal is the
+/// primary input to the feedback-driven improvement loop.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationFeedbackEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub user: Address,
+    pub helpful: bool,
+    pub timestamp: u64,
+}
+/// Emitted (without storage writes) each time `get_recommendation_analytics`
+/// or the effectiveness-sorted list is produced, so indexers can re-aggregate
+/// the signal without doing their own storage scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationAnalyticsSnapshotEvent {
+    pub recommendation_id: u64,
+    pub target_project_id: u64,
+    pub impressions: u64,
+    pub clicks: u64,
+    pub click_through_rate_ppm: u32,
+    pub helpful_count: u64,
+    pub not_helpful_count: u64,
+    pub helpful_ratio_ppm: u32,
+    pub effectiveness_score_bps: u32,
+    pub timestamp: u64,
+}
+pub fn publish_recommendation_created_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    algorithm: crate::types::RecommendationAlgorithm,
+    creator: Address,
+) {
+    let event_data = RecommendationCreatedEvent {
+        recommendation_id,
+        target_project_id,
+        algorithm,
+        creator,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOMMEND"),
+            symbol_short!("CREATED"),
+            recommendation_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_recommendation_impression_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    viewer: Address,
+) {
+    let event_data = RecommendationImpressionEvent {
+        recommendation_id,
+        target_project_id,
+        viewer: viewer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOMMEND"),
+            symbol_short!("SHOWN"),
+            recommendation_id,
+            viewer,
+        ),
+        event_data,
+    );
+}
+pub fn publish_recommendation_clicked_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    viewer: Address,
+) {
+    let event_data = RecommendationClickedEvent {
+        recommendation_id,
+        target_project_id,
+        viewer: viewer.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOMMEND"),
+            symbol_short!("CLICKED"),
+            recommendation_id,
+            viewer,
+        ),
+        event_data,
+    );
+}
+pub fn publish_recommendation_engagement_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    user: Address,
+    kind: crate::types::RecommendationEngagementKind,
+) {
+    let event_data = RecommendationEngagementEvent {
+        recommendation_id,
+        target_project_id,
+        user: user.clone(),
+        kind,
+        timestamp: env.ledger().timestamp(),
+    };
+    let kind_sym = match kind {
+        crate::types::RecommendationEngagementKind::Impression => symbol_short!("IMPR"),
+        crate::types::RecommendationEngagementKind::Click => symbol_short!("CLICK"),
+        crate::types::RecommendationEngagementKind::Follow => symbol_short!("FOLLOW"),
+        crate::types::RecommendationEngagementKind::Bookmark => symbol_short!("BOOK"),
+        crate::types::RecommendationEngagementKind::Endorse => symbol_short!("ENDORSE"),
+        crate::types::RecommendationEngagementKind::Review => symbol_short!("REVIEW"),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOMMEND"),
+            kind_sym,
+            recommendation_id,
+            user,
+        ),
+        event_data,
+    );
+}
+pub fn publish_recommendation_feedback_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    user: Address,
+    helpful: bool,
+) {
+    let event_data = RecommendationFeedbackEvent {
+        recommendation_id,
+        target_project_id,
+        user: user.clone(),
+        helpful,
+        timestamp: env.ledger().timestamp(),
+    };
+    let fb_sym = if helpful {
+        symbol_short!("HELPFUL")
+    } else {
+        symbol_short!("NOT_HELP")
+    };
+    env.events().publish(
+        (symbol_short!("RECOMMEND"), fb_sym, recommendation_id, user),
+        event_data,
+    );
+}
+#[allow(clippy::too_many_arguments)]
+pub fn publish_recommendation_analytics_snapshot_event(
+    env: &Env,
+    recommendation_id: u64,
+    target_project_id: u64,
+    impressions: u64,
+    clicks: u64,
+    click_through_rate_ppm: u32,
+    helpful_count: u64,
+    not_helpful_count: u64,
+    helpful_ratio_ppm: u32,
+    effectiveness_score_bps: u32,
+) {
+    let event_data = RecommendationAnalyticsSnapshotEvent {
+        recommendation_id,
+        target_project_id,
+        impressions,
+        clicks,
+        click_through_rate_ppm,
+        helpful_count,
+        not_helpful_count,
+        helpful_ratio_ppm,
+        effectiveness_score_bps,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOMMEND"),
+            symbol_short!("ANALYTIC"),
+            recommendation_id,
+        ),
+        event_data,
+    );
+}
+// ── Community Collection Events (Issue #821) ────────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionCreatedEvent {
+    pub collection_id: u64,
+    pub creator: Address,
+    pub name: String,
+    pub is_template: bool,
+    pub template_source: Option<u32>,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionUpdatedEvent {
+    pub collection_id: u64,
+    pub updater: Address,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionProjectAddedEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub actor: Address,
+    /// true when the inclusion came from a curator direct-add; false when
+    /// triggered by the community approval-threshold crossing.
+    pub by_curator: bool,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionProjectRemovedEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub actor: Address,
+    /// true when the removal came from a curator direct-remove; false when
+    /// triggered by the community disapproval-threshold crossing.
+    pub by_curator: bool,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionVoteCastEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub voter: Address,
+    pub approve: bool,
+    /// Running totals after this vote. Useful for off-chain tally UIs.
+    pub approval_count: u32,
+    pub disapproval_count: u32,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionFeaturedEvent {
+    pub collection_id: u64,
+    pub admin: Address,
+    pub now_featured: bool,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityCollectionCuratorsChangedEvent {
+    pub collection_id: u64,
+    pub actor: Address,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommunityColRevenueAttributedEvent {
+    pub collection_id: u64,
+    pub attributed_by: Address,
+    pub amount: u128,
+    pub creator_amount: u128,
+    pub curators_amount: u128,
+    pub creator_cumulative: u128,
+    pub curators_cumulative: u128,
+    pub total_cumulative: u128,
+    pub timestamp: u64,
+}
+pub fn publish_community_collection_created_event(
+    env: &Env,
+    collection_id: u64,
+    creator: Address,
+    name: String,
+    is_template: bool,
+    template_source: Option<u32>,
+) {
+    let event_data = CommunityCollectionCreatedEvent {
+        collection_id,
+        creator,
+        name,
+        is_template,
+        template_source,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("CREATED"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_community_collection_updated_event(env: &Env, collection_id: u64, updater: Address) {
+    let event_data = CommunityCollectionUpdatedEvent {
+        collection_id,
+        updater,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("UPDATED"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_community_col_proj_added_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    actor: Address,
+    by_curator: bool,
+) {
+    let event_data = CommunityCollectionProjectAddedEvent {
+        collection_id,
+        project_id,
+        actor,
+        by_curator,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("PROJ_ADD"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_community_col_proj_removed_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    actor: Address,
+    by_curator: bool,
+) {
+    let event_data = CommunityCollectionProjectRemovedEvent {
+        collection_id,
+        project_id,
+        actor,
+        by_curator,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("PROJ_DEL"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_community_col_vote_cast_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    voter: Address,
+    approve: bool,
+    approval_count: u32,
+    disapproval_count: u32,
+) {
+    let event_data = CommunityCollectionVoteCastEvent {
+        collection_id,
+        project_id,
+        voter,
+        approve,
+        approval_count,
+        disapproval_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    let sub = if approve {
+        symbol_short!("APPR_VOTE")
+    } else {
+        symbol_short!("DISP_VOTE")
+    };
+    env.events()
+        .publish((symbol_short!("COMM_COL"), sub, collection_id), event_data);
+}
+pub fn publish_community_col_featured_event(
+    env: &Env,
+    collection_id: u64,
+    admin: Address,
+    now_featured: bool,
+) {
+    let event_data = CommunityCollectionFeaturedEvent {
+        collection_id,
+        admin,
+        now_featured,
+        timestamp: env.ledger().timestamp(),
+    };
+    let sub = if now_featured {
+        symbol_short!("FEATURED")
+    } else {
+        symbol_short!("UNFEATURD")
+    };
+    env.events()
+        .publish((symbol_short!("COMM_COL"), sub, collection_id), event_data);
+}
+pub fn publish_community_col_curators_changed_event(env: &Env, collection_id: u64, actor: Address) {
+    let event_data = CommunityCollectionCuratorsChangedEvent {
+        collection_id,
+        actor,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("CURATOR"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_community_col_revenue_attributed_event(
+    env: &Env,
+    collection_id: u64,
+    attributed_by: Address,
+    amount: u128,
+    creator_amount: u128,
+    curators_amount: u128,
+    creator_cumulative: u128,
+    curators_cumulative: u128,
+    total_cumulative: u128,
+) {
+    let event_data = CommunityColRevenueAttributedEvent {
+        collection_id,
+        attributed_by,
+        amount,
+        creator_amount,
+        curators_amount,
+        creator_cumulative,
+        curators_cumulative,
+        total_cumulative,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("COMM_COL"),
+            symbol_short!("REVENUE"),
+            collection_id,
+        ),
+        event_data,
+    );
+}
+// ── Social Analytics Events (Issue #822) ───────────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialCheckpointRecordedEvent {
+    pub project_id: u64,
+    pub day_index: u32,
+    pub follower_count: u32,
+    pub endorsement_count: u32,
+    pub bookmark_count: u32,
+    pub review_count: u32,
+    pub average_rating_bps: u32,
+    pub total_engagement_units: u64,
+    pub evicted_oldest_day: Option<u32>,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectEngagementMetricComputedEvent {
+    pub project_id: u64,
+    pub window_start_day: u32,
+    pub window_end_day: u32,
+    pub engagement_rate_ppm: u64,
+    pub net_engagement_gain: u64,
+    pub follower_gain: i64,
+    pub endorsement_gain: i64,
+    pub bookmark_gain: i64,
+    pub review_gain: i64,
+    pub rating_delta_bps: i64,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialPeersComparedEvent {
+    pub project_id: u64,
+    pub category: String,
+    pub peer_count: u32,
+    pub self_rank: u32,
+    pub timestamp: u64,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSocialAnalyticsExportEvent {
+    pub project_id: u64,
+    pub category: String,
+    pub checkpoint_count: u32,
+    pub last_7d_engagement_rate_ppm: u64,
+    pub last_30d_engagement_rate_ppm: u64,
+    pub growth_30d_engagement_total: u64,
+    pub peer_count: u32,
+    pub self_rank: u32,
+    pub report_nonce: u64,
+    pub timestamp: u64,
+}
+pub fn publish_project_social_checkpoint_recorded_event(
+    env: &Env,
+    project_id: u64,
+    day_index: u32,
+    follower_count: u32,
+    endorsement_count: u32,
+    bookmark_count: u32,
+    review_count: u32,
+    average_rating_bps: u32,
+    total_engagement_units: u64,
+    evicted_oldest_day: Option<u32>,
+) {
+    let event_data = ProjectSocialCheckpointRecordedEvent {
+        project_id,
+        day_index,
+        follower_count,
+        endorsement_count,
+        bookmark_count,
+        review_count,
+        average_rating_bps,
+        total_engagement_units,
+        evicted_oldest_day,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("SOCIAL"), symbol_short!("CHKPT"), project_id),
+        event_data,
+    );
+}
+pub fn publish_project_engagement_metric_computed_event(
+    env: &Env,
+    project_id: u64,
+    window_start_day: u32,
+    window_end_day: u32,
+    engagement_rate_ppm: u64,
+    net_engagement_gain: u64,
+    follower_gain: i64,
+    endorsement_gain: i64,
+    bookmark_gain: i64,
+    review_gain: i64,
+    rating_delta_bps: i64,
+) {
+    let event_data = ProjectEngagementMetricComputedEvent {
+        project_id,
+        window_start_day,
+        window_end_day,
+        engagement_rate_ppm,
+        net_engagement_gain,
+        follower_gain,
+        endorsement_gain,
+        bookmark_gain,
+        review_gain,
+        rating_delta_bps,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SOCIAL"),
+            symbol_short!("ENGAGED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+pub fn publish_project_social_peers_compared_event(
+    env: &Env,
+    project_id: u64,
+    category: String,
+    peer_count: u32,
+    self_rank: u32,
+) {
+    let event_data = ProjectSocialPeersComparedEvent {
+        project_id,
+        category,
+        peer_count,
+        self_rank,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("SOCIAL"), symbol_short!("PEERS"), project_id),
+        event_data,
+    );
+}
+pub fn publish_project_social_analytics_export_event(
+    env: &Env,
+    project_id: u64,
+    category: String,
+    checkpoint_count: u32,
+    last_7d_engagement_rate_ppm: u64,
+    last_30d_engagement_rate_ppm: u64,
+    growth_30d_engagement_total: u64,
+    peer_count: u32,
+    self_rank: u32,
+    report_nonce: u64,
+) {
+    let event_data = ProjectSocialAnalyticsExportEvent {
+        project_id,
+        category,
+        checkpoint_count,
+        last_7d_engagement_rate_ppm,
+        last_30d_engagement_rate_ppm,
+        growth_30d_engagement_total,
+        peer_count,
+        self_rank,
+        report_nonce,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("SOCIAL"), symbol_short!("EXPORT"), project_id),
+        event_data,
+    );
+}
+
+// ── Expired proposal cleanup (#728) ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalsCleanedUpEvent {
+    pub removed_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_proposals_cleaned_up_event(env: &Env, removed_count: u32, timestamp: u64) {
+    env.events().publish(
+        (symbol_short!("PROPOSAL"), symbol_short!("CLEANUP")),
+        ProposalsCleanedUpEvent {
+            removed_count,
+            timestamp,
+        },
+    );
+}
+

@@ -3,6 +3,8 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+// Issue #670: Admin concurrent operation atomicity and consistency verification
+mod admin_concurrent;
 mod archival;
 mod collection_registry_crud;
 mod collections;
@@ -18,9 +20,15 @@ mod transfer;
 // mod basic_new_features;
 mod cleanup;
 mod events;
+// Issue #628: pause/unpause cycles preserve data integrity
 mod moderation;
+mod name_search;
+mod pagination;
+mod pause_state_recovery;
 // mod pagination;
 mod claim;
+mod claim_state_machine;
+mod claim_status;
 mod config;
 mod dependencies;
 mod lifecycle_status;
@@ -30,19 +38,34 @@ mod review_history;
 mod review_settings;
 mod security_contact;
 mod verification;
+mod verification_expert_assignment;
 mod verification_features;
 mod verification_lifecycle;
+mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
+// Issue #545: property-based fuzz tests for the CID and URL validators
+mod fuzz_validation;
 mod license_metadata;
+mod sorted_listing;
 mod string_validation;
+// Issue #667: CID validation edge cases (empty string, malformed, CIDv0/CIDv1, future formats)
+mod cid_validation;
+mod tag_index;
 mod tags;
 
 // Metadata freeze policy for verified projects
-// mod verified_freeze;
+// Issue #671: slug immutability on verified projects
+mod verified_freeze;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
+
+// Full verification-fee payment lifecycle integration test
+mod fee_lifecycle;
+
+// Issue #617: multi-step end-to-end workflow integration suite
+mod integration_workflows;
 
 // Storage field size boundary tests
 mod field_limits;
@@ -56,6 +79,9 @@ mod invariants;
 // Property-based pagination tests using proptest
 // mod proptest_pagination;
 mod proptest_pagination;
+
+// Property-based tests for all validation functions (issue #498)
+mod proptest_validation;
 // Issue #221: fee amount boundary tests
 mod fee_boundary;
 // Issues #240, #241, #246: review tombstones, sorting, cooldown
@@ -70,7 +96,12 @@ mod endorsements;
 mod fee_refund;
 pub mod fixtures;
 mod issues_242_252_256;
-mod linked_projects;
+// mod linked_projects;
+// Issues #458, #463, #465, #466: typed-error and admin-log regressions
+mod typed_error_regressions;
+// Issues #654, #655, #656, #657: dispute state machine, changelog immutability,
+// transfer atomicity, and refund idempotency
+mod issues_654_655_656_657;
 mod multisig_and_history;
 mod proposal_threshold;
 mod report_registry;
@@ -86,3 +117,39 @@ mod region_and_integrity;
 
 // Contract API compatibility (issue #257)
 mod api_compat;
+
+// Issue #620: Project metadata validation gaps (https-only, CID charset)
+mod validation_620;
+
+// Issue #622: Fee payment state machine enforcement
+mod fee_state_machine_622;
+
+// Issue #623: Admin threshold downgrade supermajority edge cases
+mod supermajority_623;
+
+// Issue #624: Verification Expiry Check Automation
+mod verification_expiry_624_tests;
+
+// Issue #625: Review History Pagination Performance
+mod review_pagination_625_perf_tests;
+
+// Issue #626: Tag Indexing Watermark Edge Cases
+mod tag_index_watermark_626_tests;
+
+// Issue #627: Collection Capacity Enforcement
+mod collection_capacity_627_tests;
+
+// Issue #470: pay_fee guards for archived project and active verification status
+mod pay_fee_guards_470;
+
+// Issue #811: Notification preference registry
+mod notifications;
+
+// Issue #815: Bookmark folders and smart folders
+mod bookmark_folders;
+// Issue #804: Review archival to cheaper storage
+mod review_archive;
+
+// Issues #720-#723: CID validation strengthening, string injection audit,
+// reentrancy analysis, and access control matrix
+mod issues_720_723;

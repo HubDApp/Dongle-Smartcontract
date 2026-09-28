@@ -19,10 +19,14 @@ fn test_add_changelog_entry_as_owner() {
         "bafybeiboz75hbx2qg7g4j4vqaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     );
     let description = Some(String::from_str(&env, "Version 1.0.0 release"));
-    let changelog_id =
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+    let changelog_id = client.mock_all_auths().add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description,
+        &None,
+        &None,
+    );
 
     assert!(changelog_id > 0);
 
@@ -118,18 +122,26 @@ fn test_add_duplicate_changelog_cid_fails() {
         "bafybeiboz75hbx2qg7g4j4vqccccccccccccccccccccccccccccccc",
     );
     let description1 = Some(String::from_str(&env, "Version 1.0.0"));
-    let changelog_id1 =
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description1, &None, &None);
+    let changelog_id1 = client.mock_all_auths().add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description1,
+        &None,
+        &None,
+    );
     assert!(changelog_id1 > 0);
 
     // Try to add duplicate CID - should fail
     let description2 = Some(String::from_str(&env, "Duplicate test"));
-    let result =
-        client
-            .mock_all_auths()
-            .try_add_changelog_entry(&project_id, &owner, &cid, &description2, &None, &None);
+    let result = client.mock_all_auths().try_add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description2,
+        &None,
+        &None,
+    );
     assert!(result.is_err());
 }
 
@@ -147,10 +159,14 @@ fn test_remove_changelog_entry_as_owner() {
         "bafybeiboz75hbx2qg7g4j4vqdddddddddddddddddddddddddddddd",
     );
     let description = Some(String::from_str(&env, "Version 1.0.0 release"));
-    let changelog_id =
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+    let changelog_id = client.mock_all_auths().add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description,
+        &None,
+        &None,
+    );
 
     // Verify it exists
     let entry = client.get_changelog_entry(&changelog_id);
@@ -185,10 +201,14 @@ fn test_remove_changelog_entry_non_owner_fails() {
         "bafybeiboz75hbx2qg7g4j4vqeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     );
     let description = Some(String::from_str(&env, "Version 1.0.0 release"));
-    let changelog_id =
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+    let changelog_id = client.mock_all_auths().add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description,
+        &None,
+        &None,
+    );
 
     // Try to remove as non-owner - should fail
     let result = client
@@ -238,9 +258,14 @@ fn test_get_project_changelog_pagination() {
     for i in 0..5 {
         let cid = String::from_str(&env, cids[i]);
         let description = Some(String::from_str(&env, descriptions[i]));
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+        client.mock_all_auths().add_changelog_entry(
+            &project_id,
+            &owner,
+            &cid,
+            &description,
+            &None,
+            &None,
+        );
 
         // Advance ledger timestamp to ensure different created_at
         env.ledger().set_timestamp(env.ledger().timestamp() + 100);
@@ -318,9 +343,14 @@ fn test_get_changelog_count() {
     for i in 0..3 {
         let cid = String::from_str(&env, test_cids[i]);
         let description = Some(String::from_str(&env, test_descriptions[i]));
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+        client.mock_all_auths().add_changelog_entry(
+            &project_id,
+            &owner,
+            &cid,
+            &description,
+            &None,
+            &None,
+        );
     }
 
     // Count should be 3
@@ -346,19 +376,27 @@ fn test_changelog_while_paused_fails() {
     );
     let description = Some(String::from_str(&env, "Version 1.0.0 release"));
 
-    let result =
-        client
-            .mock_all_auths()
-            .try_add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+    let result = client.mock_all_auths().try_add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description,
+        &None,
+        &None,
+    );
     assert!(result.is_err());
 
     // Unpause the contract
     client.mock_all_auths().unpause(&admin);
 
     // Now should succeed
-    let changelog_id =
-        client
-            .mock_all_auths()
-            .add_changelog_entry(&project_id, &owner, &cid, &description, &None, &None);
+    let changelog_id = client.mock_all_auths().add_changelog_entry(
+        &project_id,
+        &owner,
+        &cid,
+        &description,
+        &None,
+        &None,
+    );
     assert!(changelog_id > 0);
 }

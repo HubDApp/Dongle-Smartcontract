@@ -25,7 +25,7 @@ fn test_linked_project_must_exist() {
     let result = client
         .mock_all_auths()
         .try_link_project(&id1, &owner, &9999u64);
-    assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
+    assert_eq!(result, Err(Ok(ContractError::LinkedProjectNotFound)));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn test_unlink_nonexistent_link_fails() {
     let result = client
         .mock_all_auths()
         .try_unlink_project(&id1, &owner, &id2);
-    assert_eq!(result, Err(Ok(ContractError::AlreadyLinked)));
+    assert_eq!(result, Err(Ok(ContractError::LinkedProjectNotFound)));
 }
 
 #[test]

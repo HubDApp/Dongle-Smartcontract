@@ -40,11 +40,173 @@ for the full policy.
 
 ### Added
 
-- Tag validation now rejects duplicate values (case-insensitive after ASCII
-  lowercase normalization) with `InvalidTags` (#526).
+- **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
+  configuration) covering vulnerability, license, duplicate-crate, and source
+  checks. New `audit` CI job runs `cargo deny check` on every PR and push to
+  main; the `build` job now gates on `audit`. Added `make audit` target to the
+  Makefile and updated `dev`/`ci` composite targets to include it. Dependency
+  review should be performed quarterly via `cargo update` + PR.
+
+- **#714: Enforce clippy warnings as build failures.** Added
+  `.cargo/config.toml` with `RUSTFLAGS = ["-D", "warnings"]` so every local
+  `cargo build` / `cargo check` / `cargo clippy` run fails on any warning,
+  mirroring CI behaviour exactly. Added `clippy.toml` documenting active lint
+  thresholds. The existing CI clippy job already used `-D warnings`; this
+  change closes the local/CI divergence gap.
 
 ### Changed
 
+- **#715: Documented all `#[allow(dead_code)]` attributes.** Every suppression
+  now includes an inline justification comment explaining why the item is kept
+  (catalogue completeness, off-chain tooling, immutability stub, test fixture,
+  etc.). The `#![allow(dead_code)]` crate-level attribute in `constants.rs` is
+  similarly annotated. Policy: a suppression without a justification comment is
+  a review blocker.
+
+### Fixed
+
+- **#717: Replace `.unwrap()` calls with proper error returns in production
+  paths.** All reachable `.unwrap()` calls on `Vec::get(i)` in
+  `verification_registry/assignment.rs` have been replaced with
+  `.ok_or(ContractError::InvalidInput)?` or `if let Some(…)` patterns,
+  eliminating any denial-of-service vector reachable from public entry points.
+  Test-only `.unwrap()` / `.expect()` calls (inside `#[cfg(test)]` blocks) are
+  intentionally left in place per Rust convention.
+
+
+- **#740: Governance parameter ranges (framework).** New `governance_ranges`
+  module stores each governance parameter's valid `[min, max]` range in contract
+  config (`GovernanceKey`), exposes `GovernanceParam` / `ParamRange`, and reserves
+  errors 96 (`ParameterOutOfRange`) and 97 (`InvalidParamRange`) so every
+  parameter write can be validated with a clear message before it is applied.
+- **#741: Verification SLA tracking (framework).** Default verification SLA is
+  now **7 days** from request to decision (was 3 days), with `SlaKey` storage,
+  `SlaRecord` / `SlaStatus` / `VerificationSlaMetrics` types, 24-hour breach-alert
+  lead time (`SLA_ALERT_LEAD_SECONDS`) and a bounded alert scan
+  (`MAX_SLA_SCAN_BATCH`) for per-admin / per-region overrides.
+- **#742: Bulk project import (framework).** `MAX_BULK_IMPORT_PROJECTS = 1000`
+  caps a single import transaction, with `ImportReport` / `ImportFailure` types
+  for per-record validation results and errors 98/99
+  (`BulkImportValidationFailed`, `BulkImportTooLarge`) for all-or-nothing rollback.
+- **#747: Project ownership recovery for lost accounts (framework).** Recovery
+  constants (10 endorsements to nominate, 7-day community vote, 75% approval,
+  30-day owner reclaim window), `RecoveryKey` storage and
+  `OwnershipRecoveryCase` / `RecoveryStatus` types with errors 100/101
+  (`RecoveryCaseNotFound`, `RecoveryNotActive`).
+
+- **#804: Review archival to cheaper storage with query access and automatic job.**
+  Reviews older than 2 years (configurable via `REVIEW_ARCHIVE_AGE_SECONDS = 63_072_000`)
+  can now be archived by an admin to a compact, shorter-TTL on-chain record, freeing
+  primary persistent storage rent. New contract entrypoints:
+  - `archive_old_reviews(admin, project_id, batch_size)` — admin-only; moves eligible
+    reviews to `ArchivedReview` records at 30-day TTL (vs 60-day active TTL), removes
+    them from primary storage and active indexes, emits `ReviewArchivedEvent` for each
+    archived review so off-chain indexers can persist the full payload to permanent
+    storage (Arweave/IPFS). Processes up to `MAX_ARCHIVE_BATCH_SIZE = 50` reviews per
+    call; call repeatedly for large projects. Project stats
+    (`rating_sum`, `review_count`, `average_rating`) are preserved.
+  - `get_archived_review(project_id, reviewer)` — returns the compact `ArchivedReview`
+    record (rating, content CID, timestamps, optional Arweave TX ID) for a specific
+    archived review.
+  - `list_archived_reviews(project_id, start_index, limit)` — paginated enumeration
+    of all archived reviews for a project (uses `ProjectArchivedReviews` index).
+  - `set_archived_review_arweave_tx(admin, project_id, reviewer, arweave_tx_id)` —
+    admin-only; records the Arweave transaction ID after an off-chain job persists the
+    review payload to permanent storage.
+  New types: `ArchivedReview` (compact archive record in `types.rs`), `EvidenceLink`
+  (URL + dead-link flag, also resolves a pre-existing missing type).
+  New event: `ReviewArchivedEvent` (`REVIEW`/`ARCHIVED` topics) carrying the full
+  review snapshot for off-chain consumers.
+  New errors: `ReviewArchived = 85` (use `get_archived_review` instead),
+  `ReviewNotArchived = 86` (for `set_archived_review_arweave_tx` guard).
+  New storage keys: `ExtensionKey2::ArchivedReview(u64, Address)` and
+  `ExtensionKey2::ProjectArchivedReviews(u64)`.
+  New constants: `REVIEW_ARCHIVE_AGE_SECONDS`, `MAX_ARCHIVE_BATCH_SIZE`,
+  `LEDGER_THRESHOLD_ARCHIVED_REVIEW`, `LEDGER_BUMP_ARCHIVED_REVIEW`.
+  New script: `scripts/archive_old_reviews.sh` — cron-ready automated archival
+  job that iterates all projects, archives in batches, handles retries, supports
+  `--dry-run`, `--project-ids`, and `--start-id` flags, and emits instructions
+  for recording Arweave TX IDs back to the contract.
+  Tests in `tests::review_archive` (18 tests) cover: admin-only enforcement, 2-year
+  threshold, mixed-age reviews, stats preservation, paginated listing, field accuracy,
+  Arweave TX recording, batch capping, idempotency, and user-index cleanup.
+- **#666: Batch TTL extension fail-fast and error reporting.** `extend_projects_ttl`
+  and `extend_reviews_ttl` now return `BatchTtlResult` (new type in `types.rs`)
+  instead of a bare `u32`. The struct carries `refreshed` (count of items
+  extended) and `skipped_ids` (IDs not found in storage). Missing items are
+  skipped with continue semantics; oversized batches are still rejected
+  immediately with `InvalidInput`. Callers that need all-or-nothing semantics
+  assert `result.skipped_ids.len() == 0`. Tests in `tests::ttl_batch` verify
+  all-or-nothing detection, partial-failure reporting, empty batches, and
+  oversized-batch rejection.
+- **#665: Storage key collision detection and capacity guards.** New test module
+  `tests::storage_key_uniqueness` verifies: `StorageKey` stays within the
+  Soroban 50-variant cap; `ExtensionKey` stays within the cap; both enums emit
+  a loud warning when they reach 45 variants (a new-variant-free capacity
+  threshold); `StorageKey` and `ExtensionKey` produce distinct XDR for the same
+  discriminant index (cross-enum isolation); same-name variants in different
+  enums (`VerificationDuration`) never share a ledger entry. Module-level docs
+  in `storage_keys.rs` document the overflow model, the 50-variant cap, and the
+  `ExtensionKey` / future `ExtensionKey2` split strategy.
+- **#664: Pause/unpause state machine documentation and recovery tests.** New
+  test module `tests::pause_state_machine` adds: state-machine transition tests
+  (RUNNING→PAUSED→RUNNING, idempotent pause/unpause); data-integrity tests
+  verifying that projects, reviews, admin list, fee config, and follower lists
+  are unchanged after pause/unpause cycles; a full-recovery test confirming all
+  mutating operations resume after unpause. `emergency_pause.rs` module docs
+  now include the state-machine diagram, allowed-operations table, and a
+  step-by-step recovery checklist for the operations team.
+- **#663: Follow/subscribe relationship clarity.** New test module
+  `tests::follow_subscribe_relationship` verifies all six consistency invariants:
+  `is_following` mirrors `ProjectFollowers` and `UserSubscriptions` atomically;
+  `get_follower_count` equals `ProjectFollowers` length; duplicate follows return
+  `AlreadyFollowing`; unfollowing without prior follow returns `NotFollowing`;
+  following a non-existent project returns `ProjectNotFound`; pause guard applies
+  to `follow_project` and `unfollow_project`. `subscription_registry.rs` docs
+  now clearly state that "follow" and "subscribe" are synonymous — there is no
+  separate subscribe operation.
+
+### Changed
+
+- **`extend_projects_ttl` / `extend_reviews_ttl` return type changed from `u32`
+  to `BatchTtlResult`.** Callers that previously compared the return value to a
+  count must now read `result.refreshed`. **BREAKING**: any off-chain client
+  that pattern-matches on the `u32` return must update to the new struct shape.
+  Confirms every `ProposalPayload` variant is gated by the same live
+  quorum check in `execute_proposal`, documents the `SetThreshold` downgrade
+  supermajority exception, the non-snapshotted-threshold consequences, and the
+  `reject_proposal` single-admin veto model (#630).
+- Tag validation now rejects duplicate values (case-insensitive after ASCII
+  lowercase normalization) with `InvalidTags` (#526).
+- **Governance: threshold-downgrade supermajority rule.** A
+  `ProposalPayload::SetThreshold` proposal that would *lower* the current
+  approval threshold now requires strictly more approvals than the proposed new
+  threshold before it can execute. This prevents a colluding group of exactly
+  `new_threshold` admins from using the proposal path to silently dismantle the
+  multi-sig quorum. Raises new error `ThresholdDowngradeRequiresSupermajority`
+  (code 74) when the guard is violated. Threshold *increases* and no-ops are
+  unaffected and still require only the live threshold.
+- **Integration test: full verification-fee payment lifecycle**
+  (`src/tests/fee_lifecycle.rs`). Nine tests covering: pre-payment rejection,
+  `pay_fee` sets flag and records details, token balances correct, flag cleared
+  after `request_verification`, second request without re-payment rejected with
+  `InsufficientFee`, re-payment restores the flag, payment-details audit record
+  retained after consumption, treasury balance accounting.
+- **Architecture documentation** (`docs/ARCHITECTURE.md`). A new contributor
+  reference covering: four-layer ASCII module map, Mermaid dependency graph for
+  all 20+ modules, two annotated Mermaid sequence diagrams (`request_verification`
+  happy path and multi-sig proposal lifecycle), complete storage-key tables for
+  `StorageKey` and `ExtensionKey`, event taxonomy table, and a full module
+  reference. Linked from `README.md` Quick Links and Documentation sections.
+
+### Changed
+
+- **Timelock: enforced maximum scheduling delay.** Scheduled admin actions
+  (`schedule_set_fee`, `schedule_add_admin`, `schedule_remove_admin`) now reject
+  an `execution_timestamp` more than `TIMELOCK_MAX_DELAY` (90 days) in the
+  future, in addition to the existing `TIMELOCK_MIN_DELAY` (1 day) lower bound.
+  Zero-delay / past timestamps were already rejected. Both bounds are now
+  documented in `constants.rs` and `docs/TIMELOCK.md` (#631).
 - **Repository hygiene:** Consolidated repository-root documentation. Reference
   documentation now lives in `docs/` (`CONTRACT_INTERFACE.md`,
   `CONTRIBUTING.md`, `DATA_EXPORT_GUIDE.md`, `ERROR_CODES.md`,
@@ -58,6 +220,19 @@ for the full policy.
   (#514).
 - Timelocked admin proposals now verify the proposal payload hash before
   execution.
+- **Governance: `set_admin_approval_threshold` documentation clarified.** The
+  function is intentionally blocked (returns `Unauthorized`) once the threshold
+  exceeds 1. All threshold changes while multi-sig is active — including
+  lowering — must go through `create_proposal` / `execute_proposal` and are
+  subject to the supermajority rule described above.
+- **Git hygiene: removed stale snapshot files from index.** Six Soroban test
+  environment snapshots under `dongle-smartcontract/test_snapshots/` were
+  tracked despite the `test_snapshots/` ignore rule in
+  `dongle-smartcontract/.gitignore`. They were untracked via
+  `git rm --cached` (the files remain on disk for any local snapshot test
+  runner). The root `.gitignore` now also carries an explicit
+  `dongle-smartcontract/test_snapshots/` entry so the rule is honoured
+  regardless of which directory git is invoked from.
 
 ### Removed
 
@@ -66,6 +241,32 @@ for the full policy.
 
 ### Fixed
 
+- **Restored source dropped by the `5608c72` / `527565b` merges so the crate
+  builds again.** Recommendation, community-collection, social-analytics,
+  probation and bookmark-folder code (types, storage keys, events, error
+  variants) was re-added from `f74e102` / `896d122`, three unclosed delimiters
+  were closed, and re-added error variants were renumbered from 102 upward to
+  avoid colliding with the appeals/assignment range. `ExtensionKey` exceeded
+  Soroban's 50-variant `#[contracttype]` cap, so 9 keys moved to `ExtensionKey2`.
+- **Test suite compiles again.** Fixed broken imports, stale entry-point names,
+  missing `ProjectUpdateParams` fields, and `Option<unit-enum>` struct fields
+  (`CommunityCollection::template_source`, which soroban-sdk 22 cannot encode
+  under `testutils`) — 13 compile errors that made `cargo test` impossible.
+- **Lenient CID validator accepts the documented 40-byte floor (#667)**
+  (`MIN_CID_FLOOR`), while `is_valid_ipfs_cid_strict` keeps enforcing the
+  canonical 46-byte CIDv0 minimum (#620).
+- `ReviewRegistry::delete_review` / `admin_delete_review` now delete the review's
+  evidence links instead of leaving them orphaned in persistent storage.
+
+- **Governance: added the missing `MultiSigRequired` error variant** (code 77).
+  `AdminManager::add_admin` / `remove_admin` returned
+  `ContractError::MultiSigRequired` when the approval threshold is > 1, but the
+  variant was never defined in `errors.rs` — a compile error contributing to
+  the broken build. Surfaced by the approval-threshold consistency audit
+  (`docs/APPROVAL_THRESHOLD_AUDIT.md`, #630).
+- `AlreadyLinked` was returned for three unrelated conditions (duplicate link,
+  duplicate maintainer, missing linked project), so clients could not tell them
+  apart (#462).
 - Documented previously undocumented verification events in
   `docs/EVENTS_SCHEMA.md` (#508).
 - Applied `cargo fmt --all` across the workspace, clearing the pre-existing

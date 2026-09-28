@@ -31,11 +31,32 @@ impl VerificationStateMachine {
             // Pending -> Verified (admin approval)
             (VerificationStatus::Pending, VerificationStatus::Verified) => Ok(()),
 
+            // Pending -> Probationary (probationary verification)
+            (VerificationStatus::Pending, VerificationStatus::Probationary) => Ok(()),
+
+            // Probationary -> Verified (auto-promote after 30-day period)
+            (VerificationStatus::Probationary, VerificationStatus::Verified) => Ok(()),
+
+            // Probationary -> Unverified (revoke during probation without full review)
+            (VerificationStatus::Probationary, VerificationStatus::Unverified) => Ok(()),
+
+            // Probationary -> Suspended (temporary suspension during probation)
+            (VerificationStatus::Probationary, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Probationary (restoration back to probation)
+            (VerificationStatus::Suspended, VerificationStatus::Probationary) => Ok(()),
+
             // Pending -> Rejected (admin rejection)
             (VerificationStatus::Pending, VerificationStatus::Rejected) => Ok(()),
 
             // Verified -> Unverified (admin revocation)
             (VerificationStatus::Verified, VerificationStatus::Unverified) => Ok(()),
+
+            // Verified -> Suspended (temporary admin suspension)
+            (VerificationStatus::Verified, VerificationStatus::Suspended) => Ok(()),
+
+            // Suspended -> Verified (explicit or automatic restoration)
+            (VerificationStatus::Suspended, VerificationStatus::Verified) => Ok(()),
 
             // Same state (no change) - this should fail as it's not a valid transition
             (current, target) if current == target => Err(ContractError::InvalidStatus),
@@ -45,7 +66,15 @@ impl VerificationStateMachine {
         }
     }
 
-    /// Gets a descriptive error message for invalid transitions
+    /// Gets a descriptive error message for invalid transitions.
+    ///
+    /// This function is intentionally kept private and not exposed through the
+    /// public contract interface because Soroban panics on host-side string
+    /// allocations in some contexts.  It is retained for use in off-chain
+    /// tooling, test harnesses, and future diagnostic logging once the
+    /// SDK supports richer error payloads.
+    // Dead-code justification: diagnostic helper kept for off-chain tooling
+    // and test harnesses; not yet wired to a public contract entry point.
     #[allow(dead_code)]
     fn get_transition_error_message(
         from: VerificationStatus,
@@ -88,19 +117,38 @@ impl VerificationStateMachine {
         )
     }
 
-    /// Checks if a project can be approved based on its current status
+    /// Checks if a project can be approved based on its current status.
+    ///
+    /// Mirrors `can_request_verification` for symmetry.  Currently unused in
+    /// production paths because approval logic is inlined in
+    /// `VerificationRegistry::approve_verification`, but kept here so the
+    /// state-machine module remains the single source of truth for all
+    /// state queries.
+    // Dead-code justification: state-machine symmetry helper; approval logic
+    // is currently inlined in VerificationRegistry::approve_verification.
     #[allow(dead_code)]
     pub fn can_be_approved(status: VerificationStatus) -> bool {
         matches!(status, VerificationStatus::Pending)
     }
 
-    /// Checks if a project can be rejected based on its current status
+    /// Checks if a project can be rejected based on its current status.
+    ///
+    /// See `can_be_approved` for the same rationale.
+    // Dead-code justification: state-machine symmetry helper; rejection logic
+    // is currently inlined in VerificationRegistry::reject_verification.
     #[allow(dead_code)]
     pub fn can_be_rejected(status: VerificationStatus) -> bool {
         matches!(status, VerificationStatus::Pending)
     }
 
-    /// Gets all possible next states from the current state
+    /// Gets all possible next states from the current state.
+    ///
+    /// Returns a `Vec` of every status that a project in `status` may legally
+    /// transition to.  Intended for off-chain tooling (indexers, admin UIs)
+    /// that need to enumerate valid actions; not used in the on-chain
+    /// execution paths.
+    // Dead-code justification: helper for off-chain tooling/admin UIs;
+    // on-chain paths call validate_transition directly.
     #[allow(dead_code)]
     pub fn get_possible_next_states(
         env: &Env,
@@ -126,6 +174,19 @@ impl VerificationStateMachine {
             VerificationStatus::Verified => {
                 let mut v = Vec::new(env);
                 v.push_back(VerificationStatus::Unverified); // revocable by admin
+                v.push_back(VerificationStatus::Suspended);
+                v
+            }
+            VerificationStatus::Suspended => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
+                v
+            }
+            VerificationStatus::Probationary => {
+                let mut v = Vec::new(env);
+                v.push_back(VerificationStatus::Verified);
+                v.push_back(VerificationStatus::Unverified);
+                v.push_back(VerificationStatus::Suspended);
                 v
             }
         }

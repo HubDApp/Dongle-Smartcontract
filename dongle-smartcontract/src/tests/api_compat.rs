@@ -14,9 +14,23 @@
 //!
 //! CI will fail if the snapshot drifts from the compiled WASM exports.
 
+// `api_compat` uses `std::fs`, `std::process`, and `std::collections` which
+// are not available in the default `no_std` crate configuration.  The `#[test]`
+// harness links against std anyway, so explicitly importing it here is safe and
+// sufficient to make the `std::` paths below resolve during test compilation.
+extern crate std;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
+use std::string::String;
+use std::vec::Vec;
+
+// Re-export std macros needed in this file (bare `eprintln!` is not in scope
+// under `#![no_std]` even when `extern crate std` is present).
+macro_rules! eprintln {
+    ($($arg:tt)*) => { std::eprintln!($($arg)*) };
+}
 
 /// Path to the API snapshot file, relative to the crate root.
 const SNAPSHOT_PATH: &str = "api_snapshot.txt";
@@ -47,7 +61,7 @@ fn extract_exported_functions(wasm_bytes: &[u8]) -> Vec<String> {
             }
             if let Ok(name) = std::str::from_utf8(&wasm_bytes[start..end]) {
                 if !name.is_empty() {
-                    names.insert(name.to_string());
+                    names.insert(String::from(name));
                 }
             }
             i = end;
@@ -128,7 +142,8 @@ fn test_api_snapshot_matches() {
         let expected = fs::read_to_string(&snapshot_path)
             .unwrap_or_else(|e| panic!("Failed to read snapshot at {:?}: {}", snapshot_path, e));
         assert_eq!(
-            current, expected,
+            current,
+            expected,
             "\n\nContract API has changed!\n\
              If this is intentional, regenerate the snapshot:\n\
              1. cargo build --target wasm32-unknown-unknown -p dongle-contract\n\

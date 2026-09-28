@@ -112,7 +112,6 @@ fn update_project_rejects_invalid_license() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
-        repository_url: None,
     });
 
     assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));

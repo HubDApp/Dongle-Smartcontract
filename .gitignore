@@ -3,7 +3,13 @@ dongle-smartcontract/target/
 # Windows installer binary — must never be committed to the source tree
 rustup-init.exe
 dongle-smartcontract/Cargo.lock
+# Soroban test environment snapshots — generated artifacts, not committed fixtures.
+# The inner dongle-smartcontract/.gitignore also carries this rule; both are
+# intentional so the pattern is honoured regardless of where git is invoked from.
+# Note: git rm --cached dongle-smartcontract/test_snapshots was run to untrack
+# the six snapshot files that were force-added before this rule existed.
 test_snapshots/
+dongle-smartcontract/test_snapshots/
 # Build / error logs (don't commit)
 dongle-smartcontract/build_error*.log
 dongle-smartcontract/build_errors*.log
