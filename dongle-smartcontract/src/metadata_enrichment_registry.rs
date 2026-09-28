@@ -191,6 +191,7 @@ impl MetadataEnrichmentRegistry {
             launch_timestamp: None,
             bounty_url: None,
             repository_url: suggestion.fields.repository_url.clone().map(Some),
+            language_code: None,
         };
 
         ProjectRegistry::update_project(env, params)?;

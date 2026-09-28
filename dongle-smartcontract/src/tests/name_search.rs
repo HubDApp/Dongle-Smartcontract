@@ -98,6 +98,7 @@ fn test_get_project_by_name_after_rename() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.mock_all_auths().update_project(&update_params);
 

@@ -3,7 +3,7 @@
 use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
-    MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
+    MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LANGUAGE_CODE_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_TAGS_PER_PROJECT,
     MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_FLOOR, MIN_CID_LEN,
 };
@@ -360,6 +360,31 @@ impl Utils {
         let len = contact.len() as usize;
         if len == 0 || len > MAX_SECURITY_CONTACT_LEN {
             return Err(ContractError::InvalidProjectData);
+        }
+        Ok(())
+    }
+
+    /// Validate an ISO 639-1 two-letter language code.
+    ///
+    /// Rules:
+    /// - Exactly 2 bytes long.
+    /// - ASCII lowercase letters only (a-z).
+    ///
+    /// This validates format only; it does not verify the code exists in ISO 639-1.
+    /// The contract accepts any two-letter lowercase code to avoid maintaining
+    /// a hardcoded language list that would need updates.
+    pub fn validate_language_code(code: &String) -> Result<(), ContractError> {
+        let len = code.len() as usize;
+        if len != MAX_LANGUAGE_CODE_LEN {
+            return Err(ContractError::InvalidLanguageCode);
+        }
+
+        let mut buf = [0u8; MAX_LANGUAGE_CODE_LEN];
+        code.copy_into_slice(&mut buf);
+        for &b in buf.iter() {
+            if !b.is_ascii_lowercase() {
+                return Err(ContractError::InvalidLanguageCode);
+            }
         }
         Ok(())
     }

@@ -613,9 +613,6 @@ impl AdminManager {
                 // (approvals.len() >= current_threshold) already performed above
                 // is sufficient; no additional requirement is added.
                 let current_threshold = Self::get_admin_approval_threshold(env);
-                if new_threshold < current_threshold
-                    && proposal.approvals.len() <= current_threshold
-                {
                 // of approvals must be strictly greater than the *current* threshold.
                 if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
                     return Err(ContractError::ThresholdDowngradeRequiresSupermajority);

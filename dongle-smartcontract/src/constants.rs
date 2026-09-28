@@ -147,6 +147,10 @@ pub const MAJOR_METADATA_FIELDS: [&str; 3] = [
     MAJOR_METADATA_FIELD_METADATA_CID,
 ];
 
+/// Maximum length for ISO 639-1 language code.
+/// 2 bytes: two-letter language code (e.g., "en", "es", "zh").
+pub const MAX_LANGUAGE_CODE_LEN: usize = 2;
+
 /// Minimum project age in seconds before verification can be requested (default: 0 for backward compatibility).
 pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 

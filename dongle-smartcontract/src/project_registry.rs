@@ -232,6 +232,7 @@ impl ProjectRegistry {
             security_contact: None,
             security_contact_proof_cid: None,
             security_contact_verified: false,
+            language_code: params.language_code.clone(),
         };
 
         // Get current owner projects
@@ -637,6 +638,12 @@ impl ProjectRegistry {
                 Utils::validate_website(url)?;
             }
             project.repository_url = value;
+        }
+        if let Some(value) = params.language_code {
+            if let Some(ref code) = value {
+                Utils::validate_language_code(code)?;
+            }
+            project.language_code = value;
         }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings

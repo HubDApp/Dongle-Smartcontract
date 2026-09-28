@@ -227,9 +227,15 @@ impl ReviewRegistry {
         rating: u32,
         comment_cid: Option<String>,
         evidence_links: Option<soroban_sdk::Vec<EvidenceLink>>,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
             ReviewValidation::validate_review_cid(cid)?;
+        }
+
+        // Validate language code if provided
+        if let Some(ref code) = language_code {
+            Utils::validate_language_code(code)?;
         }
 
         // Resolve evidence links — None means empty list
@@ -301,6 +307,7 @@ impl ReviewRegistry {
             hidden: false,
             report_count: 0,
             evidence_links: Vec::new(env),
+            language_code: language_code.clone(),
         };
 
         // Get current state for mutations
@@ -378,9 +385,10 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         review_cid: String,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
         ReviewValidation::validate_review_cid(&review_cid)?;
-        Self::add_review(env, project_id, reviewer, rating, Some(review_cid), None)
+        Self::add_review(env, project_id, reviewer, rating, Some(review_cid), None, language_code)
     }
 
     pub fn update_review(
@@ -389,9 +397,15 @@ impl ReviewRegistry {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
         if let Some(cid) = comment_cid.as_ref() {
             ReviewValidation::validate_review_cid(cid)?;
+        }
+
+        // Validate language code if provided
+        if let Some(ref code) = language_code {
+            Utils::validate_language_code(code)?;
         }
 
         // Validation phase
@@ -444,6 +458,7 @@ impl ReviewRegistry {
 
         review.rating = rating;
         review.content_cid = comment_cid.clone();
+        review.language_code = language_code;
         review.updated_at = now;
         review.last_updated_at = now;
 

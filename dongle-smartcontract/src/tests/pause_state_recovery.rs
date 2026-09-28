@@ -41,6 +41,7 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 

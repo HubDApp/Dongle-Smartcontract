@@ -21,6 +21,7 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod governance_ranges;
 mod notification_registry;
 pub mod pagination;
 mod probation_registry;
@@ -39,8 +40,6 @@ pub mod types;
 pub mod utils;
 mod validation;
 mod verification_registry;
-mod social_analytics_registry;
-mod probation_registry;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -69,34 +68,21 @@ use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
-    AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
     CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
-    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    DisputeResolutionAction, DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
     FeeRefundRecord, NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
     ProjectEngagementMetric, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSocialAnalyticsExport, ProjectSocialDailyCheckpoint, ProjectSocialPeerRow,
-    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload,
+    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalComment, ProposalPayload,
     Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
     RecommendationFeedback, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
     SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationAssignment,
-    VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
+    VerificationAssignmentStatus, VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
     VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
-    VerificationSuspension,
-    AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
-    BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
-    ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
-    DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry,
-    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
-    ProjectUpdateParams, ProposalComment, ProposalPayload, Review, ReviewRevision, ReviewSortMode,
-    ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction,
-    VerificationBatchAction, VerificationBatchReport, VerificationRecord, VerificationStatus,
-    VerificationStatusFilter, NotificationDeliveryStatus, TimelockAction,
-    VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
-    VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
-    AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
+    VerificationStatusFilter, VerificationSuspension,
     // #757 security contact verification
     SecurityContactVerificationRecord, SecurityContactVerificationStatus,
     // #756 health score
@@ -770,7 +756,7 @@ impl DongleContract {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None)
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None, None)
     }
 
     pub fn update_review(
@@ -779,8 +765,9 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid, language_code)
     }
 
     pub fn delete_review(
@@ -797,8 +784,9 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         review_cid: String,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid, language_code)
     }
 
     pub fn respond_to_review(
@@ -3521,6 +3509,8 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
         MetadataEnrichmentRegistry::get_pending_suggestions(&env, project_id)
+    }
+
     // =========================================================================
     // Trust and Safety Features (#788, #789, #790, #791)
     // =========================================================================

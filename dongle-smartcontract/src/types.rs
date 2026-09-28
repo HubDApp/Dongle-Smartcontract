@@ -51,6 +51,8 @@ pub struct ProjectRegistrationParams {
     pub bounty_url: Option<String>,
     /// URL of the project's source-code repository.
     pub repository_url: Option<String>,
+    /// Optional ISO 639-1 two-letter language code for the project (e.g., "en", "es").
+    pub language_code: Option<String>,
 }
 
 /// Parameters supplied to `update_project`. Each field is an `Option`
@@ -101,6 +103,9 @@ pub struct ProjectUpdateParams {
     /// `Some(Some(url))` to set repository URL, `Some(None)` to clear,
     /// `None` to leave unchanged.
     pub repository_url: Option<Option<String>>,
+    /// `Some(Some(code))` to set language code, `Some(None)` to clear,
+    /// `None` to leave unchanged.
+    pub language_code: Option<Option<String>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
     // event. A `lifecycle_status` field previously sat here but was never read
@@ -179,6 +184,11 @@ pub struct Review {
 
     /// Optional list of attached evidence links (max MAX_EVIDENCE_LINKS_PER_REVIEW).
     pub evidence_links: Vec<EvidenceLink>,
+    
+    /// Optional ISO 639-1 two-letter language code indicating the primary
+    /// language of the review content (e.g., "en", "es"). Used for filtering
+    /// and international discovery.
+    pub language_code: Option<String>,
 }
 
 /// Identifies the lifecycle event that produced a `ReviewEventData` emission.
@@ -496,6 +506,10 @@ pub struct Project {
     /// `verify_security_contact`. Automatically cleared when
     /// `security_contact` is updated or removed.
     pub security_contact_verified: bool,
+    /// Optional ISO 639-1 two-letter language code indicating the primary
+    /// language of the project's documentation and interface (e.g., "en", "es").
+    /// Used for international discovery and filtering.
+    pub language_code: Option<String>,
 }
 
 /// Read-only view of a project's security contact, returned by
@@ -2306,6 +2320,8 @@ pub struct EnrichmentSuggestion {
     pub submitted_at: u64,
     /// Ledger timestamp when the suggestion was reviewed (0 if still pending).
     pub reviewed_at: u64,
+}
+
 // ── Governance Parameter Ranges (#740) ─────────────────────────────────────
 
 /// A governance parameter whose accepted values are bounded by a
