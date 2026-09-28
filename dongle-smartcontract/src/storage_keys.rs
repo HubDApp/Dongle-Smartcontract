@@ -492,6 +492,29 @@ pub enum AssignmentKey {
     VerificationSlaDuration,
 }
 
+/// Storage keys for verification performance metrics (#perf).
+///
+/// Uses a dedicated enum to stay under Soroban's 50-variant
+/// `#[contracttype]` hard cap (same pattern as `FeeHistoryKey`,
+/// `NotificationKey`, `ReviewIntegrityKey`, etc.).
+///
+/// All month numbers use the compact `YYYYMM` encoding, e.g.
+/// `202609` represents September 2026.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PerformanceKey {
+    /// Global aggregate performance snapshot for one month.
+    /// Keyed by compact month number (YYYYMM): u32.
+    GlobalPerformance(u32),
+    /// Per-admin performance summary for one month.
+    /// Keyed by (admin_address, month_num).
+    AdminPerformance(Address, u32),
+    /// Ordered list of month numbers that have ever been tracked (Vec<u32>),
+    /// oldest first, capped at 24 entries.
+    TrackedMonths,
+    /// Addresses of admins that performed at least one action in a month.
+    /// Keyed by month_num.
+    MonthAdmins(u32),
 
 /// Storage keys for security contact email verification (#757).
 #[contracttype]

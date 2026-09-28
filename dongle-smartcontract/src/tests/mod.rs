@@ -154,3 +154,7 @@ mod review_archive;
 // Issues #720-#723: CID validation strengthening, string injection audit,
 // reentrancy analysis, and access control matrix
 mod issues_720_723;
+
+// Performance metrics: approval time, appeal rate, reversal rate, percentiles,
+// per-admin comparison, and monthly reports (#perf)
+mod verification_performance;

@@ -40,6 +40,9 @@ pub mod types;
 pub mod utils;
 mod validation;
 mod verification_registry;
+mod social_analytics_registry;
+mod probation_registry;
+mod performance_metrics;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -68,7 +71,9 @@ use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
-    AdminActionEntry, AdminActivityRecord, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
+    ArchivedReview, BatchTtlResult,
+    AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
     CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
@@ -82,7 +87,26 @@ use crate::types::{
     SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationAssignment,
     VerificationAssignmentStatus, VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
     VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
-    VerificationStatusFilter, VerificationSuspension,
+    VerificationSuspension,
+    AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
+    BookmarkFolder, ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection,
+    ContractClaimRequest, ContractConfigView, DependencyRef, DisputeResolutionAction,
+    DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry,
+    FeePaymentRecord, FeeRefundRecord, Project, ProjectDependency, ProjectLifecycleStatus,
+    ProjectRegistrationParams, ProjectReport, ProjectSortMode, ProjectStats, ProjectSunsetPlan,
+    ProjectUpdateParams, ProposalComment, ProposalPayload, Review, ReviewRevision, ReviewSortMode,
+    ReviewTombstone, SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction,
+    VerificationBatchAction, VerificationBatchReport, VerificationPerformanceReport,
+    VerificationPerformanceSnapshot, VerificationRecord, VerificationStatus,
+    VerificationStatusFilter, NotificationDeliveryStatus,
+    VerificationExpiryNotification, VerificationRiskAssessment,
+    VerificationRiskModel, VerificationStatusFilter, VerificationSuspension,
+    VerificationTrendPoint, AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
+    VerificationBatchAction, VerificationBatchReport, VerificationRecord, VerificationStatus,
+    VerificationStatusFilter, NotificationDeliveryStatus, TimelockAction,
+    VerificationExpiryNotification, VerificationRecord, VerificationRiskAssessment,
+    VerificationRiskModel, VerificationStatus, VerificationStatusFilter, VerificationSuspension,
+    AdminWorkload, VerificationAssignment, VerificationAssignmentStatus,
     // #757 security contact verification
     SecurityContactVerificationRecord, SecurityContactVerificationStatus,
     // #756 health score
@@ -3346,6 +3370,64 @@ impl DongleContract {
         )
     }
 
+    // ── Verification Performance Metrics (#perf) ──────────────────────────────
+
+    /// Return the global performance snapshot for a given month.
+    ///
+    /// `month_num` is the compact `YYYYMM` integer, e.g. `202609` for
+    /// September 2026. Returns a zeroed-default when no data has been
+    /// recorded for that month.
+    pub fn get_verification_performance_snapshot(
+        env: Env,
+        month_num: u32,
+    ) -> VerificationPerformanceSnapshot {
+        crate::performance_metrics::PerformanceMetrics::get_global_snapshot(&env, month_num)
+    }
+
+    /// Return per-admin performance for `admin` in the given month.
+    ///
+    /// `month_num` uses the same `YYYYMM` encoding as
+    /// `get_verification_performance_snapshot`.
+    pub fn get_admin_verification_performance(
+        env: Env,
+        admin: Address,
+        month_num: u32,
+    ) -> AdminVerificationPerformance {
+        crate::performance_metrics::PerformanceMetrics::get_admin_performance(&env, admin, month_num)
+    }
+
+    /// Return trend data across all tracked months (oldest first, up to 24).
+    ///
+    /// Each `VerificationTrendPoint` covers one calendar month and includes
+    /// request volume, approval / rejection counts, appeal rate (bps),
+    /// reversal rate (bps), and average approval time.
+    pub fn get_verification_trend(env: Env) -> Vec<VerificationTrendPoint> {
+        crate::performance_metrics::PerformanceMetrics::get_trend(&env)
+    }
+
+    /// Return a complete monthly performance report for the given month.
+    ///
+    /// The report includes:
+    /// - Global aggregate snapshot
+    /// - Per-admin summaries for every admin active that month
+    /// - Full 24-month trend series
+    ///
+    /// Useful for generating the monthly PDF / dashboard report required
+    /// by the acceptance criteria.
+    pub fn get_monthly_verification_report(
+        env: Env,
+        month_num: u32,
+    ) -> VerificationPerformanceReport {
+        crate::performance_metrics::PerformanceMetrics::get_monthly_report(&env, month_num)
+    }
+
+    /// Return the ordered list of month numbers that have recorded data
+    /// (oldest first, up to 24 entries).
+    ///
+    /// Callers can use this to discover which months to query for reports
+    /// without guessing.
+    pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
+        crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
     // ── #757: Security Contact Email Verification ─────────────────────────
 
     /// Initiate a challenge-response verification for a project's security
