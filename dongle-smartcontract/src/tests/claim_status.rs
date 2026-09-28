@@ -120,15 +120,13 @@ fn contract_address_claim_workflow_uses_shared_claim_status() {
     );
     let proof = String::from_str(&env, "QmContractProof123456789012345678901234567890");
 
-    let submitted =
-        client.claim_contract_address(&project_id, &owner, &contract_addr, &proof);
+    let submitted = client.claim_contract_address(&project_id, &owner, &contract_addr, &proof);
     assert_eq!(submitted.status, ClaimStatus::Pending);
 
     let rejected = client.reject_contract_claim(&project_id, &contract_addr, &admin);
     assert_eq!(rejected.status, ClaimStatus::Rejected);
 
-    let resubmitted =
-        client.claim_contract_address(&project_id, &owner, &contract_addr, &proof);
+    let resubmitted = client.claim_contract_address(&project_id, &owner, &contract_addr, &proof);
     assert_eq!(resubmitted.status, ClaimStatus::Pending);
 
     let approved = client.approve_contract_claim(&project_id, &contract_addr, &admin);

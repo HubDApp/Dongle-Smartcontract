@@ -27,6 +27,8 @@ use crate::validation::validate_registration_params;
 use alloc::vec;
 use soroban_sdk::{Address, Env, String, Vec};
 
+const ISO_COUNTRY_CODES: &str = "|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|YE|YT|ZA|ZM|ZW|";
+
 pub struct ProjectRegistry;
 
 impl ProjectRegistry {
@@ -561,9 +563,7 @@ impl ProjectRegistry {
         }
 
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(params.project_id), &project);
+        Self::persist_project(env, &project);
 
         // Handle tags update
         if let Some(value) = tags_update {
@@ -784,9 +784,7 @@ impl ProjectRegistry {
         }
 
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_updated_event(env, project_id, project.owner.clone());
 
@@ -817,9 +815,7 @@ impl ProjectRegistry {
         project.security_contact_verified = true;
         project.updated_at = env.ledger().timestamp();
 
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_updated_event(env, project_id, project.owner.clone());
 
@@ -1284,9 +1280,7 @@ impl ProjectRegistry {
         // Update project owner
         project.owner = pending_new_owner.clone();
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
 
         // Clean up pending transfer
         env.storage()
@@ -1332,9 +1326,7 @@ impl ProjectRegistry {
 
         project.archived = true;
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
 
         Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
@@ -1371,9 +1363,7 @@ impl ProjectRegistry {
 
         project.archived = false;
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
 
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
@@ -1674,9 +1664,7 @@ impl ProjectRegistry {
 
         project.claimable = claimable;
         project.updated_at = env.ledger().timestamp();
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
 
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_claimable_set_event(env, project_id, caller, claimable);
@@ -1701,7 +1689,7 @@ impl ProjectRegistry {
         if env
             .storage()
             .persistent()
-            .has(&ExtensionKey::ClaimReqProjClaimant(
+            .has(&ExtensionKey2::ClaimReqProjClaimant(
                 project_id,
                 claimant.clone(),
             ))
@@ -1732,7 +1720,7 @@ impl ProjectRegistry {
             &claim_request,
         );
         env.storage().persistent().set(
-            &ExtensionKey::ClaimReqProjClaimant(project_id, claimant.clone()),
+            &ExtensionKey2::ClaimReqProjClaimant(project_id, claimant.clone()),
             &claim_request_id,
         );
 
@@ -1835,9 +1823,7 @@ impl ProjectRegistry {
         }
 
         // Save project
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(claim_request.project_id), &project);
+        Self::persist_project(env, &project);
 
         env.storage().persistent().set(
             &ExtensionKey::ClaimRequest(claim_request_id),
@@ -2585,6 +2571,7 @@ impl ProjectRegistry {
         if project.owner != caller {
             return Err(ContractError::Unauthorized);
         }
+        Self::ensure_project_version_baseline(env, project_id);
         match region {
             Some(r) => env
                 .storage()
@@ -2595,7 +2582,380 @@ impl ProjectRegistry {
                 .persistent()
                 .remove(&ExtensionKey::ProjectRegion(project_id)),
         }
+        Self::persist_project(env, &project);
         Ok(())
+    }
+
+    pub fn set_project_region_hierarchy(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        hierarchy: Option<ProjectRegionHierarchy>,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        Self::ensure_project_version_baseline(env, project_id);
+        if let Some(value) = &hierarchy {
+            Self::validate_region_hierarchy(env, value)?;
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectRegionHierarchy(project_id), value);
+        } else {
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectRegionHierarchy(project_id));
+        }
+        Self::persist_project(env, &project);
+        Ok(())
+    }
+
+    pub fn get_project_region_hierarchy(
+        env: &Env,
+        project_id: u64,
+    ) -> Option<ProjectRegionHierarchy> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectRegionHierarchy(project_id))
+    }
+
+    pub fn list_projects_by_region(
+        env: &Env,
+        continent: Option<String>,
+        country_code: Option<String>,
+        region: Option<String>,
+        city: Option<String>,
+        start_id: u64,
+        limit: u32,
+    ) -> Vec<Project> {
+        let mut projects = Vec::new(env);
+        if continent.is_none()
+            && country_code.is_none()
+            && region.is_none()
+            && city.is_none()
+        {
+            return projects;
+        }
+        let limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+        let start = start_id.saturating_add(1);
+        let mut matched = 0u32;
+        for id in start..=count {
+            if matched >= limit {
+                break;
+            }
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived
+                    && Self::matches_region(
+                        env,
+                        id,
+                        &continent,
+                        &country_code,
+                        &region,
+                        &city,
+                    )
+                {
+                    projects.push_back(project);
+                    matched = matched.saturating_add(1);
+                }
+            }
+        }
+        projects
+    }
+
+    pub fn get_project_region_stats(
+        env: &Env,
+        continent: Option<String>,
+        country_code: Option<String>,
+        region: Option<String>,
+        city: Option<String>,
+    ) -> ProjectRegionStats {
+        let mut stats = ProjectRegionStats {
+            project_count: 0,
+            review_count: 0,
+            rating_sum: 0,
+        };
+        if continent.is_none()
+            && country_code.is_none()
+            && region.is_none()
+            && city.is_none()
+        {
+            return stats;
+        }
+        let count: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+        for id in 1..=count {
+            if let Some(project) = Self::get_project(env, id) {
+                if !project.archived
+                    && Self::matches_region(
+                        env,
+                        id,
+                        &continent,
+                        &country_code,
+                        &region,
+                        &city,
+                    )
+                {
+                    let project_stats =
+                        crate::review_registry::ReviewRegistry::get_project_stats(env, id);
+                    stats.project_count = stats.project_count.saturating_add(1);
+                    stats.review_count = stats.review_count.saturating_add(project_stats.review_count);
+                    stats.rating_sum = stats.rating_sum.saturating_add(project_stats.rating_sum);
+                }
+            }
+        }
+        stats
+    }
+
+    pub fn get_project_versions(
+        env: &Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<ProjectVersion> {
+        let mut versions = Vec::new(env);
+        let total: u32 = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectVersionCount(project_id))
+            .unwrap_or(0);
+        let limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        if start >= total {
+            return versions;
+        }
+        let end = core::cmp::min(start.saturating_add(limit), total);
+        for offset in start..end {
+            let version = total - offset;
+            if let Some(snapshot) = env
+                .storage()
+                .persistent()
+                .get(&ExtensionKey::ProjectVersion(project_id, version))
+            {
+                StorageManager::extend_project_version_ttl(env, project_id, version);
+                versions.push_back(snapshot);
+            }
+        }
+        versions
+    }
+
+    pub fn restore_project_version(
+        env: &Env,
+        project_id: u64,
+        version: u32,
+        admin: Address,
+    ) -> Result<Project, ContractError> {
+        admin.require_auth();
+        if !AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::Unauthorized);
+        }
+        if AdminManager::get_admin_approval_threshold(env) > 1 {
+            return Err(ContractError::Unauthorized);
+        }
+        Self::restore_project_version_after_approval(env, project_id, version, admin)
+    }
+
+    pub(crate) fn restore_project_version_after_approval(
+        env: &Env,
+        project_id: u64,
+        version: u32,
+        admin: Address,
+    ) -> Result<Project, ContractError> {
+        if !AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::Unauthorized);
+        }
+        let snapshot: ProjectVersion = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectVersion(project_id, version))
+            .ok_or(ContractError::InvalidInput)?;
+        let current = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        let mut project = snapshot.project;
+        project.updated_at = env.ledger().timestamp();
+
+        if env
+            .storage()
+            .persistent()
+            .get::<StorageKey, u64>(&StorageKey::ProjectByName(project.name.clone()))
+            .map(|existing_id| existing_id != project_id)
+            .unwrap_or(false)
+        {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
+        if env
+            .storage()
+            .persistent()
+            .get::<StorageKey, u64>(&StorageKey::ProjectBySlug(project.slug.clone()))
+            .map(|existing_id| existing_id != project_id)
+            .unwrap_or(false)
+        {
+            return Err(ContractError::ProjectAlreadyExists);
+        }
+        let normalized_name = Utils::normalize_project_name(env, &project.name);
+        if env
+            .storage()
+            .persistent()
+            .get::<ExtensionKey, u64>(&ExtensionKey::ProjectByNormalizedName(
+                normalized_name,
+            ))
+            .map(|existing_id| existing_id != project_id)
+            .unwrap_or(false)
+        {
+            return Err(ContractError::DuplicateProjectName);
+        }
+
+        if project.owner != current.owner {
+            Self::ensure_owner_capacity(env, &project.owner)?;
+            let old_owner_projects: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::OwnerProjects(current.owner.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            env.storage().persistent().set(
+                &StorageKey::OwnerProjects(current.owner.clone()),
+                &Utils::remove_item_from_vec(env, &old_owner_projects, &project_id),
+            );
+            let mut new_owner_projects: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::OwnerProjects(project.owner.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            new_owner_projects.push_back(project_id);
+            env.storage().persistent().set(
+                &StorageKey::OwnerProjects(project.owner.clone()),
+                &new_owner_projects,
+            );
+            if !current.archived {
+                Self::remove_active_owner_project(env, &current.owner, project_id);
+            }
+        }
+        if current.archived != project.archived {
+            if project.archived {
+                Self::remove_active_owner_project(env, &project.owner, project_id);
+            } else {
+                Self::add_active_owner_project(env, &project.owner, project_id);
+            }
+        } else if project.owner != current.owner && !project.archived {
+            Self::add_active_owner_project(env, &project.owner, project_id);
+        }
+
+        if project.name != current.name {
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectByName(current.name.clone()));
+            let old_normalized = Utils::normalize_project_name(env, &current.name);
+            env.storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectByNormalizedName(old_normalized));
+            env.storage().persistent().set(
+                &StorageKey::ProjectByName(project.name.clone()),
+                &project_id,
+            );
+            let normalized = Utils::normalize_project_name(env, &project.name);
+            env.storage().persistent().set(
+                &ExtensionKey::ProjectByNormalizedName(normalized),
+                &project_id,
+            );
+        }
+        if project.slug != current.slug {
+            env.storage()
+                .persistent()
+                .remove(&StorageKey::ProjectBySlug(current.slug.clone()));
+            env.storage().persistent().set(
+                &StorageKey::ProjectBySlug(project.slug.clone()),
+                &project_id,
+            );
+        }
+        if project.category != current.category {
+            let old_ids: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::CategoryProjects(current.category.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            env.storage().persistent().set(
+                &StorageKey::CategoryProjects(current.category.clone()),
+                &Utils::remove_item_from_vec(env, &old_ids, &project_id),
+            );
+            let mut new_ids: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::CategoryProjects(project.category.clone()))
+                .unwrap_or_else(|| Vec::new(env));
+            new_ids.push_back(project_id);
+            env.storage().persistent().set(
+                &StorageKey::CategoryProjects(project.category.clone()),
+                &new_ids,
+            );
+        }
+        match project.tags.clone() {
+            Some(tags) => env
+                .storage()
+                .persistent()
+                .set(&StorageKey::ProjectTags(project_id), &tags),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&StorageKey::ProjectTags(project_id)),
+        }
+        match project.social_links.clone() {
+            Some(links) => env
+                .storage()
+                .persistent()
+                .set(&StorageKey::ProjectSocialLinks(project_id), &links),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&StorageKey::ProjectSocialLinks(project_id)),
+        }
+        match project.maintainers.clone() {
+            Some(maintainers) => env
+                .storage()
+                .persistent()
+                .set(&StorageKey::ProjectMaintainers(project_id), &maintainers),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&StorageKey::ProjectMaintainers(project_id)),
+        }
+        match snapshot.region {
+            Some(region) => env
+                .storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectRegionHierarchy(project_id), &region),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectRegionHierarchy(project_id)),
+        }
+        match snapshot.legacy_region {
+            Some(region) => env
+                .storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectRegion(project_id), &region),
+            None => env
+                .storage()
+                .persistent()
+                .remove(&ExtensionKey::ProjectRegion(project_id)),
+        }
+        Self::persist_project(env, &project);
+        publish_project_updated_event(env, project_id, project.owner.clone());
+        Ok(project)
     }
 
     /// Returns the region tag for a project, if set.
@@ -2775,10 +3135,9 @@ impl ProjectRegistry {
             redirect_project_id,
             archived_at: None,
         };
-        env.storage().persistent().set(
-            &ExtensionKey2::ProjectSunsetPlan(project_id),
-            &plan,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey2::ProjectSunsetPlan(project_id), &plan);
 
         if previous_status != ProjectLifecycleStatus::Deprecated {
             publish_project_lifecycle_status_updated_event(
@@ -2815,8 +3174,8 @@ impl ProjectRegistry {
         caller.require_auth();
         let mut project =
             Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
-        let mut plan = Self::get_project_sunset_plan(env, project_id)
-            .ok_or(ContractError::InvalidStatus)?;
+        let mut plan =
+            Self::get_project_sunset_plan(env, project_id).ok_or(ContractError::InvalidStatus)?;
         if project.archived {
             return Err(ContractError::AlreadyArchived);
         }
@@ -2836,10 +3195,9 @@ impl ProjectRegistry {
         StorageManager::extend_project_ttl(env, project_id);
 
         plan.archived_at = Some(now);
-        env.storage().persistent().set(
-            &ExtensionKey2::ProjectSunsetPlan(project_id),
-            &plan,
-        );
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey2::ProjectSunsetPlan(project_id), &plan);
         if previous_status != ProjectLifecycleStatus::Sunset {
             publish_project_lifecycle_status_updated_event(
                 env,
@@ -2866,12 +3224,27 @@ impl ProjectRegistry {
         caller: Address,
         new_status: ProjectLifecycleStatus,
     ) -> Result<Project, ContractError> {
+        Self::set_project_lifecycle_status_with_reason(env, project_id, caller, new_status, None)
+    }
+
+    pub fn set_project_lifecycle_status_with_reason(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        new_status: ProjectLifecycleStatus,
+        reason: Option<String>,
+    ) -> Result<Project, ContractError> {
         let mut project =
             Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         caller.require_auth();
         if project.owner != caller {
             return Err(ContractError::Unauthorized);
+        }
+        if let Some(note) = &reason {
+            if note.is_empty() || note.len() > 1024 {
+                return Err(ContractError::InvalidInput);
+            }
         }
 
         let previous_status = project.lifecycle_status;
@@ -2890,17 +3263,17 @@ impl ProjectRegistry {
         project.lifecycle_status = new_status;
         project.updated_at = env.ledger().timestamp();
 
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        Self::persist_project(env, &project);
         StorageManager::extend_project_ttl(env, project_id);
 
         publish_project_lifecycle_status_updated_event(
             env,
             project_id,
             project.owner.clone(),
+            caller,
             previous_status,
             new_status,
+            reason,
         );
 
         Ok(project)

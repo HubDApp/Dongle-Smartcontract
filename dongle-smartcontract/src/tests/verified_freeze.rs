@@ -546,7 +546,10 @@ fn verified_project_slug_is_frozen_documentation_test() {
     approve_verification(&client, &admin, project_id, &env);
 
     let verified_project = client.get_project(&project_id).unwrap();
-    assert_eq!(verified_project.verification_status, VerificationStatus::Verified);
+    assert_eq!(
+        verified_project.verification_status,
+        VerificationStatus::Verified
+    );
     let original_slug = verified_project.slug.clone();
 
     // Attempt to change slug — must be rejected

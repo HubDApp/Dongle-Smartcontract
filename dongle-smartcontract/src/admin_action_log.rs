@@ -1,5 +1,5 @@
 use crate::constants::MAX_ADMIN_ACTION_LOG_PAGE;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey2, StorageKey};
 use crate::types::{AdminActionEntry, AdminActionType};
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -36,12 +36,12 @@ impl AdminActionLog {
         let mut admin_ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::AdminActionLogByAdmin(admin.clone()))
+            .get(&ExtensionKey2::AdminActionLogByAdmin(admin.clone()))
             .unwrap_or_else(|| Vec::new(env));
         admin_ids.push_back(id);
         env.storage()
             .persistent()
-            .set(&ExtensionKey::AdminActionLogByAdmin(admin), &admin_ids);
+            .set(&ExtensionKey2::AdminActionLogByAdmin(admin), &admin_ids);
     }
 
     pub fn get_log_entry(env: &Env, log_id: u64) -> Option<AdminActionEntry> {
@@ -131,7 +131,7 @@ impl AdminActionLog {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::AdminActionLogByAdmin(admin))
+            .get(&ExtensionKey2::AdminActionLogByAdmin(admin))
             .unwrap_or_else(|| Vec::new(env));
 
         let total = ids.len();
