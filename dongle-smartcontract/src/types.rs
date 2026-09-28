@@ -2090,6 +2090,131 @@ pub struct AdminWorkload {
     pub total_escalated: u32,
 }
 
+// ── Verification Performance Metrics (#perf) ──────────────────────────────────
+
+/// Global aggregate snapshot of verification-system performance for one
+/// calendar month.
+///
+/// Stored under `PerformanceKey::GlobalPerformance(month_num)` where
+/// `month_num` is the compact `YYYYMM` integer (e.g. `202609`).
+///
+/// ## Histogram buckets (approval-time distribution)
+///
+/// ```text
+/// hist_b0  0 – 3 600 s    (< 1 hour)
+/// hist_b1  3 600 – 21 600 s    (1 – 6 hours)
+/// hist_b2  21 600 – 86 400 s   (6 hours – 1 day)
+/// hist_b3  86 400 – 259 200 s  (1 – 3 days)
+/// hist_b4  259 200 – 604 800 s (3 – 7 days)
+/// hist_b5  604 800 – 2 592 000 s (7 – 30 days)
+/// hist_b6  >= 2 592 000 s  (30+ days)
+/// ```
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationPerformanceSnapshot {
+    /// Human-readable month label, e.g. `"2026-09"`.
+    pub month_key: String,
+    /// Total verification requests received in this month.
+    pub total_requests: u32,
+    /// Total requests approved (including via appeal reversal).
+    pub total_approved: u32,
+    /// Total requests rejected.
+    pub total_rejected: u32,
+    /// Total appeals filed.
+    pub total_appeals: u32,
+    /// Total reversals — appeals that overturned a rejection.
+    pub total_reversed: u32,
+    /// Cumulative approval time in seconds (for average computation).
+    pub approval_time_sum_secs: u64,
+    /// Number of approvals counted in `approval_time_sum_secs`.
+    pub approval_time_count: u32,
+    /// Approval-time histogram bucket 0: elapsed < 1 hour.
+    pub hist_b0: u32,
+    /// Approval-time histogram bucket 1: 1 h – 6 h.
+    pub hist_b1: u32,
+    /// Approval-time histogram bucket 2: 6 h – 1 day.
+    pub hist_b2: u32,
+    /// Approval-time histogram bucket 3: 1 day – 3 days.
+    pub hist_b3: u32,
+    /// Approval-time histogram bucket 4: 3 days – 7 days.
+    pub hist_b4: u32,
+    /// Approval-time histogram bucket 5: 7 days – 30 days.
+    pub hist_b5: u32,
+    /// Approval-time histogram bucket 6: >= 30 days.
+    pub hist_b6: u32,
+    /// Estimated 50th-percentile approval time in seconds (bucket-midpoint method).
+    pub p50_approval_time_secs: u64,
+    /// Estimated 90th-percentile approval time in seconds (bucket-midpoint method).
+    pub p90_approval_time_secs: u64,
+    /// Ledger timestamp of the most recent update to this snapshot.
+    pub last_updated_at: u64,
+}
+
+/// Per-admin performance summary for a single calendar month.
+///
+/// Stored under `PerformanceKey::AdminPerformance(admin, month_num)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminVerificationPerformance {
+    /// Admin address these metrics belong to.
+    pub admin: Address,
+    /// Human-readable month label, e.g. `"2026-09"`.
+    pub month_key: String,
+    /// Number of verifications this admin approved.
+    pub approvals: u32,
+    /// Number of verifications this admin rejected.
+    pub rejections: u32,
+    /// Number of appeals filed against this admin's rejections.
+    pub appeals_against: u32,
+    /// Number of this admin's rejections that were overturned on appeal.
+    pub reversals: u32,
+    /// Cumulative approval time in seconds for this admin's approvals.
+    pub approval_time_sum_secs: u64,
+    /// Number of approvals counted in `approval_time_sum_secs`.
+    pub approval_time_count: u32,
+    /// Ledger timestamp of this admin's most recent action this month.
+    pub last_action_at: u64,
+}
+
+/// One data point in the monthly performance trend series.
+///
+/// Rates use basis points: `10_000 bps == 100%`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationTrendPoint {
+    /// Human-readable month label, e.g. `"2026-09"`.
+    pub month_key: String,
+    /// Total verification requests received that month.
+    pub total_requests: u32,
+    /// Total approved verifications.
+    pub total_approved: u32,
+    /// Total rejected verifications.
+    pub total_rejected: u32,
+    /// Appeal rate in basis points: `appeals / requests * 10_000`.
+    pub appeal_rate_bps: u32,
+    /// Reversal rate in basis points: `reversals / appeals * 10_000`.
+    pub reversal_rate_bps: u32,
+    /// Average approval time in seconds for this month.
+    pub avg_approval_time_secs: u64,
+}
+
+/// Complete monthly verification-performance report.
+///
+/// Returned by `get_monthly_verification_report`. Combines the global
+/// aggregate, all per-admin summaries, and the full trend series.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationPerformanceReport {
+    /// Human-readable month label for the primary month being reported.
+    pub month_key: String,
+    /// Global aggregate metrics for the reported month.
+    pub global: VerificationPerformanceSnapshot,
+    /// Per-admin summaries for every admin active in the reported month.
+    pub admin_summaries: Vec<AdminVerificationPerformance>,
+    /// Month-by-month trend data (up to the last 24 months, oldest first).
+    pub trend: Vec<VerificationTrendPoint>,
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Issue #757 — Security contact email verification (challenge-response)

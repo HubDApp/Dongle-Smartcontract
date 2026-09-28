@@ -26,6 +26,7 @@ use crate::types::{
     VerificationRejectionState, VerificationRenewalRecord, VerificationRiskAssessment,
     VerificationRiskModel, VerificationStatus, VerificationSuspension,
 };
+use crate::performance_metrics::PerformanceMetrics;
 use crate::utils::Utils;
 use crate::verification_registry::state_machine::VerificationStateMachine;
 use crate::verification_registry::validation::VerificationValidation;
@@ -375,6 +376,8 @@ impl VerificationRegistry {
             request_id,
             previous_request_id,
         );
+        // Record the new request in performance metrics (demand tracking).
+        PerformanceMetrics::record_request(env, now);
         Ok(())
     }
 
@@ -560,6 +563,9 @@ impl VerificationRegistry {
             None,
         );
 
+        // Record approval time in performance metrics.
+        PerformanceMetrics::record_approval(env, &admin, record.requested_at, now);
+
         // Initiate 30-day probationary period under enhanced monitoring
         let _ = crate::probation_registry::ProbationRegistry::start_probation(
             env,
@@ -654,13 +660,15 @@ impl VerificationRegistry {
 
         AdminActionLog::record_action(
             env,
-            admin,
+            admin.clone(),
             AdminActionType::VerificationRejected,
             Some(project_id),
             None,
             None,
         );
 
+        // Record rejection in performance metrics.
+        PerformanceMetrics::record_rejection(env, &admin, now);
         crate::trust_and_safety::TrustAndSafety::record_verification_rejection(env, project_id);
 
         Ok(())
@@ -943,6 +951,9 @@ impl VerificationRegistry {
             None,
         );
 
+        // Record appeal in performance metrics against the rejecting admin.
+        PerformanceMetrics::record_appeal(env, &rejection_state.rejected_by, now);
+
         Ok(())
     }
 
@@ -1040,6 +1051,8 @@ impl VerificationRegistry {
                 None,
                 None,
             );
+            // Record reversal: the original rejecting admin's stat is updated.
+            PerformanceMetrics::record_reversal(env, &rejection_state.rejected_by, now);
         } else {
             AdminActionLog::record_action(
                 env,
