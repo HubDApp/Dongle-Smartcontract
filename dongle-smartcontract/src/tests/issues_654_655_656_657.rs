@@ -50,7 +50,9 @@ fn balance(env: &Env, token: &Address, who: &Address) -> i128 {
 
 /// Set up a scenario where a verification was rejected and a refund record exists.
 /// Returns (client, admin, owner, treasury, token_address, project_id).
-fn setup_rejected_verification(env: &Env) -> (
+fn setup_rejected_verification(
+    env: &Env,
+) -> (
     crate::DongleContractClient<'_>,
     Address,
     Address,
@@ -96,8 +98,7 @@ fn setup_rejected_verification(env: &Env) -> (
 fn test_657_double_claim_returns_refund_already_claimed() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, _admin, owner, _treasury, token, project_id) =
-        setup_rejected_verification(&env);
+    let (client, _admin, owner, _treasury, token, project_id) = setup_rejected_verification(&env);
 
     // First claim must succeed and tokens must move
     let before = balance(&env, &token, &owner);
@@ -138,8 +139,7 @@ fn test_657_double_claim_returns_refund_already_claimed() {
 fn test_657_storage_state_preserved_after_rejected_double_claim() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, _admin, owner, _treasury, _token, project_id) =
-        setup_rejected_verification(&env);
+    let (client, _admin, owner, _treasury, _token, project_id) = setup_rejected_verification(&env);
 
     client.claim_fee_refund(&owner, &project_id);
     let claimed_at_after_first = client
@@ -166,8 +166,7 @@ fn test_657_storage_state_preserved_after_rejected_double_claim() {
 fn test_657_admin_settle_then_double_claim_rejected() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin, owner, _treasury, token, project_id) =
-        setup_rejected_verification(&env);
+    let (client, admin, owner, _treasury, token, project_id) = setup_rejected_verification(&env);
 
     let owner_before = balance(&env, &token, &owner);
     client.claim_fee_refund(&admin, &project_id);
@@ -357,7 +356,10 @@ fn test_655_duplicate_cid_is_rejected() {
     let owner = Address::generate(&env);
     let project_id = create_test_project(&client, &owner, "ImmutableChangelogProject");
 
-    let cid = String::from_str(&env, "bafybeiboz75hbx2qg7g4j4vq655immutable1111111111111111");
+    let cid = String::from_str(
+        &env,
+        "bafybeiboz75hbx2qg7g4j4vq655immutable1111111111111111",
+    );
     let desc = Some(String::from_str(&env, "v1.0.0"));
 
     let id = client.add_changelog_entry(&project_id, &owner, &cid, &desc, &None, &None);
@@ -380,16 +382,17 @@ fn test_655_remove_and_recreate_is_the_approved_update_workflow() {
     let cid_v1 = String::from_str(&env, "bafybeiboz75hbx2qg7g4j4vq655v1aaaaaaaaaaaaaaaaaaaaa");
     let cid_v2 = String::from_str(&env, "bafybeiboz75hbx2qg7g4j4vq655v2bbbbbbbbbbbbbbbbbbbbb");
 
-    let id_v1 =
-        client.add_changelog_entry(&project_id, &owner, &cid_v1, &None, &None, &None);
+    let id_v1 = client.add_changelog_entry(&project_id, &owner, &cid_v1, &None, &None, &None);
 
     // Remove
     client.remove_changelog_entry(&id_v1, &owner);
-    assert!(client.get_changelog_entry(&id_v1).is_none(), "entry must be gone after remove");
+    assert!(
+        client.get_changelog_entry(&id_v1).is_none(),
+        "entry must be gone after remove"
+    );
 
     // Recreate with corrected data
-    let id_v2 =
-        client.add_changelog_entry(&project_id, &owner, &cid_v2, &None, &None, &None);
+    let id_v2 = client.add_changelog_entry(&project_id, &owner, &cid_v2, &None, &None, &None);
     assert!(id_v2 > 0);
     assert_eq!(client.get_changelog_count(&project_id), 1);
     assert_eq!(client.get_changelog_entry(&id_v2).unwrap().cid, cid_v2);
@@ -411,9 +414,7 @@ fn test_655_only_owner_can_mutate_changelog() {
 
     // Non-owner cannot remove
     assert!(
-        client
-            .try_remove_changelog_entry(&id, &non_owner)
-            .is_err(),
+        client.try_remove_changelog_entry(&id, &non_owner).is_err(),
         "non-owner must not remove changelog entries"
     );
     // Entry still exists
@@ -432,7 +433,10 @@ fn open_dispute(
     original_id: u64,
 ) -> u64 {
     let creator = Address::generate(env);
-    let cid = String::from_str(env, "Qm654DisputeEvidenceCidABCDEFGHJKLMNPQRSTUVWXYZabcdefghij");
+    let cid = String::from_str(
+        env,
+        "Qm654DisputeEvidenceCidABCDEFGHJKLMNPQRSTUVWXYZabcdefghij",
+    );
     client.open_duplicate_dispute(&project_id, &original_id, &creator, &cid)
 }
 
@@ -566,11 +570,8 @@ fn test_654_rejected_to_rejected_returns_dispute_not_pending() {
     let dispute_id = open_dispute(&client, &env, id2, id1);
     client.resolve_duplicate_dispute(&dispute_id, &admin, &DisputeResolutionAction::Reject);
 
-    let result = client.try_resolve_duplicate_dispute(
-        &dispute_id,
-        &admin,
-        &DisputeResolutionAction::Reject,
-    );
+    let result =
+        client.try_resolve_duplicate_dispute(&dispute_id, &admin, &DisputeResolutionAction::Reject);
     assert_eq!(
         result,
         Err(Ok(ContractError::DisputeNotPending)),
@@ -594,11 +595,8 @@ fn test_654_resolved_to_rejected_returns_dispute_not_pending() {
         &DisputeResolutionAction::LinkDuplicates,
     );
 
-    let result = client.try_resolve_duplicate_dispute(
-        &dispute_id,
-        &admin,
-        &DisputeResolutionAction::Reject,
-    );
+    let result =
+        client.try_resolve_duplicate_dispute(&dispute_id, &admin, &DisputeResolutionAction::Reject);
     assert_eq!(
         result,
         Err(Ok(ContractError::DisputeNotPending)),
@@ -646,7 +644,10 @@ fn test_654_resolved_at_timestamp_set_on_resolution() {
 
     let dispute_id = open_dispute(&client, &env, id2, id1);
     assert_eq!(
-        client.get_duplicate_dispute(&dispute_id).unwrap().resolved_at,
+        client
+            .get_duplicate_dispute(&dispute_id)
+            .unwrap()
+            .resolved_at,
         0,
         "resolved_at must be 0 for a pending dispute"
     );

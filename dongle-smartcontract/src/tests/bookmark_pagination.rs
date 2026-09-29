@@ -15,7 +15,7 @@
 
 #![cfg(test)]
 
-use crate::bookmark_registry::MAX_PAGE_LIMIT;
+use crate::constants::MAX_PAGE_LIMIT;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use soroban_sdk::{testutils::Address as _, Address, Env};
 

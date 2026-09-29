@@ -342,7 +342,7 @@ impl AdminManager {
         let id: u64 = env
             .storage()
             .persistent()
-            .get(&crate::storage_keys::ExtensionKey::NextAdminProposalId)
+            .get(&crate::storage_keys::ExtensionKey2::NextAdminProposalId)
             .unwrap_or(0);
 
         let action_type = match &payload {
@@ -353,6 +353,9 @@ impl AdminManager {
             ProposalPayload::ApproveVerification(_) => AdminActionType::VerificationApproved,
             ProposalPayload::RejectVerification(_) => AdminActionType::VerificationRejected,
             ProposalPayload::RevokeVerification(_, _) => AdminActionType::VerificationRevoked,
+            ProposalPayload::RestoreProjectVersion(_, _) => {
+                AdminActionType::ProjectVersionRestored
+            }
         };
 
         let payload_hash = Self::compute_payload_hash(env, &payload);
@@ -395,6 +398,8 @@ impl AdminManager {
             .set(&crate::storage_keys::ExtensionKey::AdminProposalIds, &ids);
 
         env.storage().persistent().set(
+            &crate::storage_keys::ExtensionKey2::NextAdminProposalId,
+            &(id + 1),
             &crate::storage_keys::ExtensionKey::NextAdminProposalId,
             &id.checked_add(1).ok_or(ContractError::ArithmeticOverflow)?,
         );
@@ -422,6 +427,10 @@ impl AdminManager {
             return Err(ContractError::InvalidStatus);
         }
 
+        // `Map` provides set semantics for admin addresses. The read, update,
+        // threshold check, and proposal write are committed as one Soroban
+        // transaction, so conflicting approvals cannot interleave between the
+        // membership check and insertion.
         if proposal.approvals.contains_key(admin.clone()) {
             return Err(ContractError::Unauthorized);
         }
@@ -593,6 +602,24 @@ impl AdminManager {
 
                 // Supermajority rule for threshold downgrades:
                 // If this proposal would *lower* the current threshold, the number
+                // of approvals must be strictly greater than the *current* threshold
+                // — not merely greater than the proposed new threshold.
+                //
+                // Rationale: the quorum that is being dismantled must itself be
+                // exceeded, not just the smaller quorum being installed. With a
+                // guard of `> new_threshold` only, exactly `current_threshold`
+                // colluding admins could create a proposal that passes the live
+                // threshold check and yet immediately reduces future quorum.
+                // Requiring `> current_threshold` means at least one admin beyond
+                // the current quorum must sign off on any reduction.
+                //
+                // For threshold *increases* or no-ops the normal threshold check
+                // (approvals.len() >= current_threshold) already performed above
+                // is sufficient; no additional requirement is added.
+                let current_threshold = Self::get_admin_approval_threshold(env);
+                if new_threshold < current_threshold
+                    && proposal.approvals.len() <= current_threshold
+                {
                 // of approvals must be strictly greater than the *current* threshold.
                 if new_threshold < current_threshold && proposal.approvals.len() <= current_threshold {
                     return Err(ContractError::ThresholdDowngradeRequiresSupermajority);
@@ -640,9 +667,7 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Verified;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_approved_event(
                     env,
                     project_id,
@@ -675,9 +700,7 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Rejected;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_rejected_event(
                     env,
                     project_id,
@@ -709,15 +732,21 @@ impl AdminManager {
                 project.verification_status = VerificationStatus::Unverified;
                 project.current_verification_id = Some(record.request_id);
                 project.updated_at = now;
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::Project(project_id), &project);
+                crate::project_registry::ProjectRegistry::persist_project(env, &project);
                 crate::events::publish_verification_revoked_event(
                     env,
                     project_id,
                     caller.clone(),
                     reason,
                 );
+            }
+            ProposalPayload::RestoreProjectVersion(project_id, version) => {
+                crate::project_registry::ProjectRegistry::restore_project_version_after_approval(
+                    env,
+                    project_id,
+                    version,
+                    caller.clone(),
+                )?;
             }
         }
 
