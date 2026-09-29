@@ -782,6 +782,28 @@ impl DongleContract {
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None)
     }
 
+    pub fn add_review_with_attribution(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        comment_cid: Option<String>,
+        attribution: ReviewAttribution,
+        reviewer_name: Option<String>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReviewRegistry::add_review_with_attribution(
+            &env,
+            project_id,
+            reviewer,
+            rating,
+            comment_cid,
+            None,
+            attribution,
+            reviewer_name,
+        )
+    }
+
     pub fn update_review(
         env: Env,
         project_id: u64,
@@ -808,6 +830,27 @@ impl DongleContract {
         review_cid: String,
     ) -> Result<(), ContractError> {
         ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+    }
+
+    pub fn submit_review_with_attribution(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+        rating: u32,
+        review_cid: String,
+        attribution: ReviewAttribution,
+        reviewer_name: Option<String>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReviewRegistry::submit_review_with_attribution(
+            &env,
+            project_id,
+            reviewer,
+            rating,
+            review_cid,
+            attribution,
+            reviewer_name,
+        )
     }
 
     pub fn respond_to_review(
@@ -842,6 +885,36 @@ impl DongleContract {
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
         ReviewRegistry::list_reviews(&env, project_id, start_index, limit)
+    }
+
+    pub fn list_anonymous_reviews(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<PublicReview> {
+        ReviewRegistry::list_public_reviews(
+            &env,
+            project_id,
+            start_index,
+            limit,
+            ReviewAttribution::Anonymous,
+        )
+    }
+
+    pub fn list_attributed_reviews(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<PublicReview> {
+        ReviewRegistry::list_public_reviews(
+            &env,
+            project_id,
+            start_index,
+            limit,
+            ReviewAttribution::Attributed,
+        )
     }
 
     /// Admin-only: archive reviews older than 2 years for a project.
