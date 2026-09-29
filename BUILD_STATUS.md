@@ -1,6 +1,6 @@
 # Build & Deployment Status
 
-**Last Updated:** 2026-08-27  
+**Last Updated:** 2026-09-26  
 **Status:** ⚠️ **NOT READY FOR DEPLOYMENT**
 
 This document serves as the single, authoritative source for the project's current build, test, and deployment readiness status. It is updated whenever significant changes affect compilability or deployment viability.
@@ -12,6 +12,8 @@ This document serves as the single, authoritative source for the project's curre
 - **Rust Compilation:** 🟢 **PASSING** - `wasm32-unknown-unknown --release` compiles with no errors or warnings
 - **Test Suite:** 🟡 **UNKNOWN** - Not verified as part of the build fix
 - **WASM Target:** 🟢 **PASSING** - `dongle_contract.wasm` is produced at `target/wasm32-unknown-unknown/release/dongle_contract.wasm`
+- **CI Verification:** 🟢 **PASSING** - `wasm-check` job in CI confirms binary existence after build
+- **Code Formatting:** 🟢 **ENFORCED** - `cargo fmt --all -- --check` runs in the `fmt` CI job
 - **Documentation:** ✅ **UP-TO-DATE** - Deployment and interface docs are current
 
 ### Why "Ready" Documents Are Misleading
@@ -68,7 +70,7 @@ Use this checklist to determine if deployment is viable:
 - [ ] ✅ Contract interface is stable (no breaking changes in [CONTRACT_INTERFACE.md](./docs/CONTRACT_INTERFACE.md))
 - [ ] ✅ Storage schema is finalized (review [STORAGE_SCHEMA.md](./docs/STORAGE_SCHEMA.md))
 
-**Current Status:** 2/8 checks passing. **DO NOT DEPLOY.**
+**Current Status:** 3/8 checks passing. **DO NOT DEPLOY.**
 
 ## What to Do Now
 

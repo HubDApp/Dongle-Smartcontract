@@ -4,7 +4,11 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{BookmarkKey, ExtensionKey, ReviewIntegrityKey, StorageKey};
+use crate::storage_keys::{
+    ActivityFeedKey, BookmarkKey, ExtensionKey, HealthScoreKey, MetadataEnrichmentKey,
+    ReviewIntegrityKey, SecurityContactVerifKey, StorageKey,
+    BookmarkKey, ExtensionKey, ExtensionKey2, ReviewIntegrityKey, StorageKey,
+};
 use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
@@ -74,6 +78,21 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &StorageKey::Project(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    pub fn extend_project_version_ttl(env: &Env, project_id: u64, version: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersionCount(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersion(project_id, version),
             LEDGER_THRESHOLD_PROJECT,
             LEDGER_BUMP_PROJECT,
         );
@@ -756,6 +775,34 @@ impl StorageManager {
             LEDGER_THRESHOLD_USER,
             LEDGER_BUMP_USER,
         );
+    }
+
+    // ── Security Contact Verification TTL (#757) ─────────────────────────
+
+    /// Extend TTL for a security contact verification record.
+    pub fn extend_if_exists_scvk(env: &Env, key: &SecurityContactVerifKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Health Score TTL (#756) ───────────────────────────────────────────
+
+    /// Extend TTL for a health score key.
+    pub fn extend_if_exists_hsk(env: &Env, key: &HealthScoreKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Activity Feed TTL (#759) ──────────────────────────────────────────
+
+    /// Extend TTL for an activity feed key.
+    pub fn extend_if_exists_afk(env: &Env, key: &ActivityFeedKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Metadata Enrichment TTL (#760) ────────────────────────────────────
+
+    /// Extend TTL for a metadata enrichment key.
+    pub fn extend_if_exists_mek(env: &Env, key: &MetadataEnrichmentKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
     }
 }
 

@@ -6,14 +6,13 @@ use crate::admin_manager::AdminManager;
 use crate::auth::require_admin_auth;
 use crate::constants::{
     DEFAULT_VERIFICATION_SLA_SECS, MAX_ASSIGNMENT_REASON_LEN, MAX_EXPERTISE_LEN,
-    MAX_EXPERTISE_TAGS_PER_ADMIN, MIN_VERIFICATION_SLA_SECS, MAX_VERIFICATION_SLA_SECS,
+    MAX_EXPERTISE_TAGS_PER_ADMIN, MAX_VERIFICATION_SLA_SECS, MIN_VERIFICATION_SLA_SECS,
 };
 use crate::errors::ContractError;
 use crate::events::{
     publish_admin_expertise_set_event, publish_verification_assigned_event,
     publish_verification_assigned_with_expertise_event,
-    publish_verification_assignment_accepted_event,
-    publish_verification_assignment_declined_event,
+    publish_verification_assignment_accepted_event, publish_verification_assignment_declined_event,
     publish_verification_assignment_escalated_event, publish_verification_sla_set_event,
 };
 use crate::storage_keys::{AssignmentKey, StorageKey};
@@ -87,15 +86,17 @@ impl VerificationAssignmentRegistry {
             return Err(ContractError::InvalidInput);
         }
 
-        // Validate each expertise tag and ensure no duplicates
+        // Validate each expertise tag and ensure no duplicates.
+        // `Vec::get(i)` returns `Option<T>`; we use `ok_or` to propagate any
+        // out-of-bounds access as `InvalidInput` rather than panicking.
         for i in 0..expertise.len() {
-            let tag = expertise.get(i).unwrap();
+            let tag = expertise.get(i).ok_or(ContractError::InvalidInput)?;
             let len = tag.len() as usize;
             if len == 0 || len > MAX_EXPERTISE_LEN {
                 return Err(ContractError::InvalidInput);
             }
             for j in (i + 1)..expertise.len() {
-                if expertise.get(j).unwrap() == tag {
+                if expertise.get(j).ok_or(ContractError::InvalidInput)? == tag {
                     return Err(ContractError::InvalidInput);
                 }
             }
@@ -104,13 +105,13 @@ impl VerificationAssignmentRegistry {
         // Remove old tags from inverted index
         let old_expertise = Self::get_admin_expertise(env, admin.clone());
         for i in 0..old_expertise.len() {
-            let old_tag = old_expertise.get(i).unwrap();
+            let old_tag = old_expertise.get(i).ok_or(ContractError::InvalidInput)?;
             Self::remove_admin_from_expertise_index(env, &old_tag, &admin);
         }
 
         // Add new tags to inverted index
         for i in 0..expertise.len() {
-            let new_tag = expertise.get(i).unwrap();
+            let new_tag = expertise.get(i).ok_or(ContractError::InvalidInput)?;
             Self::add_admin_to_expertise_index(env, &new_tag, &admin);
         }
 
@@ -163,9 +164,12 @@ impl VerificationAssignmentRegistry {
 
         let mut out = Vec::new(env);
         for i in 0..candidate_admins.len() {
-            let addr = candidate_admins.get(i).unwrap();
-            if AdminManager::is_admin(env, &addr) {
-                out.push_back(addr);
+            // `get(i)` is infallible for i < len, but we use `if let` to
+            // avoid any theoretical panic at a public entry point.
+            if let Some(addr) = candidate_admins.get(i) {
+                if AdminManager::is_admin(env, &addr) {
+                    out.push_back(addr);
+                }
             }
         }
         out
@@ -230,9 +234,10 @@ impl VerificationAssignmentRegistry {
         env.storage()
             .persistent()
             .set(&AssignmentKey::Assignment(assignment_id), &assignment);
-        env.storage()
-            .persistent()
-            .set(&AssignmentKey::ActiveProjectAssignment(project_id), &assignment_id);
+        env.storage().persistent().set(
+            &AssignmentKey::ActiveProjectAssignment(project_id),
+            &assignment_id,
+        );
 
         Self::append_to_project_history(env, project_id, assignment_id);
         Self::append_to_admin_assignments(env, assignee.clone(), assignment_id);
@@ -289,11 +294,11 @@ impl VerificationAssignmentRegistry {
             return Err(ContractError::AdminLacksExpertise);
         }
 
-        let mut best_admin = candidates.get(0).unwrap();
+        let mut best_admin = candidates.get(0).ok_or(ContractError::AdminLacksExpertise)?;
         let mut min_workload = u32::MAX;
 
         for i in 0..candidates.len() {
-            let candidate = candidates.get(i).unwrap();
+            let candidate = candidates.get(i).ok_or(ContractError::AdminLacksExpertise)?;
             let workload = Self::get_admin_active_assignment_count(env, candidate.clone());
             if workload < min_workload {
                 min_workload = workload;
@@ -908,9 +913,10 @@ impl VerificationAssignmentRegistry {
             .get(&AssignmentKey::ProjectAssignmentHistory(project_id))
             .unwrap_or_else(|| Vec::new(env));
         history.push_back(assignment_id);
-        env.storage()
-            .persistent()
-            .set(&AssignmentKey::ProjectAssignmentHistory(project_id), &history);
+        env.storage().persistent().set(
+            &AssignmentKey::ProjectAssignmentHistory(project_id),
+            &history,
+        );
     }
 
     fn append_to_admin_assignments(env: &Env, admin: Address, assignment_id: u64) {
@@ -933,9 +939,11 @@ impl VerificationAssignmentRegistry {
             .unwrap_or_else(|| Vec::new(env));
         let mut found_idx: Option<u32> = None;
         for i in 0..admins.len() {
-            if admins.get(i).unwrap() == *admin {
-                found_idx = Some(i);
-                break;
+            if let Some(a) = admins.get(i) {
+                if a == *admin {
+                    found_idx = Some(i);
+                    break;
+                }
             }
         }
         if let Some(idx) = found_idx {
@@ -954,9 +962,11 @@ impl VerificationAssignmentRegistry {
             .unwrap_or_else(|| Vec::new(env));
         let mut found = false;
         for i in 0..admins.len() {
-            if admins.get(i).unwrap() == *admin {
-                found = true;
-                break;
+            if let Some(a) = admins.get(i) {
+                if a == *admin {
+                    found = true;
+                    break;
+                }
             }
         }
         if !found {
