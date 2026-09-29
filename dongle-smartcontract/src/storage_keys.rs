@@ -279,6 +279,8 @@ pub enum ExtensionKey {
 pub enum ExtensionKey2 {
     /// Tally of projects using a specific license.
     LicenseStats(String),
+    /// Projects that depend on a given project ID (reverse dependency graph).
+    ProjectDependents(u64),
     /// Evidence links for a review, keyed by (project_id, reviewer).
     ReviewEvidenceLinks(u64, Address),
     /// Archived review record, keyed by (project_id, reviewer).

@@ -2068,6 +2068,16 @@ impl DongleContract {
         crate::dependency_registry::DependencyRegistry::get_dependency_count(&env, project_id)
     }
 
+    /// Retrieve the full transitive dependency graph (project IDs only)
+    pub fn get_transitive_dependencies(env: Env, project_id: u64) -> Vec<u64> {
+        crate::dependency_registry::DependencyRegistry::get_transitive_dependencies(&env, project_id)
+    }
+
+    /// Retrieve the reverse dependency graph (projects that depend on this project)
+    pub fn get_dependent_projects(env: Env, project_id: u64) -> Vec<u64> {
+        crate::dependency_registry::DependencyRegistry::get_dependent_projects(&env, project_id)
+    }
+
     // --- Duplicate Disputes ---
 
     pub fn open_duplicate_dispute(
