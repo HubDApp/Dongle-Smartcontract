@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": 1001,
+      "name": "Example Project",
+      "full_name": "example/project",
+      "html_url": "https://github.com/example/project",
+      "description": "A concise project description.",
+      "homepage": "https://example.org",
+      "license": { "spdx_id": "MIT" },
+      "topics": ["stellar", "open-source"],
+      "owner": { "login": "example" },
+      "stellar_owner": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "dongle_category": "Infrastructure",
+      "dongle_slug": "example-project"
+    }
+  ]
+}

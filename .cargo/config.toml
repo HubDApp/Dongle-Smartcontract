@@ -1,0 +1,14 @@
+# Workspace-level Cargo configuration.
+#
+# RUSTFLAGS "-D warnings" is set here so that every local `cargo build`,
+# `cargo check`, and `cargo clippy` invocation treats compiler warnings as
+# hard errors — matching the CI environment exactly.  This prevents the
+# classic "works locally, fails in CI" divergence.
+#
+# If you need to temporarily suppress this (e.g. during rapid prototyping),
+# override at the command line:
+#   RUSTFLAGS="" cargo check
+# Do NOT commit that override; restore RUSTFLAGS when done.
+
+[build]
+rustflags = ["-D", "warnings"]

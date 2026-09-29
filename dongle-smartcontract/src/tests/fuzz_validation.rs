@@ -33,7 +33,7 @@ use crate::constants::{MAX_CID_LEN, MAX_WEBSITE_LEN, MIN_CID_LEN};
 use crate::errors::ContractError;
 use crate::review_registry::ReviewValidation;
 use crate::utils::Utils;
-use crate::verification_registry::VerificationValidation;
+use crate::verification_registry::validation::VerificationValidation;
 use proptest::prelude::*;
 use soroban_sdk::{Env, String as SorobanString};
 

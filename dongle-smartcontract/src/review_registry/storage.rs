@@ -1,13 +1,13 @@
 //! Review registry storage mutations: CRUD, moderation, aggregates, and listing.
 
 use crate::admin_action_log::AdminActionLog;
+use crate::config_registry::ConfigRegistry;
 use crate::constants::{
     DEFAULT_MIN_REVIEWER_AGE_SECONDS, DEFAULT_REQUIRE_ENDORSEMENT, DEFAULT_REVIEW_FEE,
     LEDGER_BUMP_ARCHIVED_REVIEW, LEDGER_BUMP_REVIEW, LEDGER_THRESHOLD_ARCHIVED_REVIEW,
     LEDGER_THRESHOLD_REVIEW, MAX_ARCHIVE_BATCH_SIZE, MAX_PAGE_LIMIT, MAX_REVIEWS_PER_USER,
     MAX_REVIEW_REVISIONS, REVIEW_ARCHIVE_AGE_SECONDS, REVIEW_UPDATE_COOLDOWN_SECONDS,
 };
-use crate::config_registry::ConfigRegistry;
 use crate::errors::ContractError;
 use crate::events::{
     publish_review_archived_event, publish_review_event, publish_review_integrity_sealed_event,
@@ -24,8 +24,8 @@ use crate::types::{
     ReviewEligibilityConfig, ReviewIntegrityRecord, ReviewIntegrityStatus, ReviewRevision,
     ReviewSortMode, ReviewTombstone,
 };
-use soroban_sdk::{Address, Env, String, Vec};
 use soroban_sdk::xdr::ToXdr;
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct ReviewRegistry;
 
@@ -77,18 +77,16 @@ impl ReviewRegistry {
     ) {
         let key = ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone());
         env.storage().persistent().set(&key, links);
-        env.storage().persistent().extend_ttl(&key, LEDGER_THRESHOLD_REVIEW, LEDGER_BUMP_REVIEW);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, LEDGER_THRESHOLD_REVIEW, LEDGER_BUMP_REVIEW);
     }
 
     /// Load evidence links for a (project_id, reviewer) pair.
     ///
     /// Returns an empty `Vec` when no entry exists.
     /// Requirements: 5.3
-    fn load_evidence_links(
-        env: &Env,
-        project_id: u64,
-        reviewer: &Address,
-    ) -> Vec<EvidenceLink> {
+    fn load_evidence_links(env: &Env, project_id: u64, reviewer: &Address) -> Vec<EvidenceLink> {
         let key = ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone());
         env.storage()
             .persistent()
@@ -172,7 +170,7 @@ impl ReviewRegistry {
     /// Called automatically whenever an address performs an action that should
     /// count toward the "minimum account age" eligibility check.
     pub fn record_first_interaction(env: &Env, address: &Address) {
-        let key = ExtensionKey::FirstInteraction(address.clone());
+        let key = ExtensionKey2::FirstInteraction(address.clone());
         if !env.storage().persistent().has(&key) {
             let now = env.ledger().timestamp();
             env.storage().persistent().set(&key, &now);
@@ -196,7 +194,7 @@ impl ReviewRegistry {
             let first_interaction: u64 = env
                 .storage()
                 .persistent()
-                .get(&ExtensionKey::FirstInteraction(reviewer.clone()))
+                .get(&ExtensionKey2::FirstInteraction(reviewer.clone()))
                 .unwrap_or(0);
             let now = env.ledger().timestamp();
             if first_interaction == 0
@@ -378,17 +376,24 @@ impl ReviewRegistry {
         StorageManager::extend_project_reviews_ttl(env, project_id);
         StorageManager::extend_project_stats_ttl(env, project_id);
 
+        let evidence_links = Self::load_evidence_links(env, project_id, &reviewer);
         publish_review_event(
             env,
             project_id,
-            reviewer,
-            attribution,
+            reviewer.clone(), // Clone to pass to TrustAndSafety
             ReviewAction::Submitted,
             comment_cid.clone(),
             None,
             now,
             now,
+            evidence_links,
         );
+
+        // #791 Reward Reviewers
+        let is_detailed = comment_cid.is_some();
+        let points = if is_detailed { 30 } else { 10 };
+        crate::trust_and_safety::TrustAndSafety::award_reviewer_points(env, &reviewer, points, is_detailed);
+
         Ok(())
     }
 
@@ -420,16 +425,7 @@ impl ReviewRegistry {
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
         ReviewValidation::validate_review_cid(&review_cid)?;
-        Self::add_review_with_attribution(
-            env,
-            project_id,
-            reviewer,
-            rating,
-            Some(review_cid),
-            None,
-            attribution,
-            reviewer_name,
-        )
+        Self::add_review(env, project_id, reviewer, rating, Some(review_cid), None)
     }
 
     pub fn update_review(
@@ -539,6 +535,7 @@ impl ReviewRegistry {
             review.owner_response.clone(),
             review.created_at,
             now,
+            Self::load_evidence_links(env, project_id, &reviewer),
         );
 
         publish_review_revision_event(
@@ -638,17 +635,17 @@ impl ReviewRegistry {
     /// This prevents stale revision data from persisting beyond the review's lifetime.
     fn clear_review_revisions(env: &Env, project_id: u64, reviewer: &Address) {
         let count_key = ExtensionKey::ReviewRevisionCount(project_id, reviewer.clone());
-        let revision_count: u32 = env
-            .storage()
-            .persistent()
-            .get(&count_key)
-            .unwrap_or(0);
+        let revision_count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
 
         // Remove each stored revision entry (indices are always 0..count after pruning)
         for i in 0..revision_count {
             env.storage()
                 .persistent()
-                .remove(&ExtensionKey::ReviewRevision(project_id, reviewer.clone(), i));
+                .remove(&ExtensionKey::ReviewRevision(
+                    project_id,
+                    reviewer.clone(),
+                    i,
+                ));
         }
 
         // Remove the count key itself
@@ -777,6 +774,8 @@ impl ReviewRegistry {
         env.storage().persistent().remove(&review_key);
         // Clear revision history so deleted reviews leave no stale history entries.
         Self::clear_review_revisions(env, project_id, &reviewer);
+        // Drop stored evidence links so deleted reviews leave no orphaned data.
+        Self::delete_evidence_links(env, project_id, &reviewer);
         // Store a tombstone so indexers can distinguish deleted vs never-existed.
         let now = env.ledger().timestamp();
         env.storage().persistent().set(
@@ -816,6 +815,8 @@ impl ReviewRegistry {
         // as ReviewReport keys are dedup guards keyed by (project_id, reviewer, reporter)
         // and those will become orphaned but harmless once the review is gone.
 
+        // Evidence links for a deleted review are dropped from primary storage
+        // along with the review, so the tombstoning event carries none.
         publish_review_event(
             env,
             project_id,
@@ -826,6 +827,7 @@ impl ReviewRegistry {
             existing.owner_response.clone(),
             existing.created_at,
             now,
+            Vec::new(env),
         );
         Ok(())
     }
@@ -910,6 +912,8 @@ impl ReviewRegistry {
         env.storage().persistent().remove(&review_key);
         // Clear revision history so deleted reviews leave no stale history entries.
         Self::clear_review_revisions(env, project_id, &reviewer);
+        // Drop stored evidence links so deleted reviews leave no orphaned data.
+        Self::delete_evidence_links(env, project_id, &reviewer);
         // Store a tombstone so indexers can distinguish deleted vs never-existed.
         let now = env.ledger().timestamp();
         env.storage().persistent().set(
@@ -1006,6 +1010,7 @@ impl ReviewRegistry {
 
         env.storage().persistent().set(&review_key, &review);
 
+        let evidence_links = Self::load_evidence_links(env, project_id, &reviewer);
         publish_review_event(
             env,
             project_id,
@@ -1016,6 +1021,7 @@ impl ReviewRegistry {
             review.owner_response.clone(),
             review.created_at,
             now,
+            evidence_links,
         );
         Ok(())
     }
@@ -1487,8 +1493,8 @@ impl ReviewRegistry {
 
         // content_cid or sentinel "NONE"
         match content_cid {
-            Some(cid) => {
-                let cid_bytes = cid.to_xdr(env);
+            Some(ref cid) => {
+                let cid_bytes = cid.clone().to_xdr(env);
                 // XDR-encoded String has a 4-byte length prefix; skip it.
                 let xdr_len = cid_bytes.len();
                 let cid_char_len = cid.len();
@@ -1519,7 +1525,8 @@ impl ReviewRegistry {
         rating: u32,
         content_cid: &Option<soroban_sdk::String>,
     ) {
-        let hash = Self::compute_review_integrity_hash(env, project_id, reviewer, rating, content_cid);
+        let hash =
+            Self::compute_review_integrity_hash(env, project_id, reviewer, rating, content_cid);
         let record = ReviewIntegrityRecord {
             integrity_hash: hash,
             sealed_at: env.ledger().timestamp(),
@@ -1549,7 +1556,9 @@ impl ReviewRegistry {
     ) -> Option<ReviewIntegrityRecord> {
         env.storage()
             .persistent()
-            .get(&ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer))
+            .get(&ReviewIntegrityKey::ReviewIntegrityHash(
+                project_id, reviewer,
+            ))
     }
 
     /// Verify the content integrity of a stored review.
@@ -1577,16 +1586,17 @@ impl ReviewRegistry {
             None => return ReviewIntegrityStatus::Unverifiable,
         };
 
-        let record: ReviewIntegrityRecord = match env
-            .storage()
-            .persistent()
-            .get(&ReviewIntegrityKey::ReviewIntegrityHash(
-                project_id,
-                reviewer.clone(),
-            )) {
-            Some(r) => r,
-            None => return ReviewIntegrityStatus::Unverifiable,
-        };
+        let record: ReviewIntegrityRecord =
+            match env
+                .storage()
+                .persistent()
+                .get(&ReviewIntegrityKey::ReviewIntegrityHash(
+                    project_id,
+                    reviewer.clone(),
+                )) {
+                Some(r) => r,
+                None => return ReviewIntegrityStatus::Unverifiable,
+            };
 
         let current_hash = Self::compute_review_integrity_hash(
             env,
@@ -1830,20 +1840,17 @@ impl ReviewRegistry {
 
         let total = reviewers.len();
         let mut results: Vec<ArchivedReview> = Vec::new(env);
-        if start_index as usize >= total {
+        if start_index >= total {
             return results;
         }
 
-        let end = core::cmp::min(
-            (start_index as usize).saturating_add(effective_limit as usize),
-            total,
-        );
-        for i in start_index as usize..end {
-            if let Some(reviewer) = reviewers.get(i as u32) {
-                if let Some(archived) =
-                    env.storage()
-                        .persistent()
-                        .get(&ExtensionKey2::ArchivedReview(project_id, reviewer))
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), total);
+        for i in start_index..end {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(archived) = env
+                    .storage()
+                    .persistent()
+                    .get(&ExtensionKey2::ArchivedReview(project_id, reviewer))
                 {
                     results.push_back(archived);
                 }

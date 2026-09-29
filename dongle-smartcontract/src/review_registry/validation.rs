@@ -1,6 +1,8 @@
 //! Review input validation helpers (CID, rating bounds, ownership checks).
 
-use crate::constants::{MAX_CID_LEN, MAX_EVIDENCE_LINK_URL_LEN, MAX_EVIDENCE_LINKS_PER_REVIEW, RATING_MAX, RATING_MIN};
+use crate::constants::{
+    MAX_CID_LEN, MAX_EVIDENCE_LINKS_PER_REVIEW, MAX_EVIDENCE_LINK_URL_LEN, RATING_MAX, RATING_MIN,
+};
 use crate::errors::ContractError;
 use crate::project_registry::ProjectRegistry;
 use crate::types::{EvidenceLink, Project};
