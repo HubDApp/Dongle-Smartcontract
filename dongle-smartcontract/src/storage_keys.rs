@@ -257,6 +257,8 @@ pub enum ExtensionKey {
     AdminActionLogByAdmin(Address),
     /// Verification suspension timeline for a project, oldest-first.
     ProjectVerificationSuspensions(u64),
+    /// Project media gallery: list of MediaEntry for a project.
+    ProjectMediaGallery(u64),
 }
 
 /// Third overflow storage key enum, introduced because `ExtensionKey` has reached the

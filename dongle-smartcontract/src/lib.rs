@@ -580,6 +580,38 @@ impl DongleContract {
         ProjectRegistry::get_project_region_hierarchy(&env, project_id)
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Project Media Gallery (#158)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Add a media entry to a project's gallery (owner only).
+    pub fn add_media(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+        media_type: crate::types::MediaType,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::add_media(&env, project_id, caller, cid, media_type)
+    }
+
+    /// Remove a media entry from a project's gallery by CID (owner only).
+    pub fn remove_media(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::remove_media(&env, project_id, caller, cid)
+    }
+
+    /// Get media gallery for a project.
+    pub fn get_media_gallery(env: Env, project_id: u64) -> Vec<crate::types::MediaEntry> {
+        ProjectRegistry::get_media_gallery(&env, project_id)
+    }
+
     pub fn list_projects_by_region(
         env: Env,
         continent: Option<String>,
@@ -633,6 +665,48 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Verification Pending List (#479) - Efficient admin dashboard retrieval
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Get the list of all verification requests currently in Pending status.
+    /// Returns a Vec of request IDs in creation order without full scans.
+    pub fn list_pending_verifications(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        let limit = if limit == 0 || limit > crate::constants::MAX_PAGE_LIMIT {
+            crate::constants::MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let all_pending: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut results = Vec::new(&env);
+        let start = start_index as usize;
+        let end = core::cmp::min(start + limit as usize, all_pending.len());
+
+        if start < all_pending.len() {
+            for i in start..end {
+                results.push_back(all_pending.get(i as u32).unwrap());
+            }
+        }
+
+        results
+    }
+
+    /// Get total count of pending verification requests (for pagination metadata).
+    pub fn get_pending_verification_count(env: Env) -> u32 {
+        let pending: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(&env));
+        pending.len() as u32
     }
 
     pub fn list_projects_by_category(
@@ -1037,6 +1111,39 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         ReviewRegistry::hide_review(&env, project_id, reviewer, admin)
+    }
+
+    /// Admin hide multiple reviews in batch (admin-only).
+    /// Each tuple is (project_id, reviewer).
+    pub fn hide_reviews_batch(
+        env: Env,
+        reviews: Vec<(u64, Address)>,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+
+        // Check if admin
+        if !crate::admin_manager::AdminManager::is_admin(&env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Limit batch size for gas efficiency
+        if reviews.len() > crate::constants::MAX_TTL_BATCH_SIZE as usize {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // Process each review
+        for (project_id, reviewer) in reviews.iter() {
+            // Check if project exists
+            if ProjectRegistry::get_project(&env, *project_id).is_none() {
+                return Err(ContractError::ProjectNotFound);
+            }
+
+            // Hide the review
+            ReviewRegistry::hide_review(&env, *project_id, reviewer.clone(), admin.clone())?;
+        }
+
+        Ok(())
     }
 
     pub fn restore_review(
@@ -3498,6 +3605,8 @@ impl DongleContract {
     /// without guessing.
     pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
+    }
+
     // ── #757: Security Contact Email Verification ─────────────────────────
 
     /// Initiate a challenge-response verification for a project's security
@@ -3661,6 +3770,8 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
         MetadataEnrichmentRegistry::get_pending_suggestions(&env, project_id)
+    }
+
     // =========================================================================
     // Trust and Safety Features (#788, #789, #790, #791)
     // =========================================================================
