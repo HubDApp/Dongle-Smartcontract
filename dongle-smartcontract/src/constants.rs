@@ -187,8 +187,7 @@ pub const RISK_MODEL_YEAR_SECONDS: u64 = 365 * 24 * 60 * 60;
 pub const VERIFICATION_EXPIRY_REMINDER_SECONDS: u64 = 30 * 24 * 60 * 60;
 pub const VERIFICATION_EXPIRY_RESEND_SECONDS: u64 = 7 * 24 * 60 * 60;
 
-/// Maximum duration of a temporary verification suspension.
-pub const MAX_VERIFICATION_SUSPENSION_SECONDS: u64 = 30 * 24 * 60 * 60;
+
 
 // ── TTL (Time To Live) Constants ──────────────────────────────────────────
 

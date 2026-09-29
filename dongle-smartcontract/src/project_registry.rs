@@ -251,12 +251,12 @@ impl ProjectRegistry {
             let mut lic_count: u32 = env
                 .storage()
                 .persistent()
-                .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                .get(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()))
                 .unwrap_or(0);
             lic_count = lic_count.saturating_add(1);
             env.storage()
                 .persistent()
-                .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &lic_count);
+                .set(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()), &lic_count);
         }
 
         // Ids are handed out sequentially, so a new project extends the covered
@@ -527,23 +527,23 @@ impl ProjectRegistry {
                     let mut count: u32 = env
                         .storage()
                         .persistent()
-                        .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                        .get(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()))
                         .unwrap_or(0);
                     count = count.saturating_sub(1);
                     env.storage()
                         .persistent()
-                        .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &count);
+                        .set(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()), &count);
                 }
                 if let Some(ref lic) = value {
                     let mut count: u32 = env
                         .storage()
                         .persistent()
-                        .get(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()))
+                        .get(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()))
                         .unwrap_or(0);
                     count = count.saturating_add(1);
                     env.storage()
                         .persistent()
-                        .set(&crate::storage_keys::ExtensionKey::LicenseStats(lic.clone()), &count);
+                        .set(&crate::storage_keys::ExtensionKey2::LicenseStats(lic.clone()), &count);
                 }
                 
                 env.events().publish(
@@ -2655,6 +2655,14 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .get(&ExtensionKey::ProjectIntegrityHash(project_id))
+    }
+
+    /// Calculate project license statistics
+    pub fn get_license_stats(env: &Env, license: String) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&crate::storage_keys::ExtensionKey2::LicenseStats(license))
+            .unwrap_or(0)
     }
 
     /// Computes and stores a SHA-256 integrity hash over key project metadata fields.

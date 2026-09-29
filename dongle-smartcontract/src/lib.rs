@@ -511,6 +511,10 @@ impl DongleContract {
         ProjectRegistry::get_project_integrity_hash(&env, project_id)
     }
 
+    pub fn get_license_stats(env: Env, license: String) -> u32 {
+        ProjectRegistry::get_license_stats(&env, license)
+    }
+
     pub fn list_projects_by_status(
         env: Env,
         status: VerificationStatus,
