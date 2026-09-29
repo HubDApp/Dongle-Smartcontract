@@ -425,6 +425,81 @@ impl DongleContract {
         Ok(new_project_id)
     }
 
+    pub fn merge_projects(
+        env: Env,
+        source_id: u64,
+        target_id: u64,
+        source_owner: Address,
+        target_owner: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        source_owner.require_auth();
+        target_owner.require_auth();
+        admin.require_auth();
+        
+        crate::admin_registry::AdminRegistry::require_admin(&env, &admin)?;
+        
+        let mut source_proj = ProjectRegistry::get_project(&env, source_id).ok_or(ContractError::ProjectNotFound)?;
+        let target_proj = ProjectRegistry::get_project(&env, target_id).ok_or(ContractError::ProjectNotFound)?;
+        
+        if source_proj.owner != source_owner || target_proj.owner != target_owner {
+            return Err(ContractError::Unauthorized);
+        }
+        
+        if source_id == target_id {
+            return Err(ContractError::InvalidInput);
+        }
+        
+        source_proj.lifecycle_status = crate::types::ProjectLifecycleStatus::Merged;
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::Project(source_id), &source_proj);
+        env.storage().persistent().set(&crate::storage_keys::ExtensionKey2::ProjectRedirect(source_id), &target_id);
+        
+        let source_reviews: Vec<Address> = env.storage().persistent().get(&crate::storage_keys::StorageKey::ProjectReviews(source_id)).unwrap_or_else(|| Vec::new(&env));
+        let mut target_reviews: Vec<Address> = env.storage().persistent().get(&crate::storage_keys::StorageKey::ProjectReviews(target_id)).unwrap_or_else(|| Vec::new(&env));
+            
+        let mut source_stats = crate::review_registry::storage::ReviewStorage::get_project_stats(&env, source_id);
+        let mut target_stats = crate::review_registry::storage::ReviewStorage::get_project_stats(&env, target_id);
+        
+        for i in 0..source_reviews.len() {
+            if let Some(reviewer) = source_reviews.get(i) {
+                if let Some(mut rev) = env.storage().persistent().get::<_, crate::types::Review>(&crate::storage_keys::StorageKey::Review(source_id, reviewer.clone())) {
+                    if !target_reviews.contains(&reviewer) {
+                        rev.project_id = target_id;
+                        env.storage().persistent().set(&crate::storage_keys::StorageKey::Review(target_id, reviewer.clone()), &rev);
+                        target_reviews.push_back(reviewer.clone());
+                        target_stats.rating_sum += rev.rating as u64;
+                        target_stats.review_count += 1;
+                    }
+                    env.storage().persistent().remove(&crate::storage_keys::StorageKey::Review(source_id, reviewer.clone()));
+                }
+            }
+        }
+        
+        if target_stats.review_count > 0 {
+            target_stats.average_rating = (target_stats.rating_sum * 10) / target_stats.review_count;
+        }
+        
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectStats(target_id), &target_stats);
+        
+        source_stats.rating_sum = 0;
+        source_stats.review_count = 0;
+        source_stats.average_rating = 0;
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectStats(source_id), &source_stats);
+        
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(target_id), &target_reviews);
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(source_id), &Vec::<Address>::new(&env));
+        
+        env.events().publish(
+            (soroban_sdk::Symbol::new(&env, "project_merged"), source_id, target_id),
+            (source_owner, target_owner, admin),
+        );
+        
+        Ok(())
+    }
+
+    pub fn get_project_redirect(env: Env, project_id: u64) -> Option<u64> {
+        env.storage().persistent().get(&crate::storage_keys::ExtensionKey2::ProjectRedirect(project_id))
+    }
 
     pub fn set_project_lifecycle_status(
         env: Env,

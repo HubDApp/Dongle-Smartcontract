@@ -589,6 +589,8 @@ pub enum ProjectLifecycleStatus {
     Deprecated,
     /// Sunset - officially discontinued
     Sunset,
+    /// Merged - merged into another project
+    Merged,
 }
 
 /// Scheduled deprecation and sunset metadata for a project.

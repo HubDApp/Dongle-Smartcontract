@@ -281,6 +281,8 @@ pub enum ExtensionKey2 {
     LicenseStats(String),
     /// Projects that depend on a given project ID (reverse dependency graph).
     ProjectDependents(u64),
+    /// Redirection from a merged project to the target project.
+    ProjectRedirect(u64),
     /// Evidence links for a review, keyed by (project_id, reviewer).
     ReviewEvidenceLinks(u64, Address),
     /// Archived review record, keyed by (project_id, reviewer).
