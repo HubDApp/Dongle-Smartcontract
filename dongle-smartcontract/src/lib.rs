@@ -334,6 +334,98 @@ impl DongleContract {
         ProjectRegistry::update_project(&env, params)
     }
 
+    pub fn export_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<crate::types::ProjectExport, ContractError> {
+        caller.require_auth();
+        let project = ProjectRegistry::get_project(&env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let reviews = crate::review_registry::ReviewRegistry::list_reviews(&env, project_id, 0, 100);
+        let dependencies = crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id);
+        let verification_records = crate::verification_registry::VerificationRegistry::get_verification_history(&env, project_id);
+
+        Ok(crate::types::ProjectExport {
+            version: 1,
+            project,
+            reviews,
+            dependencies,
+            verification_records,
+            encrypted_payload: None,
+            owner_signature: None,
+        })
+    }
+
+    pub fn import_project(
+        env: Env,
+        export: crate::types::ProjectExport,
+        caller: Address,
+    ) -> Result<u64, ContractError> {
+        caller.require_auth();
+        EmergencyPause::require_not_paused(&env)?;
+        
+        let params = crate::types::ProjectRegistrationParams {
+            owner: caller.clone(),
+            name: export.project.name.clone(),
+            slug: export.project.slug.clone(),
+            description: export.project.description.clone(),
+            category: export.project.category.clone(),
+            website: export.project.website.clone(),
+            license: export.project.license.clone(),
+            logo_cid: export.project.logo_cid.clone(),
+            metadata_cid: export.project.metadata_cid.clone(),
+            tags: export.project.tags.clone(),
+            social_links: export.project.social_links.clone(),
+            launch_timestamp: export.project.launch_timestamp,
+            bounty_url: export.project.bounty_url.clone(),
+            repository_url: export.project.repository_url.clone(),
+        };
+        
+        let new_project_id = ProjectRegistry::register_project(&env, params)?;
+        
+        for i in 0..export.dependencies.len() {
+            if let Some(dep) = export.dependencies.get(i) {
+                let _ = crate::dependency_registry::DependencyRegistry::add_dependency(&env, new_project_id, caller.clone(), dep);
+            }
+        }
+        
+        let mut review_keys: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&crate::storage_keys::StorageKey::ProjectReviews(new_project_id))
+            .unwrap_or_else(|| Vec::new(&env));
+            
+        for i in 0..export.reviews.len() {
+            if let Some(mut rev) = export.reviews.get(i) {
+                rev.project_id = new_project_id;
+                env.storage().persistent().set(&crate::storage_keys::StorageKey::Review(new_project_id, rev.reviewer.clone()), &rev);
+                if !review_keys.contains(&rev.reviewer) {
+                    review_keys.push_back(rev.reviewer.clone());
+                }
+            }
+        }
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(new_project_id), &review_keys);
+        
+        // Let's also restore verification records just in case, though they usually require admin
+        for i in 0..export.verification_records.len() {
+            if let Some(mut vr) = export.verification_records.get(i) {
+                vr.project_id = new_project_id;
+                // Generate a new request id to not overlap with global request ids
+                let new_request_id = crate::utils::Utils::generate_request_id(&env);
+                vr.request_id = new_request_id;
+                env.storage().persistent().set(&crate::storage_keys::StorageKey::VerificationRecord(new_request_id), &vr);
+            }
+        }
+        
+        Ok(new_project_id)
+    }
+
+
     pub fn set_project_lifecycle_status(
         env: Env,
         project_id: u64,

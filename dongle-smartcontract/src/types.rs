@@ -2033,3 +2033,22 @@ pub struct AdminWorkload {
     pub total_escalated: u32,
 }
 
+/// A comprehensive export of a project's data, used for backups and migrations.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ProjectExport {
+    /// Schema version for compatibility checking.
+    pub version: u32,
+    /// The core project metadata.
+    pub project: Project,
+    /// All reviews associated with the project.
+    pub reviews: Vec<Review>,
+    /// Project dependencies.
+    pub dependencies: Vec<ProjectDependency>,
+    /// Verification records.
+    pub verification_records: Vec<VerificationRecord>,
+    /// (Optional) Any additional encrypted payload if processed client-side.
+    pub encrypted_payload: Option<soroban_sdk::Bytes>,
+    /// (Optional) Owner signature to verify authenticity off-chain or during import.
+    pub owner_signature: Option<soroban_sdk::Bytes>,
+}
