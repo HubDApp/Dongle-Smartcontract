@@ -531,6 +531,7 @@ pub enum PerformanceKey {
     /// Addresses of admins that performed at least one action in a month.
     MonthAdmins(u32),
 }
+
 /// Storage keys for security contact email verification (#757).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -741,4 +742,40 @@ pub enum SocialAnalyticsKey {
     /// Export report nonce / version counter. Emitted in the report event so
     /// exporters can deduplicate identical snapshots across re-runs.
     ExportReportCounter(u64),
+}
+
+/// Storage keys for project controls (#764 quarantine, #765 encrypted
+/// metadata, #766 ACLs, #767 collaboration). Own enum to respect Soroban's
+/// 50-variant union cap on `StorageKey` / `ExtensionKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProjectControlsKey {
+    /// ACL record for a project (mode + whitelist entries).
+    ProjectAcl(u64),
+    /// Append-only history of access changes for a project (#766).
+    AclChangeHistory(u64),
+    /// Collaborators for a project (#767).
+    Collaborators(u64),
+    /// Change proposal by ID (#767).
+    Proposal(u64),
+    /// Next change-proposal ID counter.
+    NextProposalId,
+    /// Ordered proposal IDs for a project.
+    ProjectProposals(u64),
+    /// Shared changelog entry by ID (#767).
+    SharedChangelog(u64),
+    /// Next shared-changelog entry ID counter.
+    NextSharedChangelogId,
+    /// Ordered shared-changelog entry IDs for a project.
+    ProjectSharedChangelog(u64),
+    /// Audit trail entries for a project (#767).
+    AuditTrail(u64),
+    /// Field-level (possibly encrypted) metadata record (#765).
+    MetadataField(u64, String),
+    /// List of metadata field names stored for a project.
+    MetadataFieldKeys(u64),
+    /// Quarantine state for a project (#764).
+    QuarantineState(u64),
+    /// IDs of currently quarantined projects (#764).
+    QuarantinedProjects,
 }

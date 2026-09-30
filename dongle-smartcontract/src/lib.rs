@@ -30,6 +30,7 @@ mod notification_registry;
 pub mod pagination;
 mod probation_registry;
 mod project_registry;
+pub mod project_controls;
 mod project_operation_limiter;
 pub mod rating_calculator;
 // mod recommendation_registry;
@@ -4295,5 +4296,320 @@ impl DongleContract {
     /// Get reviewer points (#791)
     pub fn get_reviewer_points(env: Env, reviewer: Address) -> crate::types::ReviewerPoints {
         crate::trust_and_safety::TrustAndSafety::get_reviewer_points(&env, &reviewer)
+    }
+
+    // ── #766: per-project access control lists ─────────────────────────────
+
+    /// Owner/admin: set the project access mode (Public/Private/Custom).
+    pub fn set_project_acl(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        mode: crate::project_controls::AccessMode,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::set_acl_mode(&env, caller, project_id, mode)
+    }
+
+    /// Owner/admin: add or update a whitelisted address.
+    pub fn acl_add_address(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        target: Address,
+        permission: crate::project_controls::AclPermission,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::acl_add_address(
+            &env,
+            caller,
+            project_id,
+            target,
+            permission,
+        )
+    }
+
+    /// Owner/admin: remove a whitelisted address.
+    pub fn acl_remove_address(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        target: Address,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::acl_remove_address(&env, caller, project_id, target)
+    }
+
+    /// Current ACL for a project (defaults to Public when unset).
+    pub fn get_project_acl(env: Env, project_id: u64) -> crate::project_controls::ProjectAcl {
+        crate::project_controls::ProjectControls::get_acl_for(&env, project_id)
+    }
+
+    /// Access-change history log for a project (#766).
+    pub fn get_acl_change_history(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<crate::project_controls::AclChangeRecord> {
+        crate::project_controls::ProjectControls::get_acl_history(&env, project_id)
+    }
+
+    /// Whether `user` may view the project under its ACL.
+    pub fn acl_check_view(env: Env, project_id: u64, user: Address) -> bool {
+        crate::project_controls::ProjectControls::check_view_access(&env, project_id, &user)
+    }
+
+    /// Whether `user` may edit the project under its ACL.
+    pub fn acl_check_edit(env: Env, project_id: u64, user: Address) -> bool {
+        crate::project_controls::ProjectControls::check_edit_access(&env, project_id, &user)
+    }
+
+    /// Whether `user` may administer the project under its ACL.
+    pub fn acl_check_admin(env: Env, project_id: u64, user: Address) -> bool {
+        crate::project_controls::ProjectControls::check_admin_access(&env, project_id, &user)
+    }
+
+    // ── #767: collaboration tools ──────────────────────────────────────────
+
+    /// Owner/admin: add a collaborator with a role.
+    pub fn add_project_collaborator(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        collaborator: Address,
+        role: crate::project_controls::CollaboratorRole,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::add_collaborator(
+            &env,
+            caller,
+            project_id,
+            collaborator,
+            role,
+        )
+    }
+
+    /// Owner/admin: change a collaborator's role.
+    pub fn set_project_collaborator_role(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        collaborator: Address,
+        role: crate::project_controls::CollaboratorRole,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::set_collaborator_role(
+            &env,
+            caller,
+            project_id,
+            collaborator,
+            role,
+        )
+    }
+
+    /// Owner/admin: remove a collaborator.
+    pub fn remove_project_collaborator(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        collaborator: Address,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::remove_collaborator(
+            &env,
+            caller,
+            project_id,
+            collaborator,
+        )
+    }
+
+    /// Collaborators for a project.
+    pub fn get_project_collaborators(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<crate::project_controls::Collaborator> {
+        crate::project_controls::ProjectControls::get_collaborator_list(&env, project_id)
+    }
+
+    /// Create a change proposal for a project.
+    pub fn create_change_proposal(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        description: String,
+    ) -> Result<u64, ContractError> {
+        crate::project_controls::ProjectControls::create_proposal(&env, caller, project_id, description)
+    }
+
+    /// Approve a pending change proposal.
+    pub fn approve_change_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::approve_proposal(&env, caller, proposal_id)
+    }
+
+    /// Reject a pending change proposal.
+    pub fn reject_change_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::reject_proposal(&env, caller, proposal_id)
+    }
+
+    /// Fetch a change proposal by ID.
+    pub fn get_change_proposal(
+        env: Env,
+        proposal_id: u64,
+    ) -> Option<crate::project_controls::ChangeProposal> {
+        crate::project_controls::ProjectControls::get_proposal(&env, proposal_id)
+    }
+
+    /// Proposal IDs for a project.
+    pub fn get_project_proposals(env: Env, project_id: u64) -> Vec<u64> {
+        crate::project_controls::ProjectControls::get_project_proposals(&env, project_id)
+    }
+
+    /// Add an entry to the shared changelog (contributors only).
+    pub fn add_shared_changelog(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        cid: String,
+        note: String,
+    ) -> Result<u64, ContractError> {
+        crate::project_controls::ProjectControls::add_changelog(&env, caller, project_id, cid, note)
+    }
+
+    /// Edit a shared changelog entry (contributors only).
+    pub fn edit_shared_changelog(
+        env: Env,
+        caller: Address,
+        entry_id: u64,
+        cid: String,
+        note: String,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::edit_changelog(&env, caller, entry_id, cid, note)
+    }
+
+    /// Fetch a shared changelog entry by ID.
+    pub fn get_shared_changelog_entry(
+        env: Env,
+        entry_id: u64,
+    ) -> Option<crate::project_controls::SharedChangelogEntry> {
+        crate::project_controls::ProjectControls::get_changelog_entry(&env, entry_id)
+    }
+
+    /// Shared changelog entry IDs for a project.
+    pub fn get_shared_changelog_ids(env: Env, project_id: u64) -> Vec<u64> {
+        crate::project_controls::ProjectControls::get_project_changelog(&env, project_id)
+    }
+
+    /// Audit trail of collaboration/ACL/quarantine actions (#767).
+    pub fn get_project_audit_trail(
+        env: Env,
+        project_id: u64,
+    ) -> Vec<crate::project_controls::AuditEntry> {
+        crate::project_controls::ProjectControls::get_audit_trail(&env, project_id)
+    }
+
+    // ── #765: field-level encrypted metadata ───────────────────────────────
+
+    /// Owner: store a metadata field, optionally encrypted to `pubkey`.
+    pub fn set_project_metadata_field(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        field: String,
+        is_encrypted: bool,
+        pubkey: String,
+        payload: String,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::set_metadata_field(
+            &env,
+            caller,
+            project_id,
+            field,
+            is_encrypted,
+            pubkey,
+            payload,
+        )
+    }
+
+    /// Read a metadata field record.
+    pub fn get_project_metadata_field(
+        env: Env,
+        project_id: u64,
+        field: String,
+    ) -> Option<crate::project_controls::EncryptedMetadata> {
+        crate::project_controls::ProjectControls::get_metadata_field(&env, project_id, field)
+    }
+
+    /// Owner-gated read of a field payload (encrypted fields: owner only).
+    pub fn read_project_metadata_payload(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        field: String,
+    ) -> Result<String, ContractError> {
+        crate::project_controls::ProjectControls::read_metadata_payload(
+            &env,
+            caller,
+            project_id,
+            field,
+        )
+    }
+
+    /// Metadata field names stored for a project.
+    pub fn list_project_metadata_fields(env: Env, project_id: u64) -> Vec<String> {
+        crate::project_controls::ProjectControls::list_metadata_fields(&env, project_id)
+    }
+
+    // ── #764: project quarantine ───────────────────────────────────────────
+
+    /// Admin: quarantine a project with a reason (30-day review period).
+    pub fn quarantine_project(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::quarantine_project(&env, admin, project_id, reason)
+    }
+
+    /// Quarantine state for a project, if quarantined.
+    pub fn get_quarantine_state(
+        env: Env,
+        project_id: u64,
+    ) -> Option<crate::project_controls::QuarantineState> {
+        crate::project_controls::ProjectControls::get_quarantine_state(&env, project_id)
+    }
+
+    /// Whether a project is currently quarantined.
+    pub fn is_project_quarantined(env: Env, project_id: u64) -> bool {
+        crate::project_controls::ProjectControls::is_quarantined(&env, project_id)
+    }
+
+    /// Whether the 30-day quarantine review period has elapsed.
+    pub fn quarantine_review_elapsed(env: Env, project_id: u64) -> bool {
+        crate::project_controls::ProjectControls::review_period_elapsed(&env, project_id)
+    }
+
+    /// IDs of all currently quarantined projects.
+    pub fn list_quarantined_projects(env: Env) -> Vec<u64> {
+        crate::project_controls::ProjectControls::list_quarantined(&env)
+    }
+
+    /// Admin decision: restore a quarantined project.
+    pub fn restore_quarantined_project(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::restore_quarantine(&env, admin, project_id)
+    }
+
+    /// Admin decision: delete (archive) a quarantined project.
+    pub fn delete_quarantined_project(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
     }
 }
