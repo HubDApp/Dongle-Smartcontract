@@ -34,6 +34,7 @@ fn create_project_with_tags(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params)
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { ProjectRegistryView } from './components/ProjectRegistryView';
 import { CollectionsView } from './components/CollectionsView';
@@ -10,6 +10,7 @@ import { ProjectDetailModal } from './components/ProjectDetailModal';
 import { RegisterProjectModal } from './components/RegisterProjectModal';
 import { SubmitReviewModal } from './components/SubmitReviewModal';
 import { contractEngine } from './services/contractEngine';
+import { fetchRepositoryMetadata } from './services/repositoryMetadataSync';
 import { MOCK_USERS } from './data/mockContractData';
 import { Project, UserAccount } from './types';
 
@@ -17,6 +18,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<string>('registry');
   const [currentUser, setCurrentUser] = useState<UserAccount>(MOCK_USERS[0]); // Default to Alice (Admin)
   const [projects, setProjects] = useState<Project[]>(contractEngine.getProjects());
+  const syncingProjects = useRef(new Set<number>());
 
   // Modals state
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -31,6 +33,62 @@ export function App() {
       if (updatedProj) setSelectedProject({ ...updatedProj });
     }
   };
+
+  useEffect(() => {
+    const syncDueProjects = async () => {
+      const now = Date.now();
+      const dueProjects = projects.filter((project) => {
+        const settings = project.repositorySync;
+        if (!settings?.enabled || !project.repository) return false;
+        if (project.owner !== currentUser.address && currentUser.role !== 'admin') return false;
+        const lastAttempt = settings.lastAttemptAt ?? settings.lastSyncedAt ?? 0;
+        return now - lastAttempt >= settings.intervalMinutes * 60_000;
+      });
+
+      for (const project of dueProjects) {
+        if (syncingProjects.current.has(project.id)) continue;
+        syncingProjects.current.add(project.id);
+        const attemptedAt = Date.now();
+        const settings = project.repositorySync;
+        const repositoryUrl = project.repository;
+        if (!settings || !repositoryUrl) {
+          syncingProjects.current.delete(project.id);
+          continue;
+        }
+        try {
+          const metadata = await fetchRepositoryMetadata(repositoryUrl);
+          contractEngine.updateProject(currentUser.address, project.id, {
+            ...metadata,
+            repositorySync: {
+              ...settings,
+              lastAttemptAt: attemptedAt,
+              lastSyncedAt: Date.now(),
+              lastError: undefined,
+            },
+          });
+        } catch (error) {
+          try {
+            contractEngine.updateProject(currentUser.address, project.id, {
+              repositorySync: {
+                ...settings,
+                lastAttemptAt: attemptedAt,
+                lastError: error instanceof Error ? error.message : 'Repository sync failed.',
+              },
+            });
+          } catch {
+            // The selected account may have changed while the request was in flight.
+          }
+        } finally {
+          syncingProjects.current.delete(project.id);
+          refreshState();
+        }
+      }
+    };
+
+    void syncDueProjects();
+    const timer = window.setInterval(() => void syncDueProjects(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [projects, currentUser]);
 
   const handleOpenReviewModal = (projectId: number) => {
     setReviewModalProjectId(projectId);
