@@ -8,6 +8,8 @@
 
 For deployment readiness assessment, consult [BUILD_STATUS.md](BUILD_STATUS.md) — this is the authoritative source for current project status. Do not rely on other completion/status documents.
 
+
+
 ## Overview
 
 Dongle serves as a foundational protocol for building transparent, on-chain project registries. It enables:
