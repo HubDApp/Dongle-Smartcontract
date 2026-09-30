@@ -3538,6 +3538,52 @@ impl ProjectRegistry {
         Ok(())
     }
 
+    pub fn merge_projects(
+        env: &Env,
+        primary_project_id: u64,
+        secondary_project_id: u64,
+        primary_owner: Address,
+        secondary_owner: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        primary_owner.require_auth();
+        secondary_owner.require_auth();
+
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let primary = Self::get_project(env, primary_project_id).ok_or(ContractError::ProjectNotFound)?;
+        let secondary = Self::get_project(env, secondary_project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if primary.owner != primary_owner || secondary.owner != secondary_owner {
+            return Err(ContractError::Unauthorized);
+        }
+        
+        crate::review_registry::ReviewRegistry::merge_project_reviews(env, primary_project_id, secondary_project_id)?;
+
+        let now = env.ledger().timestamp();
+        let sunset_at = now + PROJECT_SUNSET_MIN_NOTICE_SECS;
+        Self::schedule_project_sunset(
+            env,
+            secondary_project_id,
+            secondary_owner.clone(),
+            sunset_at,
+            Vec::new(env),
+            Some(primary_project_id),
+        )?;
+
+        crate::changelog_registry::ChangelogRegistry::add_entry(
+            env,
+            primary_project_id,
+            admin.clone(),
+            String::from_str(env, "Merged project duplicate"),
+        )?;
+        
+        Ok(())
+    }
+
     /// Schedule a project deprecation and sunset with alternatives.
     /// The sunset date must be at least 180 days after announcement.
     pub fn schedule_project_sunset(

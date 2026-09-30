@@ -486,6 +486,25 @@ impl DongleContract {
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
+    pub fn merge_projects(
+        env: Env,
+        primary_project_id: u64,
+        secondary_project_id: u64,
+        primary_owner: Address,
+        secondary_owner: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::merge_projects(
+            &env,
+            primary_project_id,
+            secondary_project_id,
+            primary_owner,
+            secondary_owner,
+            admin,
+        )
+    }
+
     pub fn schedule_project_sunset(
         env: Env,
         project_id: u64,
