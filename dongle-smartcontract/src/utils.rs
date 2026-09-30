@@ -169,7 +169,11 @@ impl Utils {
     /// - At most `MAX_NAME_LEN` bytes.
     /// - Only ASCII alphanumeric, `-`, or `_` characters (no spaces, no punctuation).
     /// - Not purely whitespace.
+    /// - Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_project_name(name: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(name)?;
+        
         let len = name.len() as usize;
         if len == 0 {
             return Err(ContractError::InvalidProjectName);
@@ -204,7 +208,11 @@ impl Utils {
     /// - Lowercase alphanumeric plus `-` or `_` only.
     /// - No leading or trailing `-`.
     /// - Uppercase is rejected so the canonical storage key is always lowercase.
+    /// - Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_project_slug(slug: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(slug)?;
+        
         let len = slug.len() as usize;
         if len == 0 {
             return Err(ContractError::InvalidProjectSlug);
@@ -232,7 +240,12 @@ impl Utils {
     }
 
     /// Validate a project description (non-empty, within byte limit).
+    /// Descriptions are multi-line fields, so newlines and tabs are allowed,
+    /// but other control characters are rejected (Issue #725).
     pub fn validate_description(desc: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters (except \n and \t)
+        crate::validation::validate_multiline_utf8(desc)?;
+        
         let len = desc.len() as usize;
         if len == 0 {
             return Err(ContractError::InvalidProjectData);
@@ -253,7 +266,11 @@ impl Utils {
     }
 
     /// Validate a category field (non-empty, within byte limit, non-whitespace-only).
+    /// Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_category_field(cat: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(cat)?;
+        
         let len = cat.len() as usize;
         if len == 0 {
             return Err(ContractError::InvalidInput);
@@ -281,7 +298,11 @@ impl Utils {
     ///   enforce encrypted transport on all project websites.
     /// - Must have a non-empty host component after the `https://` prefix
     ///   (i.e. the URL cannot be just `https://`).
+    /// - Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_website(url: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(url)?;
+        
         let len = url.len() as usize;
         if len == 0 || len > MAX_WEBSITE_LEN {
             return Err(ContractError::InvalidInput);
@@ -306,7 +327,11 @@ impl Utils {
     }
 
     /// Validate a license identifier (SPDX-style: alphanumeric, `-`, `.`, `+`).
+    /// Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_license(license: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(license)?;
+        
         let len = license.len() as usize;
         if len == 0 {
             return Err(ContractError::InvalidProjectData);
@@ -362,7 +387,11 @@ impl Utils {
     }
 
     /// Validate a security contact value (non-empty, within byte limit).
+    /// Valid UTF-8 with no control characters (Issue #725).
     pub fn validate_security_contact(contact: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(contact)?;
+        
         let len = contact.len() as usize;
         if len == 0 || len > MAX_SECURITY_CONTACT_LEN {
             return Err(ContractError::InvalidProjectData);
@@ -375,11 +404,15 @@ impl Utils {
     /// Rules:
     /// - Exactly 2 bytes long.
     /// - ASCII lowercase letters only (a-z).
+    /// - Valid UTF-8 with no control characters (Issue #725).
     ///
     /// This validates format only; it does not verify the code exists in ISO 639-1.
     /// The contract accepts any two-letter lowercase code to avoid maintaining
     /// a hardcoded language list that would need updates.
     pub fn validate_language_code(code: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(code)?;
+        
         let len = code.len() as usize;
         if len != MAX_LANGUAGE_CODE_LEN {
             return Err(ContractError::InvalidLanguageCode);
@@ -424,6 +457,9 @@ impl Utils {
     }
 
     fn validate_single_tag(tag: &String) -> Result<(), ContractError> {
+        // Validate UTF-8 and reject control characters first
+        crate::validation::validate_utf8_string(tag)?;
+        
         let len = tag.len() as usize;
         if len == 0 || len > MAX_TAG_LENGTH {
             return Err(ContractError::InvalidTags);
@@ -462,12 +498,16 @@ impl Utils {
     }
 
     /// Validate the social links map (each value must be a valid URL).
+    /// Keys and values are validated for UTF-8 with no control characters (Issue #725).
     pub fn validate_social_links(
         links: &soroban_sdk::Map<String, String>,
     ) -> Result<(), ContractError> {
         let keys = links.keys();
         for i in 0..keys.len() {
             if let Some(key) = keys.get(i) {
+                // Validate UTF-8 for key
+                crate::validation::validate_utf8_string(&key)?;
+                
                 let key_len = key.len() as usize;
                 if key_len == 0 || key_len > MAX_SOCIAL_LINK_PLATFORM_LEN {
                     return Err(ContractError::InvalidInput);

@@ -4005,3 +4005,339 @@ pub fn publish_proposals_cleaned_up_event(env: &Env, removed_count: u32, timesta
     );
 }
 
+
+// ── Additional Project Events (Issue #725 - Event Emission Audit) ────────────
+
+/// Emitted when media is added to a project's media gallery
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectMediaAddedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub cid: String,
+    pub media_type: crate::types::MediaType,
+    pub timestamp: u64,
+}
+
+/// Emitted when media is removed from a project's media gallery
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectMediaRemovedEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub cid: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project's region is set or updated
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionSetEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub region: Option<String>,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project's region hierarchy is set or updated
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRegionHierarchySetEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub hierarchy: Option<crate::types::ProjectRegionHierarchy>,
+    pub timestamp: u64,
+}
+
+/// Emitted when an admin migrates a project to a different category
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectCategoryMigratedEvent {
+    pub project_id: u64,
+    pub migrated_by: Address,
+    pub old_category: String,
+    pub new_category: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a security contact is updated for a project
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactUpdatedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub contact: Option<String>,
+    pub timestamp: u64,
+}
+
+/// Emitted when security contact proof is submitted
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityContactProofSubmittedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project sunset plan is scheduled
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectSunsetScheduledEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub announced_at: u64,
+    pub sunset_at: u64,
+    pub alternative_project_ids: soroban_sdk::Vec<u64>,
+    pub redirect_project_id: Option<u64>,
+    pub timestamp: u64,
+}
+
+/// Emitted when a project ownership transfer is initiated
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectTransferInitiatedEvent {
+    pub project_id: u64,
+    pub current_owner: Address,
+    pub new_owner: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a pending project ownership transfer is cancelled
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectTransferCancelledEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+// ── Publish functions for new events ───────────────────────────────────────
+
+pub fn publish_project_media_added_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    cid: String,
+    media_type: crate::types::MediaType,
+) {
+    let event_data = ProjectMediaAddedEvent {
+        project_id,
+        owner,
+        cid,
+        media_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("MEDIA_ADD"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_media_removed_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    cid: String,
+) {
+    let event_data = ProjectMediaRemovedEvent {
+        project_id,
+        owner,
+        cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("MEDIA_DEL"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_region_set_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    region: Option<String>,
+) {
+    let event_data = ProjectRegionSetEvent {
+        project_id,
+        owner,
+        region,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REGION"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_region_hierarchy_set_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    hierarchy: Option<crate::types::ProjectRegionHierarchy>,
+) {
+    let event_data = ProjectRegionHierarchySetEvent {
+        project_id,
+        owner,
+        hierarchy,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("REG_HIER"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_category_migrated_event(
+    env: &Env,
+    project_id: u64,
+    migrated_by: Address,
+    old_category: String,
+    new_category: String,
+) {
+    let event_data = ProjectCategoryMigratedEvent {
+        project_id,
+        migrated_by,
+        old_category,
+        new_category,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("CAT_MIG"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_security_contact_updated_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    contact: Option<String>,
+) {
+    let event_data = SecurityContactUpdatedEvent {
+        project_id,
+        caller,
+        contact,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("SEC_CONT"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_security_contact_proof_submitted_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    proof_cid: String,
+) {
+    let event_data = SecurityContactProofSubmittedEvent {
+        project_id,
+        caller,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("SEC_PROOF"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_sunset_scheduled_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    announced_at: u64,
+    sunset_at: u64,
+    alternative_project_ids: soroban_sdk::Vec<u64>,
+    redirect_project_id: Option<u64>,
+) {
+    let event_data = ProjectSunsetScheduledEvent {
+        project_id,
+        owner,
+        announced_at,
+        sunset_at,
+        alternative_project_ids,
+        redirect_project_id,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("SUNSET"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_transfer_initiated_event(
+    env: &Env,
+    project_id: u64,
+    current_owner: Address,
+    new_owner: Address,
+) {
+    let event_data = ProjectTransferInitiatedEvent {
+        project_id,
+        current_owner,
+        new_owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("XFER_INIT"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_transfer_cancelled_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+) {
+    let event_data = ProjectTransferCancelledEvent {
+        project_id,
+        owner,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("XFER_CANC"),
+            project_id,
+        ),
+        event_data,
+    );
+}
