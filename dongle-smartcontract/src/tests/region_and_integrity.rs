@@ -4,6 +4,8 @@ use crate::constants::MAX_DESCRIPTION_LEN;
 use crate::project_registry::ProjectRegistry;
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
+extern crate alloc;
+use alloc::vec::Vec;
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     Address, Env, String,

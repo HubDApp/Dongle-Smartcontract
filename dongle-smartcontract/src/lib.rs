@@ -10,7 +10,7 @@ pub mod auth;
 mod bookmark_registry;
 mod changelog_registry;
 mod collection_registry;
-mod community_collection_registry;
+// mod community_collection_registry;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
@@ -26,7 +26,7 @@ pub mod pagination;
 mod probation_registry;
 mod project_registry;
 pub mod rating_calculator;
-mod recommendation_registry;
+// mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
 mod social_analytics_registry;
@@ -2028,6 +2028,47 @@ impl DongleContract {
         CollectionRegistry::create_collection(&env, admin, name, description)
     }
 
+    /// Admin: create a collection with explicit visibility.
+    pub fn create_collection_vis(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_collection_with_visibility(&env, admin, name, description, is_public)
+    }
+
+    /// User: create a collection owned by the caller.
+    pub fn create_user_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_user_collection(&env, creator, name, description, is_public)
+    }
+
+    /// Toggle collection visibility between public and private (owner or admin only).
+    pub fn toggle_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<bool, ContractError> {
+        CollectionRegistry::toggle_collection_visibility(&env, caller, collection_id)
+    }
+
+    /// Set explicit collection visibility (owner or admin only).
+    pub fn set_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        is_public: bool,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::set_collection_visibility(&env, caller, collection_id, is_public)
+    }
+
     /// Admin: update a collection's name and description.
     pub fn update_collection(
         env: Env,
@@ -2068,17 +2109,68 @@ impl DongleContract {
         CollectionRegistry::remove_project_from_collection(&env, admin, collection_id, project_id)
     }
 
-    /// Get a collection by ID.
+    /// Get a collection by ID (returns Some only if public).
     pub fn get_collection(env: Env, collection_id: u64) -> Option<Collection> {
         CollectionRegistry::get_collection(&env, collection_id)
     }
 
-    /// List all collections with pagination.
+    /// Get a collection with caller authorization check (owner can see private collection).
+    pub fn get_collection_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_for_caller(&env, caller, collection_id)
+    }
+
+    /// List all public collections with pagination.
     pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
         CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
-    /// List project IDs in a collection with pagination.
+    /// List all public collections with pagination (explicit alias).
+    pub fn list_public_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_public_collections(&env, start_index, limit)
+    }
+
+    /// List all collections owned by a specific user (both public and private).
+    pub fn list_user_collections(
+        env: Env,
+        owner: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Collection>, ContractError> {
+        CollectionRegistry::list_user_collections(&env, owner, start_index, limit)
+    }
+
+    /// Generate a cryptographic share link for a collection (owner or admin only).
+    pub fn generate_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<String, ContractError> {
+        CollectionRegistry::generate_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// Retrieve a collection using a valid share token (read access even if private).
+    pub fn get_collection_by_share_token(
+        env: Env,
+        collection_id: u64,
+        share_token: String,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_by_share_token(&env, collection_id, share_token)
+    }
+
+    /// Revoke the active share link for a collection (owner or admin only).
+    pub fn revoke_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::revoke_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// List project IDs in a public collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
@@ -2086,6 +2178,17 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<u64> {
         CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
+    }
+
+    /// List project IDs in a collection with caller authorization.
+    pub fn list_col_projects_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        CollectionRegistry::list_collection_projects_for_caller(&env, caller, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.

@@ -8,3 +8,4 @@ pub mod validation;
 pub use assignment::VerificationAssignmentRegistry;
 pub use state_machine::VerificationStateMachine;
 pub use storage::VerificationRegistry;
+pub use validation::VerificationValidation;
