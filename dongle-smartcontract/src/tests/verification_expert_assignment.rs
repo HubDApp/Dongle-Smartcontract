@@ -64,7 +64,7 @@ fn test_assign_request_with_expertise() {
     client.set_admin_expertise(&admin, &defi_specialist, &expertise);
 
     // Assigning requiring "security" should fail because defi_specialist lacks it
-    let res = client.try_assign_verification_with_expertise(
+    let res = client.try_assign_verification_expertise(
         &project_id,
         &admin,
         &defi_specialist,
@@ -73,7 +73,7 @@ fn test_assign_request_with_expertise() {
     assert_eq!(res, Err(Ok(ContractError::AdminLacksExpertise)));
 
     // Assigning requiring "defi" succeeds
-    let assignment_id = client.assign_verification_with_expertise(
+    let assignment_id = client.assign_verification_expertise(
         &project_id,
         &admin,
         &defi_specialist,
@@ -82,11 +82,14 @@ fn test_assign_request_with_expertise() {
     assert!(assignment_id > 0);
 
     // Active assignment is tracked
-    let current = client.get_current_verification_assignment(&project_id).unwrap();
+    let current = client.get_current_assignment(&project_id).unwrap();
     assert_eq!(current.assignee, defi_specialist);
     assert_eq!(current.status, VerificationAssignmentStatus::Assigned);
     assert_eq!(current.expertise, Some(String::from_str(&env, "defi")));
-    assert_eq!(client.get_assigned_admin(&project_id), Some(defi_specialist));
+    assert_eq!(
+        client.get_assigned_admin(&project_id),
+        Some(defi_specialist)
+    );
 }
 
 #[test]
@@ -114,14 +117,11 @@ fn test_route_verification_to_expert() {
     client.set_admin_expertise(&admin, &expert2, &exp);
 
     // Route automatically
-    let selected = client.route_verification_to_expert(
-        &project_id,
-        &admin,
-        &String::from_str(&env, "nft"),
-    );
+    let selected =
+        client.route_verification_to_expert(&project_id, &admin, &String::from_str(&env, "nft"));
     assert!(selected == expert1 || selected == expert2);
 
-    let current = client.get_current_verification_assignment(&project_id).unwrap();
+    let current = client.get_current_assignment(&project_id).unwrap();
     assert_eq!(current.assignee, selected);
 }
 
@@ -146,7 +146,7 @@ fn test_admin_accept_assignment() {
     exp.push_back(String::from_str(&env, "security"));
     client.set_admin_expertise(&admin, &reviewer, &exp);
 
-    client.assign_verification_with_expertise(
+    client.assign_verification_expertise(
         &project_id,
         &admin,
         &reviewer,
@@ -162,7 +162,7 @@ fn test_admin_accept_assignment() {
     // Assigned admin accepts
     client.accept_verification_assignment(&project_id, &reviewer);
 
-    let current = client.get_current_verification_assignment(&project_id).unwrap();
+    let current = client.get_current_assignment(&project_id).unwrap();
     assert_eq!(current.status, VerificationAssignmentStatus::Accepted);
     assert!(current.responded_at.is_some());
 }
@@ -191,7 +191,7 @@ fn test_admin_decline_assignment_and_reassign() {
     client.set_admin_expertise(&admin, &reviewer1, &exp);
     client.set_admin_expertise(&admin, &reviewer2, &exp);
 
-    client.assign_verification_with_expertise(
+    client.assign_verification_expertise(
         &project_id,
         &admin,
         &reviewer1,
@@ -209,30 +209,42 @@ fn test_admin_decline_assignment_and_reassign() {
     assert_eq!(client.get_assigned_admin(&project_id), None);
 
     // History tracks the declined assignment
-    let history = client.get_verification_assignment_history(&project_id);
+    let history = client.get_assignment_history(&project_id);
     assert_eq!(history.len(), 1);
-    assert_eq!(history.get(0).unwrap().status, VerificationAssignmentStatus::Declined);
-    assert_eq!(history.get(0).unwrap().decline_reason, Some(String::from_str(&env, "Capacity full")));
+    assert_eq!(
+        history.get(0).unwrap().status,
+        VerificationAssignmentStatus::Declined
+    );
+    assert_eq!(
+        history.get(0).unwrap().decline_reason,
+        Some(String::from_str(&env, "Capacity full"))
+    );
 
     // Now reassign to reviewer 2
-    client.assign_verification_with_expertise(
+    client.assign_verification_expertise(
         &project_id,
         &admin,
         &reviewer2,
         &String::from_str(&env, "audit"),
     );
 
-    assert_eq!(client.get_assigned_admin(&project_id), Some(reviewer2.clone()));
+    assert_eq!(
+        client.get_assigned_admin(&project_id),
+        Some(reviewer2.clone())
+    );
 
     // Reviewer 2 accepts
     client.accept_verification_assignment(&project_id, &reviewer2);
 
     // History now contains both entries
-    let updated_history = client.get_verification_assignment_history(&project_id);
+    let updated_history = client.get_assignment_history(&project_id);
     assert_eq!(updated_history.len(), 2);
     assert_eq!(updated_history.get(0).unwrap().assignee, reviewer1);
     assert_eq!(updated_history.get(1).unwrap().assignee, reviewer2);
-    assert_eq!(updated_history.get(1).unwrap().status, VerificationAssignmentStatus::Accepted);
+    assert_eq!(
+        updated_history.get(1).unwrap().status,
+        VerificationAssignmentStatus::Accepted
+    );
 }
 
 #[test]
@@ -260,7 +272,7 @@ fn test_sla_escalation_lifecycle() {
     exp.push_back(String::from_str(&env, "security"));
     client.set_admin_expertise(&admin, &reviewer, &exp);
 
-    client.assign_verification_with_expertise(
+    client.assign_verification_expertise(
         &project_id,
         &admin,
         &reviewer,
@@ -297,9 +309,12 @@ fn test_sla_escalation_lifecycle() {
     // Request is unassigned to allow supervisor or emergency re-routing
     assert_eq!(client.get_assigned_admin(&project_id), None);
 
-    let history = client.get_verification_assignment_history(&project_id);
+    let history = client.get_assignment_history(&project_id);
     assert_eq!(history.len(), 1);
     let entry = history.get(0).unwrap();
     assert_eq!(entry.status, VerificationAssignmentStatus::Escalated);
-    assert_eq!(entry.escalation_reason, Some(String::from_str(&env, "Overdue SLA breach")));
+    assert_eq!(
+        entry.escalation_reason,
+        Some(String::from_str(&env, "Overdue SLA breach"))
+    );
 }

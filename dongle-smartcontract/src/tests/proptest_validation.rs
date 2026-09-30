@@ -20,7 +20,7 @@ use alloc::string::{String as StdString, ToString};
 
 use crate::constants::{
     MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN, MAX_SECURITY_CONTACT_LEN,
-    MAX_SLUG_LEN, MAX_TAG_LENGTH, MAX_TAGS_PER_PROJECT, MAX_WEBSITE_LEN,
+    MAX_SLUG_LEN, MAX_TAGS_PER_PROJECT, MAX_TAG_LENGTH, MAX_WEBSITE_LEN,
 };
 use crate::errors::ContractError;
 use crate::utils::Utils;
@@ -536,7 +536,8 @@ fn name_control_chars_rejected() {
         let s = alloc::format!("abc{ch}def");
         assert!(
             Utils::validate_project_name(&ss(&e, &s)).is_err(),
-            "name with control char {:?} should be rejected", ch
+            "name with control char {:?} should be rejected",
+            ch
         );
     }
 }
@@ -639,7 +640,10 @@ fn tags_single_valid_tag_accepted() {
 fn tags_empty_tag_rejected() {
     let e = mk_env();
     let tags = make_tag_vec(&e, &["valid", ""]);
-    assert_eq!(Utils::validate_tags(&tags), Err(ContractError::InvalidInput));
+    assert_eq!(
+        Utils::validate_tags(&tags),
+        Err(ContractError::InvalidInput)
+    );
 }
 
 #[test]
@@ -983,7 +987,14 @@ fn license_empty_rejected() {
 #[test]
 fn license_known_spdx_ids_accepted() {
     let e = mk_env();
-    for id in ["MIT", "Apache-2.0", "GPL-3.0+", "BSD-2-Clause", "ISC", "CC0-1.0"] {
+    for id in [
+        "MIT",
+        "Apache-2.0",
+        "GPL-3.0+",
+        "BSD-2-Clause",
+        "ISC",
+        "CC0-1.0",
+    ] {
         assert!(
             Utils::validate_license(&ss(&e, id)).is_ok(),
             "SPDX license {id:?} should be valid"
@@ -1065,9 +1076,7 @@ fn security_contact_email_like_accepted() {
 #[test]
 fn security_contact_url_accepted() {
     let e = mk_env();
-    assert!(
-        Utils::validate_security_contact(&ss(&e, "https://example.com/security")).is_ok()
-    );
+    assert!(Utils::validate_security_contact(&ss(&e, "https://example.com/security")).is_ok());
 }
 
 #[test]
@@ -1204,7 +1213,11 @@ proptest! {
 fn normalize_empty_returns_empty() {
     let e = mk_env();
     let result = Utils::normalize_project_name(&e, &ss(&e, ""));
-    assert_eq!(result.len(), 0, "normalize of empty string should return empty");
+    assert_eq!(
+        result.len(),
+        0,
+        "normalize of empty string should return empty"
+    );
 }
 
 #[test]
@@ -1245,7 +1258,7 @@ fn normalize_strips_punctuation() {
 fn normalize_idempotent_on_already_normalized() {
     let e = mk_env();
     let input = "hello world";
-    let first  = Utils::normalize_project_name(&e, &ss(&e, input));
+    let first = Utils::normalize_project_name(&e, &ss(&e, input));
     let len = first.len() as usize;
     let mut buf = [0u8; 64];
     first.copy_into_slice(&mut buf[..len]);

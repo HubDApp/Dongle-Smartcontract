@@ -8,6 +8,7 @@ mod admin_concurrent;
 mod archival;
 mod collection_registry_crud;
 mod collections;
+mod collection_visibility;
 mod error_handling_tests;
 mod featured;
 // mod fee;
@@ -21,15 +22,15 @@ mod transfer;
 mod cleanup;
 mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
-mod pause_state_recovery;
 mod moderation;
 mod name_search;
 mod project_search;
 mod pagination;
+mod pause_state_recovery;
 // mod pagination;
 mod claim;
-mod claim_status;
 mod claim_state_machine;
+mod claim_status;
 mod config;
 mod dependencies;
 mod lifecycle_status;
@@ -39,14 +40,15 @@ mod review_history;
 mod review_settings;
 mod security_contact;
 mod verification;
+mod verification_expert_assignment;
 mod verification_features;
 mod verification_lifecycle;
 mod verification_replacement;
-mod verification_expert_assignment;
 
 // String validation: names, descriptions, CIDs, categories, URLs
 // Issue #545: property-based fuzz tests for the CID and URL validators
 mod fuzz_validation;
+mod language_code;
 mod license_metadata;
 mod sorted_listing;
 mod string_validation;
@@ -154,3 +156,7 @@ mod review_archive;
 // Issues #720-#723: CID validation strengthening, string injection audit,
 // reentrancy analysis, and access control matrix
 mod issues_720_723;
+
+// Performance metrics: approval time, appeal rate, reversal rate, percentiles,
+// per-admin comparison, and monthly reports (#perf)
+mod verification_performance;

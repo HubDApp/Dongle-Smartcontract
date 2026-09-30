@@ -80,6 +80,7 @@ fn base_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistrationPar
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 
@@ -341,6 +342,7 @@ fn update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUpdateP
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 

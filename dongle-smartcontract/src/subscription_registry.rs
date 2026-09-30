@@ -189,7 +189,12 @@ impl SubscriptionRegistry {
         page
     }
 
-    pub fn get_user_subscriptions(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+    pub fn get_user_subscriptions(
+        env: &Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {

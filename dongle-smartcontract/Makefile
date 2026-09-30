@@ -1,6 +1,6 @@
 # Dongle Smart Contract Makefile
 
-.PHONY: help build test test-verbose test-release clean fmt lint check deploy-testnet deploy-local dev ci
+.PHONY: help build test test-verbose test-release clean fmt lint audit check deploy-testnet deploy-local dev ci
 
 help:
 	@echo "Dongle Smart Contract - Available Commands:"
@@ -11,7 +11,8 @@ help:
 	@echo "  make test-release   - Run tests in release mode"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make fmt            - Format code"
-	@echo "  make lint           - Run clippy linter"
+	@echo "  make lint           - Run clippy linter (fails on any warning)"
+	@echo "  make audit          - Run cargo-deny security audit"
 	@echo "  make check          - Check code without building"
 	@echo "  make deploy-testnet - Deploy to Stellar testnet (requires DEPLOYER_IDENTITY)"
 	@echo "  make deploy-local   - Deploy to local standalone network (requires DEPLOYER_IDENTITY)"
@@ -52,8 +53,12 @@ fmt:
 	@echo "✓ Format complete"
 
 lint:
-	@echo "Running clippy..."
+	@echo "Running clippy (warnings are errors)..."
 	@cargo clippy --all-targets --all-features -- -D warnings
+
+audit:
+	@echo "Running security audit (cargo deny)..."
+	@cargo deny check
 
 check:
 	@echo "Checking code..."
@@ -84,9 +89,9 @@ deploy-local: build
 		--network local
 
 # Development workflow
-dev: fmt lint test build
+dev: fmt lint audit test build
 	@echo "✓ Development checks complete"
 
 # CI workflow
-ci: check lint test
+ci: check lint audit test
 	@echo "✓ CI checks complete"

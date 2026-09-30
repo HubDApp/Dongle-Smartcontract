@@ -154,14 +154,12 @@ pub enum StorageKey {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExtensionKey {
     ClaimRequest(u64),
-    ClaimReqProjClaimant(u64, Address),
     ProjectClaimRequests(u64),
     NextClaimRequestId,
     ProjectDependency(u64, String),
     ProjectDependencyKeys(u64),
     DuplicateDispute(u64),
     ProjectDuplicateDisputes(u64),
-    NextDuplicateDisputeId,
     ProjectFollowers(u64),
     UserSubscriptions(Address),
     FollowerCount(u64),
@@ -181,14 +179,10 @@ pub enum ExtensionKey {
     UserBookmarks(Address),
     /// Admin governance: approval threshold.
     AdminApprovalThreshold,
-    /// Admin governance: next proposal ID counter.
-    NextAdminProposalId,
     /// Admin governance: proposal by ID.
     AdminProposal(u64),
     /// Admin governance: list of all proposal IDs.
     AdminProposalIds,
-    /// Changelog: next changelog entry ID counter.
-    NextChangelogEntryId,
     /// Changelog: entry by ID.
     ProjectChangelogEntry(u64),
     /// Changelog: list of changelog entry IDs for a project.
@@ -203,8 +197,6 @@ pub enum ExtensionKey {
     EndorsementCount(u64),
     /// Tombstone for a deleted review (project_id, reviewer). Allows indexers to distinguish deleted vs never-existed.
     ReviewTombstone(u64, Address),
-    /// Timestamp of the last successful update for a review (project_id, reviewer). Used for cooldown enforcement.
-    ReviewLastUpdated(u64, Address),
     /// Fee payment details for a project (payer, amount, token, timestamp).
     FeePaymentDetails(u64),
     /// Fee payment details for a registration (payer, amount, token, timestamp).
@@ -215,6 +207,12 @@ pub enum ExtensionKey {
     ReservedNames,
     /// Optional region/market metadata for a project.
     ProjectRegion(u64),
+    /// Hierarchical geographic region for a project.
+    ProjectRegionHierarchy(u64),
+    /// Number of immutable project snapshots stored for a project.
+    ProjectVersionCount(u64),
+    /// Immutable project snapshot by project and one-based version number.
+    ProjectVersion(u64, u32),
     /// Integrity hash of key project metadata fields.
     ProjectIntegrityHash(u64),
     /// Normalized project name index (lowercase, collapsed whitespace, no punctuation) -> project_id.
@@ -244,11 +242,8 @@ pub enum ExtensionKey {
     ContractClaim(u64, String),
     ProjectContracts(u64),
     ReviewEligibilityConfig,
-    FirstInteraction(Address),
     ReviewRevisionCount(u64, Address),
     ReviewRevision(u64, Address, u32),
-    /// Per-admin log index: list of action log IDs authored by a specific admin.
-    AdminActionLogByAdmin(Address),
     /// Global index of pending verification request IDs, in creation order.
     PendingVerificationRequests,
     /// Fee configuration change history, appended oldest-first.
@@ -258,8 +253,12 @@ pub enum ExtensionKey {
     /// caps those at 50 cases; a per-entry key plus a separate count key would
     /// need two slots and push the enum over the limit.
     FeeConfigHistory,
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
     /// Verification suspension timeline for a project, oldest-first.
     ProjectVerificationSuspensions(u64),
+    /// Project media gallery: list of MediaEntry for a project.
+    ProjectMediaGallery(u64),
 }
 
 /// Third overflow storage key enum, introduced because `ExtensionKey` has reached the
@@ -277,6 +276,10 @@ pub enum ExtensionKey {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExtensionKey2 {
+    /// Tally of projects using a specific license.
+    LicenseStats(String),
+    /// Projects that depend on a given project ID (reverse dependency graph).
+    ProjectDependents(u64),
     /// Evidence links for a review, keyed by (project_id, reviewer).
     ReviewEvidenceLinks(u64, Address),
     /// Archived review record, keyed by (project_id, reviewer).
@@ -300,6 +303,31 @@ pub enum ExtensionKey2 {
     VerificationAppeals(u64),
     /// Active rejection metadata for a project to enforce the per-rejection appeal cap.
     VerificationRejection(u64),
+
+    /// Claim/claimant lookup: (claim_request_id, claimant) -> bool.
+    ///
+    /// Relocated from `ExtensionKey` when that enum hit the 50-variant
+    /// Soroban cap; see the module docs on `ExtensionKey2`.
+    ClaimReqProjClaimant(u64, Address),
+    /// First on-chain interaction timestamp for a user: Address -> u64.
+    FirstInteraction(Address),
+    /// Next admin proposal ID counter.
+    NextAdminProposalId,
+    /// Next changelog entry ID counter.
+    NextChangelogEntryId,
+    /// Next duplicate-dispute ID counter.
+    NextDuplicateDisputeId,
+    /// Last successful review update timestamp: (project_id, reviewer) -> u64.
+    ReviewLastUpdated(u64, Address),
+    /// Fee configuration change history, appended oldest-first.
+    ///
+    /// Stored as a single `Vec<FeeConfigHistoryEntry>` rather than one key per
+    /// entry: a per-entry key plus a separate count key would need two slots.
+    FeeConfigHistory,
+    /// Per-admin log index: list of action log IDs authored by a specific admin.
+    AdminActionLogByAdmin(Address),
+    /// Verification suspension timeline for a project, oldest-first.
+    ProjectVerificationSuspensions(u64),
     /// Veto (rejection) count for an admin in a given month key (e.g. "2026-09") (#730).
     AdminVetoCount(Address, String),
     /// Maximum number of vetoes (rejections) an admin may cast per month (u32). Default: 0 = unlimited.
@@ -429,6 +457,19 @@ pub enum FeaturedAlgorithmKey {
     LastAutoGeneratedTimestamp,
 }
 
+/// Storage keys for trust and safety features (#788, #789, #790, #791).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TrustAndSafetyKey {
+    /// Fraud record for a project. Keyed by project_id. (#788)
+    ProjectFraudRecord(u64),
+    /// Approved licenses config for a given category. Keyed by category string. (#789)
+    CategoryLicenseConfig(String),
+    /// Identity verification status for a reviewer. Keyed by reviewer address. (#790)
+    ReviewerIdentity(Address),
+    /// Reviewer reward points and stats. Keyed by reviewer address. (#791)
+    ReviewerPoints(Address),
+}
 /// Storage keys for governance features (#736-#739).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -467,3 +508,238 @@ pub enum AssignmentKey {
     VerificationSlaDuration,
 }
 
+/// Storage keys for verification performance metrics (#perf).
+///
+/// Uses a dedicated enum to stay under Soroban's 50-variant
+/// `#[contracttype]` hard cap (same pattern as `FeeHistoryKey`,
+/// `NotificationKey`, `ReviewIntegrityKey`, etc.).
+///
+/// All month numbers use the compact `YYYYMM` encoding, e.g.
+/// `202609` represents September 2026.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PerformanceKey {
+    /// Global aggregate performance snapshot for one month.
+    /// Keyed by compact month number (YYYYMM): u32.
+    GlobalPerformance(u32),
+    /// Per-admin performance summary for one month.
+    /// Keyed by (admin_address, month_num).
+    AdminPerformance(Address, u32),
+    /// Ordered list of month numbers that have ever been tracked (Vec<u32>),
+    /// oldest first, capped at 24 entries.
+    TrackedMonths,
+    /// Addresses of admins that performed at least one action in a month.
+    /// Keyed by month_num.
+    MonthAdmins(u32),
+
+/// Storage keys for security contact email verification (#757).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SecurityContactVerifKey {
+    /// Full verification record for a project's security contact.
+    /// Keyed by project_id (u64) → SecurityContactVerificationRecord.
+    SecurityContactVerifRecord(u64),
+}
+
+/// Storage keys for project health scores (#756).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HealthScoreKey {
+    /// Global health score configuration.
+    HealthScoreConfig,
+    /// Latest computed health score for a project.
+    /// Keyed by project_id (u64) → ProjectHealthScore.
+    ProjectHealthScore(u64),
+    /// Historical score snapshots for a project (Vec<HealthScoreSnapshot>).
+    /// Keyed by project_id (u64).
+    ProjectHealthHistory(u64),
+}
+
+/// Storage keys for the project activity feed / timeline (#759).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ActivityFeedKey {
+    /// Activity feed entries for a project (Vec<ActivityEntry>).
+    /// Keyed by project_id (u64).
+    ProjectActivityFeed(u64),
+}
+
+/// Storage keys for automatic metadata enrichment (#760).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MetadataEnrichmentKey {
+    /// Auto-increment suggestion ID counter.
+    NextSuggestionId,
+    /// List of enrichment suggestions for a project (Vec<EnrichmentSuggestion>).
+    /// Keyed by project_id (u64).
+    EnrichmentSuggestions(u64),
+}
+
+/// Storage keys for probationary verification management.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProbationKey {
+    /// Probation record for a project: (project_id) -> ProbationRecord.
+    ProjectProbation(u64),
+    /// List of project IDs currently under active probation.
+    ProbationaryProjects,
+    /// Configured probationary duration in seconds.
+    ProbationDuration,
+    /// Incidents recorded during enhanced monitoring: (project_id, incident_index) -> ProbationIncident.
+    ProbationIncident(u64, u32),
+    /// Count of incidents recorded for a project.
+    ProbationIncidentCount(u64),
+}
+
+/// Storage keys for configurable governance parameter ranges (#740).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GovernanceKey {
+    /// Configured `[min, max]` bounds for one parameter.
+    /// `ParamRange` is a single ledger entry, so reading a range is O(1).
+    ParamRange(crate::types::GovernanceParam),
+}
+
+/// Storage keys for verification SLA tracking (#741).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SlaKey {
+    /// SLA record for a project's current verification request: project_id -> SlaRecord.
+    SlaRecord(u64),
+    /// Region-specific SLA override: region -> seconds.
+    RegionSla(String),
+    /// Reviewer-specific SLA override: admin -> seconds.
+    AdminSla(Address),
+    /// Aggregate SLA counters for reporting.
+    Metrics,
+    /// Resume cursor for the `check_sla_alerts` scan over pending requests.
+    ScanCursor,
+}
+
+/// Storage keys for community project-ownership recovery (#747).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RecoveryKey {
+    /// Recovery case by ID.
+    Case(u64),
+    /// Next case ID counter.
+    NextCaseId,
+    /// Active (undecided) case for a project: project_id -> case_id.
+    ActiveCaseForProject(u64),
+    /// Endorsement marker: (case_id, endorser) -> true. Guarantees one
+    /// endorsement per address without scanning a list.
+    Endorsement(u64, Address),
+    /// Vote marker: (case_id, voter) -> approval. Guarantees one vote per
+    /// address and preserves the vote after tallying.
+    Vote(u64, Address),
+    /// Number of pending verification-style index entries: open case IDs.
+    OpenCaseIds,
+}
+/// Storage keys for recommendation data (issue #820). Held in its own enum to
+/// leave `ExtensionKey` headroom (it was exactly at the 50-variant Soroban
+/// union cap when this feature landed) and to keep recommendation analytics
+/// data together in one key namespace for future indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RecommendationKey {
+    /// Next auto-incrementing recommendation id (counter).
+    NextRecommendationId,
+    /// A single `Recommendation` struct, keyed by id.
+    Recommendation(u64),
+    /// Ordered list of all recommendation ids (oldest first).
+    RecommendationList,
+    /// Recommendation ids that target a specific project (project_id → Vec<u64>).
+    RecommendationsForProject(u64),
+    /// Recommendation ids produced by a specific algorithm.
+    RecommendationsByAlgorithm(u32),
+    /// Explicit per-user feedback: (recommendation_id, user) → RecommendationFeedback.
+    Feedback(u64, Address),
+    /// Count of helpful (thumbs-up) feedback entries for a recommendation.
+    HelpfulCount(u64),
+    /// Count of not-helpful (thumbs-down) feedback entries for a recommendation.
+    NotHelpfulCount(u64),
+    /// Total impressions recorded for a recommendation.
+    ImpressionCount(u64),
+    /// Total clicks recorded for a recommendation.
+    ClickCount(u64),
+    /// Total Follow engagements recorded against a recommendation.
+    FollowCount(u64),
+    /// Total Bookmark engagements recorded against a recommendation.
+    BookmarkCount(u64),
+    /// Total Endorse engagements recorded against a recommendation.
+    EndorseCount(u64),
+    /// Total Review engagements recorded against a recommendation.
+    ReviewCount(u64),
+    /// Per-user impression tracking (recommendation_id, user) → bool, so we
+    /// can enforce "impression before click" invariants and dedupe impressions.
+    ImpressionSeen(u64, Address),
+}
+/// Storage keys for community collections (issue #821). Held in its own enum to
+/// respect the 50-variant Soroban union cap (StorageKey = 50, ExtensionKey ≈ 50)
+/// and to provide one clean key namespace for indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CommunityCollectionKey {
+    /// Next auto-incrementing community-collection id counter.
+    NextId,
+    /// A single `CommunityCollection` struct keyed by id.
+    Collection(u64),
+    /// Normalized (lowercase + trimmed) collection name → collection id, used
+    /// to enforce unique community-collection names.
+    NameIndex(String),
+    /// Ordered list of all non-template community-collection ids (oldest first).
+    CollectionList,
+    /// List of community-collection ids marked `is_featured = true` (AC1).
+    /// Admin-maintained, in insertion order (FIFO eviction at the cap).
+    FeaturedList,
+    /// Project ids that are explicitly Included in the collection — the final
+    /// resolved set (curator adds + votes that crossed the threshold).
+    ProjectIds(u64),
+    /// Per-project per-collection append-only vote record.
+    /// (collection_id, project_id, voter) → CommunityCollectionVote.
+    Vote(u64, u64, Address),
+    /// Running approval-vote count per (collection_id, project_id).
+    ApprovalCount(u64, u64),
+    /// Running disapproval-vote count per (collection_id, project_id).
+    DisapprovalCount(u64, u64),
+    /// (collection_id, project_id) → bool: "did a curator explicitly add this?"
+    /// Used to short-circuit vote-based inclusion (curator > community vote).
+    CuratorIncluded(u64, u64),
+    /// (collection_id, project_id) → bool: "did a curator explicitly exclude this?"
+    CuratorExcluded(u64, u64),
+    /// Community-collection ids created by a single creator address.
+    ByCreator(Address),
+    /// Community-collection ids where a given address acts as curator (member of
+    /// `curators` list). Creator-owned ids are tracked in `ByCreator` above.
+    ByCurator(Address),
+    /// Cumulative attributed revenue to a collection's creator (u128, 1e7 scaled).
+    CreatorRevenueCumulative(u64),
+    /// Cumulative attributed revenue to a collection's curator set (u128).
+    CuratorsRevenueCumulative(u64),
+    /// Count of revenue-attribution events for the collection (monotonic, used
+    /// for off-chain sanity check of cumulative totals).
+    RevenueEventCount(u64),
+}
+/// Storage keys for social analytics (issue #822). Stored in its own enum
+/// separate from StorageKey / ExtensionKey to keep the 50-variant Soroban
+/// union cap intact, and to provide a single key namespace for indexer scans.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SocialAnalyticsKey {
+    /// A single `ProjectSocialDailyCheckpoint` snapshot keyed by
+    /// (project_id, day_index). Written by `record_project_social_daily_checkpoint`.
+    DailyCheckpoint(u64, u32),
+    /// Per-project ordered list of day_indices for which we have a checkpoint.
+    /// Append-only, oldest-first. Length cap is `MAX_SOCIAL_CHECKPOINTS_PER_PROJECT`.
+    CheckpointDayIndex(u64),
+    /// Per-project oldest day_index snapshot we still keep — kept so peers
+    /// queries can fast-forward.
+    OldestCheckpointDay(u64),
+    /// Per-project newest day_index snapshot we still keep.
+    NewestCheckpointDay(u64),
+    /// Last ledger timestamp when a checkpoint was recorded.
+    LastCheckpointRecordedAt(u64),
+    /// Export report nonce / version counter. Emitted in the report event so
+    /// exporters can deduplicate identical snapshots across re-runs.
+    ExportReportCounter(u64),
+}

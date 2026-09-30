@@ -62,6 +62,7 @@ fn register_project(
             launch_timestamp: None,
             bounty_url: None,
             repository_url: None,
+            language_code: None,
         })
 }
 

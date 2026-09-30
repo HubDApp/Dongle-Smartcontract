@@ -62,6 +62,9 @@ pub fn validate_registration_params(
     if let Some(repo_url) = &params.repository_url {
         Utils::validate_website(repo_url)?;
     }
+    if let Some(language_code) = &params.language_code {
+        Utils::validate_language_code(language_code)?;
+    }
 
     Ok(())
 }

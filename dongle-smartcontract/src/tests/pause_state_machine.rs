@@ -76,6 +76,7 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 
@@ -336,6 +337,7 @@ fn recovery_all_operations_work_after_unpause() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     let update_result = client.mock_all_auths().try_update_project(&update);
     assert!(update_result.is_ok(), "update_project must work after recovery");
