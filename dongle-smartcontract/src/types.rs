@@ -589,6 +589,32 @@ pub struct SecurityContactStatus {
     pub verified: bool,
 }
 
+/// Type of media entry for project gallery.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MediaType {
+    /// Screenshot or static image.
+    Image,
+    /// Video demonstration or walkthrough.
+    Video,
+    /// Interactive demo or embedded content.
+    Demo,
+    /// Other media type.
+    Other,
+}
+
+/// A single media entry in a project's gallery.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MediaEntry {
+    /// IPFS CID of the media content.
+    pub cid: String,
+    /// Type of media.
+    pub media_type: MediaType,
+    /// Unix timestamp when this media was added.
+    pub added_at: u64,
+}
+
 /// A moderation report submitted against a project.
 ///
 /// Reports are stored as a `Vec<ProjectReport>` under
