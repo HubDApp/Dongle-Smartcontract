@@ -857,6 +857,14 @@ impl ProjectRegistry {
         Self::persist_project(env, &project);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_updated_event(env, project_id, project.owner.clone());
+        
+        // Emit specific security contact event
+        crate::events::publish_security_contact_updated_event(
+            env,
+            project_id,
+            caller,
+            contact.clone(),
+        );
 
         Ok(project)
     }
@@ -881,13 +889,21 @@ impl ProjectRegistry {
         }
 
         Utils::validate_metadata_cid(&proof_cid)?;
-        project.security_contact_proof_cid = Some(proof_cid);
+        project.security_contact_proof_cid = Some(proof_cid.clone());
         project.security_contact_verified = true;
         project.updated_at = env.ledger().timestamp();
 
         Self::persist_project(env, &project);
         StorageManager::extend_project_ttl(env, project_id);
         publish_project_updated_event(env, project_id, project.owner.clone());
+        
+        // Emit specific security contact proof event
+        crate::events::publish_security_contact_proof_submitted_event(
+            env,
+            project_id,
+            caller,
+            proof_cid,
+        );
 
         Ok(project)
     }
@@ -1437,6 +1453,16 @@ impl ProjectRegistry {
             &project.description,
         );
         publish_project_updated_event(env, project_id, project.owner.clone());
+        
+        // Emit specific category migration event
+        crate::events::publish_project_category_migrated_event(
+            env,
+            project_id,
+            _migrated_by,
+            old_category,
+            new_category,
+        );
+        
         crate::notification_registry::NotificationRegistry::emit_project_notification(
             env,
             project_id,
@@ -1479,6 +1505,15 @@ impl ProjectRegistry {
             .persistent()
             .set(&StorageKey::PendingTransfer(project_id), &new_owner);
         StorageManager::extend_owner_projects_ttl(env, &caller);
+        
+        // Emit transfer initiated event
+        crate::events::publish_project_transfer_initiated_event(
+            env,
+            project_id,
+            caller,
+            new_owner,
+        );
+        
         Ok(())
     }
 
@@ -1506,6 +1541,14 @@ impl ProjectRegistry {
         env.storage()
             .persistent()
             .remove(&StorageKey::PendingTransfer(project_id));
+        
+        // Emit transfer cancelled event
+        crate::events::publish_project_transfer_cancelled_event(
+            env,
+            project_id,
+            caller,
+        );
+        
         Ok(())
     }
 
@@ -2928,6 +2971,15 @@ impl ProjectRegistry {
                 .remove(&ExtensionKey::ProjectRegion(project_id)),
         }
         Self::persist_project(env, &project);
+        
+        // Emit event
+        crate::events::publish_project_region_set_event(
+            env,
+            project_id,
+            caller,
+            region.clone(),
+        );
+        
         Ok(())
     }
 
@@ -2954,6 +3006,15 @@ impl ProjectRegistry {
                 .remove(&ExtensionKey::ProjectRegionHierarchy(project_id));
         }
         Self::persist_project(env, &project);
+        
+        // Emit event
+        crate::events::publish_project_region_hierarchy_set_event(
+            env,
+            project_id,
+            caller,
+            hierarchy.clone(),
+        );
+        
         Ok(())
     }
 
@@ -3151,6 +3212,15 @@ impl ProjectRegistry {
         project.updated_at = timestamp;
         Self::persist_project(env, &project);
 
+        // Emit event
+        crate::events::publish_project_media_added_event(
+            env,
+            project_id,
+            caller.clone(),
+            cid.clone(),
+            media_type,
+        );
+
         Ok(())
     }
 
@@ -3198,6 +3268,14 @@ impl ProjectRegistry {
         let mut project = project;
         project.updated_at = env.ledger().timestamp();
         Self::persist_project(env, &project);
+
+        // Emit event
+        crate::events::publish_project_media_removed_event(
+            env,
+            project_id,
+            caller,
+            cid,
+        );
 
         Ok(())
     }
@@ -3606,11 +3684,23 @@ impl ProjectRegistry {
             publish_project_lifecycle_status_updated_event(
                 env,
                 project_id,
-                caller,
+                caller.clone(),
                 previous_status,
                 ProjectLifecycleStatus::Deprecated,
             );
         }
+        
+        // Emit sunset scheduled event
+        crate::events::publish_project_sunset_scheduled_event(
+            env,
+            project_id,
+            caller,
+            announced_at,
+            sunset_at,
+            alternative_project_ids.clone(),
+            redirect_project_id,
+        );
+        
         Ok(plan)
     }
 
