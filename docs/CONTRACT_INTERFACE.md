@@ -818,6 +818,34 @@ let defi_projects = list_projects_by_category(env, String::from_slice(&env, "DeF
 
 ---
 
+### `search_projects`
+
+**Purpose**: Search active projects by name, description, tags, or category and return the most relevant matches first. Matching is case-insensitive for ASCII letters.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `query` (String): Text to find in project metadata; an empty query returns no results
+- `start_index` (u32): Zero-based offset into the ranked results
+- `limit` (u32): Maximum number of projects to return; zero or values above 100 use the 100-result maximum
+
+**Relevance**: Exact name matches score 1000, name prefixes 800, and other name matches 600. Description matches add 300, category matches add 200, and each matching tag adds 350. The project's weighted rating adds up to 50 points, and verification status adds 100 for verified, 20 for pending, or 10 for probationary. Ties are ordered by ascending project ID.
+
+**Return Value**: `Vec<Project>`
+- A page of unarchived matching projects in descending relevance order
+
+**Authorization**:
+- None (read-only, permissionless)
+
+**Possible Errors**:
+- None
+
+**Example**:
+```rust
+let results = search_projects(env, String::from_slice(&env, "lending"), 0, 100);
+```
+
+---
+
 ### `list_projects_by_tag`
 
 **Purpose**: Retrieve projects filtered by tag with pagination.
@@ -3366,6 +3394,193 @@ let collection = get_collection(env, collection_id);
 ```rust
 let collections = list_collections(env, 0, 20);
 ```
+
+---
+
+### `create_collection_vis`
+
+**Purpose**: Create a new curated collection with explicit initial visibility (admin-only).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `admin` (Address): The admin creating the collection
+- `name` (String): Collection name
+- `description` (String): Collection description
+- `is_public` (bool): Initial visibility (`true` for public, `false` for private)
+
+**Return Value**: `Result<u64, ContractError>`
+- Success: `Ok(collection_id)`
+
+**Authorization**: 
+- Caller must be an admin
+
+---
+
+### `create_user_collection`
+
+**Purpose**: Allow any authenticated user to create their own collection (public or private).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `owner` (Address): The user creating the collection (must authorize)
+- `name` (String): Collection name
+- `description` (String): Collection description
+- `is_public` (bool): Initial visibility (`true` for public, `false` for private)
+
+**Return Value**: `Result<u64, ContractError>`
+- Success: `Ok(collection_id)`
+
+**Authorization**: 
+- Caller `owner` must authorize
+
+---
+
+### `toggle_collection_visibility`
+
+**Purpose**: Toggle a collection's visibility between public and private.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The collection owner or an admin
+- `collection_id` (u64): The collection ID
+
+**Return Value**: `Result<bool, ContractError>`
+- Returns new visibility state (`true` if now public, `false` if now private)
+
+**Authorization**: 
+- Caller must be the collection owner or an admin
+
+**Events Emitted**:
+- `COLLECT/VIS_TOGGL`: `CollectionVisibilityToggledEvent { collection_id, is_public, toggled_by, timestamp }`
+
+---
+
+### `set_collection_visibility`
+
+**Purpose**: Explicitly set a collection's visibility to public or private.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The collection owner or an admin
+- `collection_id` (u64): The collection ID
+- `is_public` (bool): Desired visibility (`true` for public, `false` for private)
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the collection owner or an admin
+
+---
+
+### `get_collection_for_caller`
+
+**Purpose**: Retrieve a collection with ownership-based access control. Public collections are accessible by anyone; private collections require the caller to be the owner or an admin.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The address requesting the collection
+- `collection_id` (u64): The collection ID
+
+**Return Value**: `Result<Collection, ContractError>`
+- Success: `Ok(Collection)`
+- Error `CollectionPrivate`: Returned if collection is private and caller is neither the owner nor an admin.
+
+---
+
+### `list_public_collections`
+
+**Purpose**: Paginated listing of all public (discoverable) collections.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `start_index` (u32): Starting index
+- `limit` (u32): Maximum count to return
+
+**Return Value**: `Vec<Collection>`
+
+---
+
+### `list_user_collections`
+
+**Purpose**: Paginated listing of all collections owned by a specific address (both public and private).
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `owner` (Address): The owner address
+- `start_index` (u32): Starting index
+- `limit` (u32): Maximum count to return
+
+**Return Value**: `Result<Vec<Collection>, ContractError>`
+
+---
+
+### `generate_collection_share_link`
+
+**Purpose**: Generate a secure cryptographic capability share token and share URL for a collection.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The collection owner or an admin
+- `collection_id` (u64): The collection ID
+
+**Return Value**: `Result<String, ContractError>`
+- Returns the shareable URL format: `"https://dongle.hub/c/{id}?key={token_hex}"`
+
+**Authorization**: 
+- Caller must be the collection owner or an admin
+
+**Events Emitted**:
+- `COLLECT/SHR_GEN`: `CollectionShareLinkGeneratedEvent { collection_id, share_token, generated_by, timestamp }`
+
+---
+
+### `get_collection_by_share_token`
+
+**Purpose**: Retrieve a collection using a valid share token, enabling read access even if private.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `collection_id` (u64): The collection ID
+- `share_token` (BytesN<32>): The 32-byte cryptographic token from the share link
+
+**Return Value**: `Result<Collection, ContractError>`
+- Success: `Ok(Collection)`
+- Errors: `InvalidShareToken`, `ShareTokenNotFound`
+
+---
+
+### `revoke_collection_share_link`
+
+**Purpose**: Revoke any active share token for a collection.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The collection owner or an admin
+- `collection_id` (u64): The collection ID
+
+**Return Value**: `Result<(), ContractError>`
+
+**Authorization**: 
+- Caller must be the collection owner or an admin
+
+**Events Emitted**:
+- `COLLECT/SHR_REV`: `CollectionShareLinkRevokedEvent { collection_id, revoked_by, timestamp }`
+
+---
+
+### `list_col_projects_for_caller`
+
+**Purpose**: List projects in a collection with visibility checks. Public collections allow any caller; private collections require the caller to be the owner or an admin.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `caller` (Address): The address requesting project IDs
+- `collection_id` (u64): The collection ID
+- `start_index` (u32): Starting index
+- `limit` (u32): Maximum items to return
+
+**Return Value**: `Result<Vec<u64>, ContractError>`
+- Returns `Err(CollectionPrivate)` if private and caller is unauthorized.
 
 ---
 

@@ -263,6 +263,21 @@ impl DependencyRegistry {
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &keys);
 
+        // Update reverse dependency index if it's a project reference
+        if let Some(dep_pid) = dependency.reference.project_id {
+            let mut dependents: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid))
+                .unwrap_or_else(|| Vec::new(env));
+            if !dependents.contains(&project_id) {
+                dependents.push_back(project_id);
+                env.storage()
+                    .persistent()
+                    .set(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid), &dependents);
+            }
+        }
+
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
     }
@@ -345,6 +360,26 @@ impl DependencyRegistry {
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &new_keys);
 
+        // Update reverse dependency index if it's a project reference
+        if let Some(dep_pid) = dependency_key.project_id {
+            let dependents: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid))
+                .unwrap_or_else(|| Vec::new(env));
+            let mut new_dependents = Vec::new(env);
+            for i in 0..dependents.len() {
+                if let Some(d) = dependents.get(i) {
+                    if d != project_id {
+                        new_dependents.push_back(d);
+                    }
+                }
+            }
+            env.storage()
+                .persistent()
+                .set(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid), &new_dependents);
+        }
+
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
     }
@@ -384,5 +419,41 @@ impl DependencyRegistry {
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))
             .unwrap_or_else(|| Vec::new(env));
         keys.len()
+    }
+
+    pub fn get_dependent_projects(env: &Env, project_id: u64) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(project_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn get_transitive_dependencies(env: &Env, project_id: u64) -> Vec<u64> {
+        let mut out: Vec<u64> = Vec::new(env);
+        let mut frontier: Vec<u64> = Vec::new(env);
+        frontier.push_back(project_id);
+        
+        let mut level = 0;
+        // Limit depth to avoid running out of gas/instructions, cycle detection is handled,
+        // but large graphs still need limits on reads
+        while frontier.len() > 0 && level < crate::constants::MAX_DEPENDENCY_DEPTH {
+            let mut next_frontier = Vec::new(env);
+            for i in 0..frontier.len() {
+                if let Some(node) = frontier.get(i) {
+                    let children = Self::dependency_project_ids(env, node);
+                    for j in 0..children.len() {
+                        if let Some(child) = children.get(j) {
+                            if !out.contains(child) {
+                                out.push_back(child);
+                                next_frontier.push_back(child);
+                            }
+                        }
+                    }
+                }
+            }
+            frontier = next_frontier;
+            level += 1;
+        }
+        out
     }
 }
