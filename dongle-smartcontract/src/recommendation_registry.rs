@@ -17,9 +17,8 @@ use crate::review_registry::ReviewRegistry;
 use crate::storage_keys::{RecommendationKey as RK, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    Project, ProjectView, Recommendation, RecommendationABAnalytics, RecommendationABConfig,
-    RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
-    RecommendationFeedback, RecommendationVariant,
+    Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
+    RecommendationFeedback,
 };
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -196,11 +195,8 @@ impl RecommendationRegistry {
         Ok(())
     }
 
-    fn check_audience(
-        recommendation: &Recommendation,
-        user: &Address,
-    ) -> Result<(), ContractError> {
-        if let Some(audience) = &recommendation.audience {
+    fn check_audience(rec: &Recommendation, user: &Address) -> Result<(), ContractError> {
+        if let Some(audience) = &rec.audience {
             if audience != user {
                 return Err(ContractError::RecommendationAudienceMismatch);
             }
@@ -264,12 +260,13 @@ impl RecommendationRegistry {
         };
         env.storage()
             .persistent()
-            .set(&RK::Recommendation(id), &recommendation);
+            .set(&RK::Recommendation(id), &rec);
 
-        global_list.push_back(id);
+        let mut global = global_list;
+        global.push_back(id);
         env.storage()
             .persistent()
-            .set(&RK::RecommendationList, &global_list);
+            .set(&RK::RecommendationList, &global);
 
         let mut per_project: Vec<u64> = env
             .storage()
@@ -332,11 +329,11 @@ impl RecommendationRegistry {
     }
 
     pub fn get_recommendation(env: &Env, recommendation_id: u64) -> Option<Recommendation> {
-        let recommendation = env
+        let rec = env
             .storage()
             .persistent()
             .get(&RK::Recommendation(recommendation_id));
-        if recommendation.is_some() {
+        if rec.is_some() {
             StorageManager::extend_recommendation_ttl(env, recommendation_id);
         }
         recommendation
@@ -957,14 +954,11 @@ impl RecommendationRegistry {
         user.require_auth();
         let recommendation = Self::get_recommendation(env, recommendation_id)
             .ok_or(ContractError::RecommendationNotFound)?;
-        Self::check_audience(&recommendation, &user)?;
-        let feedback_key = RK::Feedback(recommendation_id, user.clone());
-        if env
-            .storage()
-            .persistent()
-            .get::<_, RecommendationFeedback>(&feedback_key)
-            .is_some()
-        {
+        Self::check_audience(&rec, &user)?;
+
+        let fb_key = RK::Feedback(recommendation_id, user.clone());
+        let existing: Option<RecommendationFeedback> = env.storage().persistent().get(&fb_key);
+        if existing.is_some() {
             return Err(ContractError::RecommendationFeedbackAlreadyGiven);
         }
         let feedback = RecommendationFeedback {
@@ -1181,18 +1175,14 @@ impl RecommendationRegistry {
         if start_index as usize >= pairs.len() {
             return Vec::new(env);
         }
-        let end = core::cmp::min(
-            start_index.saturating_add(effective_limit),
-            pairs.len() as u32,
-        );
-        let mut page = Vec::new(env);
-        for (id, _) in pairs
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), total);
+        for p in pairs
             .iter()
             .skip(start_index as usize)
             .take((end - start_index) as usize)
         {
-            if let Some(recommendation) = Self::get_recommendation(env, *id) {
-                page.push_back(recommendation);
+            if let Some(rec) = Self::get_recommendation(env, p.0) {
+                page.push_back(rec);
             }
         }
         page

@@ -1,5 +1,9 @@
 //! Reusable test fixtures and helper functions for contract testing.
 
+// Many helper functions in this module are used by only a subset of the test
+// files that `use` it.  `#![allow(dead_code)]` suppresses warnings for helpers
+// that are compiled in but not exercised by every individual test binary; this
+// is standard practice for shared test utility modules.
 #![allow(dead_code)]
 
 use crate::types::{Project, ProjectRegistrationParams, VerificationStatus};
@@ -68,6 +72,7 @@ pub fn create_test_project(client: &DongleContractClient<'_>, owner: &Address, n
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.mock_all_auths().register_project(&params)
 }

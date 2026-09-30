@@ -21,7 +21,7 @@ use crate::constants::{
     MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT, VERIFICATION_VALIDITY_PERIOD,
 };
 use crate::errors::ContractError;
-use crate::storage_keys::{ExtensionKey, FeeHistoryKey, StorageKey};
+use crate::storage_keys::{FeeHistoryKey, StorageKey};
 use crate::types::{AdminActionType, ContractConfigView, ContractLimits, FeeConfig};
 use soroban_sdk::{Address, Env, String};
 

@@ -29,6 +29,7 @@ fn register_project_with_valid_license_returns_it_in_reads() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let project_id = client.register_project(&params);
@@ -64,6 +65,7 @@ fn register_project_without_license_keeps_reads_empty() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let project_id = client.register_project(&params);
@@ -94,6 +96,7 @@ fn update_project_rejects_invalid_license() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     });
 
     let result = client.try_update_project(&ProjectUpdateParams {
@@ -112,6 +115,7 @@ fn update_project_rejects_invalid_license() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     });
 
     assert_eq!(result, Err(Ok(ContractError::InvalidProjectData.into())));
