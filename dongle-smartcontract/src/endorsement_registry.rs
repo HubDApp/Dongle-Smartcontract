@@ -59,7 +59,7 @@ impl EndorsementRegistry {
             .storage()
             .persistent()
             .get(&ExtensionKey::EndorsementIndex(project_id, user.clone()))
-            .expect("endorsed user must have an index");
+            .ok_or(ContractError::NotEndorsed)?;
         let count = Self::current_count(env, project_id);
         let last_index = count - 1;
         if index != last_index {
@@ -67,7 +67,11 @@ impl EndorsementRegistry {
                 .storage()
                 .persistent()
                 .get(&ExtensionKey::EndorsementAt(project_id, last_index))
-                .expect("endorsement index must be populated");
+                .ok_or(ContractError::NotEndorsed)?;
+            env.storage().persistent().set(
+                &ExtensionKey::EndorsementAt(project_id, index),
+                &last_user,
+            );
             env.storage()
                 .persistent()
                 .set(&ExtensionKey::EndorsementAt(project_id, index), &last_user);
@@ -176,6 +180,16 @@ impl EndorsementRegistry {
             .get(&ExtensionKey::ProjectEndorsements(project_id))
             .unwrap_or_else(|| Vec::new(env));
         for index in 0..legacy.len() {
+            if let Some(user) = legacy.get(index) {
+                env.storage().persistent().set(
+                    &ExtensionKey::EndorsementAt(project_id, index),
+                    &user,
+                );
+                env.storage().persistent().set(
+                    &ExtensionKey::EndorsementIndex(project_id, user),
+                    &index,
+                );
+            }
             let user = legacy.get(index).expect("legacy endorsement index");
             env.storage()
                 .persistent()

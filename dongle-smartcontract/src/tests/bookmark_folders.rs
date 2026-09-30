@@ -641,6 +641,7 @@ fn test_smart_folder_category_filter() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     let nft_params = ProjectRegistrationParams {
         owner: owner.clone(),
@@ -657,6 +658,7 @@ fn test_smart_folder_category_filter() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let defi_id = client.register_project(&defi_params);

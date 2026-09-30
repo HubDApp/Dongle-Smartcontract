@@ -338,7 +338,7 @@ impl SocialAnalyticsRegistry {
     /// `[window_start_day, window_end_day]` inclusive. Deltas are computed
     /// by subtracting the checkpoint nearest-but-not-after the start day
     /// from the checkpoint nearest-but-not-after the end day. ppm-scaled.
-    pub fn compute_engagement_metric(
+    pub fn compute_project_engagement_metric(
         env: &Env,
         project_id: u64,
         window_start_day: u32,
@@ -414,7 +414,8 @@ impl SocialAnalyticsRegistry {
         let today = Self::current_day_index(env);
         let start_30 = today.saturating_sub(SOCIAL_WINDOW_30_DAYS - 1);
 
-        let target_metric = Self::compute_engagement_metric(env, project_id, start_30, today)?;
+        let target_metric =
+            Self::compute_project_engagement_metric(env, project_id, start_30, today)?;
         let target_follower_count = SubscriptionRegistry::get_follower_count(env, project_id);
         let target_avg = ReviewRegistry::get_project_stats(env, project_id)
             .average_rating
@@ -443,7 +444,7 @@ impl SocialAnalyticsRegistry {
         // we stop collecting once we have max peers and just still finish
         // calculating sort).
         'outer: loop {
-            let list = ProjectRegistry::list_projects(env, scanned, page_limit);
+            let list = ProjectRegistry::list_projects(env, scanned as u64, page_limit);
             if list.is_empty() {
                 break 'outer;
             }
@@ -457,11 +458,15 @@ impl SocialAnalyticsRegistry {
                     if peer_proj.category != project.category {
                         continue;
                     }
-                    let peer_metric =
-                        match Self::compute_engagement_metric(env, peer_proj.id, start_30, today) {
-                            Ok(m) => m,
-                            Err(_) => continue,
-                        };
+                    let peer_metric = match Self::compute_project_engagement_metric(
+                        env,
+                        peer_proj.id,
+                        start_30,
+                        today,
+                    ) {
+                        Ok(m) => m,
+                        Err(_) => continue,
+                    };
                     let peer_followers =
                         SubscriptionRegistry::get_follower_count(env, peer_proj.id);
                     let peer_avg = ReviewRegistry::get_project_stats(env, peer_proj.id)
@@ -483,7 +488,7 @@ impl SocialAnalyticsRegistry {
             if chunk_size < page_limit {
                 break 'outer;
             }
-            if scanned >= project_count {
+            if scanned as u64 >= project_count {
                 break 'outer;
             }
         }
@@ -540,24 +545,22 @@ impl SocialAnalyticsRegistry {
         let start_7 = today.saturating_sub(SOCIAL_WINDOW_7_DAYS - 1);
         let start_30 = today.saturating_sub(SOCIAL_WINDOW_30_DAYS - 1);
 
-        let m7 =
-            Self::compute_engagement_metric(env, project_id, start_7, today).unwrap_or_else(|_| {
-                ProjectEngagementMetric {
-                    project_id,
-                    window_start_day: start_7,
-                    window_end_day: today,
-                    follower_gain: 0,
-                    endorsement_gain: 0,
-                    bookmark_gain: 0,
-                    review_gain: 0,
-                    net_engagement_gain: 0,
-                    start_follower_count: 0,
-                    engagement_rate_ppm: 0,
-                    rating_delta_bps: 0,
-                }
+        let m7 = Self::compute_project_engagement_metric(env, project_id, start_7, today)
+            .unwrap_or_else(|_| ProjectEngagementMetric {
+                project_id,
+                window_start_day: start_7,
+                window_end_day: today,
+                follower_gain: 0,
+                endorsement_gain: 0,
+                bookmark_gain: 0,
+                review_gain: 0,
+                net_engagement_gain: 0,
+                start_follower_count: 0,
+                engagement_rate_ppm: 0,
+                rating_delta_bps: 0,
             });
-        let m30 = Self::compute_engagement_metric(env, project_id, start_30, today).unwrap_or_else(
-            |_| ProjectEngagementMetric {
+        let m30 = Self::compute_project_engagement_metric(env, project_id, start_30, today)
+            .unwrap_or_else(|_| ProjectEngagementMetric {
                 project_id,
                 window_start_day: start_30,
                 window_end_day: today,
@@ -589,7 +592,7 @@ impl SocialAnalyticsRegistry {
             .storage()
             .persistent()
             .get(&SAK::ExportReportCounter(project_id))
-            .unwrap_or(0)
+            .unwrap_or(0u64)
             .saturating_add(1);
         env.storage()
             .persistent()
@@ -603,9 +606,9 @@ impl SocialAnalyticsRegistry {
             newest_checkpoint_day: newest,
             last_7_days: m7.clone(),
             last_30_days: m30.clone(),
-            growth_last_30_days_total_engagement: m30.net_engagement_gain,
+            growth_30d_total_engagement: m30.net_engagement_gain,
             growth_last_30_days_followers: m30.follower_gain,
-            growth_last_30_days_endorsements: m30.endorsement_gain,
+            growth_30d_endorsements: m30.endorsement_gain,
             growth_last_30_days_bookmarks: m30.bookmark_gain,
             growth_last_30_days_reviews: m30.review_gain,
             peer_comparison: peer_rows.clone(),
@@ -637,9 +640,13 @@ impl SocialAnalyticsRegistry {
             .unwrap_or(0)
     }
 
-    // Silence unused import for ExtensionKey (kept so it remains available
-    // for future bookmark-count cross-reading after bookmark_registry
-    // enhancement).
+    // `ExtensionKey` is imported for use in future cross-registry reads
+    // (e.g. reading bookmark counts from BookmarkRegistry).  The import
+    // would be flagged as unused without this stub, which would break the
+    // `-D warnings` build.  Remove this stub once a production caller in
+    // this module uses ExtensionKey directly.
+    // Dead-code justification: anchor for `ExtensionKey` import pending
+    // bookmark-count cross-registry feature.
     #[allow(dead_code)]
     fn _keep_extension_key_imported(_x: ExtensionKey) {}
 }

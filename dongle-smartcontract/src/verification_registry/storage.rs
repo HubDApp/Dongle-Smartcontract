@@ -17,9 +17,8 @@ use crate::events::{
 };
 use crate::fee_manager::FeeManager;
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::ExtensionKey2;
 use crate::storage_keys::NotificationKey;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::types::{
     AdminActionType, NotificationDeliveryStatus, VerificationAppeal, VerificationBatchAction,
     VerificationBatchReport, VerificationBatchResult, VerificationEvidenceComparison,
@@ -27,6 +26,7 @@ use crate::types::{
     VerificationRejectionState, VerificationRenewalRecord, VerificationRiskAssessment,
     VerificationRiskModel, VerificationStatus, VerificationSuspension,
 };
+use crate::performance_metrics::PerformanceMetrics;
 use crate::utils::Utils;
 use crate::verification_registry::state_machine::VerificationStateMachine;
 use crate::verification_registry::validation::VerificationValidation;
@@ -225,6 +225,17 @@ impl VerificationRegistry {
             return Err(ContractError::InvalidStatus);
         }
 
+        // 3.5 Check #789 License constraints
+        if !crate::trust_and_safety::TrustAndSafety::verify_license_for_category(env, &project.category, &project.license) {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // 3.6 Check #788 Fraud Detection
+        let fraud_record = crate::trust_and_safety::TrustAndSafety::get_fraud_record(env, project_id);
+        if fraud_record.is_flagged {
+            return Err(ContractError::InvalidStatus); // Reject if flagged for fraud
+        }
+
         // 4. Validate state transition using centralized state machine
         VerificationStateMachine::validate_transition(
             project.verification_status,
@@ -334,6 +345,17 @@ impl VerificationRegistry {
             &history,
         );
 
+        // 11. Add to pending verification requests index (#479)
+        let mut pending = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(env));
+        pending.push_back(request_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::PendingVerificationRequests, &pending);
+
         let mut pending = env
             .storage()
             .persistent()
@@ -355,9 +377,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Pending;
         project.current_verification_id = Some(request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_requested_event(
             env,
@@ -367,6 +387,8 @@ impl VerificationRegistry {
             request_id,
             previous_request_id,
         );
+        // Record the new request in performance metrics (demand tracking).
+        PerformanceMetrics::record_request(env, now);
         Ok(())
     }
 
@@ -534,9 +556,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Verified;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_approved_event(env, project_id, admin.clone(), now);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
@@ -547,11 +567,22 @@ impl VerificationRegistry {
 
         AdminActionLog::record_action(
             env,
-            admin,
+            admin.clone(),
             AdminActionType::VerificationApproved,
             Some(project_id),
             None,
             None,
+        );
+
+        // Record approval time in performance metrics.
+        PerformanceMetrics::record_approval(env, &admin, record.requested_at, now);
+
+        // Initiate 30-day probationary period under enhanced monitoring
+        let _ = crate::probation_registry::ProbationRegistry::start_probation(
+            env,
+            project_id,
+            record.request_id,
+            &admin,
         );
 
         Ok(())
@@ -598,9 +629,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Rejected;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         // Issue #472: a rejected request must not keep the requester's fee.
         // The payout is recorded as claimable rather than transferred here —
@@ -642,12 +671,16 @@ impl VerificationRegistry {
 
         AdminActionLog::record_action(
             env,
-            admin,
+            admin.clone(),
             AdminActionType::VerificationRejected,
             Some(project_id),
             None,
             None,
         );
+
+        // Record rejection in performance metrics.
+        PerformanceMetrics::record_rejection(env, &admin, now);
+        crate::trust_and_safety::TrustAndSafety::record_verification_rejection(env, project_id);
 
         Ok(())
     }
@@ -672,7 +705,11 @@ impl VerificationRegistry {
         let mut pending_records = Vec::new(env);
         for i in 0..request_ids.len() {
             let request_id = request_ids.get(i).ok_or(ContractError::InvalidInput)?;
-            if request_ids.iter().take(i).any(|id| id == request_id) {
+            if request_ids
+                .iter()
+                .take(i as usize)
+                .any(|id| id == request_id)
+            {
                 return Err(ContractError::InvalidInput);
             }
 
@@ -771,6 +808,12 @@ impl VerificationRegistry {
                         None,
                         None,
                     );
+                    let _ = crate::probation_registry::ProbationRegistry::start_probation(
+                        env,
+                        record.project_id,
+                        record.request_id,
+                        &admin,
+                    );
                 }
                 VerificationBatchAction::Reject => {
                     publish_verification_rejected_event(env, record.project_id, admin.clone(), now);
@@ -819,6 +862,12 @@ impl VerificationRegistry {
         admin: Address,
     ) -> Result<VerificationBatchReport, ContractError> {
         Self::decide_verifications_batch(env, request_ids, admin, VerificationBatchAction::Reject)
+        Self::decide_verifications_batch(
+            env,
+            request_ids,
+            admin,
+            VerificationBatchAction::Reject,
+        )
     }
 
     pub fn submit_verification_appeal(
@@ -899,7 +948,7 @@ impl VerificationRegistry {
         publish_verification_appeal_submitted_event(
             env,
             project_id,
-            owner,
+            owner.clone(),
             evidence_cid,
             rejection_state.appeal_count,
         );
@@ -912,6 +961,9 @@ impl VerificationRegistry {
             None,
             None,
         );
+
+        // Record appeal in performance metrics against the rejecting admin.
+        PerformanceMetrics::record_appeal(env, &rejection_state.rejected_by, now);
 
         Ok(())
     }
@@ -1004,16 +1056,18 @@ impl VerificationRegistry {
             );
             AdminActionLog::record_action(
                 env,
-                admin,
+                admin.clone(),
                 AdminActionType::VerificationAppealApproved,
                 Some(project_id),
                 None,
                 None,
             );
+            // Record reversal: the original rejecting admin's stat is updated.
+            PerformanceMetrics::record_reversal(env, &rejection_state.rejected_by, now);
         } else {
             AdminActionLog::record_action(
                 env,
-                admin,
+                admin.clone(),
                 AdminActionType::VerificationAppealRejected,
                 Some(project_id),
                 None,
@@ -1021,7 +1075,7 @@ impl VerificationRegistry {
             );
         }
 
-        publish_verification_appeal_reviewed_event(env, project_id, admin, approved);
+        publish_verification_appeal_reviewed_event(env, project_id, admin.clone(), approved);
         Ok(())
     }
 
@@ -1067,7 +1121,7 @@ impl VerificationRegistry {
         let mut timeline = env
             .storage()
             .persistent()
-            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey::ProjectVerificationSuspensions(
+            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey2::ProjectVerificationSuspensions(
                 project_id,
             ))
             .unwrap_or_else(|| Vec::new(env));
@@ -1086,7 +1140,7 @@ impl VerificationRegistry {
             .set(&StorageKey::VerificationRecord(request_id), &record);
         timeline.set(index, entry);
         env.storage().persistent().set(
-            &ExtensionKey::ProjectVerificationSuspensions(project_id),
+            &ExtensionKey2::ProjectVerificationSuspensions(project_id),
             &timeline,
         );
         if let Some(mut project) = ProjectRegistry::get_project(env, project_id) {
@@ -1134,13 +1188,13 @@ impl VerificationRegistry {
         let mut timeline = env
             .storage()
             .persistent()
-            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey::ProjectVerificationSuspensions(
+            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey2::ProjectVerificationSuspensions(
                 project_id,
             ))
             .unwrap_or_else(|| Vec::new(env));
         timeline.push_back(entry);
         env.storage().persistent().set(
-            &ExtensionKey::ProjectVerificationSuspensions(project_id),
+            &ExtensionKey2::ProjectVerificationSuspensions(project_id),
             &timeline,
         );
         project.verification_status = VerificationStatus::Suspended;
@@ -1188,7 +1242,7 @@ impl VerificationRegistry {
         let mut timeline = env
             .storage()
             .persistent()
-            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey::ProjectVerificationSuspensions(
+            .get::<_, Vec<VerificationSuspension>>(&ExtensionKey2::ProjectVerificationSuspensions(
                 project_id,
             ))
             .unwrap_or_else(|| Vec::new(env));
@@ -1200,7 +1254,7 @@ impl VerificationRegistry {
             }
         }
         env.storage().persistent().set(
-            &ExtensionKey::ProjectVerificationSuspensions(project_id),
+            &ExtensionKey2::ProjectVerificationSuspensions(project_id),
             &timeline,
         );
         project.verification_status = VerificationStatus::Verified;
@@ -1227,7 +1281,7 @@ impl VerificationRegistry {
         Self::restore_expired_suspension(env, project_id);
         env.storage()
             .persistent()
-            .get(&ExtensionKey::ProjectVerificationSuspensions(project_id))
+            .get(&ExtensionKey2::ProjectVerificationSuspensions(project_id))
             .unwrap_or_else(|| Vec::new(env))
     }
 
@@ -1465,6 +1519,14 @@ impl VerificationRegistry {
         record.assigned_admin
     }
 
+    /// Returns `true` if a verification record exists for `project_id`.
+    ///
+    /// This is a low-cost existence check (single storage `has` call) kept
+    /// as a convenience for admin tooling and integration tests.  On-chain
+    /// callers currently use `get_verification` directly and check `is_some()`,
+    /// so this helper has no callers in production paths yet.
+    // Dead-code justification: convenience helper for integration tests and
+    // off-chain tooling; not yet called from on-chain paths.
     #[allow(dead_code)]
     pub fn verification_exists(env: &Env, project_id: u64) -> bool {
         env.storage()
@@ -1509,9 +1571,7 @@ impl VerificationRegistry {
         project.verification_status = VerificationStatus::Unverified;
         project.current_verification_id = Some(record.request_id);
         project.updated_at = now;
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         publish_verification_revoked_event(env, project_id, admin.clone(), reason.clone());
         crate::notification_registry::NotificationRegistry::emit_project_notification(
@@ -1528,6 +1588,8 @@ impl VerificationRegistry {
             None,
             Some(reason),
         );
+
+        crate::trust_and_safety::TrustAndSafety::record_verification_reversal(env, project_id);
 
         Ok(())
     }
@@ -1579,7 +1641,14 @@ impl VerificationRegistry {
             .unwrap_or(crate::constants::VERIFICATION_VALIDITY_PERIOD)
     }
 
-    /// Set verification validity duration (admin only)
+    /// Set verification validity duration (admin only).
+    ///
+    /// This function is implemented but not yet wired to a `lib.rs` entry
+    /// point.  It is kept here so that the getter/setter pair is complete
+    /// and the setter can be exposed in a follow-up PR without touching this
+    /// module again.
+    // Dead-code justification: setter is implemented but not yet exposed via
+    // lib.rs; will be wired in a follow-up PR adding the admin config endpoint.
     #[allow(dead_code)]
     pub fn set_verification_duration(
         env: &Env,
@@ -1757,9 +1826,7 @@ impl VerificationRegistry {
 
         project.updated_at = now;
         project.current_verification_id = Some(verification.request_id);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::Project(project_id), &project);
+        ProjectRegistry::persist_project(env, &project);
 
         let history_index: u32 = env
             .storage()

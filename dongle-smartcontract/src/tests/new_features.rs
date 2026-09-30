@@ -123,6 +123,7 @@ fn test_project_tags() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let project_id = client.register_project(&params);
@@ -150,6 +151,7 @@ fn test_project_tags() {
         bounty_url: None,
         repository_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     client.update_project(&update_params);
@@ -172,6 +174,7 @@ fn test_project_tags() {
         bounty_url: None,
         repository_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     client.update_project(&remove_params);
@@ -216,6 +219,7 @@ fn test_project_social_links() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let project_id = client.register_project(&params);
@@ -245,6 +249,7 @@ fn test_project_social_links() {
         bounty_url: None,
         repository_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     client.update_project(&update_params);
@@ -267,6 +272,7 @@ fn test_project_social_links() {
         bounty_url: None,
         repository_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     client.update_project(&remove_params);
@@ -309,6 +315,7 @@ fn test_list_projects_by_tag() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params1);
 
@@ -326,6 +333,7 @@ fn test_list_projects_by_tag() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params2);
 
@@ -343,6 +351,7 @@ fn test_list_projects_by_tag() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params3);
 
@@ -391,6 +400,7 @@ fn test_tag_validation() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params);
@@ -413,6 +423,7 @@ fn test_tag_validation() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params2);
@@ -456,6 +467,7 @@ fn test_social_links_validation() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params);
@@ -481,6 +493,7 @@ fn test_social_links_validation() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params2);

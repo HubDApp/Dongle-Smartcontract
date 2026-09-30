@@ -41,6 +41,7 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 
@@ -206,6 +207,6 @@ fn admin_recovery_writes_during_pause_persist_after_unpause() {
         .set_fee(&admin, &None, &777u128, &0u128, &treasury);
     client.mock_all_auths().unpause(&admin);
 
-    let config = client.get_fee_config().unwrap();
+    let config = client.get_fee_config();
     assert_eq!(config.verification_fee, 777u128);
 }

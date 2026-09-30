@@ -28,6 +28,7 @@ fn register_project(client: &crate::DongleContractClient<'_>, env: &Env, owner: 
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params)
 }

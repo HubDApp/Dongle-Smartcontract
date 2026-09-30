@@ -3,9 +3,9 @@
 use soroban_sdk::{Env, String, Vec};
 
 use crate::constants::{
-    MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
+    MAX_CATEGORY_LEN, MAX_CID_LEN, MAX_DESCRIPTION_LEN, MAX_LANGUAGE_CODE_LEN, MAX_LICENSE_LEN, MAX_NAME_LEN,
     MAX_SECURITY_CONTACT_LEN, MAX_SLUG_LEN, MAX_SOCIAL_LINK_PLATFORM_LEN, MAX_TAGS_PER_PROJECT,
-    MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_LEN,
+    MAX_TAG_LENGTH, MAX_WEBSITE_LEN, MIN_CID_FLOOR, MIN_CID_LEN,
 };
 use crate::errors::ContractError;
 
@@ -320,10 +320,16 @@ impl Utils {
         license.copy_into_slice(&mut buf[..cap]);
 
         for &b in buf[..cap].iter() {
-            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' {
+            if !b.is_ascii_alphanumeric() && b != b'-' && b != b'.' && b != b'+' && b != b' ' && b != b'(' && b != b')' {
                 return Err(ContractError::InvalidProjectData);
             }
         }
+        
+        let s_upper = alloc::string::String::from_utf8_lossy(&buf[..cap]).to_ascii_uppercase();
+        if s_upper.contains("GPL") && s_upper.contains("APACHE") {
+            return Err(ContractError::InvalidProjectData);
+        }
+        
         Ok(())
     }
 
@@ -360,6 +366,31 @@ impl Utils {
         let len = contact.len() as usize;
         if len == 0 || len > MAX_SECURITY_CONTACT_LEN {
             return Err(ContractError::InvalidProjectData);
+        }
+        Ok(())
+    }
+
+    /// Validate an ISO 639-1 two-letter language code.
+    ///
+    /// Rules:
+    /// - Exactly 2 bytes long.
+    /// - ASCII lowercase letters only (a-z).
+    ///
+    /// This validates format only; it does not verify the code exists in ISO 639-1.
+    /// The contract accepts any two-letter lowercase code to avoid maintaining
+    /// a hardcoded language list that would need updates.
+    pub fn validate_language_code(code: &String) -> Result<(), ContractError> {
+        let len = code.len() as usize;
+        if len != MAX_LANGUAGE_CODE_LEN {
+            return Err(ContractError::InvalidLanguageCode);
+        }
+
+        let mut buf = [0u8; MAX_LANGUAGE_CODE_LEN];
+        code.copy_into_slice(&mut buf);
+        for &b in buf.iter() {
+            if !b.is_ascii_lowercase() {
+                return Err(ContractError::InvalidLanguageCode);
+            }
         }
         Ok(())
     }
@@ -471,15 +502,20 @@ impl Utils {
     /// metadata CID) where full structural validation is required.
     ///
     /// # CIDv0 (`Qm…`)
-    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - Length in `[40, MAX_CID_LEN]`.
     /// - First two bytes must be `Q` and `m`.
     ///
     /// # CIDv1 (`b…`)
-    /// - Length in `[MIN_CID_LEN, MAX_CID_LEN]`.
+    /// - Length in `[40, MAX_CID_LEN]`.
     /// - First byte must be `b`.
+    ///
+    /// The lower bound is `40` (issue #667), not `MIN_CID_LEN` (46): the
+    /// short-CID window keeps existing short proof CIDs valid, while
+    /// [`is_valid_ipfs_cid_strict`] — used for project metadata — still
+    /// enforces the canonical 46-byte minimum (issue #620).
     pub fn is_valid_ipfs_cid(cid: &String) -> bool {
         let len = cid.len() as usize;
-        if !(MIN_CID_LEN..=MAX_CID_LEN).contains(&len) {
+        if !(MIN_CID_FLOOR..=MAX_CID_LEN).contains(&len) {
             return false;
         }
 

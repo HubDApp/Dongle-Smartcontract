@@ -47,6 +47,7 @@ fn register(client: &DongleContractClient<'_>, env: &Env, owner: &Address, name:
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     })
 }
 

@@ -4,6 +4,8 @@ use crate::constants::MAX_DESCRIPTION_LEN;
 use crate::project_registry::ProjectRegistry;
 use crate::types::ProjectRegistrationParams;
 use crate::{DongleContract, DongleContractClient};
+extern crate alloc;
+use alloc::vec::Vec;
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     Address, Env, String,
@@ -45,6 +47,7 @@ fn register_project(client: &DongleContractClient<'_>, env: &Env, owner: &Addres
             launch_timestamp: None,
             bounty_url: None,
             repository_url: None,
+            language_code: None,
         })
 }
 
@@ -160,7 +163,7 @@ fn test_region_based_filtering_matches_project_region_values() {
     );
 
     let all_projects = client.list_projects(&0, &10);
-    let africa_only: Vec<u64> = all_projects
+    let africa_only: std::vec::Vec<u64> = all_projects
         .iter()
         .filter_map(|project| {
             if client
@@ -269,6 +272,7 @@ fn test_integrity_hash_changes_on_update() {
             launch_timestamp: None,
             bounty_url: None,
             repository_url: None,
+            language_code: None,
         });
 
     let hash_after = client.get_project_integrity_hash(&project_id).unwrap();

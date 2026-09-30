@@ -161,6 +161,9 @@ impl NotificationRegistry {
     /// The queue is capped at `MAX_PAGE_LIMIT` entries; older entries are
     /// silently dropped when the cap is reached so the ledger entry stays
     /// bounded.
+    // Off-chain fanout decides who is queued, so this producer currently has no
+    // on-chain caller; kept alongside `flush_digest_queue`/`get_digest_queue`.
+    #[allow(dead_code)]
     pub fn enqueue_digest(env: &Env, user: Address, project_id: u64) {
         let mut queue: Vec<u64> = env
             .storage()

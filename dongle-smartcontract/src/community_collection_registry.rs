@@ -18,11 +18,10 @@ use crate::events::{
 use crate::pagination::paginate;
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::CommunityCollectionKey as CCKey;
-use crate::storage_keys::StorageKey;
 use crate::storage_manager::StorageManager;
 use crate::types::{
     AdminActionType, CommunityColInclusionStatus, CommunityColRevenueSnapshot, CommunityCollection,
-    CommunityCollectionRole, CommunityCollectionTemplateId, CommunityCollectionVote,
+    CommunityCollectionTemplateId, CommunityCollectionVote,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -41,8 +40,8 @@ impl CommunityCollectionRegistry {
         current
     }
 
-    fn normalize_name(name: &String) -> String {
-        Utils::normalize_project_name(&env(name), name)
+    fn normalize_name(env: &Env, name: &String) -> String {
+        Utils::normalize_project_name(env, name)
     }
 
     fn validate_metadata(
@@ -120,7 +119,7 @@ impl CommunityCollectionRegistry {
         name: &String,
         exclude_id: Option<u64>,
     ) -> Result<(), ContractError> {
-        let norm = Self::normalize_name(name);
+        let norm = Self::normalize_name(env, name);
         if let Some(existing_id) = env
             .storage()
             .persistent()
@@ -355,7 +354,7 @@ impl CommunityCollectionRegistry {
         };
         Self::write_collection(env, &col);
 
-        let norm = Self::normalize_name(&name);
+        let norm = Self::normalize_name(env, &name);
         env.storage().persistent().set(&CCKey::NameIndex(norm), &id);
         Self::set_project_ids(env, id, Vec::new(env));
 
@@ -416,7 +415,7 @@ impl CommunityCollectionRegistry {
         };
         Self::write_collection(env, &col);
 
-        let norm = Self::normalize_name(&name);
+        let norm = Self::normalize_name(env, &name);
         env.storage().persistent().set(&CCKey::NameIndex(norm), &id);
 
         let mut seed_ids = Vec::new(env);
@@ -439,7 +438,7 @@ impl CommunityCollectionRegistry {
             admin.clone(),
             name,
             true,
-            Some(template_id),
+            Some(template_id.code()),
         );
         Ok(id)
     }
@@ -506,7 +505,7 @@ impl CommunityCollectionRegistry {
         };
         Self::write_collection(env, &col);
 
-        let norm = Self::normalize_name(&name);
+        let norm = Self::normalize_name(env, &name);
         env.storage().persistent().set(&CCKey::NameIndex(norm), &id);
 
         // Copy project set from source (dedup, enforce cap).
@@ -648,11 +647,11 @@ impl CommunityCollectionRegistry {
         if col.name != name {
             Self::ensure_name_unique(env, &name, Some(id))?;
             // remove old name-index, add new
-            let old_norm = Self::normalize_name(&col.name);
+            let old_norm = Self::normalize_name(env, &col.name);
             env.storage()
                 .persistent()
                 .remove(&CCKey::NameIndex(old_norm));
-            let new_norm = Self::normalize_name(&name);
+            let new_norm = Self::normalize_name(env, &name);
             env.storage()
                 .persistent()
                 .set(&CCKey::NameIndex(new_norm), &id);
@@ -1166,10 +1165,4 @@ impl CommunityCollectionRegistry {
             as_of_timestamp: env.ledger().timestamp(),
         })
     }
-}
-
-// Local helper: turn `Env` into an owned Env for name-normalization — matches
-// `Utils::normalize_project_name(env, name)` signature.
-fn env(e: &Env) -> Env {
-    e.clone()
 }
