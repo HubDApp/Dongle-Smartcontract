@@ -529,7 +529,6 @@ pub enum PerformanceKey {
     /// oldest first, capped at 24 entries.
     TrackedMonths,
     /// Addresses of admins that performed at least one action in a month.
-    /// Keyed by month_num.
     MonthAdmins(u32),
 }
 

@@ -712,6 +712,74 @@ impl ReviewRegistry {
         RatingCalculator::calculate_weighted(stats.rating_sum, stats.review_count)
     }
 
+    pub fn merge_project_reviews(
+        env: &Env,
+        primary_project_id: u64,
+        secondary_project_id: u64,
+    ) -> Result<(), ContractError> {
+        let secondary_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(secondary_project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut primary_reviews: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectReviews(primary_project_id))
+            .unwrap_or_else(|| Vec::new(env));
+            
+        let mut primary_stats: ProjectStats = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectStats(primary_project_id))
+            .unwrap_or(ProjectStats { rating_sum: 0, review_count: 0, average_rating: 0 });
+
+        for i in 0..secondary_reviews.len() {
+            if let Some(reviewer) = secondary_reviews.get(i) {
+                let sec_key = StorageKey::Review(secondary_project_id, reviewer.clone());
+                if let Some(mut rev) = env.storage().persistent().get::<_, crate::types::Review>(&sec_key) {
+                    let prim_key = StorageKey::Review(primary_project_id, reviewer.clone());
+                    // If reviewer already reviewed primary, we just skip (primary retains its review)
+                    if !env.storage().persistent().has(&prim_key) {
+                        rev.project_id = primary_project_id;
+                        env.storage().persistent().set(&prim_key, &rev);
+                        primary_reviews.push_back(reviewer.clone());
+                        
+                        let (new_sum, new_count, new_avg) = crate::rating_calculator::RatingCalculator::add_rating(
+                            primary_stats.rating_sum, primary_stats.review_count, rev.rating
+                        );
+                        primary_stats = ProjectStats { rating_sum: new_sum, review_count: new_count, average_rating: new_avg };
+                        
+                        // Update user reviews
+                        let mut user_revs: Vec<u64> = env.storage().persistent().get(&StorageKey::UserReviews(reviewer.clone())).unwrap_or_else(|| Vec::new(env));
+                        user_revs.push_back(primary_project_id);
+                        
+                        let mut new_user_revs = Vec::new(env);
+                        for j in 0..user_revs.len() {
+                            if let Some(p) = user_revs.get(j) {
+                                if p != secondary_project_id {
+                                    new_user_revs.push_back(p);
+                                }
+                            }
+                        }
+                        env.storage().persistent().set(&StorageKey::UserReviews(reviewer.clone()), &new_user_revs);
+                    }
+                    env.storage().persistent().remove(&sec_key);
+                }
+            }
+        }
+        
+        env.storage().persistent().set(&StorageKey::ProjectReviews(primary_project_id), &primary_reviews);
+        env.storage().persistent().remove(&StorageKey::ProjectReviews(secondary_project_id));
+        env.storage().persistent().set(&StorageKey::ProjectStats(primary_project_id), &primary_stats);
+        
+        // Remove secondary stats completely
+        env.storage().persistent().remove(&StorageKey::ProjectStats(secondary_project_id));
+
+        Ok(())
+    }
+
     pub fn delete_review(
         env: &Env,
         project_id: u64,

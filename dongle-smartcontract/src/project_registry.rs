@@ -3620,6 +3620,52 @@ impl ProjectRegistry {
         Ok(())
     }
 
+    pub fn merge_projects(
+        env: &Env,
+        primary_project_id: u64,
+        secondary_project_id: u64,
+        primary_owner: Address,
+        secondary_owner: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        primary_owner.require_auth();
+        secondary_owner.require_auth();
+
+        if !crate::admin_manager::AdminManager::is_admin(env, &admin) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let primary = Self::get_project(env, primary_project_id).ok_or(ContractError::ProjectNotFound)?;
+        let secondary = Self::get_project(env, secondary_project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if primary.owner != primary_owner || secondary.owner != secondary_owner {
+            return Err(ContractError::Unauthorized);
+        }
+        
+        crate::review_registry::ReviewRegistry::merge_project_reviews(env, primary_project_id, secondary_project_id)?;
+
+        let now = env.ledger().timestamp();
+        let sunset_at = now + PROJECT_SUNSET_MIN_NOTICE_SECS;
+        Self::schedule_project_sunset(
+            env,
+            secondary_project_id,
+            secondary_owner.clone(),
+            sunset_at,
+            Vec::new(env),
+            Some(primary_project_id),
+        )?;
+
+        crate::changelog_registry::ChangelogRegistry::add_entry(
+            env,
+            primary_project_id,
+            admin.clone(),
+            String::from_str(env, "Merged project duplicate"),
+        )?;
+        
+        Ok(())
+    }
+
     /// Schedule a project deprecation and sunset with alternatives.
     /// The sunset date must be at least 180 days after announcement.
     pub fn schedule_project_sunset(
@@ -3879,6 +3925,84 @@ impl ProjectRegistry {
 
         projects
     }
+
+    pub fn export_project_data(env: &Env, project_id: u64, owner: Address) -> Result<crate::types::ProjectDataExport, ContractError> {
+        owner.require_auth();
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != owner {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Gather reviews
+        let mut export_reviews = Vec::new(env);
+        let reviewers: Vec<Address> = env.storage().persistent().get(&crate::storage_keys::StorageKey::ProjectReviews(project_id)).unwrap_or_else(|| Vec::new(env));
+        for i in 0..reviewers.len() {
+            if let Some(reviewer) = reviewers.get(i) {
+                if let Some(review) = env.storage().persistent().get(&crate::storage_keys::StorageKey::Review(project_id, reviewer)) {
+                    export_reviews.push_back(review);
+                }
+            }
+        }
+
+        // Gather verifications
+        let mut verification_records = Vec::new(env);
+        if let Some(record) = env.storage().persistent().get::<_, crate::types::VerificationRecord>(&crate::storage_keys::StorageKey::VerificationRecord(project_id)) {
+            verification_records.push_back(record);
+        }
+
+        Ok(crate::types::ProjectDataExport {
+            version: 1,
+            project,
+            reviews: export_reviews,
+            verification_records,
+        })
+    }
+
+    pub fn import_project_data(env: &Env, export: crate::types::ProjectDataExport, owner: Address) -> Result<u64, ContractError> {
+        owner.require_auth();
+        if export.version != 1 {
+            return Err(ContractError::InvalidInput);
+        }
+        
+        let new_project_id = Self::generate_project_id(env);
+        let mut new_project = export.project;
+        new_project.id = new_project_id;
+        new_project.owner = owner.clone();
+
+        Self::persist_project(env, &new_project);
+
+        let mut reviewers = Vec::new(env);
+        let mut stats = crate::types::ProjectStats { rating_sum: 0, review_count: 0, average_rating: 0 };
+
+        for i in 0..export.reviews.len() {
+            if let Some(mut rev) = export.reviews.get(i) {
+                rev.project_id = new_project_id;
+                // Add to storage
+                env.storage().persistent().set(&crate::storage_keys::StorageKey::Review(new_project_id, rev.reviewer.clone()), &rev);
+                reviewers.push_back(rev.reviewer.clone());
+                
+                let (new_sum, new_count, new_avg) = crate::rating_calculator::RatingCalculator::add_rating(stats.rating_sum, stats.review_count, rev.rating);
+                stats = crate::types::ProjectStats { rating_sum: new_sum, review_count: new_count, average_rating: new_avg };
+                
+                let mut user_revs: Vec<u64> = env.storage().persistent().get(&crate::storage_keys::StorageKey::UserReviews(rev.reviewer.clone())).unwrap_or_else(|| Vec::new(env));
+                user_revs.push_back(new_project_id);
+                env.storage().persistent().set(&crate::storage_keys::StorageKey::UserReviews(rev.reviewer), &user_revs);
+            }
+        }
+
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(new_project_id), &reviewers);
+        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectStats(new_project_id), &stats);
+
+        for i in 0..export.verification_records.len() {
+            if let Some(mut rec) = export.verification_records.get(i) {
+                rec.project_id = new_project_id;
+                env.storage().persistent().set(&crate::storage_keys::StorageKey::VerificationRecord(new_project_id), &rec);
+            }
+        }
+
+        Ok(new_project_id)
+    }
+
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
