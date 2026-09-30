@@ -3306,3 +3306,23 @@ pub struct ProjectSocialAnalyticsExport {
     /// Unix ledger timestamp when this report was generated.
     pub generated_at: u64,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectDataExport {
+    pub version: u32,
+    pub project: crate::types::Project,
+    pub reviews: Vec<crate::types::Review>,
+    pub verification_records: Vec<crate::types::VerificationRecord>,
+}
+
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectDataExport {
+    pub version: u32,
+    pub project: crate::types::Project,
+    pub reviews: Vec<crate::types::Review>,
+    pub verification_records: Vec<crate::types::VerificationRecord>,
+}
+

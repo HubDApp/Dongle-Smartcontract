@@ -503,6 +503,13 @@ impl DongleContract {
             secondary_owner,
             admin,
         )
+    pub fn export_project_data(env: Env, project_id: u64, owner: Address) -> Result<crate::types::ProjectDataExport, ContractError> {
+        ProjectRegistry::export_project_data(&env, project_id, owner)
+    }
+
+    pub fn import_project_data(env: Env, export: crate::types::ProjectDataExport, owner: Address) -> Result<u64, ContractError> {
+        ProjectRegistry::import_project_data(&env, export, owner)
+    }
     }
 
     pub fn schedule_project_sunset(
