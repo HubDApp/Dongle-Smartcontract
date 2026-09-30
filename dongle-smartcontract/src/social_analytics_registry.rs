@@ -572,7 +572,8 @@ impl SocialAnalyticsRegistry {
                 start_follower_count: 0,
                 engagement_rate_ppm: 0,
                 rating_delta_bps: 0,
-            });
+            },
+        );
 
         let peer_rows = Self::compare_similar_projects(env, project_id, SOCIAL_ANALYTICS_MAX_PEERS)
             .unwrap_or_else(|_| Vec::new(env));
