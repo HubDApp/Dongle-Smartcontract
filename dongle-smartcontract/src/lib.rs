@@ -10,6 +10,8 @@ mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
 mod bookmark_registry;
+pub mod category_types;
+mod category_registry;
 mod changelog_registry;
 mod collection_registry;
 // mod community_collection_registry;
