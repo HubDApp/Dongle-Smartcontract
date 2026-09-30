@@ -40,14 +40,59 @@ for the full policy.
 
 ### Added
 
-- **#819: Allow collections to be public or private with share link capability.**
-  Collections can now be configured as public or private with granular access controls and capability-token sharing:
-  - Toggle visibility per collection (`toggle_collection_visibility`, `set_collection_visibility`) by collection owner or admin, emitting `COLLECT/VIS_TOGGL` events.
-  - Public collections are discoverable and searchable via `list_collections` and `list_public_collections`.
-  - Private collections are strictly isolated to the collection owner and admins (`get_collection_for_caller`, `list_user_collections`, `list_col_projects_for_caller`); unauthenticated or unauthorized access returns `ContractError::CollectionPrivate`.
-  - Share link generation (`generate_collection_share_link`) produces a secure 32-byte SHA-256 capability token and canonical URL (`https://dongle.hub/c/{id}?key={token_hex}`). Anyone possessing the link can inspect the private collection via `get_collection_by_share_token`. Owners and admins can revoke tokens at any time (`revoke_collection_share_link`).
-  - Added user collection creation (`create_user_collection`) allowing any authenticated user to create and manage personal public or private project lists.
-  - Segregated storage into `CollectionVisibilityKey` (`CollectionOwner`, `CollectionIsPublic`, `CollectionShareToken`, `UserCollections`, `PublicCollectionList`) respecting Soroban's 50-variant enum ceiling.
+- **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
+  configuration) covering vulnerability, license, duplicate-crate, and source
+  checks. New `audit` CI job runs `cargo deny check` on every PR and push to
+  main; the `build` job now gates on `audit`. Added `make audit` target to the
+  Makefile and updated `dev`/`ci` composite targets to include it. Dependency
+  review should be performed quarterly via `cargo update` + PR.
+
+- **#714: Enforce clippy warnings as build failures.** Added
+  `.cargo/config.toml` with `RUSTFLAGS = ["-D", "warnings"]` so every local
+  `cargo build` / `cargo check` / `cargo clippy` run fails on any warning,
+  mirroring CI behaviour exactly. Added `clippy.toml` documenting active lint
+  thresholds. The existing CI clippy job already used `-D warnings`; this
+  change closes the local/CI divergence gap.
+
+### Changed
+
+- **#715: Documented all `#[allow(dead_code)]` attributes.** Every suppression
+  now includes an inline justification comment explaining why the item is kept
+  (catalogue completeness, off-chain tooling, immutability stub, test fixture,
+  etc.). The `#![allow(dead_code)]` crate-level attribute in `constants.rs` is
+  similarly annotated. Policy: a suppression without a justification comment is
+  a review blocker.
+
+### Fixed
+
+- **#717: Replace `.unwrap()` calls with proper error returns in production
+  paths.** All reachable `.unwrap()` calls on `Vec::get(i)` in
+  `verification_registry/assignment.rs` have been replaced with
+  `.ok_or(ContractError::InvalidInput)?` or `if let Some(…)` patterns,
+  eliminating any denial-of-service vector reachable from public entry points.
+  Test-only `.unwrap()` / `.expect()` calls (inside `#[cfg(test)]` blocks) are
+  intentionally left in place per Rust convention.
+
+
+- **#740: Governance parameter ranges (framework).** New `governance_ranges`
+  module stores each governance parameter's valid `[min, max]` range in contract
+  config (`GovernanceKey`), exposes `GovernanceParam` / `ParamRange`, and reserves
+  errors 96 (`ParameterOutOfRange`) and 97 (`InvalidParamRange`) so every
+  parameter write can be validated with a clear message before it is applied.
+- **#741: Verification SLA tracking (framework).** Default verification SLA is
+  now **7 days** from request to decision (was 3 days), with `SlaKey` storage,
+  `SlaRecord` / `SlaStatus` / `VerificationSlaMetrics` types, 24-hour breach-alert
+  lead time (`SLA_ALERT_LEAD_SECONDS`) and a bounded alert scan
+  (`MAX_SLA_SCAN_BATCH`) for per-admin / per-region overrides.
+- **#742: Bulk project import (framework).** `MAX_BULK_IMPORT_PROJECTS = 1000`
+  caps a single import transaction, with `ImportReport` / `ImportFailure` types
+  for per-record validation results and errors 98/99
+  (`BulkImportValidationFailed`, `BulkImportTooLarge`) for all-or-nothing rollback.
+- **#747: Project ownership recovery for lost accounts (framework).** Recovery
+  constants (10 endorsements to nominate, 7-day community vote, 75% approval,
+  30-day owner reclaim window), `RecoveryKey` storage and
+  `OwnershipRecoveryCase` / `RecoveryStatus` types with errors 100/101
+  (`RecoveryCaseNotFound`, `RecoveryNotActive`).
 
 - **#804: Review archival to cheaper storage with query access and automatic job.**
   Reviews older than 2 years (configurable via `REVIEW_ARCHIVE_AGE_SECONDS = 63_072_000`)
@@ -195,6 +240,23 @@ for the full policy.
   `test_output_latest.txt`) from the `dongle-smartcontract/` directory (#503).
 
 ### Fixed
+
+- **Restored source dropped by the `5608c72` / `527565b` merges so the crate
+  builds again.** Recommendation, community-collection, social-analytics,
+  probation and bookmark-folder code (types, storage keys, events, error
+  variants) was re-added from `f74e102` / `896d122`, three unclosed delimiters
+  were closed, and re-added error variants were renumbered from 102 upward to
+  avoid colliding with the appeals/assignment range. `ExtensionKey` exceeded
+  Soroban's 50-variant `#[contracttype]` cap, so 9 keys moved to `ExtensionKey2`.
+- **Test suite compiles again.** Fixed broken imports, stale entry-point names,
+  missing `ProjectUpdateParams` fields, and `Option<unit-enum>` struct fields
+  (`CommunityCollection::template_source`, which soroban-sdk 22 cannot encode
+  under `testutils`) — 13 compile errors that made `cargo test` impossible.
+- **Lenient CID validator accepts the documented 40-byte floor (#667)**
+  (`MIN_CID_FLOOR`), while `is_valid_ipfs_cid_strict` keeps enforcing the
+  canonical 46-byte CIDv0 minimum (#620).
+- `ReviewRegistry::delete_review` / `admin_delete_review` now delete the review's
+  evidence links instead of leaving them orphaned in persistent storage.
 
 - **Governance: added the missing `MultiSigRequired` error variant** (code 77).
   `AdminManager::add_admin` / `remove_admin` returned

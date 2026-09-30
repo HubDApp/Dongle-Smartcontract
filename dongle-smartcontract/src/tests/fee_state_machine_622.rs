@@ -16,10 +16,11 @@ use crate::types::FeePaymentStatus;
 
 #[test]
 fn transition_unpaid_to_pending_valid() {
-    assert!(
-        FeePaymentStatus::validate_transition(FeePaymentStatus::Unpaid, FeePaymentStatus::Pending)
-            .is_ok()
-    );
+    assert!(FeePaymentStatus::validate_transition(
+        FeePaymentStatus::Unpaid,
+        FeePaymentStatus::Pending
+    )
+    .is_ok());
 }
 
 #[test]
@@ -63,10 +64,7 @@ fn transition_refund_pending_to_refunded_valid() {
 #[test]
 fn transition_unpaid_to_consumed_invalid() {
     assert_eq!(
-        FeePaymentStatus::validate_transition(
-            FeePaymentStatus::Unpaid,
-            FeePaymentStatus::Consumed
-        ),
+        FeePaymentStatus::validate_transition(FeePaymentStatus::Unpaid, FeePaymentStatus::Consumed),
         Err(ContractError::InvalidStatus)
     );
 }
@@ -74,10 +72,7 @@ fn transition_unpaid_to_consumed_invalid() {
 #[test]
 fn transition_unpaid_to_refunded_invalid() {
     assert_eq!(
-        FeePaymentStatus::validate_transition(
-            FeePaymentStatus::Unpaid,
-            FeePaymentStatus::Refunded
-        ),
+        FeePaymentStatus::validate_transition(FeePaymentStatus::Unpaid, FeePaymentStatus::Refunded),
         Err(ContractError::InvalidStatus)
     );
 }
@@ -119,10 +114,7 @@ fn transition_cancelled_to_pending_invalid() {
 fn transition_pending_to_pending_invalid() {
     // Self-transitions are not valid state machine moves.
     assert_eq!(
-        FeePaymentStatus::validate_transition(
-            FeePaymentStatus::Pending,
-            FeePaymentStatus::Pending
-        ),
+        FeePaymentStatus::validate_transition(FeePaymentStatus::Pending, FeePaymentStatus::Pending),
         Err(ContractError::InvalidStatus)
     );
 }

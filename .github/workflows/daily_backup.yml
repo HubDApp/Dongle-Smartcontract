@@ -1,0 +1,59 @@
+name: Daily Project Backup & Integrity Verification
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Target Stellar network'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      dry_run:
+        description: 'Simulate snapshot without network calls'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  backup-and-verify:
+    name: Capture & Verify Snapshot
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run daily backup snapshot
+        env:
+          NETWORK: ${{ inputs.network || 'testnet' }}
+          PINATA_JWT: ${{ secrets.PINATA_JWT }}
+        run: |
+          python3 scripts/project_backup_recovery.py snapshot \
+            --network "${{ inputs.network || 'testnet' }}" \
+            ${{ (inputs.dry_run == true) && '--dry-run' || '' }}
+
+      - name: Verify backup integrity
+        run: |
+          python3 scripts/project_backup_recovery.py verify \
+            --snapshot .backups/latest.json
+
+      - name: Upload backup snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dongle-daily-snapshot
+          path: |
+            .backups/snapshots/*.json
+            .backups/latest.json
+            .backups/pin_registry.json
+          retention-days: 90

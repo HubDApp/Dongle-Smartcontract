@@ -162,10 +162,12 @@ fn test_region_based_filtering_matches_project_region_values() {
     );
 
     let all_projects = client.list_projects(&0, &10);
-    let africa_only: Vec<u64> = all_projects
+    let africa_only: std::vec::Vec<u64> = all_projects
         .iter()
         .filter_map(|project| {
-            if client.get_project_region(&project.id).unwrap_or(String::from_str(&env, ""))
+            if client
+                .get_project_region(&project.id)
+                .unwrap_or(String::from_str(&env, ""))
                 == String::from_str(&env, "AFRICA")
             {
                 Some(project.id)
@@ -177,7 +179,9 @@ fn test_region_based_filtering_matches_project_region_values() {
 
     assert_eq!(africa_only.len(), 1);
     assert_eq!(africa_only.get(0).copied(), Some(africa_project));
-    assert!(all_projects.iter().any(|project| project.id == asia_project));
+    assert!(all_projects
+        .iter()
+        .any(|project| project.id == asia_project));
 }
 
 #[test]
@@ -300,8 +304,10 @@ fn test_integrity_hash_is_deterministic_for_same_project() {
     let category = String::from_str(&env, "DeFi");
     let description = String::from_str(&env, "A test project description");
 
-    let first = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
-    let second = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    let first =
+        ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    let second =
+        ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
 
     assert_eq!(first, second, "Same project metadata must hash identically");
 }
@@ -329,7 +335,10 @@ fn test_integrity_hash_changes_for_each_field() {
         &base_category,
         &base_description,
     );
-    assert_ne!(base_hash, name_hash, "Changing name must change the integrity hash");
+    assert_ne!(
+        base_hash, name_hash,
+        "Changing name must change the integrity hash"
+    );
 
     let slug_hash = ProjectRegistry::compute_integrity_hash(
         &env,
@@ -338,7 +347,10 @@ fn test_integrity_hash_changes_for_each_field() {
         &base_category,
         &base_description,
     );
-    assert_ne!(base_hash, slug_hash, "Changing slug must change the integrity hash");
+    assert_ne!(
+        base_hash, slug_hash,
+        "Changing slug must change the integrity hash"
+    );
 
     let category_hash = ProjectRegistry::compute_integrity_hash(
         &env,
@@ -347,7 +359,10 @@ fn test_integrity_hash_changes_for_each_field() {
         &String::from_str(&env, "AI"),
         &base_description,
     );
-    assert_ne!(base_hash, category_hash, "Changing category must change the integrity hash");
+    assert_ne!(
+        base_hash, category_hash,
+        "Changing category must change the integrity hash"
+    );
 
     let description_hash = ProjectRegistry::compute_integrity_hash(
         &env,
@@ -356,7 +371,10 @@ fn test_integrity_hash_changes_for_each_field() {
         &base_category,
         &String::from_str(&env, "A revised project description"),
     );
-    assert_ne!(base_hash, description_hash, "Changing description must change the integrity hash");
+    assert_ne!(
+        base_hash, description_hash,
+        "Changing description must change the integrity hash"
+    );
 }
 
 #[test]
@@ -367,13 +385,8 @@ fn test_integrity_hash_accepts_legacy_serialization() {
     let category = String::from_str(&env, "DeFi");
     let description = String::from_str(&env, "Legacy description");
 
-    let legacy_hash = ProjectRegistry::compute_integrity_hash_legacy(
-        &env,
-        &name,
-        &slug,
-        &category,
-        &description,
-    );
+    let legacy_hash =
+        ProjectRegistry::compute_integrity_hash_legacy(&env, &name, &slug, &category, &description);
     assert!(ProjectRegistry::hash_matches_current_or_legacy(
         &env,
         &name,
@@ -383,8 +396,12 @@ fn test_integrity_hash_accepts_legacy_serialization() {
         &legacy_hash,
     ));
 
-    let latest_hash = ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
-    assert_ne!(legacy_hash, latest_hash, "The versioned hash must differ from the legacy hash");
+    let latest_hash =
+        ProjectRegistry::compute_integrity_hash(&env, &name, &slug, &category, &description);
+    assert_ne!(
+        legacy_hash, latest_hash,
+        "The versioned hash must differ from the legacy hash"
+    );
     assert!(ProjectRegistry::hash_matches_current_or_legacy(
         &env,
         &name,

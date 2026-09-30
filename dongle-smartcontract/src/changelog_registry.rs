@@ -21,7 +21,7 @@ use crate::constants::MAX_CID_LEN;
 use crate::errors::ContractError;
 use crate::events::{publish_changelog_added_event, publish_changelog_removed_event};
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::ExtensionKey;
+use crate::storage_keys::{ExtensionKey, ExtensionKey2};
 use crate::storage_manager::StorageManager;
 use crate::types::ChangelogEntry;
 use crate::utils::Utils;
@@ -108,7 +108,7 @@ impl ChangelogRegistry {
         let changelog_id: u64 = env
             .storage()
             .persistent()
-            .get(&ExtensionKey::NextChangelogEntryId)
+            .get(&ExtensionKey2::NextChangelogEntryId)
             .unwrap_or(1);
 
         // Create changelog entry
@@ -139,7 +139,7 @@ impl ChangelogRegistry {
         // Increment next ID
         env.storage()
             .persistent()
-            .set(&ExtensionKey::NextChangelogEntryId, &(changelog_id + 1));
+            .set(&ExtensionKey2::NextChangelogEntryId, &(changelog_id + 1));
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);
@@ -312,6 +312,8 @@ impl ChangelogRegistry {
     /// Changelog entries are write-once. This function exists purely to provide
     /// a clear, discoverable API surface that documents the "no update" contract
     /// and returns a typed error when called, rather than silently not existing.
+    /// Intentionally unimplemented update function — changelog entries are
+    /// write-once (immutable after creation).
     ///
     /// To change a changelog entry:
     /// 1. Call [`remove_changelog_entry`] to delete it.
@@ -320,6 +322,10 @@ impl ChangelogRegistry {
     /// # Returns
     /// Always returns `Err(ContractError::Unauthorized)` — changelog entries
     /// cannot be updated; they can only be removed and recreated.
+    // Dead-code justification: intentional stub that enforces the immutability
+    // invariant.  It is kept (rather than deleted) so that call-sites that
+    // accidentally invoke "update" get a clear compile-time or runtime error
+    // instead of silently missing the function.
     #[allow(dead_code)]
     pub fn update_changelog_entry(
         _env: &Env,

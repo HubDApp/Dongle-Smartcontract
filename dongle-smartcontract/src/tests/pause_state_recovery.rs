@@ -98,8 +98,12 @@ fn pause_unpause_preserves_reviews_and_stats() {
 
     let r1 = Address::generate(&env);
     let r2 = Address::generate(&env);
-    client.mock_all_auths().add_review(&project_id, &r1, &5, &None);
-    client.mock_all_auths().add_review(&project_id, &r2, &3, &None);
+    client
+        .mock_all_auths()
+        .add_review(&project_id, &r1, &5, &None);
+    client
+        .mock_all_auths()
+        .add_review(&project_id, &r2, &3, &None);
 
     let reviews_before = client.list_reviews(&project_id, &0u32, &10u32);
     let stats_before = client.get_project_stats(&project_id);
@@ -107,7 +111,10 @@ fn pause_unpause_preserves_reviews_and_stats() {
     client.mock_all_auths().pause(&admin);
     client.mock_all_auths().unpause(&admin);
 
-    assert_eq!(client.list_reviews(&project_id, &0u32, &10u32), reviews_before);
+    assert_eq!(
+        client.list_reviews(&project_id, &0u32, &10u32),
+        reviews_before
+    );
     assert_eq!(client.get_project_stats(&project_id), stats_before);
     assert_eq!(client.get_review(&project_id, &r1).unwrap().rating, 5);
     assert_eq!(client.get_review(&project_id, &r2).unwrap().rating, 3);
@@ -124,7 +131,9 @@ fn pause_unpause_preserves_featured_and_admin_state() {
     let project_id = client
         .mock_all_auths()
         .register_project(&make_project_params(&env, &owner, "Featured"));
-    client.mock_all_auths().set_featured(&admin, &project_id, &true);
+    client
+        .mock_all_auths()
+        .set_featured(&admin, &project_id, &true);
     client.mock_all_auths().add_admin(&admin, &second_admin);
 
     let featured_before = client.list_featured_projects(&0u32, &10u32);
@@ -133,7 +142,10 @@ fn pause_unpause_preserves_featured_and_admin_state() {
     client.mock_all_auths().pause(&admin);
     client.mock_all_auths().unpause(&admin);
 
-    assert_eq!(client.list_featured_projects(&0u32, &10u32), featured_before);
+    assert_eq!(
+        client.list_featured_projects(&0u32, &10u32),
+        featured_before
+    );
     assert_eq!(client.get_admin_list(), admins_before);
 }
 
