@@ -1263,6 +1263,10 @@ impl ProjectRegistry {
             if project.archived {
                 continue;
             }
+            // #764: quarantined projects are hidden from search.
+            if crate::project_controls::ProjectControls::is_quarantined(env, id) {
+                continue;
+            }
             if let Some(score) = Self::project_search_score(env, &project, &query) {
                 candidates.push_back(project);
                 scores.push_back(score);
