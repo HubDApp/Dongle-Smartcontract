@@ -345,6 +345,17 @@ impl VerificationRegistry {
             &history,
         );
 
+        // 11. Add to pending verification requests index (#479)
+        let mut pending = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(env));
+        pending.push_back(request_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::PendingVerificationRequests, &pending);
+
         let mut pending = env
             .storage()
             .persistent()

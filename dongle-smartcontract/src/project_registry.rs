@@ -2800,6 +2800,116 @@ impl ProjectRegistry {
         versions
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Project Media Gallery (#158)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Add a media entry to a project's gallery (owner only).
+    pub fn add_media(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+        media_type: crate::types::MediaType,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Validate CID
+        crate::utils::Utils::is_valid_ipfs_cid(&cid)?;
+
+        // Get current media gallery
+        let mut media: Vec<crate::types::MediaEntry> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectMediaGallery(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Check max media count
+        if media.len() as u32 >= crate::constants::MAX_MEDIA_PER_PROJECT {
+            return Err(ContractError::MaxProjectsExceeded);
+        }
+
+        // Add new media entry
+        let timestamp = env.ledger().timestamp();
+        media.push_back(crate::types::MediaEntry {
+            cid,
+            media_type,
+            added_at: timestamp,
+        });
+
+        // Store updated media gallery
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectMediaGallery(project_id), &media);
+
+        // Update project timestamp
+        let mut project = project;
+        project.updated_at = timestamp;
+        Self::persist_project(env, &project);
+
+        Ok(())
+    }
+
+    /// Remove a media entry from a project's gallery by CID (owner only).
+    pub fn remove_media(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let project = Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Get current media gallery
+        let mut media: Vec<crate::types::MediaEntry> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectMediaGallery(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        // Find and remove media by CID
+        let mut found = false;
+        let mut filtered = Vec::new(env);
+        for entry in media.iter() {
+            if entry.cid != cid {
+                filtered.push_back(entry.clone());
+            } else {
+                found = true;
+            }
+        }
+
+        if !found {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // Store updated media gallery
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::ProjectMediaGallery(project_id), &filtered);
+
+        // Update project timestamp
+        let mut project = project;
+        project.updated_at = env.ledger().timestamp();
+        Self::persist_project(env, &project);
+
+        Ok(())
+    }
+
+    /// Get media gallery for a project.
+    pub fn get_media_gallery(env: &Env, project_id: u64) -> Vec<crate::types::MediaEntry> {
+        env.storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectMediaGallery(project_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
     pub fn restore_project_version(
         env: &Env,
         project_id: u64,

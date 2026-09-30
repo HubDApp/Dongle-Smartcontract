@@ -10,7 +10,7 @@ pub mod auth;
 mod bookmark_registry;
 mod changelog_registry;
 mod collection_registry;
-mod community_collection_registry;
+// mod community_collection_registry;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
@@ -26,7 +26,7 @@ pub mod pagination;
 mod probation_registry;
 mod project_registry;
 pub mod rating_calculator;
-mod recommendation_registry;
+// mod recommendation_registry;
 mod report_registry;
 pub mod review_registry;
 mod social_analytics_registry;
@@ -468,81 +468,6 @@ impl DongleContract {
         Ok(new_project_id)
     }
 
-    pub fn merge_projects(
-        env: Env,
-        source_id: u64,
-        target_id: u64,
-        source_owner: Address,
-        target_owner: Address,
-        admin: Address,
-    ) -> Result<(), ContractError> {
-        source_owner.require_auth();
-        target_owner.require_auth();
-        admin.require_auth();
-        
-        crate::admin_registry::AdminRegistry::require_admin(&env, &admin)?;
-        
-        let mut source_proj = ProjectRegistry::get_project(&env, source_id).ok_or(ContractError::ProjectNotFound)?;
-        let target_proj = ProjectRegistry::get_project(&env, target_id).ok_or(ContractError::ProjectNotFound)?;
-        
-        if source_proj.owner != source_owner || target_proj.owner != target_owner {
-            return Err(ContractError::Unauthorized);
-        }
-        
-        if source_id == target_id {
-            return Err(ContractError::InvalidInput);
-        }
-        
-        source_proj.lifecycle_status = crate::types::ProjectLifecycleStatus::Merged;
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::Project(source_id), &source_proj);
-        env.storage().persistent().set(&crate::storage_keys::ExtensionKey2::ProjectRedirect(source_id), &target_id);
-        
-        let source_reviews: Vec<Address> = env.storage().persistent().get(&crate::storage_keys::StorageKey::ProjectReviews(source_id)).unwrap_or_else(|| Vec::new(&env));
-        let mut target_reviews: Vec<Address> = env.storage().persistent().get(&crate::storage_keys::StorageKey::ProjectReviews(target_id)).unwrap_or_else(|| Vec::new(&env));
-            
-        let mut source_stats = crate::review_registry::storage::ReviewStorage::get_project_stats(&env, source_id);
-        let mut target_stats = crate::review_registry::storage::ReviewStorage::get_project_stats(&env, target_id);
-        
-        for i in 0..source_reviews.len() {
-            if let Some(reviewer) = source_reviews.get(i) {
-                if let Some(mut rev) = env.storage().persistent().get::<_, crate::types::Review>(&crate::storage_keys::StorageKey::Review(source_id, reviewer.clone())) {
-                    if !target_reviews.contains(&reviewer) {
-                        rev.project_id = target_id;
-                        env.storage().persistent().set(&crate::storage_keys::StorageKey::Review(target_id, reviewer.clone()), &rev);
-                        target_reviews.push_back(reviewer.clone());
-                        target_stats.rating_sum += rev.rating as u64;
-                        target_stats.review_count += 1;
-                    }
-                    env.storage().persistent().remove(&crate::storage_keys::StorageKey::Review(source_id, reviewer.clone()));
-                }
-            }
-        }
-        
-        if target_stats.review_count > 0 {
-            target_stats.average_rating = (target_stats.rating_sum * 10) / target_stats.review_count;
-        }
-        
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectStats(target_id), &target_stats);
-        
-        source_stats.rating_sum = 0;
-        source_stats.review_count = 0;
-        source_stats.average_rating = 0;
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectStats(source_id), &source_stats);
-        
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(target_id), &target_reviews);
-        env.storage().persistent().set(&crate::storage_keys::StorageKey::ProjectReviews(source_id), &Vec::<Address>::new(&env));
-        
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "project_merged"), source_id, target_id),
-            (source_owner, target_owner, admin),
-        );
-        
-        Ok(())
-    }
-
-    pub fn get_project_redirect(env: Env, project_id: u64) -> Option<u64> {
-        env.storage().persistent().get(&crate::storage_keys::ExtensionKey2::ProjectRedirect(project_id))
-    }
 
     pub fn set_project_lifecycle_status(
         env: Env,
@@ -747,6 +672,38 @@ impl DongleContract {
         ProjectRegistry::get_project_region_hierarchy(&env, project_id)
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Project Media Gallery (#158)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Add a media entry to a project's gallery (owner only).
+    pub fn add_media(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+        media_type: crate::types::MediaType,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::add_media(&env, project_id, caller, cid, media_type)
+    }
+
+    /// Remove a media entry from a project's gallery by CID (owner only).
+    pub fn remove_media(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        cid: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::remove_media(&env, project_id, caller, cid)
+    }
+
+    /// Get media gallery for a project.
+    pub fn get_media_gallery(env: Env, project_id: u64) -> Vec<crate::types::MediaEntry> {
+        ProjectRegistry::get_media_gallery(&env, project_id)
+    }
+
     pub fn list_projects_by_region(
         env: Env,
         continent: Option<String>,
@@ -804,6 +761,48 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<Project> {
         ProjectRegistry::list_projects_by_status(&env, status, start_id, limit)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Verification Pending List (#479) - Efficient admin dashboard retrieval
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Get the list of all verification requests currently in Pending status.
+    /// Returns a Vec of request IDs in creation order without full scans.
+    pub fn list_pending_verifications(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        let limit = if limit == 0 || limit > crate::constants::MAX_PAGE_LIMIT {
+            crate::constants::MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let all_pending: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut results = Vec::new(&env);
+        let start = start_index as usize;
+        let end = core::cmp::min(start + limit as usize, all_pending.len());
+
+        if start < all_pending.len() {
+            for i in start..end {
+                results.push_back(all_pending.get(i as u32).unwrap());
+            }
+        }
+
+        results
+    }
+
+    /// Get total count of pending verification requests (for pagination metadata).
+    pub fn get_pending_verification_count(env: Env) -> u32 {
+        let pending: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::PendingVerificationRequests)
+            .unwrap_or_else(|| Vec::new(&env));
+        pending.len() as u32
     }
 
     pub fn list_projects_by_category(
@@ -1208,6 +1207,39 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         ReviewRegistry::hide_review(&env, project_id, reviewer, admin)
+    }
+
+    /// Admin hide multiple reviews in batch (admin-only).
+    /// Each tuple is (project_id, reviewer).
+    pub fn hide_reviews_batch(
+        env: Env,
+        reviews: Vec<(u64, Address)>,
+        admin: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+
+        // Check if admin
+        if !crate::admin_manager::AdminManager::is_admin(&env, &admin) {
+            return Err(ContractError::AdminOnly);
+        }
+
+        // Limit batch size for gas efficiency
+        if reviews.len() > crate::constants::MAX_TTL_BATCH_SIZE as usize {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // Process each review
+        for (project_id, reviewer) in reviews.iter() {
+            // Check if project exists
+            if ProjectRegistry::get_project(&env, *project_id).is_none() {
+                return Err(ContractError::ProjectNotFound);
+            }
+
+            // Hide the review
+            ReviewRegistry::hide_review(&env, *project_id, reviewer.clone(), admin.clone())?;
+        }
+
+        Ok(())
     }
 
     pub fn restore_review(
@@ -2199,6 +2231,47 @@ impl DongleContract {
         CollectionRegistry::create_collection(&env, admin, name, description)
     }
 
+    /// Admin: create a collection with explicit visibility.
+    pub fn create_collection_vis(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_collection_with_visibility(&env, admin, name, description, is_public)
+    }
+
+    /// User: create a collection owned by the caller.
+    pub fn create_user_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_user_collection(&env, creator, name, description, is_public)
+    }
+
+    /// Toggle collection visibility between public and private (owner or admin only).
+    pub fn toggle_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<bool, ContractError> {
+        CollectionRegistry::toggle_collection_visibility(&env, caller, collection_id)
+    }
+
+    /// Set explicit collection visibility (owner or admin only).
+    pub fn set_collection_visibility(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        is_public: bool,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::set_collection_visibility(&env, caller, collection_id, is_public)
+    }
+
     /// Admin: update a collection's name and description.
     pub fn update_collection(
         env: Env,
@@ -2239,17 +2312,68 @@ impl DongleContract {
         CollectionRegistry::remove_project_from_collection(&env, admin, collection_id, project_id)
     }
 
-    /// Get a collection by ID.
+    /// Get a collection by ID (returns Some only if public).
     pub fn get_collection(env: Env, collection_id: u64) -> Option<Collection> {
         CollectionRegistry::get_collection(&env, collection_id)
     }
 
-    /// List all collections with pagination.
+    /// Get a collection with caller authorization check (owner can see private collection).
+    pub fn get_collection_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_for_caller(&env, caller, collection_id)
+    }
+
+    /// List all public collections with pagination.
     pub fn list_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
         CollectionRegistry::list_collections(&env, start_index, limit)
     }
 
-    /// List project IDs in a collection with pagination.
+    /// List all public collections with pagination (explicit alias).
+    pub fn list_public_collections(env: Env, start_index: u32, limit: u32) -> Vec<Collection> {
+        CollectionRegistry::list_public_collections(&env, start_index, limit)
+    }
+
+    /// List all collections owned by a specific user (both public and private).
+    pub fn list_user_collections(
+        env: Env,
+        owner: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Collection>, ContractError> {
+        CollectionRegistry::list_user_collections(&env, owner, start_index, limit)
+    }
+
+    /// Generate a cryptographic share link for a collection (owner or admin only).
+    pub fn generate_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<String, ContractError> {
+        CollectionRegistry::generate_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// Retrieve a collection using a valid share token (read access even if private).
+    pub fn get_collection_by_share_token(
+        env: Env,
+        collection_id: u64,
+        share_token: String,
+    ) -> Result<Collection, ContractError> {
+        CollectionRegistry::get_collection_by_share_token(&env, collection_id, share_token)
+    }
+
+    /// Revoke the active share link for a collection (owner or admin only).
+    pub fn revoke_collection_share_link(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::revoke_collection_share_link(&env, caller, collection_id)
+    }
+
+    /// List project IDs in a public collection with pagination.
     pub fn list_collection_projects(
         env: Env,
         collection_id: u64,
@@ -2257,6 +2381,17 @@ impl DongleContract {
         limit: u32,
     ) -> Vec<u64> {
         CollectionRegistry::list_collection_projects(&env, collection_id, start_index, limit)
+    }
+
+    /// List project IDs in a collection with caller authorization.
+    pub fn list_col_projects_for_caller(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<u64>, ContractError> {
+        CollectionRegistry::list_collection_projects_for_caller(&env, caller, collection_id, start_index, limit)
     }
 
     /// Get the number of projects in a collection.
@@ -3679,6 +3814,8 @@ impl DongleContract {
     /// without guessing.
     pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
+    }
+
     // ── #757: Security Contact Email Verification ─────────────────────────
 
     /// Initiate a challenge-response verification for a project's security
@@ -3842,6 +3979,8 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<Vec<EnrichmentSuggestion>, ContractError> {
         MetadataEnrichmentRegistry::get_pending_suggestions(&env, project_id)
+    }
+
     // =========================================================================
     // Trust and Safety Features (#788, #789, #790, #791)
     // =========================================================================

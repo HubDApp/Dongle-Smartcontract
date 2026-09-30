@@ -1,15 +1,5 @@
 use soroban_sdk::{contracttype, Address, Map, String, Vec};
 
-/// A single URL attached to a review as supporting evidence.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EvidenceLink {
-    /// The URL string (http:// or https://).
-    pub url: String,
-    /// Admin-settable dead-link flag. False by default.
-    pub is_dead: bool,
-}
-
 /// Parameters supplied to `register_project`. All required fields must be
 /// non-empty; optional fields default to `None` when omitted.
 #[contracttype]
@@ -597,6 +587,32 @@ pub struct SecurityContactStatus {
     pub proof_cid: Option<String>,
     /// Whether the contact has been verified by an admin.
     pub verified: bool,
+}
+
+/// Type of media entry for project gallery.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MediaType {
+    /// Screenshot or static image.
+    Image,
+    /// Video demonstration or walkthrough.
+    Video,
+    /// Interactive demo or embedded content.
+    Demo,
+    /// Other media type.
+    Other,
+}
+
+/// A single media entry in a project's gallery.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MediaEntry {
+    /// IPFS CID of the media content.
+    pub cid: String,
+    /// Type of media.
+    pub media_type: MediaType,
+    /// Unix timestamp when this media was added.
+    pub added_at: u64,
 }
 
 /// A moderation report submitted against a project.
@@ -1257,11 +1273,15 @@ pub struct SmartFolderFilter {
 pub struct Collection {
     /// Unique monotonically-increasing collection identifier.
     pub id: u64,
+    /// Address that owns and administers this collection.
+    pub owner: Address,
     /// Human-readable collection name (max `MAX_COLLECTION_NAME_LEN` bytes).
     pub name: String,
     /// Short description of the collection's theme or curation criteria
     /// (max `MAX_COLLECTION_DESCRIPTION_LEN` bytes).
     pub description: String,
+    /// Whether the collection is public (searchable/discoverable) or private (owner-only).
+    pub is_public: bool,
     /// Unix timestamp (seconds) when the collection was created.
     pub created_at: u64,
     /// Unix timestamp (seconds) when the collection metadata was last updated.

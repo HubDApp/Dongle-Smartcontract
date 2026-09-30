@@ -667,6 +667,15 @@ fn test_delete_collection_removes_project_associations() {
         .mock_all_auths()
         .delete_collection(&admin, &collection_id);
 
+    let expected: soroban_sdk::Vec<soroban_sdk::Val> = (
+        symbol_short!("COLLECT"),
+        symbol_short!("REMOVED"),
+        collection_id,
+        project_id,
+    )
+        .into_val(&env);
+    assert!(env.events().all().iter().any(|(_, topics, _)| topics == expected));
+
     let result = client.get_collection(&collection_id);
     assert_eq!(result, None);
 

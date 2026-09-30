@@ -256,7 +256,7 @@ impl ReviewRegistry {
         }
 
         // Resolve evidence links — None means empty list
-        let resolved_links = evidence_links.unwrap_or_else(|| Vec::new(env));
+        let resolved_links = evidence_links.clone().unwrap_or_else(|| Vec::new(env));
 
         // Validate evidence links before any mutations
         ReviewValidation::validate_evidence_links(&resolved_links)?;
@@ -1838,7 +1838,7 @@ impl ReviewRegistry {
             .get(&ExtensionKey2::ProjectArchivedReviews(project_id))
             .unwrap_or_else(|| Vec::new(env));
 
-        let total = reviewers.len();
+        let total = reviewers.len() as usize;
         let mut results: Vec<ArchivedReview> = Vec::new(env);
         if start_index >= total {
             return results;

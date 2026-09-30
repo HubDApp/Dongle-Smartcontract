@@ -257,6 +257,8 @@ pub enum ExtensionKey {
     AdminActionLogByAdmin(Address),
     /// Verification suspension timeline for a project, oldest-first.
     ProjectVerificationSuspensions(u64),
+    /// Project media gallery: list of MediaEntry for a project.
+    ProjectMediaGallery(u64),
 }
 
 /// Third overflow storage key enum, introduced because `ExtensionKey` has reached the
@@ -278,8 +280,6 @@ pub enum ExtensionKey2 {
     LicenseStats(String),
     /// Projects that depend on a given project ID (reverse dependency graph).
     ProjectDependents(u64),
-    /// Redirection from a merged project to the target project.
-    ProjectRedirect(u64),
     /// Evidence links for a review, keyed by (project_id, reviewer).
     ReviewEvidenceLinks(u64, Address),
     /// Archived review record, keyed by (project_id, reviewer).

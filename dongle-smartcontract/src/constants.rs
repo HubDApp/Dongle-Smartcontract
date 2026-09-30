@@ -175,6 +175,11 @@ pub const MAX_TAG_LENGTH: usize = 32;
 /// platform a project would list.
 pub const MAX_SOCIAL_LINKS: u32 = 10;
 
+/// Maximum number of media entries per project.
+/// 20: allows projects to have multiple screenshots, demo videos, and other media
+/// while keeping storage bounded. Vec stored separately from main project entry.
+pub const MAX_MEDIA_PER_PROJECT: u32 = 20;
+
 /// Maximum length for social link URL.
 /// 256 bytes: matches `MAX_WEBSITE_LEN` — same "short landing/profile URL" shape.
 pub const MAX_SOCIAL_LINK_URL_LEN: usize = 256;
