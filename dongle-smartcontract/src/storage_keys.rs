@@ -529,9 +529,8 @@ pub enum PerformanceKey {
     /// oldest first, capped at 24 entries.
     TrackedMonths,
     /// Addresses of admins that performed at least one action in a month.
-    /// Keyed by month_num.
     MonthAdmins(u32),
-
+}
 /// Storage keys for security contact email verification (#757).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
