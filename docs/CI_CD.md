@@ -133,11 +133,18 @@ python3 scripts/test_validate_changelog.py
 file in the workspace is not already rustfmt-clean. No cache — formatting does
 not compile anything.
 
-**Local:**
+> **Formatting is a hard requirement.** Every PR must be `rustfmt`-clean before
+> CI passes. Unformatted code fails the `fmt` job and blocks merge.
+
+**Local workflow:**
 ```bash
-cargo fmt --all -- --check   # check
-cargo fmt --all              # fix
+cargo fmt --all              # auto-fix all formatting issues
+cargo fmt --all -- --check  # verify without writing (mirrors CI exactly)
 ```
+
+Run `cargo fmt --all` before every commit. The pinned toolchain
+(`rust-toolchain.toml`, channel `1.85.0`) ensures rustfmt output is
+deterministic across all developer machines and CI.
 
 ### 4.4 `wasm-check` — WASM Build Check (no_std)
 
@@ -146,6 +153,10 @@ cargo fmt --all              # fix
   with:
     targets: wasm32-unknown-unknown
 - run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+- run: |
+    WASM=target/wasm32-unknown-unknown/release/dongle_contract.wasm
+    if [ ! -f "$WASM" ]; then echo "ERROR: WASM binary not found"; exit 1; fi
+    echo "WASM binary produced: $(du -h $WASM | cut -f1) at $WASM"
 ```
 
 An **early** compile of the contract to `wasm32-unknown-unknown` (issue #513).
@@ -155,9 +166,17 @@ job surfaces that class of error in ~1–2 minutes instead of after the full
 test suite. It duplicates the compile in `build` on purpose — fast feedback
 first, the full gate later.
 
+The **"Verify WASM binary exists"** step (issue #712) asserts that
+`target/wasm32-unknown-unknown/release/dongle_contract.wasm` is present after
+the build. A successful `cargo build` exit code does not guarantee the binary
+was written to the expected path; the explicit check catches misconfiguration
+(wrong `crate-type`, path drift) before the `optimize` job consumes the artifact.
+
 **Local:**
 ```bash
 cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+# Verify binary exists:
+ls -lh target/wasm32-unknown-unknown/release/dongle_contract.wasm
 ```
 
 ### 4.5 `clippy` — Linting
@@ -349,6 +368,6 @@ tracked as a follow-up (see `TEST_COVERAGE.md` §Roadmap).
 
 ---
 
-**Last Updated:** 2026-08-27
+**Last Updated:** 2026-09-26
 **Workflow:** [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 **Related docs:** [`TESTING.md`](TESTING.md), [`TEST_COVERAGE.md`](TEST_COVERAGE.md), [`TEST_ORGANIZATION.md`](TEST_ORGANIZATION.md), [`DEPLOYMENT.md`](../DEPLOYMENT.md)

@@ -75,9 +75,10 @@ impl NotificationRegistry {
             kinds,
         };
 
-        env.storage()
-            .persistent()
-            .set(&NotificationKey::UserNotificationPrefs(user.clone()), &prefs);
+        env.storage().persistent().set(
+            &NotificationKey::UserNotificationPrefs(user.clone()),
+            &prefs,
+        );
         StorageManager::extend_notification_prefs_ttl(env, &user);
 
         publish_notification_prefs_updated_event(env, user, opted_out, digest_frequency);
@@ -160,6 +161,9 @@ impl NotificationRegistry {
     /// The queue is capped at `MAX_PAGE_LIMIT` entries; older entries are
     /// silently dropped when the cap is reached so the ledger entry stays
     /// bounded.
+    // Off-chain fanout decides who is queued, so this producer currently has no
+    // on-chain caller; kept alongside `flush_digest_queue`/`get_digest_queue`.
+    #[allow(dead_code)]
     pub fn enqueue_digest(env: &Env, user: Address, project_id: u64) {
         let mut queue: Vec<u64> = env
             .storage()
@@ -183,12 +187,7 @@ impl NotificationRegistry {
     }
 
     /// Get the current digest queue for a user (paginated).
-    pub fn get_digest_queue(
-        env: &Env,
-        user: Address,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<u64> {
+    pub fn get_digest_queue(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {

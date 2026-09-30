@@ -39,6 +39,7 @@ fn make_project_params(env: &Env, owner: &Address, name: &str) -> ProjectRegistr
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.mock_all_auths().try_register_project(&params).map(|r| r)
 }
@@ -60,6 +61,7 @@ fn make_update_params(env: &Env, project_id: u64, caller: &Address) -> ProjectUp
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 
