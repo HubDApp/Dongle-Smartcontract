@@ -11,6 +11,7 @@ mod collections;
 mod collection_visibility;
 mod error_handling_tests;
 mod featured;
+mod fork_detection;
 // mod fee;
 // mod indexer;
 mod review;

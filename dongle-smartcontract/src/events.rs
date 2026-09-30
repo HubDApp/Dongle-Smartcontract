@@ -1,3 +1,4 @@
+use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
     ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
