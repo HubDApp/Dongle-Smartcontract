@@ -142,7 +142,8 @@ fn test_api_snapshot_matches() {
         let expected = fs::read_to_string(&snapshot_path)
             .unwrap_or_else(|e| panic!("Failed to read snapshot at {:?}: {}", snapshot_path, e));
         assert_eq!(
-            current, expected,
+            current,
+            expected,
             "\n\nContract API has changed!\n\
              If this is intentional, regenerate the snapshot:\n\
              1. cargo build --target wasm32-unknown-unknown -p dongle-contract\n\

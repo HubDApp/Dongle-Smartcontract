@@ -1,4 +1,8 @@
 //! Tests for project launch timestamp feature (Issue #156)
+// This module uses fixtures from `tests::fixtures` which expose helpers not
+// called by every test in this file.  `#![allow(dead_code)]` prevents
+// spurious warnings when the test binary is compiled as part of the larger
+// test suite.
 #![allow(dead_code)]
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use crate::types::ProjectRegistrationParams;
@@ -25,6 +29,7 @@ fn test_register_project_with_launch_timestamp() {
         launch_timestamp: Some(ts),
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     let project_id = client.mock_all_auths().register_project(&params);
     let project = client.get_project(&project_id).unwrap();

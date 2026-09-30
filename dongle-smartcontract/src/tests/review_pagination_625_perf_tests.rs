@@ -7,7 +7,7 @@ extern crate std;
 
 use crate::storage_keys::StorageKey;
 use crate::tests::fixtures::setup_contract;
-use crate::types::{ProjectRegistrationParams, Review};
+use crate::types::{ProjectRegistrationParams, Review, ReviewAttribution};
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 use std::time::Instant;
 
@@ -32,6 +32,7 @@ fn register_test_project(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params)
 }
@@ -47,7 +48,10 @@ fn seed_reviews(
     let mut std_reviewers = std::vec::Vec::with_capacity(count);
 
     let now = env.ledger().timestamp();
-    let cid = Some(String::from_str(env, "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco"));
+    let cid = Some(String::from_str(
+        env,
+        "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
+    ));
 
     env.as_contract(&client.address, || {
         for _i in 0..count {
@@ -58,6 +62,8 @@ fn seed_reviews(
             let review = Review {
                 project_id,
                 reviewer: reviewer.clone(),
+                attribution: ReviewAttribution::Attributed,
+                reviewer_name: None,
                 rating: 5,
                 content_cid: cid.clone(),
                 owner_response: None,
@@ -165,10 +171,7 @@ fn test_10k_reviews_pagination_performance_and_correctness() {
         "Last page latency exceeded 500ms: {:?}",
         dur_last
     );
-    assert_eq!(
-        page_last.get(49).unwrap().reviewer,
-        seeded_reviewers[299]
-    );
+    assert_eq!(page_last.get(49).unwrap().reviewer, seeded_reviewers[299]);
 
     // 4. Verify no overlapping/duplicate reviews across adjacent pages
     let page_0 = client.list_reviews(&project_id, &0, &50);

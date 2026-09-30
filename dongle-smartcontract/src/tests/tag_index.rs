@@ -42,6 +42,7 @@ fn registration_params(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 
@@ -68,6 +69,7 @@ fn retag_params(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     }
 }
 

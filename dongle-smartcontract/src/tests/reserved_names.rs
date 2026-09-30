@@ -51,6 +51,7 @@ fn test_reserved_name_blocks_registration() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params);
@@ -81,6 +82,7 @@ fn test_reserved_name_case_insensitive() {
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_register_project(&params);
@@ -134,6 +136,7 @@ fn test_reserved_name_blocks_update() {
         bounty_url: None,
         repository_url: None,
         repository_url: None,
+        language_code: None,
     };
 
     let result = client.try_update_project(&params);

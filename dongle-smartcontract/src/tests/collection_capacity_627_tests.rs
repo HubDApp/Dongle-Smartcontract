@@ -30,6 +30,7 @@ fn create_test_project(
         launch_timestamp: None,
         bounty_url: None,
         repository_url: None,
+        language_code: None,
     };
     client.register_project(&params)
 }
