@@ -563,6 +563,8 @@ pub enum MetadataEnrichmentKey {
     /// List of enrichment suggestions for a project (Vec<EnrichmentSuggestion>).
     /// Keyed by project_id (u64).
     EnrichmentSuggestions(u64),
+}
+
 /// Storage keys for probationary verification management.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -21,6 +21,7 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod governance_ranges;
 mod notification_registry;
 pub mod pagination;
 mod probation_registry;
@@ -76,15 +77,15 @@ use crate::types::{
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
     CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
-    DisputeResolutionAction, DuplicateDispute, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
+    DisputeResolutionAction, DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
     FeeRefundRecord, NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
     ProjectEngagementMetric, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSocialAnalyticsExport, ProjectSocialDailyCheckpoint, ProjectSocialPeerRow,
-    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalPayload,
+    ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalComment, ProposalPayload,
     Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
     RecommendationFeedback, Review, ReviewRevision, ReviewSortMode, ReviewTombstone,
     SecurityContactStatus, SmartFolder, SmartFolderFilter, TimelockAction, VerificationAssignment,
-    VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
+    VerificationAssignmentStatus, VerificationBatchAction, VerificationBatchReport, VerificationExpiryNotification,
     VerificationRecord, VerificationRiskAssessment, VerificationRiskModel, VerificationStatus,
     VerificationSuspension,
     AdminActionEntry, AdminActivityRecord, AdminProposal, ArchivedReview, BatchTtlResult,
@@ -949,7 +950,7 @@ impl DongleContract {
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
-        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None)
+        ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None, None)
     }
 
     pub fn add_review_with_attribution(
@@ -980,8 +981,9 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         comment_cid: Option<String>,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid)
+        ReviewRegistry::update_review(&env, project_id, reviewer, rating, comment_cid, language_code)
     }
 
     pub fn delete_review(
@@ -998,8 +1000,9 @@ impl DongleContract {
         reviewer: Address,
         rating: u32,
         review_cid: String,
+        language_code: Option<String>,
     ) -> Result<(), ContractError> {
-        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid)
+        ReviewRegistry::submit_review(&env, project_id, reviewer, rating, review_cid, language_code)
     }
 
     pub fn submit_review_with_attribution(

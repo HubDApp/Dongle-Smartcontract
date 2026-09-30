@@ -224,6 +224,8 @@ pub enum ContractError {
     /// A bulk import exceeded `MAX_BULK_IMPORT_PROJECTS` entries (issue #742).
     /// Split the payload across several calls.
     BulkImportTooLarge = 101,
+    /// Invalid ISO 639-1 language code format (must be exactly 2 lowercase letters).
+    InvalidLanguageCode = 134,
 
     // ── Error codes restored after merge damage ────────────────────────────
     //
@@ -318,15 +320,15 @@ pub enum ContractError {
     /// checkpoint endpoint first.
     SocialAnalyticsNoCheckpoints = 133,
     /// Admin has exceeded the monthly veto (rejection) limit (#730).
-    VetoLimitExceeded = 96,
+    VetoLimitExceeded = 135,
     /// Comment on a proposal is not allowed because voting has already started.
-    CommentLocked = 97,
+    CommentLocked = 136,
     /// Emergency recovery request not found.
-    EmergencyRecoveryNotFound = 98,
+    EmergencyRecoveryNotFound = 137,
     /// Emergency recovery request is not in the pending state.
-    EmergencyRecoveryNotPending = 99,
+    EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
-    ThresholdRequiresUnanimousApproval = 100,
+    ThresholdRequiresUnanimousApproval = 139,
 }
 
 pub type Error = ContractError;

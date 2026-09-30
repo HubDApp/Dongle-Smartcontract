@@ -72,7 +72,6 @@ impl EndorsementRegistry {
                 &ExtensionKey::EndorsementAt(project_id, index),
                 &last_user,
             );
-                .expect("endorsement index must be populated");
             env.storage()
                 .persistent()
                 .set(&ExtensionKey::EndorsementAt(project_id, index), &last_user);
