@@ -1083,6 +1083,23 @@ impl ProjectRegistry {
         projects
     }
 
+    /// Batch-fetch projects in a single scan over the requested IDs.
+    /// Skips missing IDs. Clamped to 100 entries to bound storage reads.
+    /// Alias for bulk clients; prefer over N individual `get_project` calls.
+    pub fn get_projects_batch(env: &Env, project_ids: Vec<u64>) -> Vec<Project> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(project_ids.len(), MAX_BATCH);
+        let mut projects = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = project_ids.get(i) {
+                if let Some(project) = Self::get_project(env, id) {
+                    projects.push_back(project);
+                }
+            }
+        }
+        projects
+    }
+
     pub fn list_projects_by_status(
         env: &Env,
         status: VerificationStatus,

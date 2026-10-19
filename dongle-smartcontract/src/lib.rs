@@ -677,6 +677,11 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_ids(&env, ids)
     }
 
+    /// Batch-fetch projects by ID in one call (max 100). See `get_projects_batch`.
+    pub fn get_projects_batch(env: Env, project_ids: Vec<u64>) -> Vec<Project> {
+        ProjectRegistry::get_projects_batch(&env, project_ids)
+    }
+
     /// Sets an optional region tag for a project (owner only).
     /// Delegates to `ProjectRegistry::set_project_region` for the actual logic.
     pub fn set_project_region(
@@ -1204,6 +1209,11 @@ impl DongleContract {
 
     pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
         ReviewRegistry::get_reviews_by_ids(&env, ids)
+    }
+
+    /// Batch-fetch reviews in one call (max 100). Same filtering as `get_reviews_by_ids`.
+    pub fn get_reviews_batch(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        ReviewRegistry::get_reviews_batch(&env, ids)
     }
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
