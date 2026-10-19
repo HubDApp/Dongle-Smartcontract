@@ -51,6 +51,7 @@ mod social_analytics_registry;
 mod probation_registry;
 mod performance_metrics;
 mod invariant_checker;
+mod pow_challenge;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -4109,6 +4110,29 @@ impl DongleContract {
         env: Env,
     ) -> Vec<crate::invariant_checker::InvariantViolation> {
         crate::invariant_checker::InvariantChecker::get_violations(&env)
+    }
+
+    // ── #946: Proof-of-Work for Expensive Operations ──────────────────────
+
+    /// Issue a PoW challenge scaled to the operation cost (e.g. batch size).
+    /// See `pow_challenge` docs for the algorithm and difficulty levels.
+    pub fn issue_pow_challenge(env: Env, op_cost: u32) -> crate::pow_challenge::PowChallenge {
+        crate::pow_challenge::PowGate::issue(&env, op_cost)
+    }
+
+    /// Difficulty (leading-zero bits) required for the given operation cost.
+    pub fn pow_difficulty_for(op_cost: u32) -> u32 {
+        crate::pow_challenge::PowGate::difficulty_for(op_cost)
+    }
+
+    /// Validate a PoW solution before running a resource-heavy function.
+    pub fn verify_pow(
+        env: Env,
+        challenge: crate::pow_challenge::PowChallenge,
+        nonce: u64,
+        op_cost: u32,
+    ) -> Result<(), ContractError> {
+        crate::pow_challenge::PowGate::verify(&env, &challenge, nonce, op_cost)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────
