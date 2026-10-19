@@ -53,6 +53,7 @@ mod performance_metrics;
 mod invariant_checker;
 mod pow_challenge;
 mod compliance_mode;
+mod benchmark_suite;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -4177,6 +4178,37 @@ impl DongleContract {
         env: Env,
     ) -> Vec<crate::compliance_mode::ComplianceAuditEntry> {
         crate::compliance_mode::ComplianceMode::get_audit_log(&env)
+    }
+
+    // ── #941: Benchmark Suite & Regression Alerts ────────────────────────
+
+    /// Record a benchmark sample for a critical function (admin-only).
+    pub fn record_benchmark(
+        env: Env,
+        caller: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::record(&env, caller, name, storage_reads, exec_units)
+    }
+
+    /// Admin-only: pin the baseline for a benchmark.
+    pub fn set_benchmark_baseline(
+        env: Env,
+        admin: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::set_baseline(&env, admin, name, storage_reads, exec_units)
+    }
+
+    /// Compare latest samples vs baselines; returns regressions over 10%.
+    pub fn check_benchmark_regressions(
+        env: Env,
+    ) -> Vec<crate::benchmark_suite::BenchmarkRegression> {
+        crate::benchmark_suite::BenchmarkSuite::check_regressions(&env)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────
