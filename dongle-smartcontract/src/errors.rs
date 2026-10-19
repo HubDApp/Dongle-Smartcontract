@@ -329,6 +329,12 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Smart bookmark collection referenced by ID does not exist (#914).
+    SmartBookmarkCollectionNotFound = 140,
+    /// Maximum smart bookmark collections per user exceeded (#914).
+    MaxSmartBookmarkCollectionsExceeded = 141,
+    /// Project similarity score did not meet the required threshold (#913).
+    SimilarityThresholdNotMet = 142,
 }
 
 pub type Error = ContractError;

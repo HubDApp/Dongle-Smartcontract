@@ -779,3 +779,26 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for smart bookmark collections (#914).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SmartBookmarkKey {
+    /// Stored SmartBookmarkCollection by collection_id.
+    Collection(u64),
+    /// List of smart bookmark collection IDs owned by an Address.
+    UserCollections(Address),
+    /// Global counter for next collection ID.
+    NextCollectionId,
+}
+
+/// Storage keys for dynamic trending projects cache (#912).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TrendingKey {
+    /// Cached trending projects list for a given time window.
+    TrendingCache(u64),
+    /// Timestamp when trending projects list was cached for a given time window.
+    TrendingCacheTimestamp(u64),
+}
+

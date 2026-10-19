@@ -165,3 +165,13 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #914: Smart Bookmark Collections
+mod smart_bookmark_collections;
+// Issue #912: Dynamic Trending Projects
+mod trending_projects;
+// Issue #913: Similar and Duplicate Projects Detection
+mod similarity_projects;
+// Issue #909: Search Enhancements with Wildcards and Phrases
+mod search_enhancements;
+

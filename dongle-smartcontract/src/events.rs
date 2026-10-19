@@ -2793,6 +2793,41 @@ pub struct SmartFolderDeletedEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollectionCreatedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollectionRefreshedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrendingRecalculatedEvent {
+    pub time_window: u64,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SimilarProjectsQueriedEvent {
+    pub project_id: u64,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+
 pub fn publish_folder_created_event(
     env: &Env,
     folder_id: u64,
@@ -2938,6 +2973,85 @@ pub fn publish_smart_folder_deleted_event(env: &Env, smart_folder_id: u64, owner
         event_data,
     );
 }
+
+pub fn publish_smart_bookmark_collection_created_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+    name: String,
+) {
+    let event_data = SmartBookmarkCollectionCreatedEvent {
+        collection_id,
+        owner: owner.clone(),
+        name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SBMARK"),
+            symbol_short!("CREATED"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_bookmark_collection_refreshed_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+    count: u32,
+) {
+    let event_data = SmartBookmarkCollectionRefreshedEvent {
+        collection_id,
+        owner: owner.clone(),
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SBMARK"),
+            symbol_short!("REFRESH"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_trending_recalculated_event(env: &Env, time_window: u64, count: u32) {
+    let event_data = TrendingRecalculatedEvent {
+        time_window,
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("TRENDING"),
+            symbol_short!("RECALC"),
+            time_window,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_similar_projects_queried_event(env: &Env, project_id: u64, count: u32) {
+    let event_data = SimilarProjectsQueriedEvent {
+        project_id,
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SIMILAR"),
+            symbol_short!("QUERIED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 
 // ── Review Archival Events (#804) ─────────────────────────────────────────────
 
