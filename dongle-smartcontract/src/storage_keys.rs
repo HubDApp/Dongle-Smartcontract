@@ -340,6 +340,16 @@ pub enum ExtensionKey2 {
     AdminSessionHistory(Address),
     /// Next admin session ID counter.
     NextAdminSessionId,
+    /// Mutual project recommendation by id (#948).
+    ProjectRec(u64),
+    /// Global list of mutual recommendation ids, oldest-first (#948).
+    ProjectRecList,
+    /// Mutual recommendation ids received by a project (#948).
+    ProjectRecs(u64),
+    /// Dedupe guard: (recommender_id, target_id) -> recommendation id (#948).
+    ProjectRecPair(u64, u64),
+    /// Next mutual recommendation id counter (#948).
+    NextProjectRecId,
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under

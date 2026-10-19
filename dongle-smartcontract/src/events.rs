@@ -4341,3 +4341,38 @@ pub fn publish_project_transfer_cancelled_event(
         event_data,
     );
 }
+
+// ── Mutual project recommendation event (issue #948) ─────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRecommendedEvent {
+    pub recommendation_id: u64,
+    pub recommender_id: u64,
+    pub target_id: u64,
+    pub reason_cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_recommended_event(
+    env: &Env,
+    recommendation_id: u64,
+    recommender_id: u64,
+    target_id: u64,
+    reason_cid: String,
+) {
+    let event_data = ProjectRecommendedEvent {
+        recommendation_id,
+        recommender_id,
+        target_id,
+        reason_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("RECOMMEND"),
+            recommendation_id,
+        ),
+        event_data,
+    );
+}

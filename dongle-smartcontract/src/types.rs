@@ -3326,3 +3326,14 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+
+// ── Mutual project recommendations (issue #948) ─────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectRecommendation {
+    pub id: u64,
+    pub recommender_id: u64,
+    pub target_id: u64,
+    pub reason_cid: String,
+    pub created_at: u64,
+}

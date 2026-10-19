@@ -329,6 +329,10 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// A project cannot recommend itself (#948).
+    SelfRecommendation = 140,
+    /// This project has already recommended the target project (#948).
+    DuplicateRecommendation = 141,
 }
 
 pub type Error = ContractError;

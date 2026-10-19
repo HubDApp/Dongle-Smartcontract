@@ -27,6 +27,7 @@ mod featured_registry;
 mod fee_manager;
 mod governance_ranges;
 mod notification_registry;
+mod mutual_recommendation;
 pub mod pagination;
 mod probation_registry;
 mod project_registry;
@@ -4611,5 +4612,49 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
+    }
+
+    // ── Mutual project recommendations (issue #948) ──────────────────────────
+
+    /// Record a mutual recommendation from `recommender_id` to `target_id`
+    /// with an off-chain reason document `reason_cid`. Rejects
+    /// self-recommendations and duplicates, and emits `ProjectRecommended`.
+    pub fn recommend_project(
+        env: Env,
+        recommender_id: u64,
+        target_id: u64,
+        reason_cid: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::mutual_recommendation::MutualRecommendationRegistry::recommend_project(
+            &env,
+            recommender_id,
+            target_id,
+            reason_cid,
+        )
+    }
+
+    /// Recommendation counter for the project display: number of mutual
+    /// recommendations received by `target_id`.
+    pub fn get_mutual_recommendation_count(env: Env, target_id: u64) -> u32 {
+        crate::mutual_recommendation::MutualRecommendationRegistry::get_recommendation_count(
+            &env, target_id,
+        )
+    }
+
+    /// Filter mutual recommendations by the target project's category
+    /// (oldest-first, paginated).
+    pub fn list_recommendations_by_category(
+        env: Env,
+        category: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ProjectRecommendation> {
+        crate::mutual_recommendation::MutualRecommendationRegistry::list_by_category(
+            &env,
+            category,
+            start_index,
+            limit,
+        )
     }
 }
