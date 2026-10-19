@@ -779,3 +779,21 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for the immutable verification audit trail. Own enum to
+/// respect Soroban's 50-variant union cap on the shared key enums. Entries
+/// under these keys are append-only: nothing in the contract removes them.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationAuditKey {
+    /// Next global audit entry ID.
+    NextEntryId,
+    /// Number of audit entries for a project.
+    EntryCount(u64),
+    /// Audit entry: (project_id, index) -> VerificationAuditEntry.
+    Entry(u64, u32),
+    /// Number of rejection records for a project.
+    RejectionCount(u64),
+    /// Rejection record: (project_id, index) -> RejectionRecord.
+    Rejection(u64, u32),
+}

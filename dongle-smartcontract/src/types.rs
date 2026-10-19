@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Map, String, Vec};
 
 /// Parameters supplied to `register_project`. All required fields must be
 /// non-empty; optional fields default to `None` when omitted.
@@ -755,6 +755,94 @@ pub struct VerificationRecord {
     /// Admin assigned to review this verification request via
     /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
+    /// Admin who approved this request. `None` until the request is approved.
+    pub approver: Option<Address>,
+    /// Unix timestamp when the request was approved. Zero until approved.
+    pub approved_at: u64,
+    /// Free-form notes supplied by the approver. Empty when none were given.
+    pub approval_notes: String,
+}
+
+/// Immutable record of a single verification rejection.
+///
+/// Rejections are kept separately from `VerificationRecord` so that a project
+/// with several rejected attempts retains every rejection even after a later
+/// request supersedes the record pointed to by `current_verification_id`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RejectionRecord {
+    /// One-based index of this rejection within the project's rejections.
+    pub rejection_id: u32,
+    pub project_id: u64,
+    pub request_id: u64,
+    /// Address that submitted the rejected request.
+    pub requester: Address,
+    /// Admin who rejected the request.
+    pub rejected_by: Address,
+    pub rejected_at: u64,
+    /// Admin-supplied reason. Empty when none was given.
+    pub reason: String,
+}
+
+/// Kind of verification decision captured in the audit trail.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationAuditAction {
+    Approved,
+    Rejected,
+    Revoked,
+    Suspended,
+    Restored,
+    RenewalApproved,
+    RenewalRejected,
+}
+
+/// Append-only audit trail entry for a verification decision. Entries are
+/// never updated or removed once written.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditEntry {
+    /// Globally unique, monotonically increasing entry ID.
+    pub entry_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub action: VerificationAuditAction,
+    /// Admin who made the decision.
+    pub actor: Address,
+    pub timestamp: u64,
+    /// Approval notes or rejection/revocation/suspension reason.
+    pub notes: String,
+}
+
+/// Filter applied to audit trail queries and exports. Every `None` field
+/// matches all entries; `from_ts` / `to_ts` are inclusive bounds.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditFilter {
+    pub actor: Option<Address>,
+    pub from_ts: Option<u64>,
+    pub to_ts: Option<u64>,
+    pub action: Option<VerificationAuditAction>,
+}
+
+/// Batch export of verification audit data in a stable compliance format.
+///
+/// `digest` is the SHA-256 of the XDR-encoded `entries` vector so auditors
+/// can verify an export has not been altered after it was produced.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditExport {
+    /// Export format version; bumped on any breaking layout change.
+    pub format_version: u32,
+    pub generated_at: u64,
+    pub project_ids: Vec<u64>,
+    pub filter: VerificationAuditFilter,
+    pub entries: Vec<VerificationAuditEntry>,
+    pub rejections: Vec<RejectionRecord>,
+    pub total_entries: u32,
+    /// True when the export hit `MAX_AUDIT_EXPORT_ENTRIES` and was cut short.
+    pub truncated: bool,
+    pub digest: BytesN<32>,
 }
 
 /// Immutable snapshot of the evidence CID used by a verification request.
