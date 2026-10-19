@@ -52,6 +52,7 @@ mod probation_registry;
 mod performance_metrics;
 mod invariant_checker;
 mod pow_challenge;
+mod compliance_mode;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -4133,6 +4134,49 @@ impl DongleContract {
         op_cost: u32,
     ) -> Result<(), ContractError> {
         crate::pow_challenge::PowGate::verify(&env, &challenge, nonce, op_cost)
+    }
+
+    // ── #947: Restricted-Mode Compliance Deployments ─────────────────────
+
+    /// Admin-only: set compliance mode config (restricted features, geo/KYC).
+    pub fn set_compliance_config(
+        env: Env,
+        admin: Address,
+        config: crate::compliance_mode::ComplianceConfig,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_config(&env, admin, config)
+    }
+
+    /// Return the current compliance mode config.
+    pub fn get_compliance_config(env: Env) -> crate::compliance_mode::ComplianceConfig {
+        crate::compliance_mode::ComplianceMode::get_config(&env)
+    }
+
+    /// Set the geographic country code for a project (compliance geo rule).
+    pub fn set_project_geo(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        country_code: String,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_project_geo(&env, caller, project_id, country_code)
+    }
+
+    /// Admin-only KYC/AML hook: approve or revoke a user.
+    pub fn set_kyc_approved(
+        env: Env,
+        admin: Address,
+        user: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_kyc_approved(&env, admin, user, approved)
+    }
+
+    /// Return the compliance audit log.
+    pub fn get_compliance_audit_log(
+        env: Env,
+    ) -> Vec<crate::compliance_mode::ComplianceAuditEntry> {
+        crate::compliance_mode::ComplianceMode::get_audit_log(&env)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────
