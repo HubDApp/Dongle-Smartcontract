@@ -329,6 +329,51 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Caller exceeded the configured per-address rate limit for this
+    /// operation (issue #945). Wait for the window to reset or ask an admin
+    /// for a trusted-address override.
+    RateLimitExceeded = 140,
 }
 
 pub type Error = ContractError;
+
+impl ContractError {
+    /// Numeric error code as exposed in the contract ABI.
+    pub fn code(self) -> u32 {
+        self as u32
+    }
+
+    /// Short troubleshooting hint surfaced alongside the error code so users
+    /// know what went wrong and where to look (full guides: ERROR_CATALOG.md).
+    pub fn troubleshooting_hint(self) -> &'static str {
+        match self {
+            ContractError::AlreadyInitialized => "Contract already initialized; do not re-initialize.",
+            ContractError::Unauthorized | ContractError::AdminOnly => {
+                "Caller lacks permission; check admin list and require_auth."
+            }
+            ContractError::ProjectNotFound
+            | ContractError::ReviewNotFound
+            | ContractError::VerificationNotFound
+            | ContractError::CollectionNotFound
+            | ContractError::FolderNotFound
+            | ContractError::AppealNotFound
+            | ContractError::AssignmentNotFound
+            | ContractError::RecoveryCaseNotFound
+            | ContractError::EmergencyRecoveryNotFound => {
+                "Referenced record does not exist; verify the id/slug first."
+            }
+            ContractError::InvalidRating => "Rating must be an integer 1-5.",
+            ContractError::DuplicateReview | ContractError::DuplicateProjectName | ContractError::ProjectAlreadyExists => {
+                "Duplicate submission; fetch existing records before retrying."
+            }
+            ContractError::InsufficientFee | ContractError::FeeConfigNotSet | ContractError::ReviewFeeRequired => {
+                "Check fee config and amount paid; see ERROR_CATALOG.md."
+            }
+            ContractError::ContractPaused => "Contract is paused; wait for unpause.",
+            ContractError::RateLimitExceeded => {
+                "Too many calls; wait for the window reset or request a trusted override."
+            }
+            _ => "See ERROR_CATALOG.md for root cause, debugging steps, and resolution.",
+        }
+    }
+}
