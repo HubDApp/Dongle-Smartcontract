@@ -50,6 +50,7 @@ mod verification_registry;
 mod social_analytics_registry;
 mod probation_registry;
 mod performance_metrics;
+mod invariant_checker;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -4079,6 +4080,35 @@ impl DongleContract {
     /// without guessing.
     pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
+    }
+
+    // ── #940: Runtime Invariant Checks ────────────────────────────────────
+
+    /// Admin-only debug endpoint: run enabled invariant checks
+    /// (project count, review counts, admin count, fee balance),
+    /// log violations, and return them.
+    pub fn verify_contract_invariants(
+        env: Env,
+        admin: Address,
+    ) -> Result<Vec<crate::invariant_checker::InvariantViolation>, ContractError> {
+        crate::invariant_checker::InvariantChecker::verify_contract_invariants(&env, admin)
+    }
+
+    /// Admin-only: enable or disable a single invariant check.
+    pub fn set_invariant_check_enabled(
+        env: Env,
+        admin: Address,
+        check: crate::invariant_checker::InvariantCheckId,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        crate::invariant_checker::InvariantChecker::set_check_enabled(&env, admin, check, enabled)
+    }
+
+    /// Return all logged invariant violations (oldest first).
+    pub fn get_invariant_violations(
+        env: Env,
+    ) -> Vec<crate::invariant_checker::InvariantViolation> {
+        crate::invariant_checker::InvariantChecker::get_violations(&env)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────
