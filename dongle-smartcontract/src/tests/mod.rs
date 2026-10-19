@@ -87,6 +87,8 @@ mod proptest_pagination;
 
 // Property-based tests for all validation functions (issue #498)
 mod proptest_validation;
+// Property-based fuzzing harness for contract invariants (issue #939)
+mod fuzz_test_harness;
 // Recommendation generation, personalization, A/B testing, and conversion funnel
 mod recommendations;
 // Issue #221: fee amount boundary tests

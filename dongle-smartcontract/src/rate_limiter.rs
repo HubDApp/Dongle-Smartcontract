@@ -53,9 +53,9 @@ pub struct RateLimiter;
 impl RateLimiter {
     /// Default `(max_calls, window_secs)` per operation type.
     pub fn default_limit(env: &Env, op: Symbol) -> (u32, u64) {
-        if op == symbol_short!("submit_rev") {
+        if op == symbol_short!("review") {
             (10, 3600) // 10 reviews/hour
-        } else if op == symbol_short!("add_project") {
+        } else if op == symbol_short!("add_proj") {
             (20, 86400) // 20 projects/day
         } else if op == symbol_short!("follow") {
             (100, 3600) // 100 follows/hour
