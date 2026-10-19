@@ -3337,3 +3337,16 @@ pub struct ProjectRecommendation {
     pub reason_cid: String,
     pub created_at: u64,
 }
+
+// ── Grant / funding announcements (issue #949) ──────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Grant {
+    pub id: u64,
+    pub project_id: u64,
+    pub title: String,
+    pub amount: u128,
+    pub deadline: u64,
+    pub criteria: String,
+    pub created_at: u64,
+}

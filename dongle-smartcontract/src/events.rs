@@ -4376,3 +4376,37 @@ pub fn publish_project_recommended_event(
         event_data,
     );
 }
+
+// ── Grant opportunity event (issue #949) ─────────────────────────────────────
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GrantOpportunityPostedEvent {
+    pub grant_id: u64,
+    pub project_id: u64,
+    pub title: String,
+    pub amount: u128,
+    pub deadline: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_grant_opportunity_posted_event(
+    env: &Env,
+    grant_id: u64,
+    project_id: u64,
+    title: String,
+    amount: u128,
+    deadline: u64,
+) {
+    let event_data = GrantOpportunityPostedEvent {
+        grant_id,
+        project_id,
+        title,
+        amount,
+        deadline,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("GRANT"), symbol_short!("POSTED"), grant_id),
+        event_data,
+    );
+}

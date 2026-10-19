@@ -28,6 +28,7 @@ mod fee_manager;
 mod governance_ranges;
 mod notification_registry;
 mod mutual_recommendation;
+mod grant_registry;
 pub mod pagination;
 mod probation_registry;
 mod project_registry;
@@ -4656,5 +4657,69 @@ impl DongleContract {
             start_index,
             limit,
         )
+    }
+
+    // ── Grant / funding announcements (issue #949) ───────────────────────────
+
+    /// Post a grant/funding opportunity for `project_id`. Emits
+    /// `GrantOpportunityPosted`.
+    pub fn post_grant_opportunity(
+        env: Env,
+        poster: Address,
+        project_id: u64,
+        title: String,
+        amount: u128,
+        deadline: u64,
+        criteria: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::grant_registry::GrantRegistry::post_grant_opportunity(
+            &env,
+            poster,
+            project_id,
+            title,
+            amount,
+            deadline,
+            criteria,
+        )
+    }
+
+    /// Return all grants posted by any of `project_ids`.
+    pub fn get_grants_for_projects(
+        env: Env,
+        project_ids: Vec<u64>,
+    ) -> Vec<crate::types::Grant> {
+        crate::grant_registry::GrantRegistry::get_grants_for_projects(&env, project_ids)
+    }
+
+    /// Apply for a grant before its deadline.
+    pub fn apply_for_grant(
+        env: Env,
+        applicant: Address,
+        grant_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::grant_registry::GrantRegistry::apply_for_grant(&env, applicant, grant_id)
+    }
+
+    /// Record the winning applicant (project owner only).
+    pub fn select_grant_winner(
+        env: Env,
+        caller: Address,
+        grant_id: u64,
+        winner: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::grant_registry::GrantRegistry::select_grant_winner(&env, caller, grant_id, winner)
+    }
+
+    /// Tracked applications for a grant.
+    pub fn get_grant_applications(env: Env, grant_id: u64) -> Vec<Address> {
+        crate::grant_registry::GrantRegistry::get_grant_applications(&env, grant_id)
+    }
+
+    /// Tracked winner for a grant, if selected.
+    pub fn get_grant_winner(env: Env, grant_id: u64) -> Option<Address> {
+        crate::grant_registry::GrantRegistry::get_grant_winner(&env, grant_id)
     }
 }

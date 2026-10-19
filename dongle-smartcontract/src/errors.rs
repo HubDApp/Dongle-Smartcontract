@@ -333,6 +333,10 @@ pub enum ContractError {
     SelfRecommendation = 140,
     /// This project has already recommended the target project (#948).
     DuplicateRecommendation = 141,
+    /// Grant opportunity not found (#949).
+    GrantNotFound = 142,
+    /// Applicant has already applied for this grant (#949).
+    DuplicateGrantApplication = 143,
 }
 
 pub type Error = ContractError;

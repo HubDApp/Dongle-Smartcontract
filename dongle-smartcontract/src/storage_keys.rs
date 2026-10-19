@@ -350,6 +350,16 @@ pub enum ExtensionKey2 {
     ProjectRecPair(u64, u64),
     /// Next mutual recommendation id counter (#948).
     NextProjectRecId,
+    /// Grant opportunity by id (#949).
+    GrantOpp(u64),
+    /// Grant ids posted by a project (#949).
+    ProjectGrants(u64),
+    /// Next grant opportunity id counter (#949).
+    NextGrantId,
+    /// Applicants for a grant: grant id -> Vec<Address> (#949).
+    GrantApplications(u64),
+    /// Winner selected for a grant (#949).
+    GrantWinner(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
