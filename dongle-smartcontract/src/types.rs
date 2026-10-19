@@ -3454,14 +3454,137 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+// ── Auto-Archive Bookmark Types (#915) ──────────────────────────────────────
 
+/// Global bookmark configuration (#915).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectDataExport {
+pub struct BookmarkConfig {
+    /// Default days after which an untouched bookmark is eligible for auto-archival.
+    /// `None` indicates auto-archiving is disabled globally.
+    pub auto_archive_after_days: Option<u32>,
+}
+
+/// Expiration policy for bookmarks (#915).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkExpirationPolicy {
+    /// Days after which bookmarks are auto-archived.
+    /// `None` means no expiration.
+    pub auto_archive_after_days: Option<u32>,
+}
+
+/// Metadata record for an archived bookmark (#915).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchivedBookmarkRecord {
+    pub project_id: u64,
+    pub bookmarked_at: u64,
+    pub archived_at: u64,
+}
+
+// ── Feature-based Recommendation Types (#911) ───────────────────────────────
+
+/// Recommendation strategy based on project features (#911).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecommendationStrategy {
+    /// Suggest projects sharing the same category and overlapping tags.
+    Similar,
+    /// Suggest complementary projects connected via the link graph or cross-category ecosystem tools.
+    Complementary,
+    /// Suggest trending projects with highest engagement, reviews, and activity.
+    Trending,
+}
+
+/// Configurable options for project recommendations (#911).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationOptions {
+    pub strategy: RecommendationStrategy,
+    pub count: u32,
+    /// Maximum recommended projects allowed per category for diversity. 0 = no category limit.
+    pub max_per_category: u32,
+}
+
+// ── Complex Query Filter Types (#910) ───────────────────────────────────────
+
+/// Sort order for filtered project queries (#910).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectFilterSortBy {
+    Rating,
+    RegistrationDate,
+    ReviewCount,
+    Name,
+}
+
+/// Logical operator for combining multiple project filters (#910).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FilterLogic {
+    And,
+    Or,
+}
+
+/// Filter criteria for project discovery (#910).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectFilterCriteria {
+    pub category: Option<String>,
+    pub min_rating: Option<u32>,
+    pub verification_status: Option<VerificationStatus>,
+    pub owner_address: Option<Address>,
+    pub featured_only: Option<bool>,
+}
+
+/// Complete query filter specification for project discovery (#910).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectQueryFilter {
+    pub criteria: ProjectFilterCriteria,
+    pub logic: FilterLogic,
+    pub sort_by: Option<ProjectFilterSortBy>,
+    pub ascending: Option<bool>,
+}
+
+/// Cursor-based result set for filtered project discovery (#910).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectQueryResult {
+    pub projects: Vec<Project>,
+    pub next_cursor: Option<u64>,
+    pub has_more: bool,
+    pub total_matched: u32,
+}
+
+// ── Collection Snapshot Types (#908) ────────────────────────────────────────
+
+/// Immutable snapshot record for a collection at a point in time (#908).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionSnapshot {
+    pub collection_id: u64,
     pub version: u32,
-    pub project: crate::types::Project,
-    pub reviews: Vec<crate::types::Review>,
-    pub verification_records: Vec<crate::types::VerificationRecord>,
+    pub ipfs_cid: String,
+    pub project_count: u32,
+    pub project_ids: Vec<u64>,
+    pub created_at: u64,
+    pub created_by: Address,
+}
+
+/// Comparison between two collection snapshot versions (#908).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionSnapshotComparison {
+    pub collection_id: u64,
+    pub version_a: u32,
+    pub version_b: u32,
+    pub cid_a: String,
+    pub cid_b: String,
+    pub added_projects: Vec<u64>,
+    pub removed_projects: Vec<u64>,
+    pub unchanged_projects: Vec<u64>,
 }
 
 

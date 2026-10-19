@@ -33,7 +33,7 @@ mod project_registry;
 pub mod project_controls;
 mod project_operation_limiter;
 pub mod rating_calculator;
-// mod recommendation_registry;
+mod recommendation_registry;
 mod report_registry;
 mod reward_registry;
 pub mod review_registry;
@@ -124,6 +124,15 @@ use crate::types::{
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
     // Custom verification requirements
     VerificationRequirementAudit, ProjectVerificationRequirements,
+    // #915 bookmark auto-archive
+    ArchivedBookmarkRecord, BookmarkConfig, BookmarkExpirationPolicy,
+    // #911 feature recommendations
+    RecommendationABAnalytics, RecommendationABConfig, RecommendationOptions,
+    RecommendationStrategy, RecommendationVariant,
+    // #910 complex query filters
+    FilterLogic, ProjectFilterCriteria, ProjectFilterSortBy, ProjectQueryFilter, ProjectQueryResult,
+    // #908 collection immutable snapshots
+    CollectionSnapshot, CollectionSnapshotComparison,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -4671,5 +4680,267 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
+    }
+
+    // ── Bookmark Auto-Archive & Expiration Policies (#915) ───────────────────
+
+    /// Configure the global bookmark auto-archive period (admin only).
+    pub fn set_bookmark_config(
+        env: Env,
+        admin: Address,
+        config: BookmarkConfig,
+    ) -> Result<(), ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::set_bookmark_config(&env, admin, config)
+    }
+
+    /// Retrieve the global bookmark auto-archive configuration.
+    pub fn get_bookmark_config(env: Env) -> BookmarkConfig {
+        crate::bookmark_registry::BookmarkRegistry::get_bookmark_config(&env)
+    }
+
+    /// Set a per-user bookmark expiration policy.
+    pub fn set_user_bookmark_policy(
+        env: Env,
+        user: Address,
+        policy: BookmarkExpirationPolicy,
+    ) -> Result<(), ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::set_user_bookmark_policy(&env, user, policy)
+    }
+
+    /// Retrieve a user's bookmark expiration policy.
+    pub fn get_user_bookmark_policy(
+        env: Env,
+        user: Address,
+    ) -> Option<BookmarkExpirationPolicy> {
+        crate::bookmark_registry::BookmarkRegistry::get_user_bookmark_policy(&env, &user)
+    }
+
+    /// Set an expiration override for a specific bookmark.
+    pub fn set_bookmark_expiration_policy(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        auto_archive_after_days: Option<u32>,
+    ) -> Result<(), ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::set_bookmark_policy(
+            &env,
+            user,
+            project_id,
+            auto_archive_after_days,
+        )
+    }
+
+    /// Retrieve expiration override for a specific bookmark.
+    pub fn get_bookmark_expiration_policy(
+        env: Env,
+        user: Address,
+        project_id: u64,
+    ) -> Option<u32> {
+        crate::bookmark_registry::BookmarkRegistry::get_bookmark_policy(&env, &user, project_id)
+    }
+
+    /// Explicitly trigger archival of expired bookmarks for a user.
+    pub fn auto_archive_stale_bookmarks(
+        env: Env,
+        user: Address,
+    ) -> Result<u32, ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::archive_expired_bookmarks(&env, user)
+    }
+
+    /// Restore an archived bookmark back to the active bookmarks list.
+    pub fn restore_archived_bookmark(
+        env: Env,
+        user: Address,
+        bookmark_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_registry::BookmarkRegistry::restore_archived_bookmark(&env, user, bookmark_id)
+    }
+
+    /// List archived bookmarks for a user with pagination.
+    pub fn get_archived_bookmarks(
+        env: Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::bookmark_registry::BookmarkRegistry::get_archived_bookmarks(
+            &env,
+            user,
+            start_index,
+            limit,
+        )
+    }
+
+    // ── Feature-Based Project Recommendations (#911) ─────────────────────────
+
+    /// Suggest similar or related projects based on category, tags, and link graph.
+    pub fn get_recommended_projects(
+        env: Env,
+        project_id: u64,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::recommendation_registry::RecommendationRegistry::get_recommended_projects(
+            &env,
+            project_id,
+            limit,
+        )
+    }
+
+    /// Advanced recommendations with configurable strategy (similar, complementary, trending) and diversity options.
+    pub fn get_recommended_projects_with_options(
+        env: Env,
+        project_id: u64,
+        options: RecommendationOptions,
+    ) -> Vec<u64> {
+        crate::recommendation_registry::RecommendationRegistry::get_recommended_projects_with_options(
+            &env,
+            project_id,
+            options,
+        )
+    }
+
+    /// Record a recommendation click for ML model feedback.
+    pub fn track_recommendation_click(
+        env: Env,
+        user: Address,
+        project_id: u64,
+        recommended_project_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::recommendation_registry::RecommendationRegistry::track_click(
+            &env,
+            user,
+            project_id,
+            recommended_project_id,
+        )
+    }
+
+    /// Retrieve recommendation click count for a project pair.
+    pub fn get_recommendation_clicks(
+        env: Env,
+        project_id: u64,
+        recommended_project_id: u64,
+    ) -> u64 {
+        crate::recommendation_registry::RecommendationRegistry::get_click_count(
+            &env,
+            project_id,
+            recommended_project_id,
+        )
+    }
+
+    // ── Complex Query Filters for Project Discovery (#910) ──────────────────
+
+    /// Query projects using boolean combinations (AND / OR) of criteria, sorting, and cursor-based pagination.
+    pub fn query_projects(
+        env: Env,
+        filter: ProjectQueryFilter,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        crate::project_registry::ProjectRegistry::query_projects(&env, filter, cursor, limit)
+    }
+
+    /// Filter projects by category, min rating, verification status, owner, and featured status.
+    pub fn list_projects_filtered(
+        env: Env,
+        category: Option<String>,
+        min_rating: Option<u32>,
+        verification_status: Option<VerificationStatus>,
+        owner_address: Option<Address>,
+        featured_only: Option<bool>,
+        logic: Option<FilterLogic>,
+        sort_by: Option<ProjectFilterSortBy>,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        crate::project_registry::ProjectRegistry::list_projects_filtered(
+            &env,
+            category,
+            min_rating,
+            verification_status,
+            owner_address,
+            featured_only,
+            logic,
+            sort_by,
+            cursor,
+            limit,
+        )
+    }
+
+    // ── Collection Immutable Snapshots (#908) ───────────────────────────────
+
+    /// Snapshot the current state and projects of a collection and record its IPFS CID on-chain.
+    pub fn snapshot_collection(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        ipfs_cid: Option<String>,
+    ) -> Result<CollectionSnapshot, ContractError> {
+        crate::emergency_pause::EmergencyPause::require_not_paused(&env)?;
+        crate::collection_registry::CollectionRegistry::snapshot_collection(
+            &env,
+            caller,
+            collection_id,
+            ipfs_cid,
+        )
+    }
+
+    /// Retrieve an immutable snapshot of a collection by version.
+    pub fn get_collection_snapshot(
+        env: Env,
+        collection_id: u64,
+        version: u32,
+    ) -> Option<CollectionSnapshot> {
+        crate::collection_registry::CollectionRegistry::get_collection_snapshot(
+            &env,
+            collection_id,
+            version,
+        )
+    }
+
+    /// Retrieve the most recent snapshot of a collection.
+    pub fn get_latest_collection_snapshot(
+        env: Env,
+        collection_id: u64,
+    ) -> Option<CollectionSnapshot> {
+        crate::collection_registry::CollectionRegistry::get_latest_collection_snapshot(
+            &env,
+            collection_id,
+        )
+    }
+
+    /// List all snapshots created for a collection with pagination.
+    pub fn list_collection_snapshots(
+        env: Env,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CollectionSnapshot> {
+        crate::collection_registry::CollectionRegistry::list_collection_snapshots(
+            &env,
+            collection_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Compare two collection snapshot versions to inspect added, removed, and unchanged projects.
+    pub fn compare_collection_snapshots(
+        env: Env,
+        collection_id: u64,
+        version_a: u32,
+        version_b: u32,
+    ) -> Result<CollectionSnapshotComparison, ContractError> {
+        crate::collection_registry::CollectionRegistry::compare_collection_snapshots(
+            &env,
+            collection_id,
+            version_a,
+            version_b,
+        )
     }
 }

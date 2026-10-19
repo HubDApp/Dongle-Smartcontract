@@ -434,6 +434,18 @@ pub enum BookmarkKey {
     /// Per-user index: project_id → folder_id.  Lets `move_bookmark` find
     /// the current folder of a project without scanning all folder lists.
     BookmarkFolderIndex(Address, u64),
+    /// Global bookmark configuration (#915).
+    GlobalBookmarkConfig,
+    /// Per-user bookmark expiration policy (#915).
+    UserBookmarkPolicy(Address),
+    /// Per-bookmark expiration policy override: (user, project_id) (#915).
+    BookmarkExpirationPolicy(Address, u64),
+    /// Timestamp when project was bookmarked: (user, project_id) (#915).
+    BookmarkCreatedAt(Address, u64),
+    /// Archived bookmark project IDs for user (#915).
+    UserArchivedBookmarks(Address),
+    /// Archived bookmark details: (user, project_id) (#915).
+    ArchivedBookmarkDetails(Address, u64),
 }
 
 /// Storage keys for featured algorithm configuration, A/B testing, and metrics (#816).
@@ -676,6 +688,22 @@ pub enum RecommendationKey {
     /// Per-user impression tracking (recommendation_id, user) → bool, so we
     /// can enforce "impression before click" invariants and dedupe impressions.
     ImpressionSeen(u64, Address),
+    /// Active A/B test configuration (#749).
+    ABConfig,
+    /// Aggregate A/B analytics for Variant A (#749).
+    VariantAAnalytics,
+    /// Aggregate A/B analytics for Variant B (#749).
+    VariantBAnalytics,
+    /// Ordered list of recent project views for viewer (#749).
+    ViewHistory(Address),
+    /// Deduplication key for personalized recommendations: (viewer, source, candidate, algorithm).
+    PersonalizedRecommendation(Address, u64, u64, u32),
+    /// Click dedup tracking per viewer.
+    ClickSeen(u64, Address),
+    /// Conversion tracking per viewer.
+    Converted(u64, Address),
+    /// Total conversions recorded for a recommendation.
+    ConversionCount(u64),
 }
 /// Storage keys for community collections (issue #821). Held in its own enum to
 /// respect the 50-variant Soroban union cap (StorageKey = 50, ExtensionKey ≈ 50)
@@ -799,4 +827,28 @@ pub enum VerificationAuditKey {
     RejectionCount(u64),
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
+}
+
+/// Storage keys for feature-based recommendations and ML click tracking (#911).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeatureRecommendationKey {
+    /// Clicks tracked between (source_project_id, recommended_project_id): u64 counter.
+    RecommendationClickCount(u64, u64),
+    /// Total recommendation clicks for project: u64 counter.
+    ProjectTotalRecommendationClicks(u64),
+}
+
+/// Storage keys for immutable collection snapshots (#908).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CollectionSnapshotKey {
+    /// Next version counter for a collection snapshot: collection_id -> u32.
+    NextSnapshotVersion(u64),
+    /// Snapshot record by (collection_id, version).
+    Snapshot(u64, u32),
+    /// List of snapshot versions for a collection: collection_id -> Vec<u32>.
+    CollectionSnapshotVersions(u64),
+    /// Latest snapshot version for a collection: collection_id -> u32.
+    LatestSnapshotVersion(u64),
 }

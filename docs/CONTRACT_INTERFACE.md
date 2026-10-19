@@ -5558,3 +5558,121 @@ notes, correlated with an optional semantic version string.
 **Authorization**: None (public read)
 
 **Possible Errors**: None
+
+---
+
+## Bookmark Auto-Archive & Recovery (#915)
+
+### `set_bookmark_config`
+**Purpose**: Set global bookmark auto-archive configuration.
+**Parameters**: `env: Env`, `admin: Address`, `config: BookmarkConfig`
+**Authorization**: Admin auth required.
+
+### `get_bookmark_config`
+**Purpose**: Retrieve global bookmark auto-archive configuration.
+**Parameters**: `env: Env`
+**Return Value**: `BookmarkConfig`
+
+### `set_user_bookmark_policy`
+**Purpose**: Set per-user auto-archive policy.
+**Parameters**: `env: Env`, `user: Address`, `policy: BookmarkExpirationPolicy`
+**Authorization**: User auth required.
+
+### `get_user_bookmark_policy`
+**Purpose**: Get user auto-archive policy.
+**Parameters**: `env: Env`, `user: Address`
+**Return Value**: `Option<BookmarkExpirationPolicy>`
+
+### `set_bookmark_expiration_policy`
+**Purpose**: Set an override expiration policy on an individual bookmark.
+**Parameters**: `env: Env`, `user: Address`, `project_id: u64`, `auto_archive_after_days: Option<u32>`
+**Authorization**: User auth required.
+
+### `get_bookmark_expiration_policy`
+**Purpose**: Get bookmark expiration override.
+**Parameters**: `env: Env`, `user: Address`, `project_id: u64`
+**Return Value**: `Option<u32>`
+
+### `auto_archive_stale_bookmarks`
+**Purpose**: Explicitly trigger archival scan of expired bookmarks for a user.
+**Parameters**: `env: Env`, `user: Address`
+**Return Value**: `Result<u32, ContractError>` (count of archived bookmarks)
+
+### `restore_archived_bookmark`
+**Purpose**: Restore an archived bookmark back to active bookmarks list.
+**Parameters**: `env: Env`, `user: Address`, `bookmark_id: u64`
+**Authorization**: User auth required.
+
+### `get_archived_bookmarks`
+**Purpose**: List archived bookmarks for a user with pagination.
+**Parameters**: `env: Env`, `user: Address`, `start_index: u32`, `limit: u32`
+**Return Value**: `Vec<u64>`
+
+---
+
+## Feature-Based Project Recommendations (#911)
+
+### `get_recommended_projects`
+**Purpose**: Suggest similar or related projects based on categories, tags, and link graph.
+**Parameters**: `env: Env`, `project_id: u64`, `limit: u32`
+**Return Value**: `Vec<u64>`
+
+### `get_recommended_projects_with_options`
+**Purpose**: Compute recommendations with configurable strategy (`Similar`, `Complementary`, `Trending`) and category diversity limits.
+**Parameters**: `env: Env`, `project_id: u64`, `options: RecommendationOptions`
+**Return Value**: `Vec<u64>`
+
+### `track_recommendation_click`
+**Purpose**: Record user click on a recommended project for ML model feedback.
+**Parameters**: `env: Env`, `user: Address`, `project_id: u64`, `recommended_project_id: u64`
+**Authorization**: User auth required.
+
+### `get_recommendation_clicks`
+**Purpose**: Get total recorded recommendation clicks between a source and recommended project.
+**Parameters**: `env: Env`, `project_id: u64`, `recommended_project_id: u64`
+**Return Value**: `u64`
+
+---
+
+## Complex Query Filters for Project Discovery (#910)
+
+### `query_projects`
+**Purpose**: Query projects using boolean combinations (AND / OR) of criteria, sorting, and cursor-based pagination.
+**Parameters**: `env: Env`, `filter: ProjectQueryFilter`, `cursor: Option<u64>`, `limit: u32`
+**Return Value**: `ProjectQueryResult` (`projects`, `next_cursor`, `has_more`, `total_matched`)
+
+### `list_projects_filtered`
+**Purpose**: Direct parameter filter wrapper for category, min rating, verification status, owner address, and featured status.
+**Parameters**: `env: Env`, `category: Option<String>`, `min_rating: Option<u32>`, `verification_status: Option<VerificationStatus>`, `owner_address: Option<Address>`, `featured_only: Option<bool>`, `logic: Option<FilterLogic>`, `sort_by: Option<ProjectFilterSortBy>`, `cursor: Option<u64>`, `limit: u32`
+**Return Value**: `ProjectQueryResult`
+
+---
+
+## Collection Immutable Snapshots (#908)
+
+### `snapshot_collection`
+**Purpose**: Create an immutable snapshot of collection metadata and projects with an IPFS CID on-chain.
+**Parameters**: `env: Env`, `caller: Address`, `collection_id: u64`, `ipfs_cid: Option<String>`
+**Authorization**: Collection owner or admin auth required.
+**Return Value**: `Result<CollectionSnapshot, ContractError>`
+
+### `get_collection_snapshot`
+**Purpose**: Retrieve an immutable snapshot by version.
+**Parameters**: `env: Env`, `collection_id: u64`, `version: u32`
+**Return Value**: `Option<CollectionSnapshot>`
+
+### `get_latest_collection_snapshot`
+**Purpose**: Retrieve the most recent snapshot of a collection.
+**Parameters**: `env: Env`, `collection_id: u64`
+**Return Value**: `Option<CollectionSnapshot>`
+
+### `list_collection_snapshots`
+**Purpose**: List all snapshots for a collection with pagination.
+**Parameters**: `env: Env`, `collection_id: u64`, `start_index: u32`, `limit: u32`
+**Return Value**: `Vec<CollectionSnapshot>`
+
+### `compare_collection_snapshots`
+**Purpose**: Compare two collection snapshot versions to audit added, removed, and unchanged project memberships.
+**Parameters**: `env: Env`, `collection_id: u64`, `version_a: u32`, `version_b: u32`
+**Return Value**: `Result<CollectionSnapshotComparison, ContractError>`
+

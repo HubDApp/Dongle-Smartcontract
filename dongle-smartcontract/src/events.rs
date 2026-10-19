@@ -4393,3 +4393,165 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+// ── Bookmark Archival Events (#915) ──────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkArchivedEvent {
+    pub user: Address,
+    pub project_id: u64,
+    pub archived_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkRestoredEvent {
+    pub user: Address,
+    pub project_id: u64,
+    pub restored_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkConfigUpdatedEvent {
+    pub admin: Address,
+    pub auto_archive_after_days: Option<u32>,
+    pub timestamp: u64,
+}
+
+pub fn publish_bookmark_archived_event(
+    env: &Env,
+    user: Address,
+    project_id: u64,
+    archived_at: u64,
+) {
+    let event_data = BookmarkArchivedEvent {
+        user: user.clone(),
+        project_id,
+        archived_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("ARCHIVED"),
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_restored_event(
+    env: &Env,
+    user: Address,
+    project_id: u64,
+    restored_at: u64,
+) {
+    let event_data = BookmarkRestoredEvent {
+        user: user.clone(),
+        project_id,
+        restored_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("RESTORED"),
+            user,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_config_updated_event(
+    env: &Env,
+    admin: Address,
+    auto_archive_after_days: Option<u32>,
+) {
+    let event_data = BookmarkConfigUpdatedEvent {
+        admin: admin.clone(),
+        auto_archive_after_days,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BOOKMARK"),
+            symbol_short!("CFG_UPD"),
+            admin,
+        ),
+        event_data,
+    );
+}
+
+// ── Feature-based Recommendation Click Events (#911) ─────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecommendationClickTrackedEvent {
+    pub user: Address,
+    pub source_project_id: u64,
+    pub recommended_project_id: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_recommendation_click_event(
+    env: &Env,
+    user: Address,
+    source_project_id: u64,
+    recommended_project_id: u64,
+    timestamp: u64,
+) {
+    let event_data = RecommendationClickTrackedEvent {
+        user: user.clone(),
+        source_project_id,
+        recommended_project_id,
+        timestamp,
+    };
+    env.events().publish(
+        (
+            symbol_short!("RECOM"),
+            symbol_short!("CLICKED"),
+            source_project_id,
+        ),
+        event_data,
+    );
+}
+
+// ── Collection Snapshot Events (#908) ────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionSnapshotCreatedEvent {
+    pub collection_id: u64,
+    pub version: u32,
+    pub ipfs_cid: String,
+    pub project_count: u32,
+    pub created_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_collection_snapshot_created_event(
+    env: &Env,
+    collection_id: u64,
+    version: u32,
+    ipfs_cid: String,
+    project_count: u32,
+    created_by: Address,
+    timestamp: u64,
+) {
+    let event_data = CollectionSnapshotCreatedEvent {
+        collection_id,
+        version,
+        ipfs_cid,
+        project_count,
+        created_by: created_by.clone(),
+        timestamp,
+    };
+    env.events().publish(
+        (
+            symbol_short!("COL_SNAP"),
+            collection_id,
+            version,
+        ),
+        event_data,
+    );
+}

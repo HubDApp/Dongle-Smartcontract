@@ -40,6 +40,11 @@ for the full policy.
 
 ### Added
 
+- **#908: Export collection contents as immutable snapshot CID.** Added `snapshot_collection`, `get_collection_snapshot`, `get_latest_collection_snapshot`, `list_collection_snapshots`, and `compare_collection_snapshots` endpoints. Created off-chain JSON snapshot export schema and documentation.
+- **#910: Implement complex query filters for project discovery.** Added `query_projects` and `list_projects_filtered` supporting multi-criteria filtering (category, min rating, verification status, owner address, featured only), boolean AND/OR combinations, cursor-based pagination, and multi-field sorting.
+- **#911: Suggest similar or related projects based on features.** Added `get_recommended_projects` and `get_recommended_projects_with_options` utilizing categories, tags, and link graphs with similar/complementary/trending strategies, category diversity controls, and `track_recommendation_click` for ML model feedback.
+- **#915: Auto-archive stale bookmarks after configurable period.** Added `BookmarkConfig` with `auto_archive_after_days`, per-user and per-bookmark expiration policies, lazy cleanup, `auto_archive_stale_bookmarks`, `restore_archived_bookmark`, and `get_archived_bookmarks`.
+
 - **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
   configuration) covering vulnerability, license, duplicate-crate, and source
   checks. New `audit` CI job runs `cargo deny check` on every PR and push to

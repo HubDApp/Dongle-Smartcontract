@@ -333,6 +333,12 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Snapshot not found (#908).
+    SnapshotNotFound = 142,
+    /// Bookmark not found or not archived (#915).
+    BookmarkNotFound = 143,
+    /// Invalid recommendation parameters (#911).
+    InvalidRecommendationParams = 144,
 }
 
 pub type Error = ContractError;

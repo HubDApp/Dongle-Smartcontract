@@ -19,9 +19,10 @@ use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
-    SecurityContactStatus, VerificationStatus,
+    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, FilterLogic, Project,
+    ProjectFilterCriteria, ProjectFilterSortBy, ProjectLifecycleStatus, ProjectQueryFilter,
+    ProjectQueryResult, ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan,
+    ProjectUpdateParams, SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
 use crate::validation::validate_registration_params;
@@ -4054,6 +4055,213 @@ impl ProjectRegistry {
         Ok(new_project_id)
     }
 
+    // ── Complex Query Filters for Project Discovery (#910) ──────────────────
+
+    /// Query projects with complex criteria, boolean logic (AND / OR), sorting, and cursor-based pagination.
+    pub fn query_projects(
+        env: &Env,
+        filter: ProjectQueryFilter,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let total_projects: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        if total_projects == 0 {
+            return ProjectQueryResult {
+                projects: Vec::new(env),
+                next_cursor: None,
+                has_more: false,
+                total_matched: 0,
+            };
+        }
+
+        let featured_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FeaturedProjects)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let criteria = &filter.criteria;
+        let mut matched_projects: alloc::vec::Vec<Project> = alloc::vec::Vec::new();
+
+        let has_any_condition = criteria.category.is_some()
+            || criteria.min_rating.is_some()
+            || criteria.verification_status.is_some()
+            || criteria.owner_address.is_some()
+            || criteria.featured_only.is_some();
+
+        for id in 1..=total_projects {
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+
+            if project.archived {
+                continue;
+            }
+
+            let matches = if !has_any_condition {
+                true
+            } else {
+                let match_category = criteria.category.as_ref().map(|c| project.category == *c);
+                let match_rating = criteria.min_rating.map(|min| project.rating >= min);
+                let match_verification = criteria.verification_status.as_ref().map(|expected_status| {
+                    project.verification_status == *expected_status
+                });
+                let match_owner = criteria.owner_address.as_ref().map(|o| project.owner == *o);
+                let match_featured = criteria.featured_only.map(|feat| {
+                    if feat {
+                        featured_ids.contains(id)
+                    } else {
+                        !featured_ids.contains(id)
+                    }
+                });
+
+                match filter.logic {
+                    FilterLogic::And => {
+                        let mut ok = true;
+                        if let Some(m) = match_category {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_rating {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_verification {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_owner {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_featured {
+                            ok = ok && m;
+                        }
+                        ok
+                    }
+                    FilterLogic::Or => {
+                        let mut ok = false;
+                        if let Some(m) = match_category {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_rating {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_verification {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_owner {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_featured {
+                            ok = ok || m;
+                        }
+                        ok
+                    }
+                }
+            };
+
+            if matches {
+                matched_projects.push(project);
+            }
+        }
+
+        let total_matched = matched_projects.len() as u32;
+
+        // Apply sorting
+        let ascending = filter.ascending.unwrap_or(false);
+        if let Some(sort_by) = filter.sort_by {
+            matched_projects.sort_by(|a, b| {
+                let cmp = match sort_by {
+                    ProjectFilterSortBy::Rating => a.rating.cmp(&b.rating),
+                    ProjectFilterSortBy::RegistrationDate => a.created_at.cmp(&b.created_at),
+                    ProjectFilterSortBy::ReviewCount => a.review_count.cmp(&b.review_count),
+                    ProjectFilterSortBy::Name => {
+                        let mut a_bytes = [0u8; 64];
+                        let mut b_bytes = [0u8; 64];
+                        let a_len = (a.name.len() as usize).min(64);
+                        let b_len = (b.name.len() as usize).min(64);
+                        a.name.copy_into_slice(&mut a_bytes[..a_len]);
+                        b.name.copy_into_slice(&mut b_bytes[..b_len]);
+                        a_bytes[..a_len].cmp(&b_bytes[..b_len])
+                    }
+                };
+                if ascending {
+                    cmp.then_with(|| a.id.cmp(&b.id))
+                } else {
+                    cmp.reverse().then_with(|| a.id.cmp(&b.id))
+                }
+            });
+        }
+
+        // Apply cursor pagination
+        let start_pos = if let Some(cur_id) = cursor {
+            match matched_projects.iter().position(|p| p.id == cur_id) {
+                Some(pos) => pos + 1,
+                None => 0,
+            }
+        } else {
+            0
+        };
+
+        let mut page = Vec::new(env);
+        let end_pos = core::cmp::min(start_pos + effective_limit as usize, matched_projects.len());
+
+        for i in start_pos..end_pos {
+            page.push_back(matched_projects[i].clone());
+        }
+
+        let next_cursor = if end_pos < matched_projects.len() && !page.is_empty() {
+            Some(matched_projects[end_pos - 1].id)
+        } else {
+            None
+        };
+
+        let has_more = end_pos < matched_projects.len();
+
+        ProjectQueryResult {
+            projects: page,
+            next_cursor,
+            has_more,
+            total_matched,
+        }
+    }
+
+    /// Convenience wrapper to filter projects directly with parameters.
+    pub fn list_projects_filtered(
+        env: &Env,
+        category: Option<String>,
+        min_rating: Option<u32>,
+        verification_status: Option<VerificationStatus>,
+        owner_address: Option<Address>,
+        featured_only: Option<bool>,
+        logic: Option<FilterLogic>,
+        sort_by: Option<ProjectFilterSortBy>,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        let criteria = ProjectFilterCriteria {
+            category,
+            min_rating,
+            verification_status,
+            owner_address,
+            featured_only,
+        };
+        let query_filter = ProjectQueryFilter {
+            criteria,
+            logic: logic.unwrap_or(FilterLogic::And),
+            sort_by,
+            ascending: None,
+        };
+        Self::query_projects(env, query_filter, cursor, limit)
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

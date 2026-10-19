@@ -166,3 +166,15 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #915: Bookmark auto-archive and expiration policies
+mod bookmark_auto_archive;
+
+// Issue #911: Feature-based project recommendations
+mod feature_recommendations;
+
+// Issue #910: Complex query filters for project discovery
+mod complex_query_filters;
+
+// Issue #908: Collection immutable snapshots
+mod collection_snapshots;
