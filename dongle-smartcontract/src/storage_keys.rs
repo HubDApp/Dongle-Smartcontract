@@ -779,3 +779,18 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for community bounties (#950). Own enum to respect Soroban's
+/// 50-variant union cap on `StorageKey` / `ExtensionKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BountyKey {
+    /// Bounty record by bounty id.
+    Bounty(u64),
+    /// Next bounty id counter.
+    NextBountyId,
+    /// Bounty ids for a project (Vec<u64>).
+    ProjectBounties(u64),
+    /// Payout history for a bounty (Vec<BountyPayout>).
+    BountyPayouts(u64),
+}

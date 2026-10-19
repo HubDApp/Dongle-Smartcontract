@@ -329,6 +329,16 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Bounty not found (#950).
+    BountyNotFound = 140,
+    /// Caller is not the bounty owner.
+    NotBountyOwner = 141,
+    /// Bounty is not open for the requested action.
+    BountyNotOpen = 142,
+    /// Bounty deadline has passed.
+    BountyExpired = 143,
+    /// Bounty claim not found.
+    BountyClaimNotFound = 144,
 }
 
 pub type Error = ContractError;

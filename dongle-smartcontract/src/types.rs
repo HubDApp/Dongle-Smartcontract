@@ -3326,3 +3326,41 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+
+/// Bounty status for community contributions (#950).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BountyStatus {
+    Open,
+    Claimed,
+    Approved,
+    Closed,
+    Expired,
+}
+
+/// Community bounty attached to a project (#950).
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Bounty {
+    pub id: u64,
+    pub project_id: u64,
+    pub owner: Address,
+    pub title: String,
+    pub amount: u128,
+    pub deadline: u64,
+    pub acceptance_criteria: String,
+    pub status: BountyStatus,
+    pub claimant: Option<Address>,
+    pub work_cid: Option<String>,
+    pub created_at: u64,
+}
+
+/// Payout record for bounty completion history (#950).
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BountyPayout {
+    pub bounty_id: u64,
+    pub recipient: Address,
+    pub amount: u128,
+    pub paid_at: u64,
+}
