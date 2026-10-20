@@ -78,6 +78,8 @@ use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
+    // #924 dependency graph
+    DependencyGraph,
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
@@ -2746,6 +2748,23 @@ impl DongleContract {
     /// Retrieve the full transitive dependency graph (project IDs only)
     pub fn get_transitive_dependencies(env: Env, project_id: u64) -> Vec<u64> {
         crate::dependency_registry::DependencyRegistry::get_transitive_dependencies(&env, project_id)
+    }
+
+    /// Structured dependency graph for indexers and frontends (issue #924).
+    ///
+    /// Returns typed `DependsOn` / `UsedBy` / `RelatedTo` edges reachable
+    /// from `project_id`, walking transitive dependencies and dependents up
+    /// to `max_depth` hops (clamped to `MAX_DEPENDENCY_GRAPH_DEPTH`; `0`
+    /// selects the maximum). Cycles are reported in `has_cycle` /
+    /// `cycle_nodes`.
+    pub fn get_dependency_graph(
+        env: Env,
+        project_id: u64,
+        max_depth: u32,
+    ) -> Result<DependencyGraph, ContractError> {
+        crate::dependency_registry::DependencyRegistry::get_dependency_graph(
+            &env, project_id, max_depth,
+        )
     }
 
     /// Retrieve the reverse dependency graph (projects that depend on this project)

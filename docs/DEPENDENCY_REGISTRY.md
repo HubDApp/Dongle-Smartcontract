@@ -92,3 +92,40 @@ joining them would exceed the limit.
 There is no built-in transitive-closure getter; clients that need the full
 tree should walk `get_project_dependencies` recursively (the depth limit
 guarantees the walk terminates quickly).
+
+## Dependency graph export (`get_dependency_graph`, issue #924)
+
+`get_dependency_graph(project_id, max_depth)` returns a `DependencyGraph`
+rooted at `project_id` for indexers and frontends. The struct is
+XDR-encoded on chain and decodes directly to JSON through any Soroban RPC
+client:
+
+```json
+{
+  "root": 1,
+  "max_depth": 10,
+  "nodes": [{ "project_id": 1, "depth": 0 }, { "project_id": 2, "depth": 1 }],
+  "edges": [{ "from": 1, "to": 2, "relation": "DependsOn" }],
+  "has_cycle": false,
+  "cycle_nodes": [],
+  "truncated": false
+}
+```
+
+| Relation | Meaning | Traversal |
+| --- | --- | --- |
+| `DependsOn` | `from` declares a project dependency on `to` | Transitive, downstream |
+| `UsedBy` | `from` is used by `to` (reverse dependency index) | Transitive, upstream |
+| `RelatedTo` | `from` is linked to `to` via `link_project` | Root only, one hop |
+
+- **Depth limiting.** `max_depth` bounds each transitive walk. `0` or any
+  value above `MAX_DEPENDENCY_GRAPH_DEPTH` (**10**) is clamped to 10; `1`
+  returns direct relationships only.
+- **Size limit.** At most `MAX_DEPENDENCY_GRAPH_NODES` (**200**) nodes are
+  returned. `truncated` is `true` when either limit cut the graph short.
+- **Cycle detection.** `add_project_dependency` keeps the stored graph
+  acyclic, but legacy or migrated data may not be. The export normalises
+  `UsedBy` edges to dependencies and repeatedly removes nodes with no
+  incoming or no outgoing dependency edge; any nodes left are reported in
+  `cycle_nodes` and `has_cycle` is set. Traversal never loops, because each
+  project is expanded at most once per direction.

@@ -181,6 +181,16 @@ pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 /// `docs/DEPENDENCY_REGISTRY.md`.
 pub const MAX_DEPENDENCY_DEPTH: u32 = 5;
 
+/// Maximum traversal depth accepted by `get_dependency_graph` (issue #924).
+/// Requests for a deeper graph are clamped to this value to keep exports
+/// bounded.
+pub const MAX_DEPENDENCY_GRAPH_DEPTH: u32 = 10;
+
+/// Maximum number of nodes returned by a single `get_dependency_graph` call.
+/// The traversal stops and sets `truncated` once this many projects are
+/// reached.
+pub const MAX_DEPENDENCY_GRAPH_NODES: u32 = 200;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

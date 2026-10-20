@@ -1,9 +1,12 @@
 use crate::errors::ContractError;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
-use crate::types::{DependencyRef, ProjectDependency};
+use crate::types::{
+    DependencyGraph, DependencyGraphEdge, DependencyGraphNode, DependencyRef, DependencyRelation,
+    ProjectDependency,
+};
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 pub struct DependencyRegistry;
 
@@ -455,5 +458,257 @@ impl DependencyRegistry {
             level += 1;
         }
         out
+    }
+
+    /// Build a typed dependency graph rooted at `project_id` (issue #924).
+    ///
+    /// The graph combines three relationship types:
+    /// - `DependsOn` edges, walked transitively downstream from the root;
+    /// - `UsedBy` edges, walked transitively upstream (reverse dependency
+    ///   index) from the root;
+    /// - `RelatedTo` edges for the root's linked projects (one hop only).
+    ///
+    /// `max_depth` limits how many hops each transitive walk may take. `0`
+    /// or any value above `MAX_DEPENDENCY_GRAPH_DEPTH` is clamped to that
+    /// maximum; `1` returns direct relationships only. At most
+    /// `MAX_DEPENDENCY_GRAPH_NODES` nodes are returned; `truncated` reports
+    /// whether either limit cut the graph short.
+    ///
+    /// Cycle detection runs over the returned `DependsOn` / `UsedBy` edges,
+    /// so a cycle introduced by legacy or migrated data is surfaced in
+    /// `has_cycle` / `cycle_nodes` instead of looping the traversal.
+    pub fn get_dependency_graph(
+        env: &Env,
+        project_id: u64,
+        max_depth: u32,
+    ) -> Result<DependencyGraph, ContractError> {
+        if !env
+            .storage()
+            .persistent()
+            .has(&StorageKey::Project(project_id))
+        {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let depth_limit = if max_depth == 0 || max_depth > crate::constants::MAX_DEPENDENCY_GRAPH_DEPTH
+        {
+            crate::constants::MAX_DEPENDENCY_GRAPH_DEPTH
+        } else {
+            max_depth
+        };
+
+        let mut nodes: Vec<DependencyGraphNode> = Vec::new(env);
+        let mut seen: Map<u64, u32> = Map::new(env);
+        let mut edges: Vec<DependencyGraphEdge> = Vec::new(env);
+        let mut truncated = false;
+
+        nodes.push_back(DependencyGraphNode {
+            project_id,
+            depth: 0,
+        });
+        seen.set(project_id, 0);
+
+        Self::walk_graph(
+            env,
+            project_id,
+            depth_limit,
+            DependencyRelation::DependsOn,
+            &mut nodes,
+            &mut seen,
+            &mut edges,
+            &mut truncated,
+        );
+        Self::walk_graph(
+            env,
+            project_id,
+            depth_limit,
+            DependencyRelation::UsedBy,
+            &mut nodes,
+            &mut seen,
+            &mut edges,
+            &mut truncated,
+        );
+
+        let linked = crate::project_registry::ProjectRegistry::get_linked_projects(env, project_id);
+        for linked_id in linked.iter() {
+            if linked_id == project_id {
+                continue;
+            }
+            if !seen.contains_key(linked_id) {
+                if nodes.len() >= crate::constants::MAX_DEPENDENCY_GRAPH_NODES {
+                    truncated = true;
+                    continue;
+                }
+                nodes.push_back(DependencyGraphNode {
+                    project_id: linked_id,
+                    depth: 1,
+                });
+                seen.set(linked_id, 1);
+            }
+            edges.push_back(DependencyGraphEdge {
+                from: project_id,
+                to: linked_id,
+                relation: DependencyRelation::RelatedTo,
+            });
+        }
+
+        let cycle_nodes = Self::find_cycle_nodes(env, &edges);
+
+        Ok(DependencyGraph {
+            root: project_id,
+            max_depth: depth_limit,
+            nodes,
+            edges,
+            has_cycle: !cycle_nodes.is_empty(),
+            cycle_nodes,
+            truncated,
+        })
+    }
+
+    /// Breadth-first walk from `root` in one direction: downstream along
+    /// declared dependencies (`DependsOn`) or upstream along the reverse
+    /// dependency index (`UsedBy`). Edges to already-visited projects are
+    /// still recorded so cycles remain visible to `find_cycle_nodes`.
+    #[allow(clippy::too_many_arguments)]
+    fn walk_graph(
+        env: &Env,
+        root: u64,
+        depth_limit: u32,
+        relation: DependencyRelation,
+        nodes: &mut Vec<DependencyGraphNode>,
+        seen: &mut Map<u64, u32>,
+        edges: &mut Vec<DependencyGraphEdge>,
+        truncated: &mut bool,
+    ) {
+        let neighbours = |node: u64| -> Vec<u64> {
+            if relation == DependencyRelation::DependsOn {
+                Self::dependency_project_ids(env, node)
+            } else {
+                Self::get_dependent_projects(env, node)
+            }
+        };
+
+        let mut visited: Map<u64, bool> = Map::new(env);
+        visited.set(root, true);
+        let mut frontier: Vec<u64> = Vec::new(env);
+        frontier.push_back(root);
+
+        let mut level: u32 = 1;
+        while !frontier.is_empty() {
+            if level > depth_limit {
+                // Anything still reachable past the limit means the export
+                // is incomplete.
+                for node in frontier.iter() {
+                    if !neighbours(node).is_empty() {
+                        *truncated = true;
+                        break;
+                    }
+                }
+                break;
+            }
+
+            let mut next: Vec<u64> = Vec::new(env);
+            for node in frontier.iter() {
+                for child in neighbours(node).iter() {
+                    if !seen.contains_key(child) {
+                        if nodes.len() >= crate::constants::MAX_DEPENDENCY_GRAPH_NODES {
+                            *truncated = true;
+                            continue;
+                        }
+                        nodes.push_back(DependencyGraphNode {
+                            project_id: child,
+                            depth: level,
+                        });
+                        seen.set(child, level);
+                    }
+                    edges.push_back(DependencyGraphEdge {
+                        from: node,
+                        to: child,
+                        relation,
+                    });
+                    if !visited.contains_key(child) {
+                        visited.set(child, true);
+                        next.push_back(child);
+                    }
+                }
+            }
+            frontier = next;
+            level += 1;
+        }
+    }
+
+    /// Return the projects that lie on (or between) cycles of the
+    /// dependency relation described by `edges`.
+    ///
+    /// `UsedBy(a, b)` is normalised to `b depends on a`; `RelatedTo` edges
+    /// carry no dependency and are ignored. Nodes with no incoming or no
+    /// outgoing dependency edge cannot be on a cycle, so they are peeled off
+    /// repeatedly; whatever remains participates in a cycle.
+    fn find_cycle_nodes(env: &Env, edges: &Vec<DependencyGraphEdge>) -> Vec<u64> {
+        let mut pairs: Map<(u64, u64), bool> = Map::new(env);
+        for edge in edges.iter() {
+            let pair = match edge.relation {
+                DependencyRelation::DependsOn => (edge.from, edge.to),
+                DependencyRelation::UsedBy => (edge.to, edge.from),
+                DependencyRelation::RelatedTo => continue,
+            };
+            pairs.set(pair, true);
+        }
+
+        let mut successors: Map<u64, Vec<u64>> = Map::new(env);
+        let mut predecessors: Map<u64, Vec<u64>> = Map::new(env);
+        let mut in_degree: Map<u64, u32> = Map::new(env);
+        let mut out_degree: Map<u64, u32> = Map::new(env);
+        for (from, to) in pairs.keys().iter() {
+            let mut succ = successors.get(from).unwrap_or_else(|| Vec::new(env));
+            succ.push_back(to);
+            successors.set(from, succ);
+            let mut pred = predecessors.get(to).unwrap_or_else(|| Vec::new(env));
+            pred.push_back(from);
+            predecessors.set(to, pred);
+            out_degree.set(from, out_degree.get(from).unwrap_or(0) + 1);
+            in_degree.set(to, in_degree.get(to).unwrap_or(0) + 1);
+            if !in_degree.contains_key(from) {
+                in_degree.set(from, 0);
+            }
+            if !out_degree.contains_key(to) {
+                out_degree.set(to, 0);
+            }
+        }
+
+        let all_nodes = in_degree.keys();
+        let mut removed: Map<u64, bool> = Map::new(env);
+        loop {
+            let mut changed = false;
+            for node in all_nodes.iter() {
+                if removed.contains_key(node) {
+                    continue;
+                }
+                if in_degree.get(node).unwrap_or(0) > 0 && out_degree.get(node).unwrap_or(0) > 0 {
+                    continue;
+                }
+                removed.set(node, true);
+                changed = true;
+                for succ in successors.get(node).unwrap_or_else(|| Vec::new(env)).iter() {
+                    let d = in_degree.get(succ).unwrap_or(0);
+                    in_degree.set(succ, d.saturating_sub(1));
+                }
+                for pred in predecessors.get(node).unwrap_or_else(|| Vec::new(env)).iter() {
+                    let d = out_degree.get(pred).unwrap_or(0);
+                    out_degree.set(pred, d.saturating_sub(1));
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let mut cycle_nodes = Vec::new(env);
+        for node in all_nodes.iter() {
+            if !removed.contains_key(node) {
+                cycle_nodes.push_back(node);
+            }
+        }
+        cycle_nodes
     }
 }
