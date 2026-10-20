@@ -197,6 +197,90 @@ jobs:
       - name: Build WASM release
         run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 
+  # ── Issue #869: Windows build verification ───────────────────────────────
+  # Ensures the contract compiles, tests pass, and WASM is produced on
+  # windows-latest so that Windows developers get early feedback.
+  # This job runs in parallel with the ubuntu build/test jobs.
+  windows-build:
+    name: Windows Build & Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-windows-build-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-windows-build-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy -p dongle-contract --target wasm32-unknown-unknown --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test -p dongle-contract
+
+      - name: Build WASM release
+        run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+
+      - name: Verify WASM binary exists
+        shell: pwsh
+        run: |
+          $wasm = "target\wasm32-unknown-unknown\release\dongle_contract.wasm"
+          if (-not (Test-Path $wasm)) {
+            Write-Error "ERROR: WASM binary not found at $wasm"
+            exit 1
+          }
+          $size = (Get-Item $wasm).Length
+          Write-Host "WASM binary produced: $size bytes at $wasm"
+
+      - name: Install Stellar CLI (prebuilt Windows binary)
+        shell: pwsh
+        env:
+          STELLAR_CLI_VERSION: 27.1.0
+        run: |
+          $version = $Env:STELLAR_CLI_VERSION
+          $dest    = "$Env:RUNNER_TEMP\stellar-cli"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $url = "https://github.com/stellar/stellar-cli/releases/download/v$version/stellar-cli-$version-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$Env:RUNNER_TEMP\stellar-cli.zip"
+          Expand-Archive -Path "$Env:RUNNER_TEMP\stellar-cli.zip" -DestinationPath $dest -Force
+          echo $dest | Out-File -Append -Encoding ascii $Env:GITHUB_PATH
+
+      - name: Verify Stellar CLI
+        run: stellar --version
+
+      - name: Optimize WASM (Windows)
+        shell: pwsh
+        run: |
+          $input  = "target\wasm32-unknown-unknown\release\dongle_contract.wasm"
+          $output = "target\wasm32-unknown-unknown\release\dongle_contract.optimized.wasm"
+          stellar contract optimize --wasm $input --wasm-out $output
+          if (-not (Test-Path $output)) {
+            Write-Error "Optimized WASM not produced"
+            exit 1
+          }
+          Write-Host "Optimized WASM: $((Get-Item $output).Length) bytes"
+
+      - name: Upload Windows optimized WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dongle_contract_optimized_windows
+          path: target/wasm32-unknown-unknown/release/dongle_contract.optimized.wasm
+
   optimize:
     name: Optimize WASM
     runs-on: ubuntu-latest
