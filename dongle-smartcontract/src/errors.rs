@@ -343,6 +343,10 @@ pub enum ContractError {
     ProposalAlreadyApproved = 145,
     /// Sensitive proposal already executed.
     ProposalAlreadyExecuted = 146,
+    /// Review is already flagged for moderator follow-up.
+    ReviewAlreadyFlagged = 140,
+    /// Admin exhausted the review moderation budget for the current window.
+    ModerationRateLimitExceeded = 141,
 }
 
 pub type Error = ContractError;
