@@ -172,3 +172,6 @@ mod premium_featured;
 
 // Changelog generation from project events (#929)
 mod changelog_generation;
+
+// Admin approval before changelog entries are published (#930)
+mod changelog_approval;

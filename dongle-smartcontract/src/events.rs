@@ -4497,3 +4497,107 @@ pub fn publish_changelog_generated_event(
         event_data,
     );
 }
+
+// ── Changelog Approval Events (#930) ──────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogSubmittedEvent {
+    pub changelog_id: u64,
+    pub project_id: u64,
+    pub owner: Address,
+    pub cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogReviewedEvent {
+    pub changelog_id: u64,
+    pub project_id: u64,
+    pub admin: Address,
+    pub approved: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogEntryPublishedEvent {
+    pub changelog_id: u64,
+    pub project_id: u64,
+    pub published_by: Address,
+    pub approved_by: Option<Address>,
+    pub cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_changelog_submitted_event(
+    env: &Env,
+    changelog_id: u64,
+    project_id: u64,
+    owner: Address,
+    cid: String,
+) {
+    let event_data = ChangelogSubmittedEvent {
+        changelog_id,
+        project_id,
+        owner,
+        cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("SUBMITTED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_changelog_reviewed_event(
+    env: &Env,
+    changelog_id: u64,
+    project_id: u64,
+    admin: Address,
+    approved: bool,
+) {
+    let event_data = ChangelogReviewedEvent {
+        changelog_id,
+        project_id,
+        admin,
+        approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("REVIEWED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_changelog_entry_published_event(
+    env: &Env,
+    entry: &crate::types::ChangelogEntry,
+    published_by: Address,
+) {
+    let event_data = ChangelogEntryPublishedEvent {
+        changelog_id: entry.id,
+        project_id: entry.project_id,
+        published_by,
+        approved_by: entry.approved_by.clone(),
+        cid: entry.cid.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("PUBLISHED"),
+            entry.project_id,
+        ),
+        event_data,
+    );
+}

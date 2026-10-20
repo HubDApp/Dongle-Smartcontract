@@ -346,6 +346,10 @@ pub enum ContractError {
     /// Changelog time window or period is invalid (start >= end, zero period,
     /// or too many buckets) (#929).
     InvalidChangelogWindow = 147,
+    /// Changelog entries must go through `submit_changelog_for_approval` (#930).
+    ChangelogApprovalRequired = 148,
+    /// Bulk changelog operation is empty or exceeds the batch limit.
+    InvalidChangelogBatch = 149,
 }
 
 pub type Error = ContractError;

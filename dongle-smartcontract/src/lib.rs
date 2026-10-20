@@ -130,6 +130,8 @@ use crate::types::{
     FeaturedTier, FeaturedTierConfig, PremiumFeaturedCampaign, PremiumFeaturedStats,
     // #929 changelog generation
     ChangelogPeriodGroup, ChangelogSummary, GeneratedChangelogEntry, ProjectEventRecord,
+    // #930 changelog approval
+    ChangelogBatchResult,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -2955,6 +2957,80 @@ impl DongleContract {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: Env, project_id: u64) -> u32 {
         ChangelogRegistry::get_changelog_count(&env, project_id)
+    }
+
+    // --- Changelog Approval (#930) ---
+
+    /// Submit a changelog entry for admin approval (owner only). The entry is
+    /// stored as `Draft` and hidden until approved and published.
+    pub fn submit_changelog_for_approval(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        cid: String,
+        description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        ChangelogRegistry::submit_changelog_for_approval(
+            &env,
+            project_id,
+            owner,
+            cid,
+            description,
+            version,
+            changelog_cid,
+        )
+    }
+
+    /// Admin bulk approval of draft entries; `publish = true` also publishes them.
+    pub fn approve_changelog_entries(
+        env: Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+        publish: bool,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::approve_changelog_entries(&env, admin, changelog_ids, publish)
+    }
+
+    /// Admin bulk rejection of draft entries (rejected drafts are deleted).
+    pub fn reject_changelog_entries(
+        env: Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::reject_changelog_entries(&env, admin, changelog_ids)
+    }
+
+    /// Bulk-publish approved entries (admin or the project owner).
+    pub fn publish_changelog_entries(
+        env: Env,
+        caller: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::publish_changelog_entries(&env, caller, changelog_ids)
+    }
+
+    /// Require admin approval for all new changelog entries (admin only).
+    pub fn set_changelog_approval_required(
+        env: Env,
+        admin: Address,
+        required: bool,
+    ) -> Result<(), ContractError> {
+        ChangelogRegistry::set_changelog_approval_required(&env, admin, required)
+    }
+
+    pub fn is_changelog_approval_required(env: Env) -> bool {
+        ChangelogRegistry::is_changelog_approval_required(&env)
+    }
+
+    /// Draft entries awaiting admin review, oldest first.
+    pub fn get_pending_changelog_entries(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ChangelogEntry> {
+        ChangelogRegistry::get_pending_changelog_entries(&env, start_index, limit)
     }
 
     // --- Changelog Generation from Events (#929) ---

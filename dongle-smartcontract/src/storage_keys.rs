@@ -834,3 +834,13 @@ pub enum ChangelogGenKey {
     /// Generated entry IDs for a project, in event order.
     ProjectEntries(u64),
 }
+
+/// Storage keys for the changelog approval workflow (#930).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ChangelogApprovalKey {
+    /// Whether owners must submit entries for admin approval.
+    ApprovalRequired,
+    /// IDs of `Draft` entries awaiting admin review, oldest first.
+    PendingQueue,
+}

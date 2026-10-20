@@ -686,3 +686,8 @@ pub const MAX_CHANGELOG_GEN_BATCH: u32 = 100;
 pub const MAX_CHANGELOG_SUMMARY_SCAN: u32 = 500;
 /// Maximum number of period buckets returned by `group_changelog_by_period`.
 pub const MAX_CHANGELOG_PERIOD_BUCKETS: u32 = 366;
+
+// ── Changelog approval (#930) ──────────────────────────────────────────────
+
+/// Maximum entries one bulk changelog approval / rejection / publish may target.
+pub const MAX_CHANGELOG_APPROVAL_BATCH: u32 = 25;
