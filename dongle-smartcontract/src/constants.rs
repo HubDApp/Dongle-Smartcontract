@@ -654,3 +654,15 @@ pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
 pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
 /// Number of days in the "last-30-days" preset window used by export.
 pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;
+
+// ── Verification audit trail ───────────────────────────────────────────────
+
+/// Maximum length of approval notes / rejection reasons recorded in the
+/// verification audit trail.
+pub const MAX_AUDIT_NOTES_LEN: usize = 512;
+/// Maximum number of projects in a single audit export.
+pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
+/// Maximum number of audit entries returned by a single export.
+pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
+/// Current layout version of `VerificationAuditExport`.
+pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
