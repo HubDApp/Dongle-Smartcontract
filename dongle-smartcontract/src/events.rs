@@ -1,7 +1,7 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    ProjectLifecycleStatus, ReportCategory, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -4389,6 +4389,66 @@ pub fn publish_reviews_moderated_event(
             action,
             succeeded,
             failed,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when a report is routed or reassigned to a moderator (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportRoutedEvent {
+    pub report_id: u64,
+    pub project_id: u64,
+    pub category: ReportCategory,
+    pub moderator: Address,
+    pub previous_moderator: Option<Address>,
+    pub timestamp: u64,
+}
+
+pub fn publish_report_routed_event(
+    env: &Env,
+    report_id: u64,
+    project_id: u64,
+    category: ReportCategory,
+    moderator: Address,
+    previous_moderator: Option<Address>,
+) {
+    env.events().publish(
+        (symbol_short!("REPORT"), symbol_short!("ROUTED"), report_id),
+        ReportRoutedEvent {
+            report_id,
+            project_id,
+            category,
+            moderator,
+            previous_moderator,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when an admin creates, replaces or removes a routing rule (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportRoutingRuleUpdatedEvent {
+    pub category: ReportCategory,
+    pub admin: Address,
+    pub moderator_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_report_routing_rule_updated_event(
+    env: &Env,
+    category: ReportCategory,
+    admin: Address,
+    moderator_count: u32,
+) {
+    env.events().publish(
+        (symbol_short!("REPORT"), symbol_short!("RULE_UPD")),
+        ReportRoutingRuleUpdatedEvent {
+            category,
+            admin,
+            moderator_count,
             timestamp: env.ledger().timestamp(),
         },
     );

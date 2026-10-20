@@ -797,3 +797,20 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for report categorisation and moderator routing (#920).
+/// Own enum to respect Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReportModerationKey {
+    /// Next global report ID.
+    NextReportId,
+    /// Report by ID: report_id -> ProjectReport.
+    Report(u64),
+    /// Routing rule for a category: category -> ReportRoutingRule.
+    RoutingRule(crate::types::ReportCategory),
+    /// Current assignment of a report: report_id -> ReportAssignment.
+    Assignment(u64),
+    /// Report IDs currently assigned to a moderator.
+    ModeratorAssignments(Address),
+}

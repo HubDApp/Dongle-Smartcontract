@@ -333,6 +333,10 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Report referenced by ID does not exist (#920).
+    ReportNotFound = 142,
+    /// No routing rule is configured for the report's category (#920).
+    ReportRoutingRuleNotFound = 143,
 }
 
 pub type Error = ContractError;

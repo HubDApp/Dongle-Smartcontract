@@ -666,3 +666,10 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Report routing (#920) ──────────────────────────────────────────────────
+
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;

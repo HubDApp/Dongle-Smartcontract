@@ -2401,6 +2401,86 @@ impl DongleContract {
         ReportRegistry::clear_project_reports(&env, project_id, &admin)
     }
 
+    /// Report a project under a category and return the report ID. The
+    /// report is auto-routed if the category has a routing rule - Issue #920
+    pub fn report_project_with_category(
+        env: Env,
+        project_id: u64,
+        reporter: Address,
+        reason_cid: String,
+        category: crate::types::ReportCategory,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::report_project_with_category(
+            &env, project_id, reporter, reason_cid, category,
+        )
+    }
+
+    /// Get a report by its global ID - Issue #920
+    pub fn get_report(env: Env, report_id: u64) -> Option<ProjectReport> {
+        ReportRegistry::get_report(&env, report_id)
+    }
+
+    /// Admin: route a report to the next moderator for a category - Issue #920
+    pub fn route_report_to_moderator(
+        env: Env,
+        admin: Address,
+        report_id: u64,
+        category: crate::types::ReportCategory,
+    ) -> Result<Address, ContractError> {
+        ReportRegistry::route_report_to_moderator(&env, admin, report_id, category)
+    }
+
+    /// Admin: reassign several reports to one moderator - Issue #920
+    pub fn bulk_reassign_reports(
+        env: Env,
+        admin: Address,
+        report_ids: Vec<u64>,
+        new_moderator: Address,
+    ) -> Result<u32, ContractError> {
+        ReportRegistry::bulk_reassign_reports(&env, admin, report_ids, new_moderator)
+    }
+
+    /// Admin: create or replace the routing rule for a category - Issue #920
+    pub fn set_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+        moderators: Vec<Address>,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::set_routing_rule(&env, admin, category, moderators)
+    }
+
+    /// Admin: remove the routing rule for a category - Issue #920
+    pub fn remove_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::remove_routing_rule(&env, admin, category)
+    }
+
+    /// Get the routing rule for a category - Issue #920
+    pub fn get_report_routing_rule(
+        env: Env,
+        category: crate::types::ReportCategory,
+    ) -> Option<crate::types::ReportRoutingRule> {
+        ReportRegistry::get_routing_rule(&env, category)
+    }
+
+    /// Get the current assignment for a report - Issue #920
+    pub fn get_report_assignment(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportAssignment> {
+        ReportRegistry::get_report_assignment(&env, report_id)
+    }
+
+    /// Get report IDs assigned to a moderator - Issue #920
+    pub fn get_moderator_report_assignments(env: Env, moderator: Address) -> Vec<u64> {
+        ReportRegistry::get_moderator_assignments(&env, moderator)
+    }
+
     /// List projects by tag - Issue #125
     /// Look projects up by one or more tags using the inverted index (issue #483).
     ///

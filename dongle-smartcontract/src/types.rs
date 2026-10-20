@@ -645,6 +645,58 @@ pub struct ProjectReport {
     pub reason_cid: String,
     /// Unix timestamp (seconds) when the report was submitted.
     pub timestamp: u64,
+    /// Globally unique report ID (#920).
+    pub report_id: u64,
+    /// Category used to route the report to a specialised review team (#920).
+    pub category: ReportCategory,
+    /// Moderator currently assigned to review the report, if routed (#920).
+    pub assigned_moderator: Option<Address>,
+}
+
+/// Category of a project report. Each category can be routed to its own
+/// moderator team via a `ReportRoutingRule` (#920).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportCategory {
+    Spam,
+    Abuse,
+    Copyright,
+    Scam,
+    LowQuality,
+    Other,
+}
+
+/// Routing rule mapping a report category to the moderators that handle it.
+/// Reports are distributed round-robin across `moderators` (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportRoutingRule {
+    /// Category this rule applies to.
+    pub category: ReportCategory,
+    /// Moderators (admins) that review reports in this category.
+    pub moderators: Vec<Address>,
+    /// Index into `moderators` of the next moderator to receive a report.
+    pub next_index: u32,
+    /// Admin that last updated the rule.
+    pub updated_by: Address,
+    /// Unix timestamp (seconds) of the last update.
+    pub updated_at: u64,
+}
+
+/// Record of a report being assigned to a moderator (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportAssignment {
+    /// Report that was assigned.
+    pub report_id: u64,
+    /// Moderator the report is assigned to.
+    pub moderator: Address,
+    /// Category the report was routed under.
+    pub category: ReportCategory,
+    /// Admin that triggered the assignment (`None` when auto-routed on submission).
+    pub assigned_by: Option<Address>,
+    /// Unix timestamp (seconds) of the assignment.
+    pub assigned_at: u64,
 }
 
 /// Verification lifecycle status for a project.
