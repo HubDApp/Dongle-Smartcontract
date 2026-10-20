@@ -340,6 +340,9 @@ pub enum ExtensionKey2 {
     AdminSessionHistory(Address),
     /// Next admin session ID counter.
     NextAdminSessionId,
+    /// Custom verification requirements for a project, stored as IPFS CIDs.
+    /// Keyed by project_id -> ProjectVerificationRequirements.
+    ProjectVerificationRequirements(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
@@ -802,3 +805,20 @@ pub enum TrendingKey {
     TrendingCacheTimestamp(u64),
 }
 
+/// Storage keys for the immutable verification audit trail. Own enum to
+/// respect Soroban's 50-variant union cap on the shared key enums. Entries
+/// under these keys are append-only: nothing in the contract removes them.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationAuditKey {
+    /// Next global audit entry ID.
+    NextEntryId,
+    /// Number of audit entries for a project.
+    EntryCount(u64),
+    /// Audit entry: (project_id, index) -> VerificationAuditEntry.
+    Entry(u64, u32),
+    /// Number of rejection records for a project.
+    RejectionCount(u64),
+    /// Rejection record: (project_id, index) -> RejectionRecord.
+    Rejection(u64, u32),
+}

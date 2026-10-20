@@ -25,6 +25,7 @@ mod cleanup;
 mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
 mod moderation;
+mod moderation_batch;
 mod name_search;
 mod project_search;
 mod pagination;

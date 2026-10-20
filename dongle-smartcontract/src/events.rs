@@ -1,7 +1,7 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
-    AdminActionType, DigestFrequency, EvidenceLink, NotificationKind, ProjectLifecycleStatus,
-    ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
+    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -4453,5 +4453,57 @@ pub fn publish_project_transfer_cancelled_event(
             project_id,
         ),
         event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewFlaggedEvent {
+    pub project_id: u64,
+    pub reviewer: Address,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_review_flagged_event(env: &Env, project_id: u64, reviewer: Address, admin: Address) {
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("FLAGGED"), project_id),
+        ReviewFlaggedEvent {
+            project_id,
+            reviewer,
+            admin,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Summary of one `moderate_reviews_batch` call. Per-review events and
+/// admin-log entries are emitted separately for each successful item.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewsModeratedEvent {
+    pub admin: Address,
+    pub action: ModerateAction,
+    pub succeeded: u32,
+    pub failed: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_reviews_moderated_event(
+    env: &Env,
+    admin: Address,
+    action: ModerateAction,
+    succeeded: u32,
+    failed: u32,
+) {
+    env.events().publish(
+        (symbol_short!("REVIEW"), symbol_short!("MODBATCH")),
+        ReviewsModeratedEvent {
+            admin,
+            action,
+            succeeded,
+            failed,
+            timestamp: env.ledger().timestamp(),
+        },
     );
 }
