@@ -4189,7 +4189,7 @@ impl DongleContract {
     }
 
     /// Admin: configure the health score weights and update frequency.
-    /// `rating_weight + activity_weight + verification_weight` must equal 100.
+    /// `rating_weight + activity_weight + verification_weight + engagement_weight` must equal 100.
     pub fn set_health_score_config(
         env: Env,
         admin: Address,

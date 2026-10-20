@@ -4393,3 +4393,57 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+// ── #982: Composite Health Score ─────────────────────────────────────────────
+
+/// Emitted each time a project's composite health score is (re-)computed.
+///
+/// Topics: `("HEALTH", "UPDATED", project_id)`
+/// Data: [`ProjectHealthScoreUpdatedEvent`]
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectHealthScoreUpdatedEvent {
+    /// ID of the project whose score was updated.
+    pub project_id: u64,
+    /// New composite health score (0–100).
+    pub score: u32,
+    /// Points from the rating component.
+    pub rating_score: u32,
+    /// Points from the activity/recency component.
+    pub activity_score: u32,
+    /// Points from the verification status component.
+    pub verification_score: u32,
+    /// Points from the community-engagement component.
+    pub engagement_score: u32,
+    /// Ledger timestamp when this score was computed.
+    pub computed_at: u64,
+}
+
+/// Publish a [`ProjectHealthScoreUpdatedEvent`].
+pub fn publish_project_health_score_updated_event(
+    env: &Env,
+    project_id: u64,
+    score: u32,
+    rating_score: u32,
+    activity_score: u32,
+    verification_score: u32,
+    engagement_score: u32,
+) {
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (
+            symbol_short!("HEALTH"),
+            symbol_short!("UPDATED"),
+            project_id,
+        ),
+        ProjectHealthScoreUpdatedEvent {
+            project_id,
+            score,
+            rating_score,
+            activity_score,
+            verification_score,
+            engagement_score,
+            computed_at: now,
+        },
+    );
+}
