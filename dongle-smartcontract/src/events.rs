@@ -269,6 +269,48 @@ pub struct VerificationExpiryNotificationEvent {
     pub resend_count: u32,
 }
 
+/// Emitted when an admin schedules a verification revocation with advance notice.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationScheduledEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub revoke_at: u64,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a scheduled verification revocation is cancelled.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationCancelledEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub cancelled_by: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a reminder notification is sent for a scheduled verification revocation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationReminderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub revoke_at: u64,
+    pub reminder_type: VerificationRevocationReminderType,
+    pub timestamp: u64,
+}
+
+/// Type of reminder notification for scheduled verification revocation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationRevocationReminderType {
+    SevenDays,
+    TwentyFourHours,
+    Final,
+}
+
 /// Emitted when an admin renews (resets the expiry of) a verified project.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1018,6 +1060,83 @@ pub fn publish_verification_revoked_event(
         (
             symbol_short!("VERIFY"),
             symbol_short!("REVOKED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_scheduled_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+    revoke_at: u64,
+    reason: String,
+) {
+    let event_data = VerificationRevocationScheduledEvent {
+        project_id,
+        request_id,
+        admin,
+        revoke_at,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("REVKSCH"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_cancelled_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    cancelled_by: Address,
+) {
+    let event_data = VerificationRevocationCancelledEvent {
+        project_id,
+        admin,
+        cancelled_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("RevkCan"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_reminder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    revoke_at: u64,
+    reminder_type: VerificationRevocationReminderType,
+) {
+    let event_data = VerificationRevocationReminderEvent {
+        project_id,
+        owner,
+        revoke_at,
+        reminder_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    let topic = match reminder_type {
+        VerificationRevocationReminderType::SevenDays => symbol_short!("REV7DAY"),
+        VerificationRevocationReminderType::TwentyFourHours => symbol_short!("REV24HR"),
+        VerificationRevocationReminderType::Final => symbol_short!("REVFNL"),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            topic,
             project_id,
         ),
         event_data,
