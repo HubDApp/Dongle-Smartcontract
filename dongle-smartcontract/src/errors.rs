@@ -333,6 +333,8 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// No state snapshot record exists with the given ID.
+    SnapshotNotFound = 142,
 }
 
 pub type Error = ContractError;

@@ -27,6 +27,7 @@ mod events;
 mod moderation;
 mod moderation_batch;
 mod subscription_bulk;
+mod state_snapshot;
 mod name_search;
 mod project_search;
 mod pagination;

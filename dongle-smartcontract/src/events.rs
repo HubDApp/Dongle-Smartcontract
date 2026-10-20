@@ -1,9 +1,10 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, SnapshotScope,
+    VerificationStatus,
 };
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
@@ -4453,3 +4454,35 @@ pub fn publish_subscriptions_cloned_event(
     );
 }
 
+/// Emitted when an admin records a published state snapshot (#933).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StateSnapshotRecordedEvent {
+    pub snapshot_id: u64,
+    pub scope: SnapshotScope,
+    pub admin: Address,
+    pub state_hash: BytesN<32>,
+    pub ipfs_cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_state_snapshot_recorded_event(
+    env: &Env,
+    snapshot_id: u64,
+    scope: SnapshotScope,
+    admin: Address,
+    state_hash: BytesN<32>,
+    ipfs_cid: String,
+) {
+    env.events().publish(
+        (symbol_short!("STATE"), symbol_short!("SNAPSHOT"), snapshot_id),
+        StateSnapshotRecordedEvent {
+            snapshot_id,
+            scope,
+            admin,
+            state_hash,
+            ipfs_cid,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}

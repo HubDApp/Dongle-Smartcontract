@@ -3499,3 +3499,86 @@ pub struct SubscriptionExport {
     pub project_ids: Vec<u64>,
     pub exported_at: u64,
 }
+
+/// Which slice of contract state a snapshot covers (#933).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SnapshotScope {
+    /// Projects, reviews, verifications, and configuration.
+    Full,
+    Projects,
+    Reviews,
+    Verifications,
+    /// Configuration only; the project range is ignored.
+    Configs,
+}
+
+/// Contract-wide configuration captured in a snapshot.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractConfigSnapshot {
+    pub admins: Vec<Address>,
+    pub admin_approval_threshold: u32,
+    pub verification_duration_secs: u64,
+    /// `None` when fees were never configured.
+    pub fee_config: Option<FeeConfig>,
+    pub paused: bool,
+}
+
+/// One page of exported contract state, returned by
+/// `export_contract_state_snapshot`. Lists not in `scope` are empty.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractStateSnapshot {
+    pub format_version: u32,
+    pub scope: SnapshotScope,
+    pub generated_at: u64,
+    pub ledger_sequence: u32,
+    /// Total projects ever registered, for planning further pages.
+    pub project_count: u64,
+    /// First project ID covered (inclusive). Zero for `Configs`.
+    pub start_project_id: u64,
+    /// Last project ID covered (inclusive). Below `start_project_id` when
+    /// the page is past the end of the registry; zero for `Configs`.
+    pub end_project_id: u64,
+    pub projects: Vec<Project>,
+    pub reviews: Vec<Review>,
+    pub verifications: Vec<VerificationRecord>,
+    pub config: Option<ContractConfigSnapshot>,
+    /// SHA-256 of the XDR of `(format_version, scope, start_project_id,
+    /// end_project_id, projects, reviews, verifications, config)`.
+    pub state_hash: BytesN<32>,
+}
+
+/// On-chain record of a published snapshot, written by
+/// `record_state_snapshot`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StateSnapshotRecord {
+    pub id: u64,
+    pub format_version: u32,
+    pub scope: SnapshotScope,
+    pub start_project_id: u64,
+    pub end_project_id: u64,
+    /// Page size used, so the snapshot can be recomputed for verification.
+    pub limit: u32,
+    /// Hash computed by the contract when the record was written.
+    pub state_hash: BytesN<32>,
+    /// SHA-256 of the exported JSON file pinned at `ipfs_cid`.
+    pub export_sha256: BytesN<32>,
+    pub ipfs_cid: String,
+    pub published_by: Address,
+    pub published_at: u64,
+    pub ledger_sequence: u32,
+}
+
+/// Result of `verify_state_snapshot`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SnapshotVerification {
+    pub snapshot_id: u64,
+    /// `true` when current state still hashes to `recorded_hash`.
+    pub matches: bool,
+    pub recorded_hash: BytesN<32>,
+    pub current_hash: BytesN<32>,
+}

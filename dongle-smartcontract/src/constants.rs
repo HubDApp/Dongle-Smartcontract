@@ -47,6 +47,15 @@ pub const MAX_SUBSCRIPTION_BATCH_SIZE: u32 = 100;
 /// Format version of `SubscriptionExport`. Bump when its fields change.
 pub const SUBSCRIPTION_EXPORT_FORMAT_VERSION: u32 = 1;
 
+/// Maximum project IDs one state snapshot or migration export page covers.
+/// Every review and verification record of those projects is included, so
+/// keep this small enough to stay within read limits.
+pub const MAX_SNAPSHOT_PAGE_SIZE: u32 = 25;
+
+/// Format version of `ContractStateSnapshot`. Bump when its fields, or the
+/// tuple hashed into `state_hash`, change.
+pub const STATE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 

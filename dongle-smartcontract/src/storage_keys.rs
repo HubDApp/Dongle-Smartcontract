@@ -797,3 +797,13 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for state snapshots (#933).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StateExportKey {
+    /// Number of recorded snapshots; also the latest snapshot ID.
+    SnapshotCount,
+    /// `StateSnapshotRecord` by snapshot ID (starting at 1).
+    Snapshot(u64),
+}

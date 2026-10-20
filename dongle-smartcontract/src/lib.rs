@@ -41,6 +41,7 @@ mod social_analytics_registry;
 pub mod storage_keys;
 pub mod trust_and_safety;
 pub mod storage_manager;
+mod state_export;
 mod subscription_bulk;
 mod subscription_registry;
 mod timelock_manager;
@@ -2985,6 +2986,68 @@ impl DongleContract {
         crate::subscription_bulk::SubscriptionBulk::clone_subscriptions_from_address(
             &env, admin, source, target,
         )
+    }
+
+    // --- State Snapshots (#933) ---
+
+    /// Export one page of contract state for audit or recovery (admin-only).
+    /// `limit` project IDs from `start_project_id` (0 or over
+    /// `MAX_SNAPSHOT_PAGE_SIZE` uses the maximum); `Configs` ignores the range.
+    pub fn export_contract_state_snapshot(
+        env: Env,
+        admin: Address,
+        scope: crate::types::SnapshotScope,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Result<crate::types::ContractStateSnapshot, ContractError> {
+        crate::state_export::StateExport::export_contract_state_snapshot(
+            &env,
+            admin,
+            scope,
+            start_project_id,
+            limit,
+        )
+    }
+
+    /// Record that the snapshot for `scope` and page was published to IPFS
+    /// at `ipfs_cid` (admin-only). Returns the new snapshot ID.
+    pub fn record_state_snapshot(
+        env: Env,
+        admin: Address,
+        scope: crate::types::SnapshotScope,
+        start_project_id: u64,
+        limit: u32,
+        ipfs_cid: String,
+        export_sha256: soroban_sdk::BytesN<32>,
+    ) -> Result<u64, ContractError> {
+        crate::state_export::StateExport::record_state_snapshot(
+            &env,
+            admin,
+            scope,
+            start_project_id,
+            limit,
+            ipfs_cid,
+            export_sha256,
+        )
+    }
+
+    pub fn get_state_snapshot(
+        env: Env,
+        snapshot_id: u64,
+    ) -> Option<crate::types::StateSnapshotRecord> {
+        crate::state_export::StateExport::get_state_snapshot(&env, snapshot_id)
+    }
+
+    pub fn get_state_snapshot_count(env: Env) -> u64 {
+        crate::state_export::StateExport::get_state_snapshot_count(&env)
+    }
+
+    /// Check whether current state still matches a recorded snapshot.
+    pub fn verify_state_snapshot(
+        env: Env,
+        snapshot_id: u64,
+    ) -> Result<crate::types::SnapshotVerification, ContractError> {
+        crate::state_export::StateExport::verify_state_snapshot(&env, snapshot_id)
     }
 
     // --- Notification Preferences ---
