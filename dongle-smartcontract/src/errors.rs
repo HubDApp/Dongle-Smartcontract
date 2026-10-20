@@ -363,6 +363,18 @@ pub enum ContractError {
     AddressNotEndorsed = 153,
     /// Endorser or endorsee reached `MAX_ADDRESS_ENDORSEMENTS_PER_USER`.
     MaxAddressEndorsementsExceeded = 154,
+
+    // ── Conditional endorsement errors (#918) ─────────────────────────────
+    /// Endorsement record not found.
+    EndorsementNotFound = 155,
+    /// Expertise area is empty, too long, or duplicated.
+    InvalidEndorsementArea = 156,
+    /// More than `MAX_ENDORSEMENT_AREAS` areas supplied.
+    TooManyEndorsementAreas = 157,
+    /// Expiry timestamp is not in the future.
+    InvalidEndorsementExpiry = 158,
+    /// Endorsement has no expiry, so there is nothing to renew.
+    EndorsementNotRenewable = 159,
 }
 
 pub type Error = ContractError;

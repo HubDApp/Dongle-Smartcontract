@@ -808,3 +808,17 @@ pub enum EndorsementGraphKey {
     /// Addresses endorsing this address (incoming edges).
     Incoming(Address),
 }
+
+/// Storage keys for conditional endorsement records (#918).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EndorsementRecordKey {
+    /// `Endorsement` record by ID.
+    Record(u64),
+    /// Next endorsement ID counter.
+    NextId,
+    /// (project_id, endorser) → endorsement ID.
+    ProjectEndorser(u64, Address),
+    /// (project_id, area) → endorsement IDs covering that area.
+    AreaIndex(u64, String),
+}

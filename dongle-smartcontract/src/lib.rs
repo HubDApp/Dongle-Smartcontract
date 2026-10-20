@@ -3374,6 +3374,90 @@ impl DongleContract {
         crate::endorsement_registry::EndorsementRegistry::has_endorsed(&env, project_id, &user)
     }
 
+    // --- Conditional Endorsements (#918) ---
+
+    /// Endorse a project for specific expertise areas, optionally expiring
+    /// at `expires_at`.  Returns the endorsement ID.
+    pub fn endorse_project_with_conditions(
+        env: Env,
+        project_id: u64,
+        user: Address,
+        areas: Vec<String>,
+        expires_at: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_registry::EndorsementRegistry::endorse_project_with_conditions(
+            &env, project_id, user, areas, expires_at,
+        )
+    }
+
+    /// Renew a time-limited endorsement.  Returns the new expiry timestamp.
+    pub fn renew_endorsement(
+        env: Env,
+        endorser: Address,
+        endorsement_id: u64,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_registry::EndorsementRegistry::renew_endorsement(
+            &env,
+            endorser,
+            endorsement_id,
+        )
+    }
+
+    pub fn get_endorsement(env: Env, endorsement_id: u64) -> Option<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_endorsement(&env, endorsement_id)
+    }
+
+    pub fn get_user_project_endorsement(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Option<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_user_project_endorsement(
+            &env,
+            project_id,
+            &user,
+        )
+    }
+
+    /// Whether `user` holds an unexpired endorsement on `project_id`.
+    pub fn has_active_endorsement(env: Env, project_id: u64, user: Address) -> bool {
+        crate::endorsement_registry::EndorsementRegistry::has_active_endorsement(
+            &env,
+            project_id,
+            &user,
+        )
+    }
+
+    /// Active endorsements of `project_id` covering `area`, paginated.
+    pub fn get_endorsements_by_area(
+        env: Env,
+        project_id: u64,
+        area: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_endorsements_by_area(
+            &env,
+            project_id,
+            area,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Endorsers of `project_id` whose active endorsement covers all `areas`.
+    pub fn filter_endorsers_by_areas(
+        env: Env,
+        project_id: u64,
+        areas: Vec<String>,
+    ) -> Vec<Address> {
+        crate::endorsement_registry::EndorsementRegistry::filter_endorsers_by_areas(
+            &env, project_id, areas,
+        )
+    }
+
     // --- Endorsement Graph (#917) ---
 
     /// `endorser` vouches for `endorsee` in the address endorsement graph.

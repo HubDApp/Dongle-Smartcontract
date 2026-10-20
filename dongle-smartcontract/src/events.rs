@@ -4488,3 +4488,40 @@ pub fn publish_address_endorsement_revoked_event(env: &Env, endorser: Address, e
         event_data,
     );
 }
+
+// ── Conditional endorsement events (#918) ───────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementRenewedEvent {
+    pub endorsement_id: u64,
+    pub project_id: u64,
+    pub endorser: Address,
+    pub expires_at: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_endorsement_renewed_event(
+    env: &Env,
+    endorsement_id: u64,
+    project_id: u64,
+    endorser: Address,
+    expires_at: u64,
+) {
+    let event_data = EndorsementRenewedEvent {
+        endorsement_id,
+        project_id,
+        endorser: endorser.clone(),
+        expires_at,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("ENDORSE"),
+            symbol_short!("RENEWED"),
+            endorsement_id,
+            endorser,
+        ),
+        event_data,
+    );
+}

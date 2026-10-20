@@ -3393,3 +3393,28 @@ pub struct EndorsementVoucher {
     /// Trust weight of that chain in basis points.
     pub weight: u32,
 }
+
+// ── Conditional endorsements (#918) ─────────────────────────────────────────
+
+/// A project endorsement with optional context: the expertise areas it
+/// covers and an expiry after which it no longer counts.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Endorsement {
+    /// Globally unique endorsement identifier.
+    pub id: u64,
+    /// Endorsed project.
+    pub project_id: u64,
+    /// Address that endorsed the project.
+    pub endorser: Address,
+    /// Expertise areas the endorsement covers (e.g. "DeFi").  Empty means
+    /// an unconditional, general endorsement.
+    pub areas: Vec<String>,
+    /// Unix timestamp (seconds) when the endorsement was created.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) of the latest renewal, if any.
+    pub renewed_at: Option<u64>,
+    /// Unix timestamp (seconds) at which the endorsement expires.
+    /// `None` = never expires.
+    pub expires_at: Option<u64>,
+}

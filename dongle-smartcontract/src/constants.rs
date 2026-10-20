@@ -681,3 +681,11 @@ pub const ENDORSEMENT_BASE_REPUTATION_BPS: u32 = 5_000;
 /// Reputation factor (bps) added per endorser an intermediary has, capped at
 /// `MAX_BASIS_POINTS`.
 pub const ENDORSEMENT_REPUTATION_STEP_BPS: u32 = 1_000;
+
+// ── Conditional Endorsement Constants (#918) ────────────────────────────────
+
+/// Maximum number of expertise areas attached to a single endorsement.
+pub const MAX_ENDORSEMENT_AREAS: u32 = 10;
+
+/// Maximum byte length of an endorsement expertise area.
+pub const MAX_ENDORSEMENT_AREA_LEN: u32 = 32;
