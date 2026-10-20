@@ -329,6 +329,10 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Review is already flagged for moderator follow-up.
+    ReviewAlreadyFlagged = 140,
+    /// Admin exhausted the review moderation budget for the current window.
+    ModerationRateLimitExceeded = 141,
 }
 
 pub type Error = ContractError;

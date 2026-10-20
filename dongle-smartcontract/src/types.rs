@@ -1449,7 +1449,7 @@ pub struct Collection {
 /// `u32` discriminants, but XDR union types have a practical limit of
 /// **50 variants** before SDK tooling and contract-size constraints become
 /// problematic (same constraint as [`StorageKey`] / [`ExtensionKey`]).
-/// This enum currently has **40 variants**; stay under 50. If you need
+/// This enum currently has **49 variants**; stay under 50. If you need
 /// more, introduce an `AdminActionTypeExt` enum (mirroring the
 /// `ExtensionKey` pattern) rather than pushing past the ceiling.
 #[contracttype]
@@ -1513,6 +1513,8 @@ pub enum AdminActionType {
     AdminExpertiseSet,
     /// Verification SLA was configured.
     VerificationSlaSet,
+    /// Review flagged for moderator follow-up via batch moderation.
+    ReviewFlagged,
 }
 
 /// Current state of a duplicate-project dispute.
@@ -3326,3 +3328,45 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+
+/// Action applied by `moderate_reviews_batch`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModerateAction {
+    /// Hide the review and drop it from project stats.
+    Hide,
+    /// Permanently delete the review (admin hard-delete).
+    Delete,
+    /// Mark the review for follow-up without hiding it.
+    Flag,
+    /// Un-hide the review and clear any flag.
+    Restore,
+}
+
+/// A review that could not be moderated in a batch.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerateFailure {
+    pub project_id: u64,
+    pub reviewer: Address,
+    /// `ContractError` discriminant explaining the failure.
+    pub error_code: u32,
+}
+
+/// Outcome of `moderate_reviews_batch`. Every input review appears in
+/// exactly one of `successful` or `failed`, in input order.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerateResult {
+    pub action: ModerateAction,
+    pub successful: Vec<(u64, Address)>,
+    pub failed: Vec<ModerateFailure>,
+}
+
+/// Moderator flag stored against a review.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewFlag {
+    pub flagged_by: Address,
+    pub flagged_at: u64,
+}

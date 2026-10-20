@@ -779,3 +779,16 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for batch review moderation.
+///
+/// `StorageKey` and `ExtensionKey` are at their variant caps, so moderation
+/// keys live in their own enum like `ReviewIntegrityKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReviewModerationKey {
+    /// Moderator flag on a review, keyed by `(project_id, reviewer)`.
+    Flag(u64, Address),
+    /// Per-admin moderation rate-limit window.
+    RateWindow(Address),
+}
