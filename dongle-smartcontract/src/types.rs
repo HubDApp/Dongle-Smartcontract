@@ -2252,6 +2252,40 @@ pub struct VerificationExpiryNotification {
     pub owner_responded: bool,
 }
 
+/// Scheduled verification revocation with advance notice.
+/// Allows admins to schedule a verification revocation to take effect at a future time.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationSchedule {
+    /// Project ID whose verification is scheduled for revocation.
+    pub project_id: u64,
+    /// ID of the verification request being revoked.
+    pub request_id: u64,
+    /// Admin who scheduled the revocation.
+    pub scheduled_by: Address,
+    /// Unix timestamp when the revocation should take effect.
+    pub revoke_at: u64,
+    /// Unix timestamp when the revocation was scheduled.
+    pub scheduled_at: u64,
+    /// Admin-supplied reason for the revocation.
+    pub reason: String,
+    /// Whether the scheduled revocation has been executed.
+    pub executed: bool,
+    /// Timestamp when the revocation was executed (0 if not yet executed).
+    pub executed_at: u64,
+    /// Whether the scheduled revocation was cancelled.
+    pub cancelled: bool,
+    /// Timestamp when the revocation was cancelled (0 if not cancelled).
+    pub cancelled_at: u64,
+    /// Admin who cancelled the scheduled revocation (None if not cancelled).
+    pub cancelled_by: Option<Address>,
+    /// Flags for which reminder notifications have been sent.
+    /// Bit 0: 7-day reminder sent
+    /// Bit 1: 24-hour reminder sent
+    /// Bit 2: final reminder sent at schedule time
+    pub reminder_flags: u8,
+}
+
 /// Global notification preferences for a user.
 ///
 /// Controls which project-update events are forwarded to the user

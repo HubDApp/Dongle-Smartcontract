@@ -381,6 +381,10 @@ pub enum NotificationKey {
     /// by `cleanup_expired_proposals` so callers can discover them without
     /// scanning the full proposal list.
     ExpiredProposalIds,
+    /// Scheduled verification revocation by project_id.
+    VerificationRevocationSchedule(u64),
+    /// List of all project IDs with scheduled verification revocations.
+    ScheduledRevocationProjectIds,
 }
 
 /// Per-address operation windows, stored in a separate namespace to keep the
