@@ -282,6 +282,44 @@ pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
 /// bytes = 4 KiB, well within a single ledger entry.
 pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
 
+/// Maximum nesting depth of the collection hierarchy (issue #905).
+///
+/// A top-level collection sits at depth `1`; a collection nested inside it
+/// sits at depth `2`, and so on.  The chain is capped at 5 levels so that
+/// tree walks (`get_collection_tree`, `get_collection_path`) are always
+/// bounded and can never loop forever.
+pub const MAX_COLLECTION_DEPTH: u32 = 5;
+
+/// Maximum number of nodes returned by `get_collection_tree` (issue #905).
+/// 200: bounds the response size of a subtree walk; the hierarchy itself is
+/// capped at `MAX_COLLECTIONS` (100) entries.
+pub const MAX_COLLECTION_TREE_NODES: u32 = 200;
+
+/// Maximum number of staged-recovery phases (issue #904).
+///
+/// The recovery plan is `read ops → reviews → verification → fees`:
+///
+/// | Phase | Resumed |
+/// |-------|---------|
+/// | 0 | nothing (fully paused) |
+/// | 1 | read operations |
+/// | 2 | reviews |
+/// | 3 | verification |
+/// | 4 | fees — the contract is fully running again |
+pub const MAX_RESUME_PHASE: u32 = 4;
+
+/// Maximum byte length of a pause reason (issue #901).
+/// 256 bytes: a short operator note ("fee token migration in progress").
+pub const MAX_PAUSE_REASON_LEN: usize = 256;
+
+/// Maximum number of addresses subscribed to pause notifications (issue #901).
+/// 100: the subscriber list is a `Vec<Address>` in a single ledger entry.
+pub const MAX_PAUSE_SUBSCRIBERS: u32 = 100;
+
+/// Maximum number of recorded staged-recovery phase transitions (issue #904).
+/// 50 entries: enough history for an incident review without unbounded growth.
+pub const MAX_PHASE_HISTORY_LEN: u32 = 50;
+
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
 /// Maximum entries returned per admin action log paginated query.

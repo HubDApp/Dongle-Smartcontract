@@ -1529,6 +1529,139 @@ pub struct Collection {
     pub created_at: u64,
     /// Unix timestamp (seconds) when the collection metadata was last updated.
     pub updated_at: u64,
+    /// Identifier of the parent collection when this collection is nested
+    /// inside another one (`None` for a top-level collection).
+    ///
+    /// The hierarchy is a **forest**: every collection has at most one
+    /// parent and the parent chain is acyclic (enforced by
+    /// `CollectionRegistry::set_collection_parent`) and at most
+    /// `MAX_COLLECTION_DEPTH` levels deep.
+    ///
+    /// Part of issue #905 ("Collection Hierarchies and Nesting").
+    pub parent_collection_id: Option<u64>,
+}
+
+/// A node of a collection subtree returned by `get_collection_tree`.
+///
+/// The tree is returned in **breadth-first order** with explicit
+/// parent/child links (`parent_id` / `child_ids`) rather than as a
+/// recursively nested Rust type: a recursive `#[contracttype]` cannot be
+/// represented in the contract ABI without risking unbounded recursion in
+/// the generated conversion code, and the flat representation keeps every
+/// node independently addressable for indexers.
+///
+/// Part of issue #905 ("Collection Hierarchies and Nesting").
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionTreeNode {
+    /// The collection record itself.
+    pub collection: Collection,
+    /// Depth of the node relative to the requested root (`0` for the root).
+    pub depth: u32,
+    /// Identifier of the parent collection (`None` for the root node).
+    pub parent_id: Option<u64>,
+    /// Identifiers of the direct children of this collection.
+    pub child_ids: Vec<u64>,
+}
+
+/// Fine-grained pause state of the contract (issue #902).
+///
+/// Replaces the previous boolean pause flag.  The state describes *which*
+/// family of operations is currently blocked:
+///
+/// | State | Effect |
+/// |-------|--------|
+/// | `Running` | Nothing is blocked. |
+/// | `PausedAll` | Every mutating operation is blocked (read operations still work). |
+/// | `PausedVerification` | Only verification operations are blocked. |
+/// | `PausedFees` | Only fee operations are blocked. |
+/// | `PausedReviews` | Only review operations are blocked. |
+/// | `PausedVerificationAndFees` | Verification **and** fee operations are blocked (staged recovery phase 2). |
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseState {
+    /// Normal operation — nothing is paused.
+    Running,
+    /// Emergency stop: every mutating operation is blocked.
+    PausedAll,
+    /// Only verification requests/approvals are blocked.
+    PausedVerification,
+    /// Only fee payments/refunds are blocked.
+    PausedFees,
+    /// Only review submission/moderation is blocked.
+    PausedReviews,
+    /// Verification and fee operations are blocked (used by the staged
+    /// recovery plan of issue #904 — phase "reviews resumed").
+    PausedVerificationAndFees,
+}
+
+/// The family of operations a pause check applies to (issue #902).
+///
+/// Every mutating entry point declares which family it belongs to; the
+/// pause gate then decides whether that family is currently blocked.
+/// See `PAUSE_MATRIX.md` for the full matrix.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseOperation {
+    /// A generic mutating operation (project lifecycle, links, transfers,
+    /// collections, bookmarks, changelog, …).  Blocked by `PausedAll` and
+    /// during a staged recovery that has not reached its final phase.
+    All,
+    /// A read-only operation.  Read operations are **never** blocked by the
+    /// pause gate — they are always available.
+    Read,
+    /// Verification requests, reviews of verification requests, renewals
+    /// and appeals.
+    Verification,
+    /// Fee payments, cancellations and refunds.
+    Fees,
+    /// Review submission, editing and moderation.
+    Reviews,
+}
+
+/// Full emergency-pause record (issues #901, #902 and #904).
+///
+/// Stored as a single ledger entry under `PauseKey::PauseState`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyPauseState {
+    /// Current fine-grained pause state.
+    pub state: PauseState,
+    /// Human-readable reason for the pause (issue #901).  `None` when the
+    /// contract was paused without giving a reason.
+    pub pause_reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).  `None` when
+    /// no estimate was supplied.
+    pub estimated_resume: Option<u64>,
+    /// Unix timestamp (seconds) of the most recent pause transition.
+    pub paused_at: u64,
+    /// Current staged-recovery phase (issue #904).  `0` means "no staged
+    /// recovery in progress"; `MAX_RESUME_PHASE` means "fully resumed".
+    pub resume_phase: u32,
+}
+
+/// Snapshot of the contract's operational status (issue #901).
+///
+/// Returned by the `get_contract_status` endpoint so frontends and
+/// indexers can surface *why* the contract is paused (if it is) and which
+/// operation families are currently blocked.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractStatus {
+    /// True when at least one operation family is blocked.
+    pub is_paused: bool,
+    /// Current fine-grained pause state.
+    pub pause_state: PauseState,
+    /// Human-readable pause reason (issue #901).
+    pub pause_reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).
+    pub estimated_resume: Option<u64>,
+    /// Unix timestamp (seconds) of the most recent pause transition.
+    pub paused_at: u64,
+    /// Current staged-recovery phase (issue #904).
+    pub resume_phase: u32,
+    /// The operation families that are currently blocked.
+    pub paused_operations: Vec<PauseOperation>,
 }
 
 /// Types of admin actions recorded in the admin action log.

@@ -166,3 +166,12 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #901: pause reasons, contract status and pause notifications
+mod pause_reasons;
+// Issue #902: fine-grained pause states and the operation-level pause matrix
+mod pause_matrix;
+// Issue #904: staged resumption of operations after an emergency pause
+mod pause_recovery_phases;
+// Issue #905: collection hierarchies and nesting
+mod collection_hierarchy;

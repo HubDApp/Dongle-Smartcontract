@@ -2407,6 +2407,12 @@ pub struct ChangelogRemovedEvent {
 pub struct ContractPausedEvent {
     pub admin: Address,
     pub timestamp: u64,
+    /// Human-readable reason for the pause (issue #901).  `None` when the
+    /// contract was paused without giving a reason.
+    pub reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).  `None` when
+    /// no estimate was supplied.
+    pub estimated_resume: Option<u64>,
 }
 
 #[contracttype]
@@ -2416,10 +2422,55 @@ pub struct ContractUnpausedEvent {
     pub timestamp: u64,
 }
 
-pub fn publish_contract_paused_event(env: &Env, admin: Address) {
+/// Emitted whenever the staged-recovery phase changes (issue #904).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PausePhaseChangedEvent {
+    /// The phase that is now in effect.
+    pub phase: u32,
+    /// The phase that was in effect before this transition.
+    pub previous_phase: u32,
+    /// Admin that requested the transition.
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when the contract is paused so that subscribed operators can be
+/// notified (issue #901).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseNotificationEvent {
+    /// Human-readable reason for the pause.
+    pub reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp.
+    pub estimated_resume: Option<u64>,
+    /// Number of addresses currently subscribed to pause notifications.
+    pub subscriber_count: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when an address subscribes to (or unsubscribes from) pause
+/// notifications (issue #901).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseSubscriberEvent {
+    pub subscriber: Address,
+    /// `true` when the address was added, `false` when it was removed.
+    pub subscribed: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_contract_paused_event(
+    env: &Env,
+    admin: Address,
+    reason: Option<String>,
+    estimated_resume: Option<u64>,
+) {
     let event_data = ContractPausedEvent {
         admin,
         timestamp: env.ledger().timestamp(),
+        reason,
+        estimated_resume,
     };
     env.events().publish(
         (symbol_short!("CONTRACT"), symbol_short!("PAUSED")),
@@ -2434,6 +2485,57 @@ pub fn publish_contract_unpaused_event(env: &Env, admin: Address) {
     };
     env.events().publish(
         (symbol_short!("CONTRACT"), symbol_short!("UNPAUSED")),
+        event_data,
+    );
+}
+
+/// Emit the staged-recovery phase transition event (issue #904).
+pub fn publish_pause_phase_changed_event(
+    env: &Env,
+    phase: u32,
+    previous_phase: u32,
+    admin: Address,
+) {
+    let event_data = PausePhaseChangedEvent {
+        phase,
+        previous_phase,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("PHASE")),
+        event_data,
+    );
+}
+
+/// Emit the pause notification event consumed by subscribers (issue #901).
+pub fn publish_pause_notification_event(
+    env: &Env,
+    reason: Option<String>,
+    estimated_resume: Option<u64>,
+    subscriber_count: u32,
+) {
+    let event_data = PauseNotificationEvent {
+        reason,
+        estimated_resume,
+        subscriber_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("NOTIFY")),
+        event_data,
+    );
+}
+
+/// Emit the pause subscriber (un)subscription event (issue #901).
+pub fn publish_pause_subscriber_event(env: &Env, subscriber: Address, subscribed: bool) {
+    let event_data = PauseSubscriberEvent {
+        subscriber,
+        subscribed,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("SUB")),
         event_data,
     );
 }

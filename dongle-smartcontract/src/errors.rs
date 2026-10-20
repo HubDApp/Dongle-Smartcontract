@@ -333,6 +333,27 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// The collection hierarchy would exceed the maximum nesting depth
+    /// (`MAX_COLLECTION_DEPTH`).  The parent chain is capped so that tree
+    /// walks can never be unbounded (issue #905).
+    CollectionDepthExceeded = 142,
+    /// The requested parent assignment would create a cycle in the collection
+    /// hierarchy — a collection can never be its own ancestor (issue #905).
+    CollectionHierarchyCycle = 143,
+    /// The collection still contains nested child collections and therefore
+    /// cannot be deleted (issue #905).
+    CollectionHasChildren = 144,
+    /// The requested staged-recovery phase does not exist (issue #904).
+    InvalidPausePhase = 145,
+    /// A staged-recovery rollback was requested but no phase has been
+    /// resumed yet (issue #904).
+    InvalidPhaseRollback = 146,
+    /// The supplied pause reason is empty or longer than
+    /// `MAX_PAUSE_REASON_LEN` bytes (issue #901).
+    InvalidPauseReason = 147,
+    /// The maximum number of pause-notification subscribers has been reached
+    /// (issue #901).
+    PauseSubscriberLimitExceeded = 148,
 }
 
 pub type Error = ContractError;
