@@ -3458,3 +3458,50 @@ pub struct ReviewFlag {
     pub flagged_by: Address,
     pub flagged_at: u64,
 }
+
+// ── Premium featured placement (#928) ──────────────────────────────────────
+
+/// Featured placement tier a project can bid for. Higher tiers are listed
+/// ahead of lower tiers by `get_premium_featured_projects`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeaturedTier {
+    Standard,
+    Premium,
+    Platinum,
+}
+
+/// Admin-configured fee structure and capacity for one featured tier.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedTierConfig {
+    pub tier: FeaturedTier,
+    /// Minimum bid per started day of placement (smallest token unit).
+    pub fee_per_day: u128,
+    /// Number of concurrently active campaigns the tier can hold. Once a
+    /// campaign wins a slot it keeps it until `ends_at` (guaranteed exposure).
+    pub max_slots: u32,
+}
+
+/// A successful premium featured bid, i.e. a placement campaign.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PremiumFeaturedCampaign {
+    pub id: u64,
+    pub project_id: u64,
+    pub bidder: Address,
+    pub tier: FeaturedTier,
+    /// Amount transferred to the treasury for this placement.
+    pub bid_amount: u128,
+    pub starts_at: u64,
+    pub ends_at: u64,
+}
+
+/// Aggregate bid statistics across all premium featured campaigns.
+#[contracttype]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PremiumFeaturedStats {
+    pub successful_campaigns: u64,
+    pub total_bid_amount: u128,
+    pub highest_bid: u128,
+}

@@ -4393,3 +4393,70 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+// ── Premium Featured Events (#928) ────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PremiumTierConfiguredEvent {
+    pub admin: Address,
+    pub tier: crate::types::FeaturedTier,
+    pub fee_per_day: u128,
+    pub max_slots: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PremiumFeaturedBidEvent {
+    pub campaign_id: u64,
+    pub project_id: u64,
+    pub bidder: Address,
+    pub tier: crate::types::FeaturedTier,
+    pub bid_amount: u128,
+    pub starts_at: u64,
+    pub ends_at: u64,
+}
+
+pub fn publish_premium_tier_configured_event(
+    env: &Env,
+    admin: Address,
+    tier: crate::types::FeaturedTier,
+    fee_per_day: u128,
+    max_slots: u32,
+) {
+    let event_data = PremiumTierConfiguredEvent {
+        admin,
+        tier,
+        fee_per_day,
+        max_slots,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEATURED"), symbol_short!("TIER_CFG")),
+        event_data,
+    );
+}
+
+pub fn publish_premium_featured_bid_event(
+    env: &Env,
+    campaign: &crate::types::PremiumFeaturedCampaign,
+) {
+    let event_data = PremiumFeaturedBidEvent {
+        campaign_id: campaign.id,
+        project_id: campaign.project_id,
+        bidder: campaign.bidder.clone(),
+        tier: campaign.tier,
+        bid_amount: campaign.bid_amount,
+        starts_at: campaign.starts_at,
+        ends_at: campaign.ends_at,
+    };
+    env.events().publish(
+        (
+            symbol_short!("FEATURED"),
+            symbol_short!("PREM_BID"),
+            campaign.project_id,
+        ),
+        event_data,
+    );
+}

@@ -797,3 +797,22 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for premium featured placement (#928). Own enum to respect
+/// Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PremiumFeaturedKey {
+    /// Fee structure and capacity for a tier.
+    TierConfig(crate::types::FeaturedTier),
+    /// Campaign by ID.
+    Campaign(u64),
+    /// Next campaign ID counter.
+    NextCampaignId,
+    /// IDs of campaigns occupying a tier's slots (expired ones are pruned lazily).
+    TierCampaigns(crate::types::FeaturedTier),
+    /// Every campaign ID ever won by a project, oldest first.
+    ProjectCampaigns(u64),
+    /// Aggregate `PremiumFeaturedStats`.
+    Stats,
+}

@@ -333,6 +333,16 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Premium featured tier has no fee structure configured yet (#928).
+    PremiumTierNotConfigured = 142,
+    /// Every slot of the premium featured tier is held by an active campaign.
+    PremiumTierFull = 143,
+    /// Bid is below the tier's fee for the requested duration.
+    PremiumBidTooLow = 144,
+    /// Requested premium featured duration is outside the allowed range.
+    InvalidPremiumDuration = 145,
+    /// Project already has an active premium featured campaign.
+    ProjectAlreadyPremiumFeatured = 146,
 }
 
 pub type Error = ContractError;

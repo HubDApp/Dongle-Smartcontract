@@ -666,3 +666,14 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Premium featured placement (#928) ──────────────────────────────────────
+
+/// Seconds in one billable day of premium featured placement.
+pub const PREMIUM_FEATURED_DAY_SECONDS: u64 = 86_400;
+/// Shortest premium featured campaign that can be bid for.
+pub const MIN_PREMIUM_FEATURED_DURATION: u64 = PREMIUM_FEATURED_DAY_SECONDS;
+/// Longest premium featured campaign that can be bid for (90 days).
+pub const MAX_PREMIUM_FEATURED_DURATION: u64 = 90 * PREMIUM_FEATURED_DAY_SECONDS;
+/// Upper bound on slots an admin can configure for a single tier.
+pub const MAX_PREMIUM_FEATURED_SLOTS: u32 = 20;

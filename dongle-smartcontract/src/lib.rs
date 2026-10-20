@@ -24,6 +24,7 @@ mod endorsement_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
+mod premium_featured_registry;
 mod fee_manager;
 mod governance_ranges;
 mod notification_registry;
@@ -66,6 +67,7 @@ use crate::config_registry::ConfigRegistry;
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
+use crate::premium_featured_registry::PremiumFeaturedRegistry;
 use crate::fee_manager::FeeManager;
 use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
@@ -122,6 +124,8 @@ use crate::types::{
     ActivityEntry, ActivityKind,
     // #760 metadata enrichment
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
+    // #928 premium featured placement
+    FeaturedTier, FeaturedTierConfig, PremiumFeaturedCampaign, PremiumFeaturedStats,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1088,6 +1092,69 @@ impl DongleContract {
     /// Return the number of projects currently in the featured list.
     pub fn get_featured_count(env: Env) -> u32 {
         FeaturedRegistry::get_featured_count(&env)
+    }
+
+    // --- Premium Featured Placement (#928) ---
+
+    /// Configure a featured tier's fee per day and slot capacity (admin only).
+    pub fn set_featured_tier_config(
+        env: Env,
+        admin: Address,
+        tier: FeaturedTier,
+        fee_per_day: u128,
+        max_slots: u32,
+    ) -> Result<(), ContractError> {
+        PremiumFeaturedRegistry::set_featured_tier_config(&env, admin, tier, fee_per_day, max_slots)
+    }
+
+    pub fn get_featured_tier_config(env: Env, tier: FeaturedTier) -> Option<FeaturedTierConfig> {
+        PremiumFeaturedRegistry::get_featured_tier_config(&env, tier)
+    }
+
+    /// Minimum bid for a `duration`-second placement in `tier`.
+    pub fn quote_premium_featured(
+        env: Env,
+        tier: FeaturedTier,
+        duration: u64,
+    ) -> Result<u128, ContractError> {
+        PremiumFeaturedRegistry::quote_premium_featured(&env, tier, duration)
+    }
+
+    /// Bid for a premium featured placement (project owner only). Returns the
+    /// campaign ID.
+    pub fn bid_for_premium_featured(
+        env: Env,
+        bidder: Address,
+        project_id: u64,
+        tier: FeaturedTier,
+        duration: u64,
+        bid_amount: u128,
+    ) -> Result<u64, ContractError> {
+        PremiumFeaturedRegistry::bid_for_premium_featured(
+            &env, bidder, project_id, tier, duration, bid_amount,
+        )
+    }
+
+    /// Active premium featured campaigns, optionally filtered by tier.
+    pub fn get_premium_featured_projects(
+        env: Env,
+        tier: Option<FeaturedTier>,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<PremiumFeaturedCampaign> {
+        PremiumFeaturedRegistry::get_premium_featured_projects(&env, tier, start_index, limit)
+    }
+
+    pub fn get_premium_campaign(env: Env, campaign_id: u64) -> Option<PremiumFeaturedCampaign> {
+        PremiumFeaturedRegistry::get_premium_campaign(&env, campaign_id)
+    }
+
+    pub fn get_project_premium_campaigns(env: Env, project_id: u64) -> Vec<PremiumFeaturedCampaign> {
+        PremiumFeaturedRegistry::get_project_premium_campaigns(&env, project_id)
+    }
+
+    pub fn get_premium_featured_stats(env: Env) -> PremiumFeaturedStats {
+        PremiumFeaturedRegistry::get_premium_featured_stats(&env)
     }
 
     // --- Review Registry ---

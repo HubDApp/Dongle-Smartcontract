@@ -166,3 +166,6 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Premium "featured plus" tiers with guaranteed exposure (#928)
+mod premium_featured;
