@@ -659,3 +659,25 @@ pub const MAX_FOLLOWED_BOOKMARK_COLLECTIONS: u32 = 200;
 
 /// Base URL used to build `BookmarkCollection::share_url`.
 pub const BOOKMARK_COLLECTION_SHARE_URL_PREFIX: &str = "https://dongle.hub/b/";
+
+// ── Endorsement Graph Constants (#917) ──────────────────────────────────────
+
+/// Maximum outgoing (and incoming) address endorsements per user.  Keeps
+/// adjacency lists small so graph traversals stay within budget.
+pub const MAX_ADDRESS_ENDORSEMENTS_PER_USER: u32 = 100;
+
+/// Default and maximum number of hops explored by endorsement path queries.
+pub const MAX_ENDORSEMENT_CHAIN_DEPTH: u32 = 4;
+
+/// Maximum number of distinct addresses visited by a single graph traversal.
+pub const MAX_ENDORSEMENT_GRAPH_NODES: u32 = 100;
+
+/// Weight multiplier (bps) applied for every hop beyond the first.
+pub const ENDORSEMENT_HOP_DECAY_BPS: u32 = 5_000;
+
+/// Base reputation factor (bps) of an intermediary with no endorsers.
+pub const ENDORSEMENT_BASE_REPUTATION_BPS: u32 = 5_000;
+
+/// Reputation factor (bps) added per endorser an intermediary has, capped at
+/// `MAX_BASIS_POINTS`.
+pub const ENDORSEMENT_REPUTATION_STEP_BPS: u32 = 1_000;

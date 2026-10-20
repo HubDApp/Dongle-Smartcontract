@@ -4454,3 +4454,37 @@ pub fn publish_bookmark_collection_unfollowed_event(
         event_data,
     );
 }
+
+// ── Endorsement graph events (#917) ─────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddressEndorsementEvent {
+    pub endorser: Address,
+    pub endorsee: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_address_endorsed_event(env: &Env, endorser: Address, endorsee: Address) {
+    let event_data = AddressEndorsementEvent {
+        endorser: endorser.clone(),
+        endorsee: endorsee.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ENDGRAPH"), symbol_short!("ENDORSED"), endorser, endorsee),
+        event_data,
+    );
+}
+
+pub fn publish_address_endorsement_revoked_event(env: &Env, endorser: Address, endorsee: Address) {
+    let event_data = AddressEndorsementEvent {
+        endorser: endorser.clone(),
+        endorsee: endorsee.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ENDGRAPH"), symbol_short!("REVOKED"), endorser, endorsee),
+        event_data,
+    );
+}

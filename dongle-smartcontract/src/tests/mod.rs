@@ -100,6 +100,8 @@ mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+// Issue #917: multi-hop endorsement chains
+mod endorsement_graph;
 mod fee_refund;
 mod reward_pool;
 pub mod fixtures;

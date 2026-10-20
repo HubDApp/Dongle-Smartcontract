@@ -353,6 +353,16 @@ pub enum ContractError {
     CannotFollowOwnBookmarkCollection = 149,
     /// User has reached `MAX_FOLLOWED_BOOKMARK_COLLECTIONS`.
     MaxFollowedBookmarkCollectionsExceeded = 150,
+
+    // ── Endorsement graph errors (#917) ───────────────────────────────────
+    /// An address cannot endorse itself.
+    SelfEndorsement = 151,
+    /// Endorser already endorses this address.
+    AddressAlreadyEndorsed = 152,
+    /// Endorser does not endorse this address.
+    AddressNotEndorsed = 153,
+    /// Endorser or endorsee reached `MAX_ADDRESS_ENDORSEMENTS_PER_USER`.
+    MaxAddressEndorsementsExceeded = 154,
 }
 
 pub type Error = ContractError;

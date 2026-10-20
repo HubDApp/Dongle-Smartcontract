@@ -798,3 +798,13 @@ pub enum BookmarkCollectionKey {
     /// Collection IDs a user follows.
     FollowedBy(Address),
 }
+
+/// Storage keys for the address endorsement graph (#917).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EndorsementGraphKey {
+    /// Addresses endorsed by this address (outgoing edges).
+    Outgoing(Address),
+    /// Addresses endorsing this address (incoming edges).
+    Incoming(Address),
+}

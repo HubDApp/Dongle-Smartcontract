@@ -21,6 +21,7 @@ pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
+mod endorsement_graph;
 mod endorsement_registry;
 pub mod errors;
 pub mod events;
@@ -3371,6 +3372,71 @@ impl DongleContract {
 
     pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {
         crate::endorsement_registry::EndorsementRegistry::has_endorsed(&env, project_id, &user)
+    }
+
+    // --- Endorsement Graph (#917) ---
+
+    /// `endorser` vouches for `endorsee` in the address endorsement graph.
+    pub fn endorse_address(
+        env: Env,
+        endorser: Address,
+        endorsee: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_graph::EndorsementGraph::endorse_address(&env, endorser, endorsee)
+    }
+
+    /// Remove an address endorsement.
+    pub fn revoke_address_endorsement(
+        env: Env,
+        endorser: Address,
+        endorsee: Address,
+    ) -> Result<(), ContractError> {
+        crate::endorsement_graph::EndorsementGraph::revoke_address_endorsement(
+            &env, endorser, endorsee,
+        )
+    }
+
+    pub fn has_endorsed_address(env: Env, endorser: Address, endorsee: Address) -> bool {
+        crate::endorsement_graph::EndorsementGraph::has_endorsed_address(&env, &endorser, &endorsee)
+    }
+
+    /// Addresses directly endorsed by `user`.
+    pub fn get_address_endorsements(env: Env, user: Address) -> Vec<Address> {
+        crate::endorsement_graph::EndorsementGraph::get_address_endorsements(&env, user)
+    }
+
+    /// Addresses directly endorsing `user`.
+    pub fn get_address_endorsers(env: Env, user: Address) -> Vec<Address> {
+        crate::endorsement_graph::EndorsementGraph::get_address_endorsers(&env, user)
+    }
+
+    /// Reputation (direct endorser count) of `user`.
+    pub fn get_endorsement_reputation(env: Env, user: Address) -> u32 {
+        crate::endorsement_graph::EndorsementGraph::get_endorsement_reputation(&env, user)
+    }
+
+    /// Shortest transitive endorsement chain from `from` to `to`.
+    pub fn get_endorsement_path(
+        env: Env,
+        from: Address,
+        to: Address,
+    ) -> Option<crate::types::EndorsementChain> {
+        crate::endorsement_graph::EndorsementGraph::get_endorsement_path(&env, from, to)
+    }
+
+    /// Who can vouch for `target` within `max_depth` hops (0 = default cap).
+    pub fn get_vouchers(
+        env: Env,
+        target: Address,
+        max_depth: u32,
+    ) -> Vec<crate::types::EndorsementVoucher> {
+        crate::endorsement_graph::EndorsementGraph::get_vouchers(&env, target, max_depth)
+    }
+
+    /// Shortest endorsement cycle through `start`, if any.
+    pub fn detect_endorsement_cycle(env: Env, start: Address) -> Option<Vec<Address>> {
+        crate::endorsement_graph::EndorsementGraph::detect_endorsement_cycle(&env, start)
     }
 
     // --- Admin Timelock ---

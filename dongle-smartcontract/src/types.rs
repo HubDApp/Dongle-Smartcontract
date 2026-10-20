@@ -3360,3 +3360,36 @@ pub struct BookmarkCollection {
     /// Unix timestamp (seconds) when the collection was last published.
     pub published_at: Option<u64>,
 }
+
+// ── Endorsement graph (#917) ────────────────────────────────────────────────
+
+/// A transitive endorsement chain `from → … → to` in the address endorsement
+/// graph, with its trust weight.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementChain {
+    /// Address at the start of the chain (the original endorser).
+    pub from: Address,
+    /// Address at the end of the chain (the endorsed party).
+    pub to: Address,
+    /// Every address on the chain, `from` first and `to` last.
+    pub path: Vec<Address>,
+    /// Number of endorsement edges in the chain (`path.len() - 1`).
+    pub hops: u32,
+    /// Trust weight in basis points (10_000 = direct endorsement). Decays
+    /// with chain length and with low-reputation intermediaries.
+    pub weight: u32,
+}
+
+/// An address able to vouch for a target through a (possibly multi-hop)
+/// endorsement chain.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementVoucher {
+    /// Address that can vouch for the target.
+    pub voucher: Address,
+    /// Shortest chain length from `voucher` to the target.
+    pub hops: u32,
+    /// Trust weight of that chain in basis points.
+    pub weight: u32,
+}
