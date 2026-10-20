@@ -1,7 +1,7 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReportCategory, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AppealStatus, ProjectLifecycleStatus, ReportCategory, ReportDecision, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -4482,6 +4482,102 @@ pub fn publish_report_evidence_attached_event(
             evidence_cid,
             index,
             attached_by,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when a moderator records a decision on a report (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportResolvedEvent {
+    pub report_id: u64,
+    pub project_id: u64,
+    pub decision: ReportDecision,
+    pub moderator: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_report_resolved_event(
+    env: &Env,
+    report_id: u64,
+    project_id: u64,
+    decision: ReportDecision,
+    moderator: Address,
+) {
+    env.events().publish(
+        (symbol_short!("REPORT"), symbol_short!("RESOLVED"), report_id),
+        ReportResolvedEvent {
+            report_id,
+            project_id,
+            decision,
+            moderator,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when a user appeals a moderation decision (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerationAppealFiledEvent {
+    pub appeal_id: u64,
+    pub report_id: u64,
+    pub project_id: u64,
+    pub appellant: Address,
+    pub original_decision: ReportDecision,
+    pub assigned_senior_moderator: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_moderation_appeal_filed_event(
+    env: &Env,
+    appeal_id: u64,
+    report_id: u64,
+    project_id: u64,
+    appellant: Address,
+    original_decision: ReportDecision,
+    assigned_senior_moderator: Address,
+) {
+    env.events().publish(
+        (symbol_short!("MOD_APPL"), symbol_short!("FILED"), appeal_id),
+        ModerationAppealFiledEvent {
+            appeal_id,
+            report_id,
+            project_id,
+            appellant,
+            original_decision,
+            assigned_senior_moderator,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when a senior moderator resolves an appeal (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerationAppealResolvedEvent {
+    pub appeal_id: u64,
+    pub report_id: u64,
+    pub status: AppealStatus,
+    pub resolved_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_moderation_appeal_resolved_event(
+    env: &Env,
+    appeal_id: u64,
+    report_id: u64,
+    status: AppealStatus,
+    resolved_by: Address,
+) {
+    env.events().publish(
+        (symbol_short!("MOD_APPL"), symbol_short!("RESOLVED"), appeal_id),
+        ModerationAppealResolvedEvent {
+            appeal_id,
+            report_id,
+            status,
+            resolved_by,
             timestamp: env.ledger().timestamp(),
         },
     );

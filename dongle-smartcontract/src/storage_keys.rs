@@ -816,3 +816,27 @@ pub enum ReportModerationKey {
     /// Append-only evidence audit trail: report_id -> Vec<ReportEvidenceAttachment> (#921).
     EvidenceAudit(u64),
 }
+
+/// Storage keys for report decisions and moderation appeals (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModerationAppealKey {
+    /// Decision for a report: report_id -> ReportDecisionRecord.
+    Decision(u64),
+    /// Next appeal ID counter.
+    NextAppealId,
+    /// Appeal by ID: appeal_id -> AppealRecord.
+    Appeal(u64),
+    /// Appeal filed against a report: report_id -> appeal_id.
+    ReportAppeal(u64),
+    /// Admins designated as senior moderators.
+    SeniorModerators,
+    /// Round-robin cursor into `SeniorModerators`.
+    SeniorCursor,
+    /// Pending appeal IDs assigned to a senior moderator.
+    SeniorQueue(Address),
+    /// Appeal statistics for decisions made by a moderator.
+    ModeratorStats(Address),
+    /// Appeal statistics across all moderators.
+    GlobalStats,
+}

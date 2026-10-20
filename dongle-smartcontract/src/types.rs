@@ -656,6 +656,76 @@ pub struct ProjectReport {
     pub evidence_cids: Vec<String>,
 }
 
+/// Outcome of a moderator's review of a report (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportDecision {
+    /// The report was found to be without merit.
+    Dismissed,
+    /// The report was upheld and moderation action was taken.
+    ActionTaken,
+}
+
+/// Moderation decision recorded against a report (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportDecisionRecord {
+    pub report_id: u64,
+    pub decision: ReportDecision,
+    /// Moderator that made the decision.
+    pub moderator: Address,
+    /// Optional IPFS CID of the moderator's notes.
+    pub notes_cid: Option<String>,
+    pub decided_at: u64,
+}
+
+/// Lifecycle of a moderation appeal (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AppealStatus {
+    /// Awaiting review by the assigned senior moderator.
+    Pending,
+    /// The original decision was confirmed.
+    Upheld,
+    /// The original decision was reversed.
+    Overturned,
+}
+
+/// An appeal against a moderation decision, routed to a senior moderator (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AppealRecord {
+    pub appeal_id: u64,
+    /// Report whose decision is being appealed.
+    pub report_id: u64,
+    pub project_id: u64,
+    /// Reporter or project owner that filed the appeal.
+    pub appellant: Address,
+    /// Decision being appealed.
+    pub original_decision: ReportDecision,
+    /// Moderator that made the original decision.
+    pub original_moderator: Address,
+    pub appeal_reason: String,
+    /// Senior moderator the appeal was routed to.
+    pub assigned_senior_moderator: Address,
+    pub status: AppealStatus,
+    /// Resolution explanation from the senior moderator.
+    pub resolution: Option<String>,
+    pub resolved_by: Option<Address>,
+    pub filed_at: u64,
+    pub resolved_at: Option<u64>,
+}
+
+/// Appeal counters, tracked per original moderator and globally (#922).
+#[contracttype]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AppealStats {
+    pub total: u32,
+    pub pending: u32,
+    pub upheld: u32,
+    pub overturned: u32,
+}
+
 /// Audit-trail entry recorded each time evidence is attached to a report.
 /// Entries are append-only and never removed (#921).
 #[contracttype]

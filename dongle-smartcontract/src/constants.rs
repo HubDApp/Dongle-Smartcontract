@@ -678,3 +678,10 @@ pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
 
 /// Maximum evidence CIDs that can be attached to a single report.
 pub const MAX_REPORT_EVIDENCE: u32 = 5;
+
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
+
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;

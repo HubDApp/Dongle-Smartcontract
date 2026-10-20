@@ -54,6 +54,7 @@ mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
+mod moderation_appeal_registry;
 
 #[cfg(test)]
 mod tests;
@@ -2504,6 +2505,126 @@ impl DongleContract {
         report_id: u64,
     ) -> Vec<crate::types::ReportEvidenceAttachment> {
         ReportRegistry::get_report_evidence_audit(&env, report_id)
+    }
+
+    /// Record a moderation decision on a report (assigned moderator or
+    /// admin) - Issue #922
+    pub fn resolve_report(
+        env: Env,
+        moderator: Address,
+        report_id: u64,
+        decision: crate::types::ReportDecision,
+        notes_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_report(
+            &env, moderator, report_id, decision, notes_cid,
+        )
+    }
+
+    /// Get the moderation decision for a report - Issue #922
+    pub fn get_report_decision(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportDecisionRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_decision(
+            &env, report_id,
+        )
+    }
+
+    /// Appeal a report's moderation decision (reporter or project owner).
+    /// Routed to a senior moderator; returns the appeal ID - Issue #922
+    pub fn appeal_moderation_decision(
+        env: Env,
+        appellant: Address,
+        original_report_id: u64,
+        appeal_reason: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::moderation_appeal_registry::ModerationAppealRegistry::appeal_moderation_decision(
+            &env,
+            appellant,
+            original_report_id,
+            appeal_reason,
+        )
+    }
+
+    /// Senior moderator: uphold or overturn an appeal - Issue #922
+    pub fn resolve_moderation_appeal(
+        env: Env,
+        senior_moderator: Address,
+        appeal_id: u64,
+        overturn: bool,
+        resolution: String,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_moderation_appeal(
+            &env,
+            senior_moderator,
+            appeal_id,
+            overturn,
+            resolution,
+        )
+    }
+
+    /// Get a moderation appeal by ID - Issue #922
+    pub fn get_moderation_appeal(env: Env, appeal_id: u64) -> Option<crate::types::AppealRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_appeal(&env, appeal_id)
+    }
+
+    /// Get the appeal ID filed against a report, if any - Issue #922
+    pub fn get_report_appeal_id(env: Env, report_id: u64) -> Option<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_appeal_id(
+            &env, report_id,
+        )
+    }
+
+    /// Admin: designate an admin as a senior moderator - Issue #922
+    pub fn add_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::add_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// Admin: remove a senior moderator - Issue #922
+    pub fn remove_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::remove_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// List senior moderators - Issue #922
+    pub fn get_senior_moderators(env: Env) -> Vec<Address> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_moderators(&env)
+    }
+
+    /// Pending appeal IDs assigned to a senior moderator - Issue #922
+    pub fn get_senior_appeal_queue(env: Env, senior_moderator: Address) -> Vec<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_appeal_queue(
+            &env,
+            senior_moderator,
+        )
+    }
+
+    /// Appeal statistics for decisions made by a moderator - Issue #922
+    pub fn get_moderator_appeal_stats(
+        env: Env,
+        moderator: Address,
+    ) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_moderator_appeal_stats(
+            &env, moderator,
+        )
+    }
+
+    /// Appeal statistics across all moderators - Issue #922
+    pub fn get_global_appeal_stats(env: Env) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_global_appeal_stats(&env)
     }
 
     /// List projects by tag - Issue #125
