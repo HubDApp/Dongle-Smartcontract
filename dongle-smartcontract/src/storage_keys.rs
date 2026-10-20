@@ -827,3 +827,12 @@ pub enum CampaignKey {
     /// Interaction counters for one project in a campaign: (campaign_id, project_id).
     ProjectStats(u64, u64),
 }
+
+/// Storage keys for the featured-project rotation schedule (issue #927).
+/// Own enum to respect Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeaturedRotationKey {
+    /// The active rotation schedule, if any.
+    Schedule,
+}

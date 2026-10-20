@@ -211,6 +211,13 @@ pub const MAX_PROJECTS_PER_CAMPAIGN: u32 = 50;
 /// Maximum campaign duration: 365 days.
 pub const MAX_CAMPAIGN_DURATION_SECS: u64 = 365 * 24 * 60 * 60;
 
+// ── Featured rotation (#927) ───────────────────────────────────────────────
+
+/// Maximum rotation period accepted by `schedule_featured_rotation`.
+pub const MAX_ROTATION_PERIOD_DAYS: u32 = 365;
+/// Seconds per rotation day.
+pub const ROTATION_SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

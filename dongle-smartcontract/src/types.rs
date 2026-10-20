@@ -1671,6 +1671,8 @@ pub enum AdminActionType {
     FeatureCampaignCreated,
     /// Admin added a project to a feature campaign (#926).
     ProjectAddedToCampaign,
+    /// Admin scheduled (or replaced) the featured-project rotation (#927).
+    FeaturedRotationScheduled,
 }
 
 /// Admin deprecation record for a project (issue #925).
@@ -3588,4 +3590,32 @@ pub enum CampaignInteraction {
 pub struct CampaignStats {
     pub impressions: u64,
     pub engagements: u64,
+}
+
+// ── Featured rotation (#927) ────────────────────────────────────────────────
+
+/// Schedule that cycles through featured projects every
+/// `rotation_period_days` (issue #927).
+///
+/// The schedule is evaluated lazily: the current slot is derived from the
+/// ledger timestamp whenever it is read, so no keeper transaction is needed
+/// for the rotation to advance. `current_index`, `current_project_id` and
+/// `next_rotation_at` are always up to date in values returned by
+/// `get_featured_rotation_schedule`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedRotationSchedule {
+    /// Projects in rotation order.
+    pub projects: Vec<u64>,
+    pub rotation_period_days: u32,
+    /// Unix timestamp (seconds) when slot 0 started.
+    pub started_at: u64,
+    /// Index into `projects` of the currently featured project.
+    pub current_index: u32,
+    pub current_project_id: u64,
+    /// Unix timestamp (seconds) when the next project takes over.
+    pub next_rotation_at: u64,
+    /// Number of completed rotations since `started_at`.
+    pub rotations_completed: u64,
+    pub scheduled_by: Address,
 }

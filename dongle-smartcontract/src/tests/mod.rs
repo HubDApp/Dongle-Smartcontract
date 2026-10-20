@@ -166,3 +166,6 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #927: scheduled featured-project rotation
+mod featured_rotation;

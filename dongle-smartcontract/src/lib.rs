@@ -26,6 +26,7 @@ mod endorsement_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
+mod featured_rotation_registry;
 mod fee_manager;
 mod governance_ranges;
 mod notification_registry;
@@ -86,6 +87,8 @@ use crate::types::{
     DeprecationRecord,
     // #926 feature campaigns
     CampaignInteraction, CampaignStats, FeatureCampaign, FeatureCampaignConfig,
+    // #927 featured rotation
+    FeaturedRotationSchedule,
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
@@ -1096,6 +1099,52 @@ impl DongleContract {
     /// Return the number of projects currently in the featured list.
     pub fn get_featured_count(env: Env) -> u32 {
         FeaturedRegistry::get_featured_count(&env)
+    }
+
+    // --- Featured Rotation (#927) ---
+
+    /// Admin: schedule (or replace) an automatic rotation through `projects`,
+    /// advancing to the next project every `rotation_period_days`.
+    pub fn schedule_featured_rotation(
+        env: Env,
+        admin: Address,
+        projects: Vec<u64>,
+        rotation_period_days: u32,
+    ) -> Result<FeaturedRotationSchedule, ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::schedule_featured_rotation(
+            &env,
+            admin,
+            projects,
+            rotation_period_days,
+        )
+    }
+
+    /// The rotation schedule evaluated at the current ledger time (lazy:
+    /// the current project advances without any transaction).
+    pub fn get_featured_rotation_schedule(env: Env) -> Option<FeaturedRotationSchedule> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::get_featured_rotation_schedule(
+            &env,
+        )
+    }
+
+    /// The project currently featured by the rotation, if any.
+    pub fn get_current_rotation_project(env: Env) -> Option<u64> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::get_current_rotation_project(
+            &env,
+        )
+    }
+
+    /// Persist the current rotation slot and emit `FEATURED/ROTATED` when
+    /// the featured project changed. Callable by anyone.
+    pub fn advance_featured_rotation(env: Env) -> Result<FeaturedRotationSchedule, ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::advance_featured_rotation(&env)
+    }
+
+    /// Admin: remove the featured rotation schedule.
+    pub fn clear_featured_rotation(env: Env, admin: Address) -> Result<(), ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::clear_featured_rotation(
+            &env, admin,
+        )
     }
 
     // --- Feature Campaigns (#926) ---

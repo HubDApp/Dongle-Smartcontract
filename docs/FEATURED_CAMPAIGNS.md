@@ -35,3 +35,38 @@ special event or theme between `start_date` (inclusive) and `end_date`
 | `CAMPAIGN / CREATED / campaign_id` | `FeatureCampaignCreatedEvent` |
 | `CAMPAIGN / ADDED / campaign_id` | `ProjectAddedToCampaignEvent` |
 | `CAMPAIGN / INTERACT / campaign_id` | `CampaignInteractionEvent` |
+
+## Scheduled featured rotation (issue #927)
+
+Relevant source: `dongle-smartcontract/src/featured_rotation_registry.rs`.
+
+`schedule_featured_rotation(admin, projects, rotation_period_days)` stores a
+`FeaturedRotationSchedule` that cycles through `projects` in order, featuring
+each one for `rotation_period_days` and wrapping back to the first project
+after the last.
+
+| Function | Access | Description |
+| --- | --- | --- |
+| `schedule_featured_rotation(admin, projects, rotation_period_days)` | Admin | Creates or replaces the schedule. The first project is featured immediately. |
+| `get_featured_rotation_schedule()` | Public | The schedule evaluated at the current ledger time. |
+| `get_current_rotation_project()` | Public | The currently featured project ID. |
+| `advance_featured_rotation()` | Anyone | Persists the current slot and emits `FEATURED/ROTATED` when the project changed. |
+| `clear_featured_rotation(admin)` | Admin | Removes the schedule. |
+
+Validation: 1–`MAX_FEATURED_PROJECTS` (20) distinct, existing, non-archived
+projects; `rotation_period_days` between 1 and 365.
+
+### Timing (lazy evaluation)
+
+With `period = rotation_period_days * 86_400`:
+
+```
+rotations_completed = (now - started_at) / period
+current_index       = rotations_completed % projects.len()
+next_rotation_at    = started_at + (rotations_completed + 1) * period
+```
+
+The rotation advances exactly at each `next_rotation_at` boundary with no
+keeper transaction: every read recomputes the slot from the ledger
+timestamp, so missed periods are skipped correctly. `advance_featured_rotation`
+exists only so indexers get an on-chain event when the project changes.

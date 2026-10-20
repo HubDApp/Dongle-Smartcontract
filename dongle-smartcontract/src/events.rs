@@ -4551,3 +4551,57 @@ pub fn publish_campaign_interaction_event(
         },
     );
 }
+
+// ── Featured rotation (#927) ─────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedRotationScheduledEvent {
+    pub projects: Vec<u64>,
+    pub rotation_period_days: u32,
+    pub started_at: u64,
+    pub admin: Address,
+}
+
+pub fn publish_featured_rotation_scheduled_event(
+    env: &Env,
+    schedule: &crate::types::FeaturedRotationSchedule,
+) {
+    env.events().publish(
+        (symbol_short!("FEATURED"), symbol_short!("ROTSCHED")),
+        FeaturedRotationScheduledEvent {
+            projects: schedule.projects.clone(),
+            rotation_period_days: schedule.rotation_period_days,
+            started_at: schedule.started_at,
+            admin: schedule.scheduled_by.clone(),
+        },
+    );
+}
+
+/// Emitted when a persisted rotation advances to a new project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeaturedRotationAdvancedEvent {
+    pub previous_project_id: u64,
+    pub current_project_id: u64,
+    pub current_index: u32,
+    pub next_rotation_at: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_featured_rotation_advanced_event(
+    env: &Env,
+    previous_project_id: u64,
+    schedule: &crate::types::FeaturedRotationSchedule,
+) {
+    env.events().publish(
+        (symbol_short!("FEATURED"), symbol_short!("ROTATED")),
+        FeaturedRotationAdvancedEvent {
+            previous_project_id,
+            current_project_id: schedule.current_project_id,
+            current_index: schedule.current_index,
+            next_rotation_at: schedule.next_rotation_at,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
