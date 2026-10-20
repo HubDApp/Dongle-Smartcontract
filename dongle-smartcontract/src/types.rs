@@ -3326,3 +3326,37 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+
+// ── Shareable bookmark collections (#916) ───────────────────────────────────
+
+/// A user-curated list of bookmarked projects that can be published so other
+/// users can follow it.
+///
+/// Collections start private.  `make_bookmark_collection_public` flips
+/// `public` to `true` and assigns a deterministic `share_url`; making the
+/// collection private again clears the URL but keeps existing followers so
+/// they regain access if it is re-published.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkCollection {
+    /// Globally unique collection identifier.
+    pub id: u64,
+    /// Address that owns (and alone may edit) this collection.
+    pub owner: Address,
+    /// Human-readable collection name (max `MAX_FOLDER_NAME_LEN` bytes).
+    pub name: String,
+    /// Project IDs in the collection, in insertion order.
+    pub project_ids: Vec<u64>,
+    /// Whether the collection is visible to, and followable by, other users.
+    pub public: bool,
+    /// Shareable URL; empty while the collection is private.
+    pub share_url: String,
+    /// Number of users currently following the collection.
+    pub follower_count: u32,
+    /// Unix timestamp (seconds) when the collection was created.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the collection was last modified.
+    pub updated_at: u64,
+    /// Unix timestamp (seconds) when the collection was last published.
+    pub published_at: Option<u64>,
+}

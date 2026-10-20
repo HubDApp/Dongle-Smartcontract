@@ -4341,3 +4341,116 @@ pub fn publish_project_transfer_cancelled_event(
         event_data,
     );
 }
+
+// ── Shareable bookmark collection events (#916) ─────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkCollectionPublishedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub share_url: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_bookmark_collection_published_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+    share_url: String,
+) {
+    let event_data = BookmarkCollectionPublishedEvent {
+        collection_id,
+        owner: owner.clone(),
+        share_url,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BMCOLL"),
+            symbol_short!("PUBLISHED"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkCollectionUnpublishedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_bookmark_collection_unpublished_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+) {
+    let event_data = BookmarkCollectionUnpublishedEvent {
+        collection_id,
+        owner: owner.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BMCOLL"),
+            symbol_short!("UNPUBLISH"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BookmarkCollectionFollowEvent {
+    pub collection_id: u64,
+    pub follower: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_bookmark_collection_followed_event(
+    env: &Env,
+    collection_id: u64,
+    follower: Address,
+) {
+    let event_data = BookmarkCollectionFollowEvent {
+        collection_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BMCOLL"),
+            symbol_short!("FOLLOWED"),
+            collection_id,
+            follower,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_bookmark_collection_unfollowed_event(
+    env: &Env,
+    collection_id: u64,
+    follower: Address,
+) {
+    let event_data = BookmarkCollectionFollowEvent {
+        collection_id,
+        follower: follower.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BMCOLL"),
+            symbol_short!("UNFOLLOW"),
+            collection_id,
+            follower,
+        ),
+        event_data,
+    );
+}

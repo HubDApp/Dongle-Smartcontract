@@ -155,6 +155,8 @@ mod notifications;
 
 // Issue #815: Bookmark folders and smart folders
 mod bookmark_folders;
+// Issue #916: shareable public bookmark collections
+mod bookmark_collection_sharing;
 // Issue #804: Review archival to cheaper storage
 mod review_archive;
 

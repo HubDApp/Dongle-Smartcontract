@@ -644,3 +644,18 @@ pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
 pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
 /// Number of days in the "last-30-days" preset window used by export.
 pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;
+
+// ── Shareable Bookmark Collection Constants (#916) ──────────────────────────
+
+/// Maximum number of bookmark collections a single user may own.
+pub const MAX_BOOKMARK_COLLECTIONS_PER_USER: u32 = 50;
+
+/// Maximum number of projects in a single bookmark collection.
+/// Matches `MAX_BOOKMARKS_PER_FOLDER`.
+pub const MAX_PROJECTS_PER_BOOKMARK_COLLECTION: u32 = 500;
+
+/// Maximum number of public bookmark collections a single user may follow.
+pub const MAX_FOLLOWED_BOOKMARK_COLLECTIONS: u32 = 200;
+
+/// Base URL used to build `BookmarkCollection::share_url`.
+pub const BOOKMARK_COLLECTION_SHARE_URL_PREFIX: &str = "https://dongle.hub/b/";

@@ -9,6 +9,7 @@ mod admin_manager;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
+mod bookmark_collection_registry;
 mod bookmark_registry;
 pub mod category_types;
 mod category_registry;
@@ -3157,6 +3158,179 @@ impl DongleContract {
             &env,
             user,
             smart_folder_id,
+            start_index,
+            limit,
+        )
+    }
+
+    // --- Shareable Bookmark Collections (#916) ---
+
+    /// Create a private bookmark collection.  Returns the collection ID.
+    pub fn create_bookmark_collection(
+        env: Env,
+        owner: Address,
+        name: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::create_bookmark_collection(
+            &env, owner, name,
+        )
+    }
+
+    /// Add a project to a bookmark collection the caller owns.
+    pub fn add_project_to_bookmark_collection(
+        env: Env,
+        owner: Address,
+        collection_id: u64,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::add_project_to_bookmark_collection(
+            &env,
+            owner,
+            collection_id,
+            project_id,
+        )
+    }
+
+    /// Remove a project from a bookmark collection the caller owns.
+    pub fn remove_project_from_bookmark_collection(
+        env: Env,
+        owner: Address,
+        collection_id: u64,
+        project_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::remove_project_from_bookmark_collection(
+            &env,
+            owner,
+            collection_id,
+            project_id,
+        )
+    }
+
+    /// Publish a bookmark collection so others can view and follow it.
+    /// Returns the generated share URL.
+    pub fn make_bookmark_collection_public(
+        env: Env,
+        owner: Address,
+        collection_id: u64,
+    ) -> Result<String, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::make_bookmark_collection_public(
+            &env,
+            owner,
+            collection_id,
+        )
+    }
+
+    /// Make a published bookmark collection private again.
+    pub fn make_bookmark_collection_private(
+        env: Env,
+        owner: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::make_bookmark_collection_private(
+            &env,
+            owner,
+            collection_id,
+        )
+    }
+
+    /// Follow a public bookmark collection.
+    pub fn follow_bookmark_collection(
+        env: Env,
+        follower: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::follow_bookmark_collection(
+            &env,
+            follower,
+            collection_id,
+        )
+    }
+
+    /// Stop following a bookmark collection.
+    pub fn unfollow_bookmark_collection(
+        env: Env,
+        follower: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::unfollow_bookmark_collection(
+            &env,
+            follower,
+            collection_id,
+        )
+    }
+
+    pub fn is_following_bookmark_collection(
+        env: Env,
+        follower: Address,
+        collection_id: u64,
+    ) -> bool {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::is_following_bookmark_collection(
+            &env,
+            &follower,
+            collection_id,
+        )
+    }
+
+    /// Read a bookmark collection; private collections are owner-only.
+    pub fn get_bookmark_collection(
+        env: Env,
+        viewer: Address,
+        collection_id: u64,
+    ) -> Result<crate::types::BookmarkCollection, ContractError> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::get_bookmark_collection(
+            &env,
+            viewer,
+            collection_id,
+        )
+    }
+
+    /// Paginated followers of a bookmark collection.
+    pub fn get_bookmark_collection_followers(
+        env: Env,
+        viewer: Address,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Address>, ContractError> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::get_bookmark_collection_followers(
+            &env,
+            viewer,
+            collection_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Public bookmark collections followed by `user`.
+    pub fn get_followed_bookmark_collections(
+        env: Env,
+        user: Address,
+    ) -> Vec<crate::types::BookmarkCollection> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::get_followed_bookmark_collections(
+            &env, user,
+        )
+    }
+
+    /// Every bookmark collection owned by `owner`.
+    pub fn list_user_bookmark_collections(
+        env: Env,
+        owner: Address,
+    ) -> Vec<crate::types::BookmarkCollection> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::list_user_bookmark_collections(
+            &env, owner,
+        )
+    }
+
+    /// Paginated IDs of public bookmark collections.
+    pub fn list_public_bookmark_collections(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::bookmark_collection_registry::BookmarkCollectionRegistry::list_public_bookmark_collections(
+            &env,
             start_index,
             limit,
         )

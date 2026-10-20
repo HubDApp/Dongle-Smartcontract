@@ -779,3 +779,22 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for shareable bookmark collections (#916). Own enum to
+/// respect Soroban's 50-variant union cap on `StorageKey` / `ExtensionKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BookmarkCollectionKey {
+    /// `BookmarkCollection` record by global collection ID.
+    Collection(u64),
+    /// Next global collection ID counter.
+    NextCollectionId,
+    /// Collection IDs owned by a user.
+    OwnerCollections(Address),
+    /// Ordered IDs of every currently public collection.
+    PublicCollections,
+    /// Follower addresses of a collection.
+    Followers(u64),
+    /// Collection IDs a user follows.
+    FollowedBy(Address),
+}

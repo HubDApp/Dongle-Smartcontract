@@ -329,6 +329,30 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+
+    // ── Shareable bookmark collection errors (#916) ──────────────────────
+    /// Bookmark collection not found.
+    BookmarkCollectionNotFound = 140,
+    /// Bookmark collection is private and the caller is not its owner.
+    BookmarkCollectionNotPublic = 141,
+    /// Bookmark collection is already public.
+    BookmarkCollectionAlreadyPublic = 142,
+    /// User has reached `MAX_BOOKMARK_COLLECTIONS_PER_USER`.
+    MaxBookmarkCollectionsExceeded = 143,
+    /// Collection has reached `MAX_PROJECTS_PER_BOOKMARK_COLLECTION`.
+    BookmarkCollectionFull = 144,
+    /// Project is already in the bookmark collection.
+    ProjectAlreadyInBookmarkCollection = 145,
+    /// Project is not in the bookmark collection.
+    ProjectNotInBookmarkCollection = 146,
+    /// Caller already follows this bookmark collection.
+    AlreadyFollowingBookmarkCollection = 147,
+    /// Caller does not follow this bookmark collection.
+    NotFollowingBookmarkCollection = 148,
+    /// Owners cannot follow their own bookmark collection.
+    CannotFollowOwnBookmarkCollection = 149,
+    /// User has reached `MAX_FOLLOWED_BOOKMARK_COLLECTIONS`.
+    MaxFollowedBookmarkCollectionsExceeded = 150,
 }
 
 pub type Error = ContractError;
