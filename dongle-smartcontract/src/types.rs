@@ -1667,6 +1667,10 @@ pub enum AdminActionType {
     ReviewFlagged,
     /// Admin deprecated a project and alerted its dependents (#925).
     ProjectDeprecated,
+    /// Admin created a time-bound feature campaign (#926).
+    FeatureCampaignCreated,
+    /// Admin added a project to a feature campaign (#926).
+    ProjectAddedToCampaign,
 }
 
 /// Admin deprecation record for a project (issue #925).
@@ -3535,4 +3539,53 @@ pub struct ModerateResult {
 pub struct ReviewFlag {
     pub flagged_by: Address,
     pub flagged_at: u64,
+}
+
+// ── Feature campaigns (#926) ────────────────────────────────────────────────
+
+/// Parameters supplied to `create_feature_campaign`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeatureCampaignConfig {
+    pub name: String,
+    /// Theme or special event the campaign highlights (e.g. "DeFi Summer").
+    pub theme: String,
+    /// Unix timestamp (seconds) when the campaign starts, inclusive.
+    pub start_date: u64,
+    /// Unix timestamp (seconds) when the campaign ends, exclusive.
+    pub end_date: u64,
+}
+
+/// A curated, time-bound marketing campaign highlighting a set of projects.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeatureCampaign {
+    pub id: u64,
+    pub name: String,
+    pub theme: String,
+    pub start_date: u64,
+    pub end_date: u64,
+    pub created_by: Address,
+    pub created_at: u64,
+    /// Number of projects currently in the campaign.
+    pub project_count: u32,
+}
+
+/// Kind of viewer interaction recorded against a campaign.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CampaignInteraction {
+    /// The project was shown to the viewer as part of the campaign.
+    Impression,
+    /// The viewer engaged with the project (click-through, visit, etc.).
+    Engagement,
+}
+
+/// Impression and engagement counters for a campaign or a single project
+/// within a campaign.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CampaignStats {
+    pub impressions: u64,
+    pub engagements: u64,
 }

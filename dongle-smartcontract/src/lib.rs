@@ -10,6 +10,7 @@ mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
 mod bookmark_registry;
+mod campaign_registry;
 pub mod category_types;
 mod category_registry;
 mod changelog_registry;
@@ -83,6 +84,8 @@ use crate::types::{
     DependencyGraph,
     // #925 dependency deprecation
     DeprecationRecord,
+    // #926 feature campaigns
+    CampaignInteraction, CampaignStats, FeatureCampaign, FeatureCampaignConfig,
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
@@ -1093,6 +1096,100 @@ impl DongleContract {
     /// Return the number of projects currently in the featured list.
     pub fn get_featured_count(env: Env) -> u32 {
         FeaturedRegistry::get_featured_count(&env)
+    }
+
+    // --- Feature Campaigns (#926) ---
+
+    /// Admin: create a time-bound feature campaign. Returns its ID.
+    pub fn create_feature_campaign(
+        env: Env,
+        admin: Address,
+        campaign_config: FeatureCampaignConfig,
+    ) -> Result<u64, ContractError> {
+        crate::campaign_registry::CampaignRegistry::create_feature_campaign(
+            &env,
+            admin,
+            campaign_config,
+        )
+    }
+
+    /// Admin: add a project to a campaign that has not yet ended.
+    pub fn add_to_campaign(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        campaign_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::campaign_registry::CampaignRegistry::add_to_campaign(
+            &env,
+            admin,
+            project_id,
+            campaign_id,
+        )
+    }
+
+    /// Projects in a campaign, in insertion order, paginated.
+    pub fn get_projects_by_campaign(
+        env: Env,
+        campaign_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
+        crate::campaign_registry::CampaignRegistry::get_projects_by_campaign(
+            &env,
+            campaign_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Record a viewer impression or engagement on a project in an active
+    /// campaign.
+    pub fn record_campaign_interaction(
+        env: Env,
+        viewer: Address,
+        campaign_id: u64,
+        project_id: u64,
+        interaction: CampaignInteraction,
+    ) -> Result<(), ContractError> {
+        crate::campaign_registry::CampaignRegistry::record_campaign_interaction(
+            &env,
+            viewer,
+            campaign_id,
+            project_id,
+            interaction,
+        )
+    }
+
+    pub fn get_feature_campaign(env: Env, campaign_id: u64) -> Option<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::get_feature_campaign(&env, campaign_id)
+    }
+
+    pub fn list_feature_campaigns(env: Env, start_index: u32, limit: u32) -> Vec<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::list_feature_campaigns(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Campaigns running at the current ledger timestamp.
+    pub fn get_active_campaigns(env: Env) -> Vec<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::get_active_campaigns(&env)
+    }
+
+    /// Aggregate impression / engagement counters for a campaign.
+    pub fn get_campaign_stats(env: Env, campaign_id: u64) -> CampaignStats {
+        crate::campaign_registry::CampaignRegistry::get_campaign_stats(&env, campaign_id)
+    }
+
+    /// Impression / engagement counters for one project within a campaign.
+    pub fn get_campaign_project_stats(env: Env, campaign_id: u64, project_id: u64) -> CampaignStats {
+        crate::campaign_registry::CampaignRegistry::get_campaign_project_stats(
+            &env,
+            campaign_id,
+            project_id,
+        )
     }
 
     // --- Review Registry ---

@@ -200,6 +200,17 @@ pub const MAX_DEPRECATION_REASON_LEN: u32 = 512;
 /// alerted page by page through `notify_deprecation_dependents`.
 pub const MAX_DEPRECATION_NOTIFY_BATCH: u32 = 50;
 
+// ── Feature campaigns (#926) ───────────────────────────────────────────────
+
+/// Maximum length of a feature campaign name.
+pub const MAX_CAMPAIGN_NAME_LEN: u32 = 64;
+/// Maximum length of a feature campaign theme.
+pub const MAX_CAMPAIGN_THEME_LEN: u32 = 64;
+/// Maximum number of projects in a single feature campaign.
+pub const MAX_PROJECTS_PER_CAMPAIGN: u32 = 50;
+/// Maximum campaign duration: 365 days.
+pub const MAX_CAMPAIGN_DURATION_SECS: u64 = 365 * 24 * 60 * 60;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

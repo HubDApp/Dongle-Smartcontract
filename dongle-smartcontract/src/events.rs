@@ -4464,3 +4464,90 @@ pub fn publish_project_deprecated_event(
         },
     );
 }
+
+// ── Feature campaigns (#926) ─────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeatureCampaignCreatedEvent {
+    pub campaign_id: u64,
+    pub name: String,
+    pub theme: String,
+    pub start_date: u64,
+    pub end_date: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_feature_campaign_created_event(
+    env: &Env,
+    campaign: &crate::types::FeatureCampaign,
+) {
+    env.events().publish(
+        (symbol_short!("CAMPAIGN"), symbol_short!("CREATED"), campaign.id),
+        FeatureCampaignCreatedEvent {
+            campaign_id: campaign.id,
+            name: campaign.name.clone(),
+            theme: campaign.theme.clone(),
+            start_date: campaign.start_date,
+            end_date: campaign.end_date,
+            admin: campaign.created_by.clone(),
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectAddedToCampaignEvent {
+    pub campaign_id: u64,
+    pub project_id: u64,
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_added_to_campaign_event(
+    env: &Env,
+    campaign_id: u64,
+    project_id: u64,
+    admin: Address,
+) {
+    env.events().publish(
+        (symbol_short!("CAMPAIGN"), symbol_short!("ADDED"), campaign_id),
+        ProjectAddedToCampaignEvent {
+            campaign_id,
+            project_id,
+            admin,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CampaignInteractionEvent {
+    pub campaign_id: u64,
+    pub project_id: u64,
+    pub viewer: Address,
+    pub interaction: crate::types::CampaignInteraction,
+    pub timestamp: u64,
+}
+
+pub fn publish_campaign_interaction_event(
+    env: &Env,
+    campaign_id: u64,
+    project_id: u64,
+    viewer: Address,
+    interaction: crate::types::CampaignInteraction,
+) {
+    env.events().publish(
+        (symbol_short!("CAMPAIGN"), symbol_short!("INTERACT"), campaign_id),
+        CampaignInteractionEvent {
+            campaign_id,
+            project_id,
+            viewer,
+            interaction,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}

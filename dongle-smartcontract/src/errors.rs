@@ -333,6 +333,12 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Feature campaign does not exist (#926).
+    CampaignNotFound = 142,
+    /// Feature campaign is outside its `start_date`..`end_date` window (#926).
+    CampaignNotActive = 143,
+    /// Feature campaign already holds `MAX_PROJECTS_PER_CAMPAIGN` projects (#926).
+    CampaignFull = 144,
 }
 
 pub type Error = ContractError;

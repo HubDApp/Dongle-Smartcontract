@@ -94,6 +94,9 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 74 | `ThresholdDowngradeRequiresSupermajority` | A `SetThreshold` proposal that would lower the current approval threshold does not have enough approvals. The number of approvals must be **strictly greater than** the proposed new threshold (supermajority rule). | Gather additional admin approvals before executing the downgrade proposal. The required count is `new_threshold + 1`. |
 | 75 | `CircularDependency` | Adding this project-to-project dependency would create a circular reference: the target project already depends (directly or transitively) on the project you are editing. | Remove the opposing dependency edge first, or reference the dependency as an external CID / URL / contract instead of a `project_id`. See `docs/DEPENDENCY_REGISTRY.md`. |
 | 76 | `DependencyDepthExceeded` | Adding this dependency would make the transitive project-dependency chain deeper than `MAX_DEPENDENCY_DEPTH` (5) levels. | Restructure the dependency graph so the chain from your project to its deepest transitive dependency is at most 5 levels, or use an external reference. See `docs/DEPENDENCY_REGISTRY.md`. |
+| 142 | `CampaignNotFound` | No feature campaign exists with the given ID. | Check the ID with `list_feature_campaigns`. See `docs/FEATURED_CAMPAIGNS.md`. |
+| 143 | `CampaignNotActive` | The campaign has ended (for `add_to_campaign`) or is outside its `start_date`..`end_date` window (for `record_campaign_interaction`). | Only add projects before `end_date` and record interactions while the campaign is running. |
+| 144 | `CampaignFull` | The campaign already holds `MAX_PROJECTS_PER_CAMPAIGN` (50) projects. | Create a second campaign for the remaining projects. |
 
 ## Adding New Error Codes
 

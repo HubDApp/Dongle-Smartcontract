@@ -808,3 +808,22 @@ pub enum DeprecationKey {
     /// IDs of all deprecated projects, in deprecation order.
     DeprecatedProjects,
 }
+
+/// Storage keys for time-bound feature campaigns (issue #926). Own enum to
+/// respect Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CampaignKey {
+    /// Next campaign ID counter.
+    NextId,
+    /// Campaign: campaign_id -> FeatureCampaign.
+    Campaign(u64),
+    /// IDs of all campaigns, in creation order.
+    CampaignIds,
+    /// Project IDs in a campaign, in insertion order.
+    Projects(u64),
+    /// Aggregate interaction counters for a campaign.
+    Stats(u64),
+    /// Interaction counters for one project in a campaign: (campaign_id, project_id).
+    ProjectStats(u64, u64),
+}
