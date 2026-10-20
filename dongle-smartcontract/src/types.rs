@@ -3582,3 +3582,65 @@ pub struct SnapshotVerification {
     pub recorded_hash: BytesN<32>,
     pub current_hash: BytesN<32>,
 }
+
+/// Output format of `export_analytics_data` (#934).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExportFormat {
+    Json,
+    Csv,
+}
+
+/// Filters and paging for `export_analytics_data_filtered`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnalyticsFilter {
+    /// Only count projects in this category (exact match).
+    pub category: Option<String>,
+    /// Only count projects whose current status is `Verified`.
+    pub verified_only: bool,
+    /// First project ID to scan; 0 is treated as 1.
+    pub start_project_id: u64,
+    /// Project IDs to scan; 0 or over `MAX_ANALYTICS_SCAN_SIZE` uses the max.
+    pub limit: u32,
+}
+
+/// Aggregated registry activity inside an export window. See
+/// `analytics_export` for exact definitions.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnalyticsMetrics {
+    /// Existing projects read in this page.
+    pub projects_scanned: u32,
+    /// Scanned projects that passed the filter. All other metrics count
+    /// only these.
+    pub projects_matched: u32,
+    pub projects_created: u32,
+    pub reviews_created: u32,
+    pub verification_requests: u32,
+    pub verifications_approved: u32,
+    pub verifications_rejected: u32,
+    /// Approved ÷ decided, in basis points (0–10_000).
+    pub verification_rate_bps: u32,
+    pub verification_fee_revenue: u128,
+    pub registration_fee_revenue: u128,
+    pub total_fee_revenue: u128,
+}
+
+/// Result of `export_analytics_data`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnalyticsExport {
+    pub format: ExportFormat,
+    pub start: u64,
+    pub end: u64,
+    pub filter: AnalyticsFilter,
+    pub metrics: AnalyticsMetrics,
+    /// First project ID of the next page, or `None` when the scan reached
+    /// the last registered project.
+    pub next_project_id: Option<u64>,
+    pub generated_at: u64,
+    /// `metrics` rendered as a JSON object or a CSV header plus one row.
+    /// Fee amounts are strings in JSON to avoid precision loss.
+    pub payload: String,
+}

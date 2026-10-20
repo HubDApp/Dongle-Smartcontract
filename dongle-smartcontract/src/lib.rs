@@ -6,6 +6,7 @@ extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
+mod analytics_export;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
@@ -3048,6 +3049,40 @@ impl DongleContract {
         snapshot_id: u64,
     ) -> Result<crate::types::SnapshotVerification, ContractError> {
         crate::state_export::StateExport::verify_state_snapshot(&env, snapshot_id)
+    }
+
+    // --- Analytics Export (#934) ---
+
+    /// Export registry metrics for `[start, end]` (inclusive timestamps) as
+    /// JSON or CSV. Scans the first `MAX_ANALYTICS_SCAN_SIZE` project IDs;
+    /// use `export_analytics_data_filtered` for later pages and filters.
+    pub fn export_analytics_data(
+        env: Env,
+        start: u64,
+        end: u64,
+        format: crate::types::ExportFormat,
+    ) -> Result<crate::types::AnalyticsExport, ContractError> {
+        crate::analytics_export::AnalyticsExportRegistry::export_analytics_data(
+            &env,
+            start,
+            end,
+            format,
+            crate::analytics_export::AnalyticsExportRegistry::default_filter(),
+        )
+    }
+
+    /// `export_analytics_data` with category / verification filters and
+    /// project-ID paging.
+    pub fn export_analytics_data_filtered(
+        env: Env,
+        start: u64,
+        end: u64,
+        format: crate::types::ExportFormat,
+        filter: crate::types::AnalyticsFilter,
+    ) -> Result<crate::types::AnalyticsExport, ContractError> {
+        crate::analytics_export::AnalyticsExportRegistry::export_analytics_data(
+            &env, start, end, format, filter,
+        )
     }
 
     // --- Notification Preferences ---

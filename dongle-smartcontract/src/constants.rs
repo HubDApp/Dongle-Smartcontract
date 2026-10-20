@@ -56,6 +56,9 @@ pub const MAX_SNAPSHOT_PAGE_SIZE: u32 = 25;
 /// tuple hashed into `state_hash`, change.
 pub const STATE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
 
+/// Maximum project IDs one `export_analytics_data` call scans.
+pub const MAX_ANALYTICS_SCAN_SIZE: u32 = 50;
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 
