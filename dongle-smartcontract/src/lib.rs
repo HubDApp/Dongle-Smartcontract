@@ -57,6 +57,7 @@ mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
+mod migration_export;
 
 #[cfg(test)]
 mod tests;
@@ -3082,6 +3083,41 @@ impl DongleContract {
     ) -> Result<crate::types::AnalyticsExport, ContractError> {
         crate::analytics_export::AnalyticsExportRegistry::export_analytics_data(
             &env, start, end, format, filter,
+        )
+    }
+
+    // --- Migration Export (#935) ---
+
+    /// Package one page of state for migration to contract `version`
+    /// (admin-only). Pages work as in `export_contract_state_snapshot`;
+    /// follow `metadata.next_project_id` until it is `None`.
+    pub fn export_for_migration(
+        env: Env,
+        admin: Address,
+        version: String,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Result<crate::types::MigrationBundle, ContractError> {
+        crate::migration_export::MigrationExport::export_for_migration(
+            &env,
+            admin,
+            version,
+            start_project_id,
+            limit,
+        )
+    }
+
+    /// Check a migration bundle's integrity and compatibility with
+    /// `target_version`. Read-only.
+    pub fn validate_migration_bundle(
+        env: Env,
+        bundle: crate::types::MigrationBundle,
+        target_version: String,
+    ) -> crate::types::MigrationCompatibilityReport {
+        crate::migration_export::MigrationExport::validate_migration_bundle(
+            &env,
+            bundle,
+            target_version,
         )
     }
 

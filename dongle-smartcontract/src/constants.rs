@@ -59,6 +59,12 @@ pub const STATE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
 /// Maximum project IDs one `export_analytics_data` call scans.
 pub const MAX_ANALYTICS_SCAN_SIZE: u32 = 50;
 
+/// First `MigrationBundle` layout (#935).
+pub const MIGRATION_FORMAT_V1: u32 = 1;
+
+/// Bundle layouts this contract can produce and validate.
+pub const SUPPORTED_MIGRATION_FORMATS: &[u32] = &[MIGRATION_FORMAT_V1];
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 

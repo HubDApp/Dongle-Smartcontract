@@ -335,6 +335,9 @@ pub enum ContractError {
     ModerationRateLimitExceeded = 141,
     /// No state snapshot record exists with the given ID.
     SnapshotNotFound = 142,
+    /// Migration target version is a downgrade or more than one major
+    /// version ahead of this contract.
+    IncompatibleMigrationTarget = 143,
 }
 
 pub type Error = ContractError;

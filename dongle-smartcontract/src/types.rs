@@ -3644,3 +3644,75 @@ pub struct AnalyticsExport {
     /// Fee amounts are strings in JSON to avoid precision loss.
     pub payload: String,
 }
+
+/// Provenance and integrity data for a `MigrationBundle` (#935).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationMetadata {
+    /// Bundle layout version; see `SUPPORTED_MIGRATION_FORMATS`.
+    pub format_version: u32,
+    pub source_contract: Address,
+    /// `CONTRACT_VERSION` of the exporting contract.
+    pub source_contract_version: String,
+    /// Contract version the bundle is prepared for.
+    pub target_version: String,
+    pub exported_by: Address,
+    pub created_at: u64,
+    pub ledger_sequence: u32,
+    /// Total projects registered on the source contract.
+    pub project_count: u64,
+    pub start_project_id: u64,
+    pub end_project_id: u64,
+    /// Start of the next page, or `None` when this is the last page.
+    pub next_project_id: Option<u64>,
+    pub project_records: u32,
+    pub review_records: u32,
+    pub verification_records: u32,
+    /// SHA-256 of the XDR of `(format_version, target_version,
+    /// start_project_id, end_project_id, projects, reviews, verifications,
+    /// config)`.
+    pub content_hash: BytesN<32>,
+}
+
+/// One page of contract state packaged for import into a new contract
+/// version. Produced by `export_for_migration`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationBundle {
+    pub metadata: MigrationMetadata,
+    pub projects: Vec<Project>,
+    pub reviews: Vec<Review>,
+    pub verifications: Vec<VerificationRecord>,
+    pub config: ContractConfigSnapshot,
+}
+
+/// A problem found by `validate_migration_bundle`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MigrationIssue {
+    UnsupportedFormatVersion,
+    /// The bundle was prepared for a different target version.
+    TargetVersionMismatch,
+    /// A version is not `MAJOR.MINOR.PATCH`.
+    InvalidVersionString,
+    DowngradeNotSupported,
+    MajorVersionJumpTooLarge,
+    /// List lengths differ from the counts in the metadata.
+    RecordCountMismatch,
+    /// A record belongs to a project outside the bundle's range.
+    RecordOutOfRange,
+    /// Contents do not hash to `metadata.content_hash`.
+    ContentHashMismatch,
+}
+
+/// Result of `validate_migration_bundle`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationCompatibilityReport {
+    /// `true` when `issues` is empty.
+    pub compatible: bool,
+    pub format_version: u32,
+    pub source_contract_version: String,
+    pub target_version: String,
+    pub issues: Vec<MigrationIssue>,
+}

@@ -4486,3 +4486,36 @@ pub fn publish_state_snapshot_recorded_event(
         },
     );
 }
+
+/// Emitted when an admin exports a migration bundle page (#935).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationBundleExportedEvent {
+    pub admin: Address,
+    pub target_version: String,
+    pub start_project_id: u64,
+    pub end_project_id: u64,
+    pub content_hash: BytesN<32>,
+    pub timestamp: u64,
+}
+
+pub fn publish_migration_bundle_exported_event(
+    env: &Env,
+    admin: Address,
+    target_version: String,
+    start_project_id: u64,
+    end_project_id: u64,
+    content_hash: BytesN<32>,
+) {
+    env.events().publish(
+        (symbol_short!("MIGRATE"), symbol_short!("EXPORT")),
+        MigrationBundleExportedEvent {
+            admin,
+            target_version,
+            start_project_id,
+            end_project_id,
+            content_hash,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
