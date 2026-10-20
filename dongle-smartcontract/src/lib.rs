@@ -1404,6 +1404,36 @@ impl DongleContract {
         ReviewRegistry::restore_review(&env, project_id, reviewer, admin)
     }
 
+    /// Hide, delete, flag, or restore up to `MAX_MODERATION_BATCH_SIZE`
+    /// reviews in one call (admin-only). Each tuple is `(project_id, reviewer)`.
+    ///
+    /// Per-review failures are returned in `ModerateResult::failed` rather than
+    /// aborting the batch. Every item, successful or not, counts toward the
+    /// admin's `MODERATION_ACTIONS_PER_WINDOW` budget; a batch that would
+    /// exceed it is rejected with `ModerationRateLimitExceeded` before any write.
+    pub fn moderate_reviews_batch(
+        env: Env,
+        admin: Address,
+        reviews: Vec<(u64, Address)>,
+        action: crate::types::ModerateAction,
+    ) -> Result<crate::types::ModerateResult, ContractError> {
+        ReviewRegistry::moderate_reviews_batch(&env, admin, reviews, action)
+    }
+
+    /// Return the moderator flag on a review, if any.
+    pub fn get_review_flag(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<crate::types::ReviewFlag> {
+        ReviewRegistry::get_review_flag(&env, project_id, reviewer)
+    }
+
+    /// Moderation actions `admin` may still attempt in the current window.
+    pub fn get_moderation_budget(env: Env, admin: Address) -> u32 {
+        ReviewRegistry::get_moderation_budget(&env, admin)
+    }
+
     /// Admin hard-delete a review permanently (admin-only).
     pub fn admin_delete_review(
         env: Env,

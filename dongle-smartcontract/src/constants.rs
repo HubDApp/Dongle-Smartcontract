@@ -38,6 +38,16 @@ pub const MAX_PAGE_LIMIT: u32 = 100;
 /// Maximum records that can be refreshed by one batch TTL extension call.
 pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 
+/// Maximum reviews one `moderate_reviews_batch` call may target.
+pub const MAX_MODERATION_BATCH_SIZE: u32 = 25;
+
+/// Length of the per-admin moderation rate-limit window (one hour).
+pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
+
+/// Review moderation actions one admin may attempt per window. Failed items
+/// count too, so probing with bad IDs still spends the budget.
+pub const MODERATION_ACTIONS_PER_WINDOW: u32 = 100;
+
 // ── Field length limits (string byte lengths) ──────────────────────────────
 //
 // Every user-supplied string field is bounded on write. The limits balance
