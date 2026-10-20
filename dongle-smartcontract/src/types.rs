@@ -2590,6 +2590,9 @@ pub struct SecurityContactVerificationStatus {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Configuration for the health score weights (must sum to 100).
+///
+/// The four components are: rating, activity, verification, and engagement.
+/// All four weights must sum to exactly 100.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HealthScoreConfig {
@@ -2599,6 +2602,9 @@ pub struct HealthScoreConfig {
     pub activity_weight: u32,
     /// Points allocated to the verification status component (0–100).
     pub verification_weight: u32,
+    /// Points allocated to the community-engagement component (0–100).
+    /// Engagement is measured by endorsements + bookmarks above the project.
+    pub engagement_weight: u32,
     /// Minimum interval (seconds) between automatic recomputations.
     pub update_frequency_secs: u64,
 }
@@ -2613,6 +2619,8 @@ pub struct HealthScoreBreakdown {
     pub activity_score: u32,
     /// Points contributed by the verification status component.
     pub verification_score: u32,
+    /// Points contributed by the community-engagement component.
+    pub engagement_score: u32,
     /// Number of reviews at time of computation.
     pub review_count: u32,
     /// Bayesian average rating × 100 at time of computation.
@@ -2621,6 +2629,8 @@ pub struct HealthScoreBreakdown {
     pub last_updated_at: u64,
     /// Verification status at time of computation.
     pub verification_status: VerificationStatus,
+    /// Number of endorsements at time of computation.
+    pub endorsement_count: u32,
 }
 
 /// A historical snapshot of a project's health score.
