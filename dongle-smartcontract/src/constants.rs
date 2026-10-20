@@ -689,3 +689,11 @@ pub const MAX_ENDORSEMENT_AREAS: u32 = 10;
 
 /// Maximum byte length of an endorsement expertise area.
 pub const MAX_ENDORSEMENT_AREA_LEN: u32 = 32;
+
+// ── Endorsement Delegation Constants (#919) ─────────────────────────────────
+
+/// Maximum number of delegates a single address may appoint per project.
+pub const MAX_DELEGATES_PER_ENDORSER: u32 = 20;
+
+/// Maximum length of a delegation chain (delegate → … → root endorser).
+pub const MAX_DELEGATION_CHAIN_DEPTH: u32 = 5;

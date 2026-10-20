@@ -822,3 +822,14 @@ pub enum EndorsementRecordKey {
     /// (project_id, area) → endorsement IDs covering that area.
     AreaIndex(u64, String),
 }
+
+/// Storage keys for delegated endorsement authority (#919).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EndorsementDelegationKey {
+    /// (project_id, delegate) → `EndorsementDelegation`.  A delegate holds at
+    /// most one delegation per project, so every chain is a simple list.
+    Delegation(u64, Address),
+    /// (project_id, delegator) → delegates appointed by that delegator.
+    Delegates(u64, Address),
+}

@@ -104,6 +104,8 @@ mod endorsements;
 mod endorsement_graph;
 // Issue #918: area-scoped and time-limited endorsements
 mod endorsement_conditions;
+// Issue #919: delegated endorsement authority
+mod endorsement_delegation;
 mod fee_refund;
 mod reward_pool;
 pub mod fixtures;

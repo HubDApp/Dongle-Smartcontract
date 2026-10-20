@@ -375,6 +375,25 @@ pub enum ContractError {
     InvalidEndorsementExpiry = 158,
     /// Endorsement has no expiry, so there is nothing to renew.
     EndorsementNotRenewable = 159,
+
+    // ── Endorsement delegation errors (#919) ──────────────────────────────
+    /// An address cannot delegate endorsement authority to itself.
+    SelfDelegation = 160,
+    /// Caller neither holds an active endorsement nor valid delegated
+    /// authority for the project.
+    NoEndorsementAuthority = 161,
+    /// Delegate already holds delegated authority for this project.
+    AlreadyDelegated = 162,
+    /// No matching delegation exists.
+    DelegationNotFound = 163,
+    /// Granting the delegation would create a cycle in the delegation chain.
+    DelegationCycleDetected = 164,
+    /// Requested areas exceed the scope of the delegator's authority.
+    DelegationScopeExceeded = 165,
+    /// Delegator reached `MAX_DELEGATES_PER_ENDORSER`.
+    MaxDelegatesExceeded = 166,
+    /// Delegation chain would exceed `MAX_DELEGATION_CHAIN_DEPTH`.
+    DelegationChainTooDeep = 167,
 }
 
 pub type Error = ContractError;

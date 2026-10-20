@@ -4525,3 +4525,72 @@ pub fn publish_endorsement_renewed_event(
         event_data,
     );
 }
+
+// ── Endorsement delegation events (#919) ────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementDelegatedEvent {
+    pub project_id: u64,
+    pub delegator: Address,
+    pub delegate: Address,
+    pub scope: Vec<String>,
+    pub timestamp: u64,
+}
+
+pub fn publish_endorsement_delegated_event(
+    env: &Env,
+    project_id: u64,
+    delegator: Address,
+    delegate: Address,
+    scope: Vec<String>,
+) {
+    let event_data = EndorsementDelegatedEvent {
+        project_id,
+        delegator: delegator.clone(),
+        delegate: delegate.clone(),
+        scope,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("ENDORSE"),
+            symbol_short!("DELEGATED"),
+            project_id,
+            delegator,
+        ),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementDelegationRevokedEvent {
+    pub project_id: u64,
+    pub delegator: Address,
+    pub delegate: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_endorsement_delegation_revoked_event(
+    env: &Env,
+    project_id: u64,
+    delegator: Address,
+    delegate: Address,
+) {
+    let event_data = EndorsementDelegationRevokedEvent {
+        project_id,
+        delegator: delegator.clone(),
+        delegate: delegate.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("ENDORSE"),
+            symbol_short!("DELREVOKE"),
+            project_id,
+            delegator,
+        ),
+        event_data,
+    );
+}

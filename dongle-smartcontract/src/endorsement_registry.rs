@@ -30,7 +30,19 @@ impl EndorsementRegistry {
         expires_at: Option<u64>,
     ) -> Result<u64, ContractError> {
         user.require_auth();
+        Self::endorse_internal(env, project_id, user, areas, expires_at, None)
+    }
 
+    /// Endorsement logic shared by direct and delegated (#919) endorsements.
+    /// The caller is responsible for authenticating `user`.
+    pub(crate) fn endorse_internal(
+        env: &Env,
+        project_id: u64,
+        user: Address,
+        areas: Vec<String>,
+        expires_at: Option<u64>,
+        on_behalf_of: Option<Address>,
+    ) -> Result<u64, ContractError> {
         ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
         Self::validate_areas(&areas)?;
         Self::validate_expiry(env, expires_at)?;
@@ -57,7 +69,8 @@ impl EndorsementRegistry {
         StorageManager::extend_project_ttl(env, project_id);
         StorageManager::extend_endorsements_ttl(env, project_id);
 
-        let endorsement_id = Self::create_record(env, project_id, &user, areas, expires_at);
+        let endorsement_id =
+            Self::create_record(env, project_id, &user, areas, expires_at, on_behalf_of);
 
         publish_project_endorsed_event(env, project_id, user);
         Ok(endorsement_id)
@@ -260,7 +273,7 @@ impl EndorsementRegistry {
         result
     }
 
-    fn validate_areas(areas: &Vec<String>) -> Result<(), ContractError> {
+    pub(crate) fn validate_areas(areas: &Vec<String>) -> Result<(), ContractError> {
         if areas.len() > MAX_ENDORSEMENT_AREAS {
             return Err(ContractError::TooManyEndorsementAreas);
         }
@@ -300,6 +313,7 @@ impl EndorsementRegistry {
         user: &Address,
         areas: Vec<String>,
         expires_at: Option<u64>,
+        on_behalf_of: Option<Address>,
     ) -> u64 {
         let id: u64 = env
             .storage()
@@ -326,6 +340,8 @@ impl EndorsementRegistry {
             created_at: env.ledger().timestamp(),
             renewed_at: None,
             expires_at,
+            delegated_to: None,
+            on_behalf_of,
         };
         env.storage()
             .persistent()

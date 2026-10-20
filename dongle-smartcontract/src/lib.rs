@@ -21,6 +21,7 @@ pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
+mod endorsement_delegation;
 mod endorsement_graph;
 mod endorsement_registry;
 pub mod errors;
@@ -3455,6 +3456,84 @@ impl DongleContract {
     ) -> Vec<Address> {
         crate::endorsement_registry::EndorsementRegistry::filter_endorsers_by_areas(
             &env, project_id, areas,
+        )
+    }
+
+    // --- Endorsement Delegation (#919) ---
+
+    /// Delegate endorsement authority on `project_id` to `delegate`, limited
+    /// to `scope` expertise areas (empty = the delegator's full scope).
+    pub fn delegate_endorsement_authority(
+        env: Env,
+        project_id: u64,
+        delegator: Address,
+        delegate: Address,
+        scope: Vec<String>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_delegation::EndorsementDelegationRegistry::delegate_endorsement_authority(
+            &env, project_id, delegator, delegate, scope,
+        )
+    }
+
+    /// Revoke previously delegated endorsement authority.
+    pub fn revoke_endorsement_delegation(
+        env: Env,
+        project_id: u64,
+        delegator: Address,
+        delegate: Address,
+    ) -> Result<(), ContractError> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::revoke_endorsement_delegation(
+            &env, project_id, delegator, delegate,
+        )
+    }
+
+    /// Endorse a project using delegated authority.  Returns the endorsement ID.
+    pub fn endorse_project_on_behalf(
+        env: Env,
+        project_id: u64,
+        delegate: Address,
+        areas: Vec<String>,
+        expires_at: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_delegation::EndorsementDelegationRegistry::endorse_project_on_behalf(
+            &env, project_id, delegate, areas, expires_at,
+        )
+    }
+
+    pub fn get_endorsement_delegation(
+        env: Env,
+        project_id: u64,
+        delegate: Address,
+    ) -> Option<crate::types::EndorsementDelegation> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegation(
+            &env, project_id, delegate,
+        )
+    }
+
+    /// Delegates appointed by `delegator` for `project_id`.
+    pub fn get_endorsement_delegates(env: Env, project_id: u64, delegator: Address) -> Vec<Address> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegates(
+            &env, project_id, delegator,
+        )
+    }
+
+    /// Delegation chain from `address` up to its root endorser.
+    pub fn get_endorsement_delegation_chain(
+        env: Env,
+        project_id: u64,
+        address: Address,
+    ) -> Vec<Address> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegation_chain(
+            &env, project_id, address,
+        )
+    }
+
+    /// Whether `address` may endorse `project_id` directly or via delegation.
+    pub fn has_endorsement_authority(env: Env, project_id: u64, address: Address) -> bool {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::has_endorsement_authority(
+            &env, project_id, address,
         )
     }
 

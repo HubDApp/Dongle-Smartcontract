@@ -3417,4 +3417,32 @@ pub struct Endorsement {
     /// Unix timestamp (seconds) at which the endorsement expires.
     /// `None` = never expires.
     pub expires_at: Option<u64>,
+    /// Addresses this endorser has delegated endorsement authority to for
+    /// this project (#919).  `None` = no active delegations.
+    pub delegated_to: Option<Vec<Address>>,
+    /// Root endorser whose delegated authority was used to create this
+    /// endorsement (#919).  `None` = endorsed in the endorser's own right.
+    pub on_behalf_of: Option<Address>,
+}
+
+// ── Delegated endorsement authority (#919) ──────────────────────────────────
+
+/// Endorsement authority granted by `delegator` to `delegate` for one
+/// project.  Delegates may endorse on the delegator's behalf, and may
+/// sub-delegate within `scope`, forming a chain that must end at an address
+/// holding an active endorsement of the project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndorsementDelegation {
+    /// Project the authority applies to.
+    pub project_id: u64,
+    /// Address granting the authority.
+    pub delegator: Address,
+    /// Address receiving the authority.
+    pub delegate: Address,
+    /// Expertise areas the delegate may endorse for.  Empty = every area the
+    /// delegator may endorse for.
+    pub scope: Vec<String>,
+    /// Unix timestamp (seconds) when the delegation was granted.
+    pub created_at: u64,
 }
