@@ -844,3 +844,17 @@ pub enum ChangelogApprovalKey {
     /// IDs of `Draft` entries awaiting admin review, oldest first.
     PendingQueue,
 }
+
+/// Storage keys for contract event subscriptions (#931).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EventSubscriptionKey {
+    /// Subscription by ID.
+    Subscription(u64),
+    /// Next subscription ID counter.
+    NextId,
+    /// Subscription IDs owned by an address.
+    AddressSubscriptions(Address),
+    /// Subscription IDs listening to a topic.
+    TopicSubscriptions(crate::types::EventTopic),
+}

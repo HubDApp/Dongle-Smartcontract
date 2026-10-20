@@ -175,3 +175,6 @@ mod changelog_generation;
 
 // Admin approval before changelog entries are published (#930)
 mod changelog_approval;
+
+// Address subscriptions to contract events (#931)
+mod event_subscriptions;

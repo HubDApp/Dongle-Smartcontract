@@ -691,3 +691,12 @@ pub const MAX_CHANGELOG_PERIOD_BUCKETS: u32 = 366;
 
 /// Maximum entries one bulk changelog approval / rejection / publish may target.
 pub const MAX_CHANGELOG_APPROVAL_BATCH: u32 = 25;
+
+// ── Event subscriptions (#931) ─────────────────────────────────────────────
+
+/// Maximum active event subscriptions per address.
+pub const MAX_EVENT_SUBSCRIPTIONS_PER_ADDRESS: u32 = 10;
+/// Maximum project IDs in a subscription's filter.
+pub const MAX_EVENT_FILTER_PROJECTS: u32 = 20;
+/// Maximum subscriptions indexed under a single topic.
+pub const MAX_SUBSCRIPTIONS_PER_TOPIC: u32 = 1_000;

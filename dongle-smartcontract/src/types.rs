@@ -3608,3 +3608,45 @@ pub struct ChangelogSummary {
     /// means the summary is stale until `generate_changelog_from_events` runs.
     pub unprocessed_events: u64,
 }
+
+// ── Contract event subscriptions (#931) ────────────────────────────────────
+
+/// Family of contract events an off-chain system can subscribe to. Matches
+/// the first topic symbol of the published events.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EventTopic {
+    Project,
+    Review,
+    Verification,
+    Fee,
+    Changelog,
+    Featured,
+    Collection,
+    Admin,
+    Contract,
+}
+
+/// Narrowing filters applied on top of a subscription's topics. Empty / `None`
+/// fields match everything.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventFilters {
+    /// Only events about these projects.
+    pub project_ids: Vec<u64>,
+    /// Only events triggered by this address.
+    pub actor: Option<Address>,
+}
+
+/// An address's on-chain subscription to contract events. Off-chain relays
+/// read these to decide which events to push to whom.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventSubscription {
+    pub id: u64,
+    pub address: Address,
+    pub event_topics: Vec<EventTopic>,
+    pub filters: EventFilters,
+    pub created_at: u64,
+    pub updated_at: u64,
+}

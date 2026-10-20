@@ -4601,3 +4601,52 @@ pub fn publish_changelog_entry_published_event(
         event_data,
     );
 }
+
+// ── Event Subscription Events (#931) ──────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventSubscriptionChangedEvent {
+    pub subscription_id: u64,
+    pub address: Address,
+    pub event_topics: Vec<crate::types::EventTopic>,
+    pub filters: crate::types::EventFilters,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventUnsubscribedEvent {
+    pub subscription_id: u64,
+    pub address: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted on subscribe (`action = SUBSCRIBE`) and filter update (`UPDATED`).
+pub fn publish_event_subscription_changed_event(
+    env: &Env,
+    action: soroban_sdk::Symbol,
+    subscription: &crate::types::EventSubscription,
+) {
+    let event_data = EventSubscriptionChangedEvent {
+        subscription_id: subscription.id,
+        address: subscription.address.clone(),
+        event_topics: subscription.event_topics.clone(),
+        filters: subscription.filters.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events()
+        .publish((symbol_short!("EVENTSUB"), action), event_data);
+}
+
+pub fn publish_event_unsubscribed_event(env: &Env, subscription_id: u64, address: Address) {
+    let event_data = EventUnsubscribedEvent {
+        subscription_id,
+        address,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("EVENTSUB"), symbol_short!("UNSUB")),
+        event_data,
+    );
+}

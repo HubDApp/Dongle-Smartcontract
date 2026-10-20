@@ -350,6 +350,12 @@ pub enum ContractError {
     ChangelogApprovalRequired = 148,
     /// Bulk changelog operation is empty or exceeds the batch limit.
     InvalidChangelogBatch = 149,
+    /// Event subscription has no topics, duplicate topics, or invalid filters (#931).
+    InvalidEventSubscription = 150,
+    /// Event subscription does not exist or belongs to another address.
+    EventSubscriptionNotFound = 151,
+    /// Address or topic has reached its event subscription limit.
+    EventSubscriptionLimitReached = 152,
 }
 
 pub type Error = ContractError;

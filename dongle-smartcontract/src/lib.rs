@@ -22,6 +22,7 @@ mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_registry;
+mod event_subscription_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -68,6 +69,7 @@ use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
+use crate::event_subscription_registry::EventSubscriptionRegistry;
 use crate::featured_registry::FeaturedRegistry;
 use crate::premium_featured_registry::PremiumFeaturedRegistry;
 use crate::fee_manager::FeeManager;
@@ -132,6 +134,8 @@ use crate::types::{
     ChangelogPeriodGroup, ChangelogSummary, GeneratedChangelogEntry, ProjectEventRecord,
     // #930 changelog approval
     ChangelogBatchResult,
+    // #931 event subscriptions
+    EventFilters, EventSubscription, EventTopic,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -3145,6 +3149,68 @@ impl DongleContract {
             start_index,
             limit,
         )
+    }
+
+    // --- Contract Event Subscriptions (#931) ---
+
+    /// Subscribe `address` to contract event topics, narrowed by `filters`.
+    /// Returns the subscription ID.
+    pub fn subscribe_to_events(
+        env: Env,
+        address: Address,
+        topics: Vec<EventTopic>,
+        filters: EventFilters,
+    ) -> Result<u64, ContractError> {
+        EventSubscriptionRegistry::subscribe_to_events(&env, address, topics, filters)
+    }
+
+    /// Replace a subscription's topics and filters (subscriber only).
+    pub fn update_event_subscription(
+        env: Env,
+        address: Address,
+        subscription_id: u64,
+        topics: Vec<EventTopic>,
+        filters: EventFilters,
+    ) -> Result<(), ContractError> {
+        EventSubscriptionRegistry::update_event_subscription(
+            &env,
+            address,
+            subscription_id,
+            topics,
+            filters,
+        )
+    }
+
+    /// Delete a subscription (subscriber only).
+    pub fn unsubscribe_from_events(
+        env: Env,
+        address: Address,
+        subscription_id: u64,
+    ) -> Result<(), ContractError> {
+        EventSubscriptionRegistry::unsubscribe_from_events(&env, address, subscription_id)
+    }
+
+    /// All event subscriptions held by `address` (admin only).
+    pub fn get_subscriptions_for_address(
+        env: Env,
+        admin: Address,
+        address: Address,
+    ) -> Result<Vec<EventSubscription>, ContractError> {
+        EventSubscriptionRegistry::get_subscriptions_for_address(&env, admin, address)
+    }
+
+    /// Subscriptions listening to `topic`, paginated.
+    pub fn get_subscriptions_for_topic(
+        env: Env,
+        topic: EventTopic,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<EventSubscription> {
+        EventSubscriptionRegistry::get_subscriptions_for_topic(&env, topic, start_index, limit)
+    }
+
+    pub fn get_event_subscription(env: Env, subscription_id: u64) -> Option<EventSubscription> {
+        EventSubscriptionRegistry::get_event_subscription(&env, subscription_id)
     }
 
     // --- Notification Preferences ---
