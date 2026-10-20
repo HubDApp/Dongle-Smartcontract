@@ -43,6 +43,9 @@ pub struct ProjectRegistrationParams {
     pub repository_url: Option<String>,
     /// Optional ISO 639-1 two-letter language code for the project (e.g., "en", "es").
     pub language_code: Option<String>,
+    /// Custom verification requirements for this project, stored as IPFS CIDs
+    /// pointing to off-chain requirement definition documents.
+    pub verification_requirements: Option<Vec<String>>,
 }
 
 /// Parameters supplied to `update_project`. Each field is an `Option`
@@ -96,6 +99,9 @@ pub struct ProjectUpdateParams {
     /// `Some(Some(code))` to set language code, `Some(None)` to clear,
     /// `None` to leave unchanged.
     pub language_code: Option<Option<String>>,
+    /// `Some(Some(cids))` to set verification requirements, `Some(None)` to clear,
+    /// `None` to leave unchanged.
+    pub verification_requirements: Option<Option<Vec<String>>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
     // event. A `lifecycle_status` field previously sat here but was never read
@@ -559,6 +565,46 @@ pub struct Project {
     /// language of the project's documentation and interface (e.g., "en", "es").
     /// Used for international discovery and filtering.
     pub language_code: Option<String>,
+    /// Custom verification requirements for this project, stored as IPFS CIDs
+    /// pointing to off-chain requirement definition documents. These define
+    /// additional criteria that must be met before verification approval.
+    /// The contract validates these requirements before allowing verification.
+    pub verification_requirements: Option<Vec<String>>,
+}
+
+/// Verification requirement record containing metadata about custom requirements.
+///
+/// Stored separately from Project to allow querying requirements without
+/// fetching the full project struct.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectVerificationRequirements {
+    /// ID of the project these requirements belong to.
+    pub project_id: u64,
+    /// List of IPFS CIDs pointing to requirement definition documents.
+    /// Each CID should reference a JSON document conforming to a
+    /// verification-requirements schema.
+    pub requirement_cids: Vec<String>,
+    /// Unix timestamp (seconds) when requirements were last updated.
+    pub updated_at: u64,
+    /// Address that last updated the requirements (owner or admin).
+    pub updated_by: Option<Address>,
+}
+
+/// Result of an admin audit to check requirement-tier consistency.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRequirementAudit {
+    /// ID of the project that was audited.
+    pub project_id: u64,
+    /// Whether the requirements are consistent with the project's tier.
+    pub is_consistent: bool,
+    /// List of inconsistencies found (empty if consistent).
+    pub inconsistencies: Vec<String>,
+    /// Unix timestamp when the audit was performed.
+    pub audited_at: u64,
+    /// Admin who performed the audit.
+    pub audited_by: Address,
 }
 
 /// Read-only view of a project's security contact, returned by
@@ -1603,6 +1649,8 @@ pub enum AdminActionType {
     VerificationSlaSet,
     /// Review flagged for moderator follow-up via batch moderation.
     ReviewFlagged,
+    /// Admin audited verification requirements for consistency with tier.
+    VerificationRequirementsAudited,
 }
 
 /// Current state of a duplicate-project dispute.

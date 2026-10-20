@@ -340,6 +340,9 @@ pub enum ExtensionKey2 {
     AdminSessionHistory(Address),
     /// Next admin session ID counter.
     NextAdminSessionId,
+    /// Custom verification requirements for a project, stored as IPFS CIDs.
+    /// Keyed by project_id -> ProjectVerificationRequirements.
+    ProjectVerificationRequirements(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under

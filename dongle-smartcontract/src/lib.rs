@@ -122,6 +122,8 @@ use crate::types::{
     ActivityEntry, ActivityKind,
     // #760 metadata enrichment
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
+    // Custom verification requirements
+    VerificationRequirementAudit, ProjectVerificationRequirements,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -1753,6 +1755,34 @@ impl DongleContract {
         request_ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
+    // --- Custom Verification Requirements ---
+
+    /// Get the verification requirements for a project.
+    ///
+    /// Returns the list of IPFS CIDs pointing to requirement definition documents
+    /// for the given project. These define additional criteria that must be met
+    /// before verification approval.
+    pub fn get_project_verification_requirements(
+        env: Env,
+        project_id: u64,
+    ) -> Option<Vec<String>> {
+        VerificationRegistry::get_project_verification_requirements(&env, project_id)
+    }
+
+    /// Audit verification requirements for a project to ensure they are consistent
+    /// with the project's tier.
+    ///
+    /// Admins can use this to verify that custom requirements match what is expected
+    /// for projects at a given verification tier. Returns an audit report with any
+    /// inconsistencies found.
+    pub fn audit_verification_requirements(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<crate::types::VerificationRequirementAudit, ContractError> {
+        VerificationRegistry::audit_verification_requirements(&env, project_id, admin)
     }
 
     // --- Probationary Verification & Enhanced Monitoring ---
