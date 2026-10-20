@@ -1524,6 +1524,40 @@ pub struct DependencyRef {
     pub external_url: Option<String>,
     /// External Stellar contract address (56-char Strkey, starts with 'C').
     pub external_contract: Option<String>,
+    /// Compatible versions of the dependency (#923). Not part of the
+    /// dependency's identity: two refs that differ only here are the same
+    /// dependency.
+    pub version_requirement: Option<VersionSpec>,
+}
+
+/// Comparison operator of a dependency version requirement (#923).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionOperator {
+    /// `1.2.3` — exactly this version.
+    Exact,
+    /// `^1.2` — same leftmost non-zero component, at or above the version.
+    Caret,
+    /// `~1.2.3` — same major.minor (same major if only major given).
+    Tilde,
+    /// `>=1.0` — this version or any later one.
+    GreaterOrEqual,
+}
+
+/// A dependency version requirement such as `"^1.2"` (#923).
+///
+/// Callers only need to set `raw`; the contract re-parses it on
+/// `add_dependency` / `update_dependency` and overwrites the parsed fields
+/// with the canonical values.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionSpec {
+    /// The spec as written, e.g. `"~1.2.3"`.
+    pub raw: String,
+    pub operator: VersionOperator,
+    pub major: u32,
+    pub minor: Option<u32>,
+    pub patch: Option<u32>,
 }
 
 /// A single entry in a project's dependency list.

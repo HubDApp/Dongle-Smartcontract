@@ -353,6 +353,10 @@ pub enum ContractError {
     ModerationAppealNotPending = 150,
     /// No eligible senior moderator is available to review the appeal (#922).
     NoSeniorModerators = 151,
+    /// Dependency version requirement is not a supported spec (#923).
+    InvalidVersionSpec = 152,
+    /// The project has no such dependency registered (#923).
+    DependencyNotFound = 153,
 }
 
 pub type Error = ContractError;

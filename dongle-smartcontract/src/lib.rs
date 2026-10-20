@@ -55,6 +55,7 @@ mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
 mod moderation_appeal_registry;
+mod version_spec;
 
 #[cfg(test)]
 mod tests;
@@ -2961,6 +2962,29 @@ impl DongleContract {
 
     pub fn get_project_dependencies(env: Env, project_id: u64) -> Vec<ProjectDependency> {
         crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
+    }
+
+    /// Versions of a project dependency that satisfy its version requirement,
+    /// drawn from the dependency project's changelog - Issue #923
+    pub fn get_compatible_versions(
+        env: Env,
+        project_id: u64,
+        dependency_project_id: u64,
+    ) -> Result<Vec<String>, ContractError> {
+        crate::dependency_registry::DependencyRegistry::get_compatible_versions(
+            &env,
+            project_id,
+            dependency_project_id,
+        )
+    }
+
+    /// Parse and validate a dependency version spec such as "^1.2" - Issue #923
+    pub fn parse_version_spec(
+        env: Env,
+        raw: String,
+    ) -> Result<crate::types::VersionSpec, ContractError> {
+        let _ = env;
+        crate::version_spec::VersionSpecParser::parse(&raw)
     }
 
     /// Returns the number of dependencies for a project without fetching

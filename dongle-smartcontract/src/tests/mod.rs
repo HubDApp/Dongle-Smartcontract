@@ -36,6 +36,8 @@ mod claim_state_machine;
 mod claim_status;
 mod config;
 mod dependencies;
+// Issue #923: dependency version requirements
+mod dependency_versions;
 mod lifecycle_status;
 mod maintainers;
 mod renewal;
