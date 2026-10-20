@@ -329,6 +329,20 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Admin permission denied for role.
+    PermissionDenied = 140,
+    /// Approval quorum not met.
+    ApprovalQuorumNotMet = 141,
+    /// Timelock emergency bypass not authorized.
+    BypassNotAuthorized = 142,
+    /// Multi-stage cooldown or stage delay has not passed.
+    StageDelayNotPassed = 143,
+    /// Configured approval workflow not found.
+    WorkflowNotFound = 144,
+    /// Sensitive proposal already approved.
+    ProposalAlreadyApproved = 145,
+    /// Sensitive proposal already executed.
+    ProposalAlreadyExecuted = 146,
 }
 
 pub type Error = ContractError;

@@ -54,6 +54,7 @@ mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
+mod governance_security;
 
 #[cfg(test)]
 mod tests;
@@ -67,6 +68,7 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::governance_security::GovernanceSecurityManager;
 use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
@@ -78,8 +80,10 @@ use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
-    AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
-    ArchivedReview, BatchTtlResult,
+    AdminActionCategory, AdminActionEntry, AdminActivityRecord, AdminActivityReport,
+    AdminPermission, AdminProposal, AdminRole, AdminVerificationPerformance, ApprovalWorkflow,
+    ArchivedReview, BatchTtlResult, EmergencyBypassProposal, SensitiveActionPayload,
+    SensitiveActionProposal, SensitiveActionType, SensitiveProposalStatus,
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
@@ -139,6 +143,31 @@ impl DongleContract {
 
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
         AdminManager::add_admin(&env, caller, new_admin)
+    }
+
+    /// Add a new admin with an assigned role (closes role-based permission criteria).
+    pub fn add_admin_with_role(
+        env: Env,
+        caller: Address,
+        new_admin: Address,
+        role: AdminRole,
+    ) -> Result<(), ContractError> {
+        AdminManager::add_admin_with_role(&env, caller, new_admin, role)
+    }
+
+    /// Get the role assigned to an admin address.
+    pub fn get_admin_role(env: Env, admin: Address) -> Option<AdminRole> {
+        AdminManager::get_admin_role(&env, &admin)
+    }
+
+    /// Check if an admin has a specific granular permission.
+    pub fn has_admin_permission(env: Env, admin: Address, permission: AdminPermission) -> bool {
+        AdminManager::has_admin_permission(&env, &admin, permission)
+    }
+
+    /// Migrate existing admins without stored roles to SuperAdmin for backward compatibility.
+    pub fn migrate_existing_admins(env: Env, caller: Address) -> Result<u32, ContractError> {
+        AdminManager::migrate_existing_admins(&env, caller)
     }
 
     pub fn remove_admin(
@@ -2615,6 +2644,195 @@ impl DongleContract {
     /// Get the total number of admin action log entries.
     pub fn get_admin_action_log_count(env: Env) -> u64 {
         AdminActionLog::get_action_log_count(&env)
+    }
+
+    // --- Admin Activity Report & Compliance Audit ---
+
+    /// Implement get_admin_activity_report(admin: Address, start: u64, end: u64) function
+    /// with category breakdown and suspicious activity detection.
+    pub fn get_admin_activity_report(
+        env: Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> AdminActivityReport {
+        AdminActionLog::get_admin_activity_report(&env, admin, start, end)
+    }
+
+    /// Support filtering by action type / category: verification, collection, pause, config.
+    pub fn get_admin_activity_report_filtered(
+        env: Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+        category: AdminActionCategory,
+    ) -> AdminActivityReport {
+        AdminActionLog::get_admin_activity_report_filtered(&env, admin, start, end, category)
+    }
+
+    /// Generate audit reports in standard JSON format.
+    pub fn generate_admin_audit_report_json(
+        env: Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> String {
+        AdminActionLog::generate_admin_audit_report_json(&env, admin, start, end)
+    }
+
+    /// Generate audit reports in standard CSV format.
+    pub fn generate_admin_audit_report_csv(
+        env: Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> String {
+        AdminActionLog::generate_admin_audit_report_csv(&env, admin, start, end)
+    }
+
+    // --- Multi-Admin Sensitive Action Approval Workflow ---
+
+    /// Configure approval workflow for sensitive action types (stages and quorum).
+    pub fn set_approval_workflow(
+        env: Env,
+        admin: Address,
+        workflow: ApprovalWorkflow,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::set_approval_workflow(&env, admin, workflow)
+    }
+
+    /// Get configured approval workflow for a sensitive action type.
+    pub fn get_approval_workflow(
+        env: Env,
+        action_type: SensitiveActionType,
+    ) -> ApprovalWorkflow {
+        GovernanceSecurityManager::get_approval_workflow(&env, action_type)
+    }
+
+    /// Propose a sensitive admin action requiring multiple approvals.
+    pub fn propose_sensitive_action(
+        env: Env,
+        proposer: Address,
+        action_type: SensitiveActionType,
+        payload: SensitiveActionPayload,
+    ) -> Result<u64, ContractError> {
+        GovernanceSecurityManager::propose_sensitive_action(&env, proposer, action_type, payload)
+    }
+
+    /// Cast approval on a proposed sensitive action.
+    pub fn approve_proposed_action(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::approve_proposed_action(&env, admin, proposal_id)
+    }
+
+    /// Reject a proposed sensitive action.
+    pub fn reject_proposed_action(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: String,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::reject_proposed_action(&env, admin, proposal_id, reason)
+    }
+
+    /// Execute an approved sensitive action.
+    pub fn execute_proposed_action(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::execute_proposed_action(&env, caller, proposal_id)
+    }
+
+    /// Get a sensitive action proposal by ID.
+    pub fn get_sensitive_proposal(
+        env: Env,
+        proposal_id: u64,
+    ) -> Option<SensitiveActionProposal> {
+        GovernanceSecurityManager::get_sensitive_proposal(&env, proposal_id)
+    }
+
+    /// List sensitive action proposals with pagination.
+    pub fn list_sensitive_proposals(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<SensitiveActionProposal> {
+        GovernanceSecurityManager::list_sensitive_proposals(&env, start_index, limit)
+    }
+
+    // --- Emergency Override of Timelock Delays ---
+
+    /// Configure emergency bypass threshold (supermajority or unanimous).
+    pub fn set_emergency_bypass_threshold(
+        env: Env,
+        admin: Address,
+        threshold: u32,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::set_emergency_bypass_threshold(&env, admin, threshold)
+    }
+
+    /// Get the emergency bypass threshold.
+    pub fn get_emergency_bypass_threshold(env: Env) -> u32 {
+        GovernanceSecurityManager::get_emergency_bypass_threshold(&env)
+    }
+
+    /// Propose an emergency bypass of a timelock delay with justification CID.
+    pub fn propose_emergency_bypass(
+        env: Env,
+        admin: Address,
+        timelock_id: u64,
+        justification_cid: String,
+    ) -> Result<u64, ContractError> {
+        GovernanceSecurityManager::propose_emergency_bypass(
+            &env,
+            admin,
+            timelock_id,
+            justification_cid,
+        )
+    }
+
+    /// Approve an emergency bypass proposal.
+    pub fn approve_emergency_bypass(
+        env: Env,
+        admin: Address,
+        bypass_id: u64,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::approve_emergency_bypass(&env, admin, bypass_id)
+    }
+
+    /// Execute an approved emergency bypass.
+    pub fn execute_emergency_bypass(
+        env: Env,
+        admin: Address,
+        bypass_id: u64,
+    ) -> Result<(), ContractError> {
+        GovernanceSecurityManager::execute_emergency_bypass(&env, admin, bypass_id)
+    }
+
+    /// Get an emergency bypass proposal by ID.
+    pub fn get_emergency_bypass(
+        env: Env,
+        bypass_id: u64,
+    ) -> Option<EmergencyBypassProposal> {
+        GovernanceSecurityManager::get_emergency_bypass(&env, bypass_id)
+    }
+
+    /// List emergency bypass proposals with pagination.
+    pub fn list_emergency_bypasses(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<EmergencyBypassProposal> {
+        GovernanceSecurityManager::list_emergency_bypasses(&env, start_index, limit)
+    }
+
+    /// Check if a timelock action has been emergency bypassed.
+    pub fn is_timelock_bypassed(env: Env, timelock_id: u64) -> bool {
+        GovernanceSecurityManager::is_timelock_bypassed(&env, timelock_id)
     }
     // --- Project Claiming ---
 

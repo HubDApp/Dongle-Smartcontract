@@ -1513,6 +1513,10 @@ pub enum AdminActionType {
     AdminExpertiseSet,
     /// Verification SLA was configured.
     VerificationSlaSet,
+    /// Timelock emergency bypass was proposed or executed.
+    EmergencyBypass,
+    /// Admin role was assigned or updated.
+    AdminRoleSet,
 }
 
 /// Current state of a duplicate-project dispute.
@@ -3316,13 +3320,184 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
+// ── Admin Governance, Roles, Workflows, and Audit Types ─────────────────────
 
+/// High-level category of admin actions for filtering and compliance auditing.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AdminActionCategory {
+    All = 0,
+    Verification = 1,
+    Collection = 2,
+    Pause = 3,
+    Config = 4,
+}
+
+/// Comprehensive admin activity report for compliance auditing and suspicious activity detection.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectDataExport {
-    pub version: u32,
-    pub project: crate::types::Project,
-    pub reviews: Vec<crate::types::Review>,
-    pub verification_records: Vec<crate::types::VerificationRecord>,
+pub struct AdminActivityReport {
+    pub admin: Address,
+    pub start_time: u64,
+    pub end_time: u64,
+    pub total_actions: u32,
+    pub verification_count: u32,
+    pub collection_count: u32,
+    pub pause_count: u32,
+    pub config_count: u32,
+    pub other_count: u32,
+    pub actions: Vec<AdminActionEntry>,
+    pub has_suspicious_activity: bool,
+    pub suspicious_reasons: Vec<String>,
 }
+
+/// Granular admin permissions for role-based access control.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AdminPermission {
+    ApproveVerification = 1,
+    ManageFees = 2,
+    ManageCollections = 3,
+    ManageAdmins = 4,
+    EmergencyPause = 5,
+}
+
+/// Admin roles bundling sets of granular permissions.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdminRole {
+    SuperAdmin,
+    VerificationAdmin,
+    FeeAdmin,
+    CollectionAdmin,
+    EmergencyAdmin,
+    Custom(Vec<AdminPermission>),
+}
+
+impl AdminRole {
+    pub fn permissions(&self, env: &soroban_sdk::Env) -> Vec<AdminPermission> {
+        let mut perms = Vec::new(env);
+        match self {
+            AdminRole::SuperAdmin => {
+                perms.push_back(AdminPermission::ApproveVerification);
+                perms.push_back(AdminPermission::ManageFees);
+                perms.push_back(AdminPermission::ManageCollections);
+                perms.push_back(AdminPermission::ManageAdmins);
+                perms.push_back(AdminPermission::EmergencyPause);
+            }
+            AdminRole::VerificationAdmin => {
+                perms.push_back(AdminPermission::ApproveVerification);
+            }
+            AdminRole::FeeAdmin => {
+                perms.push_back(AdminPermission::ManageFees);
+            }
+            AdminRole::CollectionAdmin => {
+                perms.push_back(AdminPermission::ManageCollections);
+            }
+            AdminRole::EmergencyAdmin => {
+                perms.push_back(AdminPermission::EmergencyPause);
+            }
+            AdminRole::Custom(custom_perms) => {
+                return custom_perms.clone();
+            }
+        }
+        perms
+    }
+
+    pub fn has_permission(&self, perm: AdminPermission) -> bool {
+        match self {
+            AdminRole::SuperAdmin => true,
+            AdminRole::VerificationAdmin => perm == AdminPermission::ApproveVerification,
+            AdminRole::FeeAdmin => perm == AdminPermission::ManageFees,
+            AdminRole::CollectionAdmin => perm == AdminPermission::ManageCollections,
+            AdminRole::EmergencyAdmin => perm == AdminPermission::EmergencyPause,
+            AdminRole::Custom(perms) => {
+                for i in 0..perms.len() {
+                    if let Some(p) = perms.get(i) {
+                        if p == perm {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+}
+
+/// Categories of sensitive operations requiring multi-admin approval.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SensitiveActionType {
+    ConfigChange = 1,
+    LargeFeeAdjustment = 2,
+    AdminRemoval = 3,
+    EmergencyPause = 4,
+}
+
+/// Payload parameters for a proposed sensitive action.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SensitiveActionPayload {
+    ConfigChange(String, String),
+    LargeFeeAdjustment(Option<Address>, u128, u128, Address),
+    AdminRemoval(Address),
+    EmergencyPause(bool),
+}
+
+/// Configurable multi-admin approval workflow for critical actions.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApprovalWorkflow {
+    pub action_type: SensitiveActionType,
+    pub required_quorum: u32,
+    pub total_stages: u32,
+    pub stage_delay: u64,
+    pub is_active: bool,
+}
+
+/// Lifecycle status of a sensitive multi-sig proposal.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SensitiveProposalStatus {
+    Pending = 0,
+    Approved = 1,
+    Executed = 2,
+    Rejected = 3,
+}
+
+/// Proposal for sensitive multi-admin operations with tracked votes and stages.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionProposal {
+    pub id: u64,
+    pub proposer: Address,
+    pub action_type: SensitiveActionType,
+    pub payload: SensitiveActionPayload,
+    pub approvals: Vec<Address>,
+    pub required_quorum: u32,
+    pub current_stage: u32,
+    pub total_stages: u32,
+    pub status: SensitiveProposalStatus,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub execution_eta: u64,
+}
+
+/// Proposal for emergency timelock delay bypass with justification CID and supermajority threshold.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassProposal {
+    pub id: u64,
+    pub timelock_id: u64,
+    pub proposer: Address,
+    pub justification_cid: String,
+    pub approvals: Vec<Address>,
+    pub threshold: u32,
+    pub approved: bool,
+    pub executed: bool,
+    pub created_at: u64,
+    pub decided_at: u64,
+}
+
 

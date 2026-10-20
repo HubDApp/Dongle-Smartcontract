@@ -23,9 +23,12 @@
 //! separate, unenforced `ConfigRegistry::set_pause` flag surfaced by
 //! `get_config`.
 
+use crate::admin_action_log::AdminActionLog;
+use crate::admin_manager::AdminManager;
 use crate::errors::ContractError;
 use crate::events::{publish_contract_paused_event, publish_contract_unpaused_event};
 use crate::storage_keys::StorageKey;
+use crate::types::{AdminActionType, AdminPermission};
 use soroban_sdk::{Address, Env};
 
 pub struct EmergencyPause;
@@ -51,13 +54,13 @@ impl EmergencyPause {
         }
     }
 
-    /// Pause the contract (admin-only).
+    /// Pause the contract (admin-only, requires EmergencyPause permission).
     ///
     /// After this call, all non-admin mutating operations will be rejected.
-    /// Emits a `ContractPaused` event.
+    /// Emits a `ContractPaused` event and writes to `AdminActionLog`.
     pub fn pause(env: &Env, admin: &Address) -> Result<(), ContractError> {
         admin.require_auth();
-        crate::admin_manager::AdminManager::require_admin(env, admin)?;
+        AdminManager::require_admin_permission(env, admin, AdminPermission::EmergencyPause)?;
 
         env.storage()
             .persistent()
@@ -65,15 +68,24 @@ impl EmergencyPause {
 
         publish_contract_paused_event(env, admin.clone());
 
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::ContractPaused,
+            None,
+            None,
+            None,
+        );
+
         Ok(())
     }
 
-    /// Unpause the contract (admin-only).
+    /// Unpause the contract (admin-only, requires EmergencyPause permission).
     ///
-    /// Restores normal operation. Emits a `ContractUnpaused` event.
+    /// Restores normal operation. Emits a `ContractUnpaused` event and writes to `AdminActionLog`.
     pub fn unpause(env: &Env, admin: &Address) -> Result<(), ContractError> {
         admin.require_auth();
-        crate::admin_manager::AdminManager::require_admin(env, admin)?;
+        AdminManager::require_admin_permission(env, admin, AdminPermission::EmergencyPause)?;
 
         env.storage()
             .persistent()
@@ -81,6 +93,16 @@ impl EmergencyPause {
 
         publish_contract_unpaused_event(env, admin.clone());
 
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::ContractResumed,
+            None,
+            None,
+            None,
+        );
+
         Ok(())
     }
 }
+

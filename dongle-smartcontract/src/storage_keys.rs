@@ -779,3 +779,34 @@ pub enum ProjectControlsKey {
     /// IDs of currently quarantined projects (#764).
     QuarantinedProjects,
 }
+
+/// Storage keys for governance security and compliance:
+/// - Admin action audit reports & suspicious activity detection
+/// - Multi-admin sensitive approval workflows
+/// - Role-based permissions & admin migration
+/// - Emergency timelock bypass
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdminSecurityKey {
+    /// Role record for an admin address (AdminRole).
+    AdminRole(Address),
+    /// Configured ApprovalWorkflow for a sensitive action type (u32 discriminant).
+    ApprovalWorkflow(u32),
+    /// Sensitive action proposal by proposal ID.
+    SensitiveProposal(u64),
+    /// List of all sensitive action proposal IDs.
+    SensitiveProposalIds,
+    /// Next sensitive proposal ID counter.
+    NextSensitiveProposalId,
+    /// Configured emergency bypass threshold for timelocks (u32).
+    EmergencyBypassThreshold,
+    /// Emergency bypass proposal / record by bypass ID.
+    EmergencyBypass(u64),
+    /// List of all emergency bypass IDs.
+    EmergencyBypassIds,
+    /// Next emergency bypass ID counter.
+    NextEmergencyBypassId,
+    /// Bypass status for a timelock action ID: timelock_id -> bool.
+    TimelockBypassed(u64),
+}
+
