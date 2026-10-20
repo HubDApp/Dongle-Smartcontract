@@ -235,6 +235,7 @@ impl ProjectRegistry {
             security_contact_proof_cid: None,
             security_contact_verified: false,
             language_code: params.language_code.clone(),
+            verification_requirements: params.verification_requirements.clone(),
         };
 
         // Get current owner projects
@@ -334,6 +335,22 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
+        }
+
+        // Store verification requirements if provided
+        if let Some(ref reqs) = params.verification_requirements {
+            if !reqs.is_empty() {
+                let req_record = crate::types::ProjectVerificationRequirements {
+                    project_id: count,
+                    requirement_cids: reqs.clone(),
+                    updated_at: now,
+                    updated_by: Some(params.owner.clone()),
+                };
+                env.storage().persistent().set(
+                    &ExtensionKey2::ProjectVerificationRequirements(count),
+                    &req_record,
+                );
+            }
         }
 
         Self::store_integrity_hash(
@@ -697,6 +714,40 @@ impl ProjectRegistry {
                 Utils::validate_language_code(code)?;
             }
             project.language_code = value;
+        }
+
+        // Handle verification requirements update
+        if let Some(value) = params.verification_requirements {
+            let now = env.ledger().timestamp();
+            if let Some(ref reqs) = value {
+                // Validate each requirement CID if any are provided
+                for req_cid in reqs.iter() {
+                    Utils::validate_metadata_cid(req_cid)?;
+                }
+                if !reqs.is_empty() {
+                    let req_record = crate::types::ProjectVerificationRequirements {
+                        project_id: params.project_id,
+                        requirement_cids: reqs.clone(),
+                        updated_at: now,
+                        updated_by: Some(params.caller.clone()),
+                    };
+                    env.storage().persistent().set(
+                        &ExtensionKey2::ProjectVerificationRequirements(params.project_id),
+                        &req_record,
+                    );
+                } else {
+                    // If empty vec provided, clear the requirements
+                    env.storage()
+                        .persistent()
+                        .remove(&ExtensionKey2::ProjectVerificationRequirements(params.project_id));
+                }
+            } else {
+                // Some(None) - clear the requirements
+                env.storage()
+                    .persistent()
+                    .remove(&ExtensionKey2::ProjectVerificationRequirements(params.project_id));
+            }
+            project.verification_requirements = value;
         }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
