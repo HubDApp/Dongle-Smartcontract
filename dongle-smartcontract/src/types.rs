@@ -651,6 +651,26 @@ pub struct ProjectReport {
     pub category: ReportCategory,
     /// Moderator currently assigned to review the report, if routed (#920).
     pub assigned_moderator: Option<Address>,
+    /// Evidence documents (screenshots, archives) attached as IPFS CIDs.
+    /// Append-only, capped at `MAX_REPORT_EVIDENCE` (#921).
+    pub evidence_cids: Vec<String>,
+}
+
+/// Audit-trail entry recorded each time evidence is attached to a report.
+/// Entries are append-only and never removed (#921).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportEvidenceAttachment {
+    /// Report the evidence was attached to.
+    pub report_id: u64,
+    /// IPFS CID of the evidence document.
+    pub evidence_cid: String,
+    /// Position of the CID in the report's `evidence_cids`.
+    pub index: u32,
+    /// Address that attached the evidence.
+    pub attached_by: Address,
+    /// Unix timestamp (seconds) when the evidence was attached.
+    pub attached_at: u64,
 }
 
 /// Category of a project report. Each category can be routed to its own

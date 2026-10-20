@@ -4453,3 +4453,36 @@ pub fn publish_report_routing_rule_updated_event(
         },
     );
 }
+
+/// Emitted when an evidence CID is attached to a report (#921).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportEvidenceAttachedEvent {
+    pub report_id: u64,
+    pub project_id: u64,
+    pub evidence_cid: String,
+    pub index: u32,
+    pub attached_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_report_evidence_attached_event(
+    env: &Env,
+    report_id: u64,
+    project_id: u64,
+    evidence_cid: String,
+    index: u32,
+    attached_by: Address,
+) {
+    env.events().publish(
+        (symbol_short!("REPORT"), symbol_short!("EVIDENCE"), report_id),
+        ReportEvidenceAttachedEvent {
+            report_id,
+            project_id,
+            evidence_cid,
+            index,
+            attached_by,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}

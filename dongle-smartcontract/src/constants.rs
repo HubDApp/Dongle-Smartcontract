@@ -673,3 +673,8 @@ pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
 pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
 /// Maximum reports moved in a single bulk reassignment call.
 pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
+
+// ── Report evidence (#921) ─────────────────────────────────────────────────
+
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;

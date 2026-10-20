@@ -2481,6 +2481,31 @@ impl DongleContract {
         ReportRegistry::get_moderator_assignments(&env, moderator)
     }
 
+    /// Attach an evidence CID to a report (reporter, assigned moderator or
+    /// admin; max 5 per report, append-only) - Issue #921
+    pub fn attach_evidence_to_report(
+        env: Env,
+        report_id: u64,
+        submitter: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::attach_evidence_to_report(&env, report_id, submitter, evidence_cid)
+    }
+
+    /// Get the evidence CIDs attached to a report - Issue #921
+    pub fn get_report_evidence(env: Env, report_id: u64) -> Vec<String> {
+        ReportRegistry::get_report_evidence(&env, report_id)
+    }
+
+    /// Get the evidence attachment audit trail for a report - Issue #921
+    pub fn get_report_evidence_audit(
+        env: Env,
+        report_id: u64,
+    ) -> Vec<crate::types::ReportEvidenceAttachment> {
+        ReportRegistry::get_report_evidence_audit(&env, report_id)
+    }
+
     /// List projects by tag - Issue #125
     /// Look projects up by one or more tags using the inverted index (issue #483).
     ///

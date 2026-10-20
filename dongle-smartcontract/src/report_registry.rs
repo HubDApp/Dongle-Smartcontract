@@ -4,13 +4,14 @@ use crate::admin_action_log::AdminActionLog;
 use crate::errors::ContractError;
 use crate::admin_manager::AdminManager;
 use crate::events::{
-    publish_project_reported_event, publish_report_routed_event,
-    publish_report_routing_rule_updated_event,
+    publish_project_reported_event, publish_report_evidence_attached_event,
+    publish_report_routed_event, publish_report_routing_rule_updated_event,
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{ReportModerationKey, StorageKey};
 use crate::types::{
-    AdminActionType, ProjectReport, ReportAssignment, ReportCategory, ReportRoutingRule,
+    AdminActionType, ProjectReport, ReportAssignment, ReportCategory, ReportEvidenceAttachment,
+    ReportRoutingRule,
 };
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -74,6 +75,7 @@ impl ReportRegistry {
             report_id,
             category,
             assigned_moderator: None,
+            evidence_cids: Vec::new(env),
         };
         env.storage()
             .persistent()
@@ -455,6 +457,85 @@ impl ReportRegistry {
         env.storage()
             .persistent()
             .get(&ReportModerationKey::ModeratorAssignments(moderator))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    // ── Report evidence (#921) ───────────────────────────────────────────────
+
+    /// Attach an evidence document CID to a report.
+    ///
+    /// Callable by the original reporter, the assigned moderator, or any
+    /// admin. Evidence is append-only: CIDs are content-addressed (and thus
+    /// immutable) and attached CIDs can never be replaced or removed. Each
+    /// attachment is recorded in the report's evidence audit trail.
+    pub fn attach_evidence_to_report(
+        env: &Env,
+        report_id: u64,
+        submitter: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        submitter.require_auth();
+        let mut report = Self::get_report(env, report_id).ok_or(ContractError::ReportNotFound)?;
+
+        let is_assigned_moderator = report.assigned_moderator.as_ref() == Some(&submitter);
+        if submitter != report.reporter
+            && !is_assigned_moderator
+            && !AdminManager::is_admin(env, &submitter)
+        {
+            return Err(ContractError::Unauthorized);
+        }
+
+        Utils::validate_metadata_cid(&evidence_cid)?;
+
+        if report.evidence_cids.len() >= crate::constants::MAX_REPORT_EVIDENCE {
+            return Err(ContractError::ReportEvidenceLimitReached);
+        }
+        if report.evidence_cids.contains(&evidence_cid) {
+            return Err(ContractError::ReportEvidenceAlreadyAttached);
+        }
+
+        let index = report.evidence_cids.len();
+        report.evidence_cids.push_back(evidence_cid.clone());
+        Self::save_report(env, &report);
+
+        let audit_key = ReportModerationKey::EvidenceAudit(report_id);
+        let mut audit: Vec<ReportEvidenceAttachment> = env
+            .storage()
+            .persistent()
+            .get(&audit_key)
+            .unwrap_or_else(|| Vec::new(env));
+        audit.push_back(ReportEvidenceAttachment {
+            report_id,
+            evidence_cid: evidence_cid.clone(),
+            index,
+            attached_by: submitter.clone(),
+            attached_at: env.ledger().timestamp(),
+        });
+        env.storage().persistent().set(&audit_key, &audit);
+
+        publish_report_evidence_attached_event(
+            env,
+            report_id,
+            report.project_id,
+            evidence_cid,
+            index,
+            submitter,
+        );
+        Ok(())
+    }
+
+    /// Evidence CIDs attached to a report, in attachment order.
+    pub fn get_report_evidence(env: &Env, report_id: u64) -> Vec<String> {
+        Self::get_report(env, report_id)
+            .map(|r| r.evidence_cids)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Full evidence audit trail for a report.
+    pub fn get_report_evidence_audit(env: &Env, report_id: u64) -> Vec<ReportEvidenceAttachment> {
+        env.storage()
+            .persistent()
+            .get(&ReportModerationKey::EvidenceAudit(report_id))
             .unwrap_or_else(|| Vec::new(env))
     }
 }

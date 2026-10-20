@@ -813,4 +813,6 @@ pub enum ReportModerationKey {
     Assignment(u64),
     /// Report IDs currently assigned to a moderator.
     ModeratorAssignments(Address),
+    /// Append-only evidence audit trail: report_id -> Vec<ReportEvidenceAttachment> (#921).
+    EvidenceAudit(u64),
 }

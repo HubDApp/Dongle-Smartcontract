@@ -337,6 +337,10 @@ pub enum ContractError {
     ReportNotFound = 142,
     /// No routing rule is configured for the report's category (#920).
     ReportRoutingRuleNotFound = 143,
+    /// Report already holds the maximum number of evidence attachments (#921).
+    ReportEvidenceLimitReached = 144,
+    /// The evidence CID is already attached to the report (#921).
+    ReportEvidenceAlreadyAttached = 145,
 }
 
 pub type Error = ContractError;
