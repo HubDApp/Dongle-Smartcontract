@@ -333,6 +333,23 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+
+    // ── Issue #987: Address Blacklisting ──────────────────────────────────────
+    /// The caller's address is currently blacklisted and cannot perform
+    /// mutating operations.
+    AddressBlacklisted = 142,
+    /// The address is not in the blacklist (for operations that require it to be).
+    AddressNotBlacklisted = 143,
+    /// A blacklist appeal already exists for this address and is pending review.
+    AppealAlreadyExists = 144,
+    /// The blacklist appeal does not exist.
+    AppealNotExist = 145,
+    /// The appeal has already been reviewed and its outcome cannot be changed.
+    AppealAlreadyResolved = 146,
+    /// The blacklist reason string is empty or too long (max 256 bytes).
+    InvalidBlacklistReason = 147,
+    /// The appeal CID is empty or invalid.
+    InvalidAppealCid = 148,
 }
 
 pub type Error = ContractError;

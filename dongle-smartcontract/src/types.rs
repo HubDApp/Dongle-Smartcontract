@@ -3458,3 +3458,96 @@ pub struct ReviewFlag {
     pub flagged_by: Address,
     pub flagged_at: u64,
 }
+
+// ── Issue #987: Address Blacklisting ──────────────────────────────────────────
+
+/// Whether a blacklist entry is temporary or permanent.
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum BlacklistKind {
+    /// Entry expires at `expires_at` (Unix seconds). A value of 0 is invalid;
+    /// use `Permanent` instead.
+    Temporary,
+    /// Entry never expires.
+    Permanent,
+}
+
+/// Current disposition of a blacklist entry.
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum BlacklistStatus {
+    /// Address is actively blacklisted and all mutating operations are blocked.
+    Active,
+    /// Admin manually removed the blacklist (whitelisted).
+    Removed,
+    /// An appeal was granted and the blacklist was lifted.
+    AppealGranted,
+}
+
+/// Stored record for a blacklisted address.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlacklistEntry {
+    /// The blacklisted address.
+    pub address: Address,
+    /// Human-readable reason (max 256 chars).
+    pub reason: String,
+    /// Blacklist kind: temporary or permanent.
+    pub kind: BlacklistKind,
+    /// Unix timestamp at which a temporary blacklist expires. 0 = permanent.
+    pub expires_at: u64,
+    /// Admin who created the entry.
+    pub blacklisted_by: Address,
+    /// Unix timestamp when the entry was created.
+    pub blacklisted_at: u64,
+    /// Current status.
+    pub status: BlacklistStatus,
+}
+
+/// Disposition of a blacklist appeal.
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum AppealStatus {
+    /// Appeal has been submitted and is awaiting admin review.
+    Pending,
+    /// Admin has granted the appeal — address is unblocked.
+    Granted,
+    /// Admin has denied the appeal — address remains blocked.
+    Denied,
+}
+
+/// Appeal record submitted by a blacklisted address.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlacklistAppeal {
+    /// The address filing the appeal.
+    pub appellant: Address,
+    /// IPFS CID pointing to off-chain appeal evidence / explanation.
+    pub appeal_cid: String,
+    /// Unix timestamp when the appeal was submitted.
+    pub submitted_at: u64,
+    /// Current review status.
+    pub status: AppealStatus,
+    /// Admin who reviewed the appeal (if any).
+    pub reviewed_by: Option<Address>,
+    /// Unix timestamp when the appeal was reviewed (if any).
+    pub reviewed_at: u64,
+    /// Optional admin note left during review.
+    pub review_note: Option<String>,
+}
+
+/// Aggregate statistics tracked for the blacklist subsystem.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlacklistStats {
+    /// Total number of addresses ever blacklisted (not decremented on removal).
+    pub total_blacklisted: u64,
+    /// Number of addresses currently active (not removed or appeal-granted).
+    pub currently_active: u64,
+    /// Total number of appeals ever submitted.
+    pub total_appeals: u64,
+    /// Number of appeals granted.
+    pub appeals_granted: u64,
+    /// Number of appeals denied.
+    pub appeals_denied: u64,
+}

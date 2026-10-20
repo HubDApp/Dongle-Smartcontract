@@ -9,6 +9,7 @@ mod admin_manager;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
+mod blacklist_registry;
 mod bookmark_registry;
 pub mod category_types;
 mod category_registry;
@@ -60,6 +61,7 @@ mod tests;
 
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
+use crate::blacklist_registry::BlacklistRegistry;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
@@ -4641,5 +4643,107 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
+    }
+
+    // =========================================================================
+    // Issue #987: Address Blacklisting
+    // =========================================================================
+
+    /// Admin: blacklist an address for abuse prevention.
+    ///
+    /// Pass `expires_at = 0` for a permanent ban; pass a Unix timestamp for a
+    /// temporary ban that auto-expires.  Calling this on an already-active entry
+    /// **updates** the reason and expiry rather than returning an error.
+    ///
+    /// Emits `AddressBlacklisted`.
+    pub fn blacklist_address(
+        env: Env,
+        admin: Address,
+        address: Address,
+        reason: String,
+        expires_at: u64,
+    ) -> Result<(), ContractError> {
+        BlacklistRegistry::blacklist_address(&env, &admin, &address, reason, expires_at)
+    }
+
+    /// Admin: remove (whitelist) an address from the blacklist.
+    ///
+    /// Emits `AddressWhitelisted`.
+    pub fn remove_from_blacklist(
+        env: Env,
+        admin: Address,
+        address: Address,
+    ) -> Result<(), ContractError> {
+        BlacklistRegistry::remove_blacklist(&env, &admin, &address)
+    }
+
+    /// Check whether an address is currently blacklisted.
+    ///
+    /// Returns `true` when the address is blocked (active entry, not yet expired).
+    /// Expired temporary entries return `false`.
+    pub fn is_blacklisted(env: Env, address: Address) -> bool {
+        BlacklistRegistry::is_blacklisted(&env, &address)
+    }
+
+    /// Retrieve the full blacklist entry for an address, if any.
+    pub fn get_blacklist_entry(
+        env: Env,
+        address: Address,
+    ) -> Option<crate::types::BlacklistEntry> {
+        BlacklistRegistry::get_blacklist_entry(&env, &address)
+    }
+
+    /// Blacklisted address: submit a removal appeal with off-chain evidence.
+    ///
+    /// `appeal_cid` must be a valid non-empty IPFS CID pointing to the appeal
+    /// documentation.  Only one pending appeal may exist per address at a time.
+    ///
+    /// Emits `BlacklistAppealSubmitted`.
+    pub fn request_blacklist_removal(
+        env: Env,
+        appellant: Address,
+        appeal_cid: String,
+    ) -> Result<(), ContractError> {
+        BlacklistRegistry::request_blacklist_removal(&env, &appellant, appeal_cid)
+    }
+
+    /// Admin: grant or deny a blacklist removal appeal.
+    ///
+    /// Setting `grant = true` lifts the blacklist and emits `AddressWhitelisted`
+    /// (via appeal). Setting `grant = false` leaves the entry active.
+    ///
+    /// Emits `BlacklistAppealReviewed`.
+    pub fn review_blacklist_appeal(
+        env: Env,
+        admin: Address,
+        appellant: Address,
+        grant: bool,
+        note: Option<String>,
+    ) -> Result<(), ContractError> {
+        BlacklistRegistry::review_blacklist_appeal(&env, &admin, &appellant, grant, note)
+    }
+
+    /// Retrieve the appeal record for an address, if any.
+    pub fn get_blacklist_appeal(
+        env: Env,
+        address: Address,
+    ) -> Option<crate::types::BlacklistAppeal> {
+        BlacklistRegistry::get_appeal(&env, &address)
+    }
+
+    /// Retrieve aggregate blacklist statistics.
+    pub fn get_blacklist_stats(env: Env) -> crate::types::BlacklistStats {
+        BlacklistRegistry::get_blacklist_stats(&env)
+    }
+
+    /// Return a paginated list of all blacklisted addresses (active and inactive).
+    ///
+    /// `offset` is zero-based; `limit` is capped at 50 (pass 0 for the default).
+    pub fn list_blacklisted_addresses(
+        env: Env,
+        offset: u32,
+        limit: u32,
+    ) -> Vec<Address> {
+        BlacklistRegistry::list_blacklisted_addresses(&env, offset, limit)
     }
 }

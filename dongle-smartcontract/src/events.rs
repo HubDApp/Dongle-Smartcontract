@@ -1,7 +1,8 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
-    AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AdminActionType, AppealStatus, DigestFrequency, EvidenceLink, ModerateAction,
+    NotificationKind, ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData,
+    VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -4391,5 +4392,145 @@ pub fn publish_reviews_moderated_event(
             failed,
             timestamp: env.ledger().timestamp(),
         },
+    );
+}
+
+// ── Issue #987: Address Blacklisting Events ───────────────────────────────────
+
+/// Emitted when an admin blacklists an address.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddressBlacklistedEvent {
+    /// The address that was blacklisted.
+    pub address: Address,
+    /// Human-readable reason supplied by the admin.
+    pub reason: String,
+    /// Whether the blacklist is permanent (true) or temporary (false).
+    pub permanent: bool,
+    /// Unix timestamp at which the entry expires (0 = permanent).
+    pub expires_at: u64,
+    /// Admin who performed the action.
+    pub blacklisted_by: Address,
+    /// Unix timestamp when the action occurred.
+    pub timestamp: u64,
+}
+
+/// Emitted when an admin removes (whitelists) an address from the blacklist.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddressWhitelistedEvent {
+    /// The address that was removed from the blacklist.
+    pub address: Address,
+    /// Admin who performed the removal.
+    pub removed_by: Address,
+    /// Unix timestamp when the removal occurred.
+    pub timestamp: u64,
+}
+
+/// Emitted when a blacklisted address submits an appeal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlacklistAppealSubmittedEvent {
+    /// The address filing the appeal.
+    pub appellant: Address,
+    /// IPFS CID pointing to off-chain appeal evidence.
+    pub appeal_cid: String,
+    /// Unix timestamp when the appeal was submitted.
+    pub timestamp: u64,
+}
+
+/// Emitted when an admin reviews (grants or denies) a blacklist appeal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlacklistAppealReviewedEvent {
+    /// The appellant address.
+    pub appellant: Address,
+    /// Outcome of the review.
+    pub outcome: AppealStatus,
+    /// Admin who reviewed the appeal.
+    pub reviewed_by: Address,
+    /// Unix timestamp when the review occurred.
+    pub timestamp: u64,
+}
+
+// ── Blacklist emit functions ───────────────────────────────────────────────────
+
+/// Emit `AddressBlacklisted` when an admin blacklists an address.
+pub fn publish_address_blacklisted_event(
+    env: &Env,
+    address: Address,
+    reason: String,
+    permanent: bool,
+    expires_at: u64,
+    blacklisted_by: Address,
+) {
+    let event_data = AddressBlacklistedEvent {
+        address: address.clone(),
+        reason,
+        permanent,
+        expires_at,
+        blacklisted_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("BLIST"), symbol_short!("ADDED"), address),
+        event_data,
+    );
+}
+
+/// Emit `AddressWhitelisted` when an admin removes an address from the blacklist.
+pub fn publish_address_whitelisted_event(env: &Env, address: Address, removed_by: Address) {
+    let event_data = AddressWhitelistedEvent {
+        address: address.clone(),
+        removed_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("BLIST"), symbol_short!("REMOVED"), address),
+        event_data,
+    );
+}
+
+/// Emit `BlacklistAppealSubmitted` when a blacklisted address files an appeal.
+pub fn publish_blacklist_appeal_submitted_event(
+    env: &Env,
+    appellant: Address,
+    appeal_cid: String,
+) {
+    let event_data = BlacklistAppealSubmittedEvent {
+        appellant: appellant.clone(),
+        appeal_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BLIST"),
+            symbol_short!("APPEAL"),
+            appellant,
+        ),
+        event_data,
+    );
+}
+
+/// Emit `BlacklistAppealReviewed` when an admin resolves an appeal.
+pub fn publish_blacklist_appeal_reviewed_event(
+    env: &Env,
+    appellant: Address,
+    outcome: AppealStatus,
+    reviewed_by: Address,
+) {
+    let event_data = BlacklistAppealReviewedEvent {
+        appellant: appellant.clone(),
+        outcome,
+        reviewed_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("BLIST"),
+            symbol_short!("REVIEW"),
+            appellant,
+        ),
+        event_data,
     );
 }

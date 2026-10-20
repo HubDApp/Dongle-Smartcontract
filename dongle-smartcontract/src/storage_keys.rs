@@ -797,3 +797,24 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for address blacklisting (#987).
+///
+/// Uses a dedicated enum to stay under Soroban's 50-variant
+/// `#[contracttype]` hard cap (same pattern as `FeeHistoryKey`,
+/// `NotificationKey`, `TrustAndSafetyKey`, etc.).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BlacklistKey {
+    /// Full blacklist record for a specific address.
+    /// Keyed by blacklisted `Address` → `BlacklistEntry`.
+    BlacklistEntry(Address),
+    /// Global list of all currently blacklisted addresses (`Vec<Address>`).
+    /// Used for bulk enumeration; kept in sync with `BlacklistEntry`.
+    BlacklistedAddresses,
+    /// Appeal record for a specific address.
+    /// Keyed by `Address` → `BlacklistAppeal`.
+    BlacklistAppeal(Address),
+    /// Aggregate blacklist statistics (total count, appeal count, etc.).
+    BlacklistStats,
+}
