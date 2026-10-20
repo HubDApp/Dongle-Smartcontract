@@ -4393,3 +4393,74 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+// ── Dependency deprecation (#925) ────────────────────────────────────────────
+
+/// Alert emitted once per dependent when a project it depends on is
+/// deprecated. The third topic is the dependent project's ID so indexers can
+/// subscribe to alerts for a single project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyDeprecatedEvent {
+    pub deprecated_project_id: u64,
+    pub dependent_project_id: u64,
+    pub reason: String,
+    pub migration_guide_cid: Option<String>,
+    pub timestamp: u64,
+}
+
+pub fn publish_dependency_deprecated_event(
+    env: &Env,
+    deprecated_project_id: u64,
+    dependent_project_id: u64,
+    reason: String,
+    migration_guide_cid: Option<String>,
+) {
+    env.events().publish(
+        (
+            symbol_short!("DEPEND"),
+            symbol_short!("DEPRECATD"),
+            dependent_project_id,
+        ),
+        DependencyDeprecatedEvent {
+            deprecated_project_id,
+            dependent_project_id,
+            reason,
+            migration_guide_cid,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Summary emitted when an admin deprecates a project.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectDeprecatedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub migration_guide_cid: Option<String>,
+    pub dependent_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_project_deprecated_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    reason: String,
+    migration_guide_cid: Option<String>,
+    dependent_count: u32,
+) {
+    env.events().publish(
+        (symbol_short!("PROJECT"), symbol_short!("DEPRECATD"), project_id),
+        ProjectDeprecatedEvent {
+            project_id,
+            admin,
+            reason,
+            migration_guide_cid,
+            dependent_count,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}

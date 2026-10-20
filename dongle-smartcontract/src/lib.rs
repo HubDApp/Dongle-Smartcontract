@@ -18,6 +18,7 @@ mod collection_registry;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
+mod deprecation_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_registry;
@@ -80,6 +81,8 @@ use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     // #924 dependency graph
     DependencyGraph,
+    // #925 dependency deprecation
+    DeprecationRecord,
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
@@ -2764,6 +2767,66 @@ impl DongleContract {
     ) -> Result<DependencyGraph, ContractError> {
         crate::dependency_registry::DependencyRegistry::get_dependency_graph(
             &env, project_id, max_depth,
+        )
+    }
+
+    // --- Dependency Deprecation (#925) ---
+
+    /// Admin: deprecate a project and alert its dependents via
+    /// `DependencyDeprecated` events (first `MAX_DEPRECATION_NOTIFY_BATCH`
+    /// dependents; page through the rest with `notify_deprecation_dependents`).
+    pub fn deprecate_project(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+        migration_guide_cid: Option<String>,
+    ) -> Result<DeprecationRecord, ContractError> {
+        crate::deprecation_registry::DeprecationRegistry::deprecate_project(
+            &env,
+            admin,
+            project_id,
+            reason,
+            migration_guide_cid,
+        )
+    }
+
+    /// Admin: batch-emit `DependencyDeprecated` alerts for one page of a
+    /// deprecated project's dependents. Returns the number of alerts sent.
+    pub fn notify_deprecation_dependents(
+        env: Env,
+        admin: Address,
+        deprecated_project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<u32, ContractError> {
+        crate::deprecation_registry::DeprecationRegistry::notify_deprecation_dependents(
+            &env,
+            admin,
+            deprecated_project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Projects affected by a deprecation (direct dependents). Empty when
+    /// the project is not deprecated.
+    pub fn get_projects_depending_on(env: Env, deprecated_project_id: u64) -> Vec<u64> {
+        crate::deprecation_registry::DeprecationRegistry::get_projects_depending_on(
+            &env,
+            deprecated_project_id,
+        )
+    }
+
+    pub fn get_deprecation_record(env: Env, project_id: u64) -> Option<DeprecationRecord> {
+        crate::deprecation_registry::DeprecationRegistry::get_deprecation_record(&env, project_id)
+    }
+
+    pub fn list_deprecated_projects(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::deprecation_registry::DeprecationRegistry::list_deprecated_projects(
+            &env,
+            start_index,
+            limit,
         )
     }
 

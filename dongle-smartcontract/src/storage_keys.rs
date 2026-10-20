@@ -797,3 +797,14 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for admin project deprecation (issue #925). Own enum to
+/// respect Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeprecationKey {
+    /// Deprecation record: project_id -> DeprecationRecord.
+    Record(u64),
+    /// IDs of all deprecated projects, in deprecation order.
+    DeprecatedProjects,
+}

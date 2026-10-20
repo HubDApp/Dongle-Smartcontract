@@ -191,6 +191,15 @@ pub const MAX_DEPENDENCY_GRAPH_DEPTH: u32 = 10;
 /// reached.
 pub const MAX_DEPENDENCY_GRAPH_NODES: u32 = 200;
 
+/// Maximum length of a deprecation reason passed to `deprecate_project`
+/// (issue #925).
+pub const MAX_DEPRECATION_REASON_LEN: u32 = 512;
+
+/// Maximum number of `DependencyDeprecated` alerts emitted in one call.
+/// `deprecate_project` alerts the first batch of dependents; the rest are
+/// alerted page by page through `notify_deprecation_dependents`.
+pub const MAX_DEPRECATION_NOTIFY_BATCH: u32 = 50;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

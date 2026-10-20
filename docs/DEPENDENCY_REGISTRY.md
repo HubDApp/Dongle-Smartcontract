@@ -129,3 +129,29 @@ client:
   incoming or no outgoing dependency edge; any nodes left are reported in
   `cycle_nodes` and `has_cycle` is set. Traversal never loops, because each
   project is expanded at most once per direction.
+
+## Deprecated dependencies (issue #925)
+
+Admins can deprecate a project with
+`deprecate_project(admin, project_id, reason, migration_guide_cid)`:
+
+- `Project::deprecated` is set to `true`, `Project::deprecation_reason` to
+  `reason` (1–512 bytes), and `lifecycle_status` to `Deprecated`.
+- A `DeprecationRecord` (reason, optional migration-guide CID, admin,
+  timestamp, dependent count) is stored and returned by
+  `get_deprecation_record`. `list_deprecated_projects` pages through all
+  deprecated project IDs.
+- A `PROJECT/DEPRECATD/<project_id>` summary event is emitted, followed by one
+  `DEPEND/DEPRECATD/<dependent_id>` (`DependencyDeprecatedEvent`) alert per
+  direct dependent. Indexers can subscribe to the third topic to receive
+  alerts for a single project.
+- At most `MAX_DEPRECATION_NOTIFY_BATCH` (**50**) alerts are emitted per call.
+  For larger dependent lists, call
+  `notify_deprecation_dependents(admin, project_id, start_index, limit)` with
+  increasing `start_index` until it returns `0`. The same endpoint can be used
+  to re-send alerts.
+- `get_projects_depending_on(project_id)` returns the affected (direct
+  dependent) projects of a deprecated project, or an empty list when the
+  project is not deprecated.
+
+Deprecating an already-deprecated project fails with `InvalidStatus`.

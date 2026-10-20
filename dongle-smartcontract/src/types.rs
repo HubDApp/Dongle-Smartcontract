@@ -559,6 +559,12 @@ pub struct Project {
     /// language of the project's documentation and interface (e.g., "en", "es").
     /// Used for international discovery and filtering.
     pub language_code: Option<String>,
+    /// Whether an admin has deprecated this project via `deprecate_project`
+    /// (issue #925). Dependents are alerted through `DependencyDeprecated`
+    /// events.
+    pub deprecated: bool,
+    /// Admin-supplied deprecation reason. Empty while `deprecated` is false.
+    pub deprecation_reason: String,
 }
 
 /// Read-only view of a project's security contact, returned by
@@ -1659,6 +1665,22 @@ pub enum AdminActionType {
     VerificationSlaSet,
     /// Review flagged for moderator follow-up via batch moderation.
     ReviewFlagged,
+    /// Admin deprecated a project and alerted its dependents (#925).
+    ProjectDeprecated,
+}
+
+/// Admin deprecation record for a project (issue #925).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeprecationRecord {
+    pub project_id: u64,
+    pub reason: String,
+    /// IPFS CID of a migration guide for dependents, if one was published.
+    pub migration_guide_cid: Option<String>,
+    pub deprecated_by: Address,
+    pub deprecated_at: u64,
+    /// Number of direct dependents at the time of deprecation.
+    pub dependent_count: u32,
 }
 
 /// Current state of a duplicate-project dispute.

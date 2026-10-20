@@ -235,6 +235,8 @@ impl ProjectRegistry {
             security_contact_proof_cid: None,
             security_contact_verified: false,
             language_code: params.language_code.clone(),
+            deprecated: false,
+            deprecation_reason: String::from_str(env, ""),
         };
 
         // Get current owner projects
