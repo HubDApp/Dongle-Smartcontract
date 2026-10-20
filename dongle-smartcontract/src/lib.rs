@@ -54,6 +54,9 @@ mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
+mod similarity_registry;
+mod smart_bookmark_registry;
+mod trending_registry;
 
 #[cfg(test)]
 mod tests;
@@ -71,8 +74,11 @@ use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::similarity_registry::SimilarityRegistry;
+use crate::smart_bookmark_registry::SmartBookmarkRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
+use crate::trending_registry::TrendingRegistry;
 use crate::activity_feed_registry::ActivityFeedRegistry;
 use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
@@ -80,6 +86,8 @@ use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
+    SimilarProject, SmartBookmarkCollection, SmartBookmarkRules, TrendingProject,
+
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
@@ -860,6 +868,16 @@ impl DongleContract {
     ) -> Vec<Project> {
         ProjectRegistry::search_projects(&env, query, start_index, limit)
     }
+
+    /// Search active projects with limit (starts at index 0) (#909).
+    pub fn search_projects_with_limit(
+        env: Env,
+        query: String,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::search_projects_with_limit(&env, query, limit)
+    }
+
 
     /// List projects filtered by lifecycle status.
     ///
@@ -2820,6 +2838,37 @@ impl DongleContract {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 
+    /// Find projects similar to `project_id` exceeding similarity threshold (#913).
+    /// `threshold` is provided in basis points (0..10_000) or percentage shorthand (1..100).
+    pub fn find_similar_projects(
+        env: Env,
+        project_id: u64,
+        threshold: u32,
+    ) -> Vec<SimilarProject> {
+        SimilarityRegistry::find_similar_projects(&env, project_id, threshold)
+    }
+
+    /// Open a duplicate dispute integrated with similarity verification (#913).
+    pub fn open_duplicate_dispute_with_similarity(
+        env: Env,
+        project_id: u64,
+        original_project_id: u64,
+        creator: Address,
+        evidence_cid: String,
+        min_threshold: u32,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SimilarityRegistry::open_duplicate_dispute_with_similarity(
+            &env,
+            project_id,
+            original_project_id,
+            creator,
+            evidence_cid,
+            min_threshold,
+        )
+    }
+
+
     // --- Project Changelog ---
 
     /// Add a new changelog entry for a project (owner only).
@@ -3222,7 +3271,76 @@ impl DongleContract {
         )
     }
 
+    // --- Smart Bookmark Collections (#914) ---
+
+    /// Create a smart bookmark collection with filtering rules (#914).
+    pub fn create_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        name: String,
+        rules: SmartBookmarkRules,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::create_smart_bookmark_collection(&env, user, name, rules)
+    }
+
+    /// Refresh a smart bookmark collection's auto-populated member projects (#914).
+    pub fn refresh_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Result<Vec<u64>, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::refresh_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// Get a smart bookmark collection by ID (#914).
+    pub fn get_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Option<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::get_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// List all smart bookmark collections owned by the user (#914).
+    pub fn list_smart_bookmark_collections(
+        env: Env,
+        user: Address,
+    ) -> Vec<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::list_smart_bookmark_collections(&env, user)
+    }
+
+    /// Delete a smart bookmark collection (#914).
+    pub fn delete_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::delete_smart_bookmark_collection(&env, user, collection_id)
+    }
+
+    // --- Dynamic Trending Projects (#912) ---
+
+    /// Get dynamically calculated trending projects for a specified time window (#912).
+    /// `time_window` supports 86400 (24h), 604800 (7d), 2592000 (30d), and 0 (all-time).
+    pub fn get_trending_projects(
+        env: Env,
+        time_window: u64,
+        limit: u32,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::get_trending_projects(&env, time_window, limit)
+    }
+
+    /// Recalculate trending projects cache (for background job / keeper) (#912).
+    pub fn recalculate_trending_projects(
+        env: Env,
+        time_window: u64,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::recalculate_trending(&env, time_window)
+    }
+
     // --- Endorsement Registry ---
+
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;

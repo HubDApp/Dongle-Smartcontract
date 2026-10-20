@@ -1222,23 +1222,116 @@ impl ProjectRegistry {
         projects
     }
 
+    fn wildcard_matches(text: &[u8], pattern: &[u8]) -> bool {
+        let mut t_idx = 0;
+        let mut p_idx = 0;
+        let mut star_idx = None;
+        let mut match_idx = 0;
+
+        let to_lower = |b: u8| if b >= b'A' && b <= b'Z' { b + 32 } else { b };
+
+        while t_idx < text.len() {
+            if p_idx < pattern.len()
+                && (pattern[p_idx] == b'?' || to_lower(pattern[p_idx]) == to_lower(text[t_idx]))
+            {
+                t_idx += 1;
+                p_idx += 1;
+            } else if p_idx < pattern.len() && pattern[p_idx] == b'*' {
+                star_idx = Some(p_idx);
+                p_idx += 1;
+                match_idx = t_idx;
+            } else if let Some(star) = star_idx {
+                p_idx = star + 1;
+                match_idx += 1;
+                t_idx = match_idx;
+            } else {
+                return false;
+            }
+        }
+
+        while p_idx < pattern.len() && pattern[p_idx] == b'*' {
+            p_idx += 1;
+        }
+
+        p_idx == pattern.len()
+    }
+
     fn search_match_index(text: &String, query: &String) -> Option<u32> {
-        let text_len = text.len();
-        let query_len = query.len();
-        if query_len == 0 || query_len > text_len {
+        let text_len = text.len() as usize;
+        let mut query_len = query.len() as usize;
+        if query_len == 0 {
             return None;
         }
 
-        let mut text_bytes = vec![0u8; text_len as usize];
-        let mut query_bytes = vec![0u8; query_len as usize];
+        let mut text_bytes = vec![0u8; text_len];
+        let mut query_bytes = vec![0u8; query_len];
         text.copy_into_slice(&mut text_bytes);
         query.copy_into_slice(&mut query_bytes);
+
+        // Phrase search: if enclosed in quotes "phrase", strip quotes and match exact phrase
+        let is_quoted = query_len >= 2
+            && query_bytes[0] == b'"'
+            && query_bytes[query_len - 1] == b'"';
+        let query_slice = if is_quoted {
+            &query_bytes[1..query_len - 1]
+        } else {
+            &query_bytes[..]
+        };
+
+        if query_slice.is_empty() {
+            return None;
+        }
+        query_len = query_slice.len();
+
+        // Wildcard search if pattern contains '*' or '?'
+        let has_wildcard = query_slice.iter().any(|&c| c == b'*' || c == b'?');
+        if has_wildcard {
+            // Check whole text
+            if Self::wildcard_matches(&text_bytes, query_slice) {
+                return Some(0);
+            }
+            // Check word-by-word
+            let mut word_start = None;
+            for i in 0..=text_len {
+                let is_sep = i == text_len
+                    || text_bytes[i] == b' '
+                    || text_bytes[i] == b','
+                    || text_bytes[i] == b'.'
+                    || text_bytes[i] == b'-'
+                    || text_bytes[i] == b'_';
+                if is_sep {
+                    if let Some(start) = word_start {
+                        let word = &text_bytes[start..i];
+                        if Self::wildcard_matches(word, query_slice) {
+                            return Some(start as u32);
+                        }
+                        word_start = None;
+                    }
+                } else if word_start.is_none() {
+                    word_start = Some(i);
+                }
+            }
+
+            // Also check with leading/trailing wildcard if pattern doesn't start/end with '*'
+            let mut loose_pat = vec![b'*'];
+            loose_pat.extend_from_slice(query_slice);
+            loose_pat.push(b'*');
+            if Self::wildcard_matches(&text_bytes, &loose_pat) {
+                return Some(0);
+            }
+
+            return None;
+        }
+
+        if query_len > text_len {
+            return None;
+        }
 
         for start in 0..=text_len - query_len {
             let mut matches = true;
             for offset in 0..query_len {
-                let mut text_byte = text_bytes[(start + offset) as usize];
-                let mut query_byte = query_bytes[offset as usize];
+                let mut text_byte = text_bytes[start + offset];
+                let mut query_byte = query_slice[offset];
                 if text_byte >= b'A' && text_byte <= b'Z' {
                     text_byte += 32;
                 }
@@ -1251,11 +1344,12 @@ impl ProjectRegistry {
                 }
             }
             if matches {
-                return Some(start);
+                return Some(start as u32);
             }
         }
         None
     }
+
 
     fn project_search_score(env: &Env, project: &Project, query: &String) -> Option<u32> {
         let mut score = 0u32;
@@ -1382,6 +1476,15 @@ impl ProjectRegistry {
             }
         }
         result
+    }
+
+    /// Search active projects with limit (defaults start_index = 0) (#909).
+    pub fn search_projects_with_limit(
+        env: &Env,
+        query: String,
+        limit: u32,
+    ) -> Vec<Project> {
+        Self::search_projects(env, query, 0, limit)
     }
 
     pub fn list_projects_by_category(

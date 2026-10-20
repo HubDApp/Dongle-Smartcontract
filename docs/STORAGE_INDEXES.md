@@ -111,8 +111,11 @@ These are written in production code and belong to the live scheme, but do not c
 | `ExtensionKey::AdminProposalIds` | proposal IDs | Admin governance |
 | `ExtensionKey::ReservedNames` | `Vec<String>` | Reserved project names |
 | `ExtensionKey::FeeConfigHistoryEntry(u32)` | `FeeConfigHistoryEntry` | Fee changes in chronological order; count stored in `FeeConfigHistoryCount` |
+| `SmartBookmarkKey::UserCollections(Address)` | `Vec<u64>` | Collection IDs owned by user (cap: `MAX_SMART_BOOKMARK_COLLECTIONS_PER_USER` = 20) |
+| `TrendingKey::TrendingCache(u64)` | `Vec<TrendingProject>` | Cached trending projects per time window |
 
 Lookup / singleton keys (not Vec indexes) such as `Project`, `ProjectBySlug`, `FeeConfig`, `FeePaidForProject`, claim records, etc. live in the same enums but are outside the scope of this size-strategy doc. See `docs/STORAGE_SCHEMA.md` for project field layout.
+
 
 ## Dead scaffolding (not part of the live scheme)
 

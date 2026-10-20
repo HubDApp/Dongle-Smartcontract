@@ -333,6 +333,12 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Smart bookmark collection referenced by ID does not exist (#914).
+    SmartBookmarkCollectionNotFound = 142,
+    /// Maximum smart bookmark collections per user exceeded (#914).
+    MaxSmartBookmarkCollectionsExceeded = 143,
+    /// Project similarity score did not meet the required threshold (#913).
+    SimilarityThresholdNotMet = 144,
 }
 
 pub type Error = ContractError;

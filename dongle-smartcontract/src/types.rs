@@ -1554,6 +1554,45 @@ pub struct SmartFolderFilter {
     pub verification_status: VerificationStatusFilter,
 }
 
+/// Rules used to auto-populate a smart bookmark collection (#914).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkRules {
+    /// Only include bookmarks for projects carrying this tag, if set.
+    pub tag: Option<String>,
+    /// Only include bookmarks for projects in this category, if set.
+    pub category: Option<String>,
+    /// Minimum registration date timestamp (seconds), inclusive, if set.
+    pub min_date: Option<u64>,
+    /// Maximum registration date timestamp (seconds), inclusive, if set.
+    pub max_date: Option<u64>,
+    /// Optional parent folder ID for nesting within user bookmarks.
+    pub parent_id: Option<u64>,
+}
+
+/// A smart bookmark collection that auto-populates bookmarked projects based on rules (#914).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollection {
+    /// Monotonically increasing unique collection ID.
+    pub id: u64,
+    /// Owner address who created this collection.
+    pub owner: Address,
+    /// Human-readable collection name.
+    pub name: String,
+    /// Filtering rules.
+    pub rules: SmartBookmarkRules,
+    /// Optional parent folder ID (for nesting).
+    pub parent_id: Option<u64>,
+    /// Auto-populated project IDs matching the rules from user bookmarks.
+    pub project_ids: Vec<u64>,
+    /// Unix timestamp when created.
+    pub created_at: u64,
+    /// Unix timestamp when last refreshed / modified.
+    pub updated_at: u64,
+}
+
+
 /// The member list is stored separately under
 /// `ExtensionKey::CollectionProjects(id)` as a `Vec<u64>` of project IDs.
 /// The collection record itself only stores metadata.
@@ -3454,16 +3493,29 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
-
+/// A project returned with its calculated trending score and trend velocity (#912).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectDataExport {
-    pub version: u32,
-    pub project: crate::types::Project,
-    pub reviews: Vec<crate::types::Review>,
-    pub verification_records: Vec<crate::types::VerificationRecord>,
+pub struct TrendingProject {
+    /// Project record.
+    pub project: Project,
+    /// Dynamically calculated trending score.
+    pub trending_score: u64,
+    /// Trend velocity (rate of engagement per window).
+    pub trend_velocity: u32,
 }
 
+/// A candidate similar project returned with its computed similarity score (#913).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SimilarProject {
+    /// Project ID of the similar project.
+    pub project_id: u64,
+    /// Name of the similar project.
+    pub name: String,
+    /// Overall similarity score in basis points (0..10_000, where 10_000 = 100%).
+    pub similarity_score: u32,
+}
 
 /// Action applied by `moderate_reviews_batch`.
 #[contracttype]
