@@ -3,7 +3,7 @@ use crate::auth::require_admin_auth;
 use crate::constants::{
     CLAIM_EXPIRY_SECONDS, MAJOR_METADATA_FIELD_METADATA_CID, MAJOR_METADATA_FIELD_NAME,
     MAJOR_METADATA_FIELD_WEBSITE, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER,
-    PROJECT_SUNSET_MIN_NOTICE_SECS,
+    PROJECT_RECOVERY_WINDOW_SECONDS, PROJECT_SUNSET_MIN_NOTICE_SECS,
 };
 use crate::errors::ContractError;
 use crate::events::{
@@ -15,7 +15,7 @@ use crate::events::{
     publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
-use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey, TrustAndSafetyKey};
 use crate::storage_manager::StorageManager;
 use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
@@ -26,7 +26,7 @@ use crate::types::{
 use crate::utils::Utils;
 use crate::validation::validate_registration_params;
 use alloc::vec;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{symbol_short, Address, Env, String, Vec};
 
 const ISO_COUNTRY_CODES: &str = "|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|EH|ER|ES|ET|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|YE|YT|ZA|ZM|ZW|";
 
@@ -236,6 +236,8 @@ impl ProjectRegistry {
             security_contact_verified: false,
             language_code: params.language_code.clone(),
             verification_requirements: params.verification_requirements.clone(),
+            deleted_at: None,
+            recoverable_until: 0,
         };
 
         // Get current owner projects
@@ -1817,6 +1819,173 @@ impl ProjectRegistry {
             crate::types::NotificationKind::ProjectReactivated,
         );
         Ok(())
+    }
+
+    // ===== Soft deletion with time-limited recovery (issue #875) =====
+
+    fn deleted_project_ids(env: &Env) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&TrustAndSafetyKey::DeletedProjects)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    fn set_deleted_project_ids(env: &Env, ids: &Vec<u64>) {
+        env.storage()
+            .persistent()
+            .set(&TrustAndSafetyKey::DeletedProjects, ids);
+    }
+
+    fn remove_deleted_project_id(env: &Env, project_id: u64) {
+        let ids = Self::deleted_project_ids(env);
+        let mut kept = Vec::new(env);
+        for id in ids.iter() {
+            if id != project_id {
+                kept.push_back(id);
+            }
+        }
+        Self::set_deleted_project_ids(env, &kept);
+    }
+
+    /// Soft-delete a project. The owner or any admin can delete. The project
+    /// stays recoverable for `PROJECT_RECOVERY_WINDOW_SECONDS`, after which
+    /// `purge_expired_projects` removes it permanently.
+    pub fn delete_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if project.owner != caller && !AdminManager::is_admin(env, &caller) {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.deleted_at.is_some() {
+            return Err(ContractError::ProjectAlreadyDeleted);
+        }
+
+        let now = env.ledger().timestamp();
+        project.deleted_at = Some(now);
+        project.recoverable_until = now.saturating_add(PROJECT_RECOVERY_WINDOW_SECONDS);
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        Self::remove_active_owner_project(env, &project.owner, project_id);
+        let mut ids = Self::deleted_project_ids(env);
+        ids.push_back(project_id);
+        Self::set_deleted_project_ids(env, &ids);
+        StorageManager::extend_project_ttl(env, project_id);
+        env.events().publish(
+            (
+                symbol_short!("PROJECT"),
+                symbol_short!("DELETED"),
+                project_id,
+            ),
+            (caller, project.recoverable_until),
+        );
+        Ok(())
+    }
+
+    /// Recover a soft-deleted project before its recovery window expires.
+    /// The owner or any admin can recover.
+    pub fn recover_deleted_project(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+
+        if project.owner != caller && !AdminManager::is_admin(env, &caller) {
+            return Err(ContractError::Unauthorized);
+        }
+        if project.deleted_at.is_none() {
+            return Err(ContractError::ProjectNotDeleted);
+        }
+        let now = env.ledger().timestamp();
+        if now > project.recoverable_until {
+            return Err(ContractError::RecoveryWindowExpired);
+        }
+
+        project.deleted_at = None;
+        project.recoverable_until = 0;
+        project.updated_at = now;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Project(project_id), &project);
+
+        if !project.archived {
+            Self::add_active_owner_project(env, &project.owner, project_id);
+        }
+        Self::remove_deleted_project_id(env, project_id);
+        StorageManager::extend_project_ttl(env, project_id);
+        env.events().publish(
+            (
+                symbol_short!("PROJECT"),
+                symbol_short!("RECOVERED"),
+                project_id,
+            ),
+            caller,
+        );
+        Ok(())
+    }
+
+    /// Permanently purge up to `limit` soft-deleted projects whose recovery
+    /// window has expired. Permissionless so any keeper can drive the purge.
+    /// Returns the number of projects purged.
+    pub fn purge_expired_projects(env: &Env, limit: u32) -> u32 {
+        let now = env.ledger().timestamp();
+        let ids = Self::deleted_project_ids(env);
+        let mut kept = Vec::new(env);
+        let mut purged: u32 = 0;
+
+        for id in ids.iter() {
+            let project: Option<Project> = env.storage().persistent().get(&StorageKey::Project(id));
+            let expired = match &project {
+                Some(p) => now > p.recoverable_until,
+                None => true,
+            };
+            if !expired || purged >= limit {
+                kept.push_back(id);
+                continue;
+            }
+            if let Some(p) = project {
+                let storage = env.storage().persistent();
+                storage.remove(&StorageKey::Project(id));
+                storage.remove(&StorageKey::ProjectTags(id));
+                storage.remove(&StorageKey::ProjectSocialLinks(id));
+                storage.remove(&StorageKey::ProjectByName(p.name.clone()));
+                storage.remove(&StorageKey::ProjectBySlug(Utils::to_lowercase(
+                    env, &p.slug,
+                )));
+                storage.remove(&ExtensionKey::ProjectByNormalizedName(
+                    Utils::normalize_project_name(env, &p.name),
+                ));
+                env.events()
+                    .publish((symbol_short!("PROJECT"), symbol_short!("PURGED"), id), now);
+            }
+            purged = purged.saturating_add(1);
+        }
+
+        Self::set_deleted_project_ids(env, &kept);
+        purged
+    }
+
+    /// Admin view of all soft-deleted projects that have not been purged yet.
+    pub fn get_deleted_projects(env: &Env, admin: Address) -> Result<Vec<Project>, ContractError> {
+        AdminManager::require_admin(env, &admin)?;
+        let mut out = Vec::new(env);
+        for id in Self::deleted_project_ids(env).iter() {
+            if let Some(p) = Self::get_project(env, id) {
+                out.push_back(p);
+            }
+        }
+        Ok(out)
     }
 
     /// List projects by tag - Issue #125

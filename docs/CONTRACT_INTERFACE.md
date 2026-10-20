@@ -81,7 +81,7 @@ Approval entries are historical addresses stored on the proposal. Execution chec
 let payload = ProposalPayload::SetThreshold(3);
 
 // admin_1's signature is recorded as approval one.
-let proposal_id = create_proposal(env, admin_1, payload)?;
+let proposal_id = create_proposal(env, admin_1, payload, 0)?;
 
 // A distinct current admin supplies approval two, reaching the current 2-of-3 quorum.
 approve_proposal(env, admin_2, proposal_id)?;
@@ -868,6 +868,66 @@ let results = search_projects(env, String::from_slice(&env, "lending"), 0, 100);
 **Example**:
 ```rust
 let tagged_projects = list_projects_by_tag(env, String::from_slice(&env, "nft"), 0, 10);
+```
+
+---
+
+### `delete_project`
+
+**Purpose**: Soft-delete a project. The project stays recoverable for 30 days (`PROJECT_RECOVERY_WINDOW_SECONDS`) and is then eligible for `purge_expired_projects`.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The project to delete
+- `caller` (Address): Project owner or an admin
+
+**Return Value**: `Result<(), ContractError>`
+
+**Possible Errors**:
+- `ProjectNotFound`, `Unauthorized`, `ProjectAlreadyDeleted`
+
+```rust
+delete_project(env, project_id, owner_address)?;
+```
+
+---
+
+### `recover_deleted_project`
+
+**Purpose**: Restore a soft-deleted project while `now <= recoverable_until`.
+
+**Parameters**:
+- `env` (Env): The contract environment
+- `project_id` (u64): The deleted project
+- `caller` (Address): Project owner or an admin
+
+**Return Value**: `Result<(), ContractError>`
+
+**Possible Errors**:
+- `ProjectNotFound`, `Unauthorized`, `ProjectNotDeleted`, `RecoveryWindowExpired`
+
+```rust
+recover_deleted_project(env, project_id, owner_address)?;
+```
+
+---
+
+### `purge_expired_projects`
+
+**Purpose**: Permissionless keeper call that permanently removes up to `limit` soft-deleted projects whose recovery window has expired. Returns the number purged.
+
+```rust
+let purged = purge_expired_projects(env, 50)?;
+```
+
+---
+
+### `get_deleted_projects`
+
+**Purpose**: Admin-only view of soft-deleted projects that have not been purged yet.
+
+```rust
+let deleted = get_deleted_projects(env, admin_address)?;
 ```
 
 ---
@@ -1746,6 +1806,7 @@ add_review(env, project_id, reviewer_address, 5, Some(String::from_slice(&env, "
 - `reviewer` (Address): The review author
 - `rating` (u32): The rating
 - `review_cid` (String): IPFS CID containing the review content
+- `language_code` (Option<String>): Optional ISO 639-1 language code of the review
 
 **Return Value**: `Result<(), ContractError>`
 
@@ -1760,7 +1821,7 @@ add_review(env, project_id, reviewer_address, 5, Some(String::from_slice(&env, "
 
 **Example**:
 ```rust
-submit_review(env, project_id, reviewer_address, 4, String::from_slice(&env, "QmXxxx..."))?;
+submit_review(env, project_id, reviewer_address, 4, String::from_slice(&env, "QmXxxx..."), None)?;
 ```
 
 ---
@@ -1789,7 +1850,7 @@ submit_review(env, project_id, reviewer_address, 4, String::from_slice(&env, "Qm
 
 **Example**:
 ```rust
-update_review(env, project_id, reviewer_address, 3, Some(String::from_slice(&env, "QmYyyy...")))?;
+update_review(env, project_id, reviewer_address, 3, Some(String::from_slice(&env, "QmYyyy...")), None)?;
 ```
 
 ---

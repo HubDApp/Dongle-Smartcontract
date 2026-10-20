@@ -166,3 +166,15 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Soft deletion with time-limited recovery (#875)
+mod soft_delete;
+
+// Property-based invariant tests across random operation sequences (#981)
+mod proptest_invariants;
+
+// Contract upgrade / data migration paths (#967)
+mod upgrade_migration;
+
+// Documentation example validity (#980)
+mod doc_examples;

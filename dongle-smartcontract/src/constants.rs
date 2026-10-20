@@ -301,6 +301,8 @@ pub const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER;
 pub const DEFAULT_VERIFICATION_DURATION_SECS: u64 = 31_536_000;
 /// Minimum notice required between announcing a sunset and its effective date.
 pub const PROJECT_SUNSET_MIN_NOTICE_SECS: u64 = 180 * 24 * 60 * 60;
+/// Recovery window for soft-deleted projects before they can be purged (30 days).
+pub const PROJECT_RECOVERY_WINDOW_SECONDS: u64 = 30 * 24 * 60 * 60;
 /// Minimum timelock delay in seconds (1 day).
 ///
 /// Scheduled admin actions (`schedule_set_fee`, `schedule_add_admin`,
