@@ -472,6 +472,8 @@ pub enum TrustAndSafetyKey {
     ReviewerIdentity(Address),
     /// Reviewer reward points and stats. Keyed by reviewer address. (#791)
     ReviewerPoints(Address),
+    /// Ids of soft-deleted projects awaiting recovery or purge. (#875)
+    DeletedProjects,
 }
 /// Storage keys for governance features (#736-#739).
 #[contracttype]

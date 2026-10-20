@@ -333,6 +333,12 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
+    /// Project is already soft-deleted.
+    ProjectAlreadyDeleted = 142,
+    /// Project is not soft-deleted, so it cannot be recovered.
+    ProjectNotDeleted = 143,
+    /// Soft-deleted project's recovery window has expired.
+    RecoveryWindowExpired = 144,
 }
 
 pub type Error = ContractError;

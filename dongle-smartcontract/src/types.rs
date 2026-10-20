@@ -570,6 +570,12 @@ pub struct Project {
     /// additional criteria that must be met before verification approval.
     /// The contract validates these requirements before allowing verification.
     pub verification_requirements: Option<Vec<String>>,
+    /// Unix timestamp (seconds) when the project was soft-deleted via
+    /// `delete_project`. `None` while the project is live.
+    pub deleted_at: Option<u64>,
+    /// Unix timestamp (seconds) after which a soft-deleted project can no
+    /// longer be recovered and becomes eligible for purging. `0` while live.
+    pub recoverable_until: u64,
 }
 
 /// Verification requirement record containing metadata about custom requirements.

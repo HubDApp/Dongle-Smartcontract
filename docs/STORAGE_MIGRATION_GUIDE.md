@@ -128,3 +128,27 @@ Before deploying a schema change:
 The authoritative list of persistent key variants is [`storage_keys.rs`](../dongle-smartcontract/src/storage_keys.rs). Keep this guide and the storage-key definitions synchronized whenever the persistent schema changes.
 
 > **Important:** A documentation migration plan does not itself migrate on-chain data. Before deploying a schema-changing contract version, verify the actual migration mechanism supported by the deployed contract and test it against representative existing state.
+
+## Upgrade procedure (v1.0 → v2.0)
+
+Upgrades replace contract code in place; persistent storage stays at the same
+contract address. Follow these steps for every upgrade:
+
+1. **Freeze writes** — call `pause` so no state changes land mid-upgrade.
+2. **Snapshot** — export critical records (see `docs/BACKUP_AND_RECOVERY.md`).
+3. **Review the schema diff** — list keys added, removed, or whose value type
+   changed. Adding a field to a `#[contracttype]` struct (e.g. `Project`
+   gaining `deleted_at` / `recoverable_until` in #875) changes its encoding:
+   records written by the old code must be rewritten through an explicit
+   migration before the new code reads them.
+4. **Install the new WASM** — `update_current_contract_wasm` with the new hash.
+5. **Run migrations** — convert old records, writing new keys before removing
+   old ones.
+6. **Verify** — read back projects, stats, admins and counters and compare with
+   the snapshot; confirm event topics (e.g. `("PROJECT", "CREATED", id)`) are
+   unchanged so indexers keep working.
+7. **Unpause** — call `unpause`.
+
+`dongle-smartcontract/src/tests/upgrade_migration.rs` exercises this path:
+data preservation, post-upgrade mutation of pre-upgrade records, new-field
+defaults, and event-topic compatibility.

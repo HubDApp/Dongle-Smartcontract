@@ -934,6 +934,33 @@ impl DongleContract {
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
+    /// Soft-delete a project; recoverable for 30 days (owner or admin).
+    pub fn delete_project(env: Env, project_id: u64, caller: Address) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::delete_project(&env, project_id, caller)
+    }
+
+    /// Recover a soft-deleted project within its recovery window (owner or admin).
+    pub fn recover_deleted_project(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::recover_deleted_project(&env, project_id, caller)
+    }
+
+    /// Permanently purge up to `limit` projects whose recovery window expired.
+    pub fn purge_expired_projects(env: Env, limit: u32) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        Ok(ProjectRegistry::purge_expired_projects(&env, limit))
+    }
+
+    /// Admin view of soft-deleted projects awaiting recovery or purge.
+    pub fn get_deleted_projects(env: Env, admin: Address) -> Result<Vec<Project>, ContractError> {
+        ProjectRegistry::get_deleted_projects(&env, admin)
+    }
+
     pub fn reactivate_project(
         env: Env,
         project_id: u64,
