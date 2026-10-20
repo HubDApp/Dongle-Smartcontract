@@ -169,3 +169,6 @@ mod verification_performance;
 
 // Premium "featured plus" tiers with guaranteed exposure (#928)
 mod premium_featured;
+
+// Changelog generation from project events (#929)
+mod changelog_generation;

@@ -816,3 +816,21 @@ pub enum PremiumFeaturedKey {
     /// Aggregate `PremiumFeaturedStats`.
     Stats,
 }
+
+/// Storage keys for changelog generation from project events (#929).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ChangelogGenKey {
+    /// Number of events recorded for a project.
+    EventCount(u64),
+    /// Event record: (project_id, seq) -> ProjectEventRecord.
+    Event(u64, u64),
+    /// Next event `seq` the generator has not yet processed for a project.
+    Cursor(u64),
+    /// Next generated-entry ID counter.
+    NextEntryId,
+    /// Generated entry by ID.
+    Entry(u64),
+    /// Generated entry IDs for a project, in event order.
+    ProjectEntries(u64),
+}

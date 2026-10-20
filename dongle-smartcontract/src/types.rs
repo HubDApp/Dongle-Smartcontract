@@ -3505,3 +3505,78 @@ pub struct PremiumFeaturedStats {
     pub total_bid_amount: u128,
     pub highest_bid: u128,
 }
+
+// ── Changelog generation from project events (#929) ────────────────────────
+
+/// Kind of auto-generated changelog entry.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChangelogEventType {
+    VerificationApproved,
+    VerificationRejected,
+    VerificationRevoked,
+    /// Owner-initiated metadata update.
+    MajorUpdate,
+    Archived,
+    Reactivated,
+}
+
+/// One entry of a project's on-chain event stream, recorded whenever a
+/// project notification is emitted. Source data for changelog generation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectEventRecord {
+    /// Position in the project's event stream (0-based, gap-free).
+    pub seq: u64,
+    pub kind: NotificationKind,
+    pub timestamp: u64,
+}
+
+/// A changelog entry generated from a project event.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeneratedChangelogEntry {
+    pub id: u64,
+    pub project_id: u64,
+    pub event_type: ChangelogEventType,
+    /// `seq` of the `ProjectEventRecord` this entry was generated from.
+    pub source_event_seq: u64,
+    /// When the underlying event happened.
+    pub occurred_at: u64,
+    /// When the entry was generated.
+    pub generated_at: u64,
+}
+
+/// Number of generated entries of one type within a summary window.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogTypeGroup {
+    pub event_type: ChangelogEventType,
+    pub count: u32,
+    pub entry_ids: Vec<u64>,
+}
+
+/// Generated entries falling into one time bucket `[period_start, period_end)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogPeriodGroup {
+    pub period_start: u64,
+    pub period_end: u64,
+    pub count: u32,
+    pub entry_ids: Vec<u64>,
+}
+
+/// Result of `generate_changelog_summary`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogSummary {
+    pub project_id: u64,
+    pub start: u64,
+    pub end: u64,
+    pub total_entries: u32,
+    /// Non-empty type groups, in `ChangelogEventType` declaration order.
+    pub by_type: Vec<ChangelogTypeGroup>,
+    /// Events recorded but not yet turned into changelog entries. Non-zero
+    /// means the summary is stale until `generate_changelog_from_events` runs.
+    pub unprocessed_events: u64,
+}

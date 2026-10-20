@@ -12,6 +12,7 @@ pub mod auth;
 mod bookmark_registry;
 pub mod category_types;
 mod category_registry;
+mod changelog_generator;
 mod changelog_registry;
 mod collection_registry;
 // mod community_collection_registry;
@@ -61,6 +62,7 @@ mod tests;
 
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
+use crate::changelog_generator::ChangelogGenerator;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
@@ -126,6 +128,8 @@ use crate::types::{
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
     // #928 premium featured placement
     FeaturedTier, FeaturedTierConfig, PremiumFeaturedCampaign, PremiumFeaturedStats,
+    // #929 changelog generation
+    ChangelogPeriodGroup, ChangelogSummary, GeneratedChangelogEntry, ProjectEventRecord,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -2951,6 +2955,61 @@ impl DongleContract {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: Env, project_id: u64) -> u32 {
         ChangelogRegistry::get_changelog_count(&env, project_id)
+    }
+
+    // --- Changelog Generation from Events (#929) ---
+
+    /// On-demand trigger: turn up to `max_events` unprocessed project events
+    /// into changelog entries. Permissionless and idempotent, so a keeper can
+    /// run it as a background job. Returns the number of entries generated.
+    pub fn generate_changelog_from_events(
+        env: Env,
+        project_id: u64,
+        max_events: u32,
+    ) -> Result<u32, ContractError> {
+        ChangelogGenerator::generate_changelog_from_events(&env, project_id, max_events)
+    }
+
+    /// Generated changelog entries in `[start, end)`, grouped by type.
+    pub fn generate_changelog_summary(
+        env: Env,
+        project_id: u64,
+        start: u64,
+        end: u64,
+    ) -> Result<ChangelogSummary, ContractError> {
+        ChangelogGenerator::generate_changelog_summary(&env, project_id, start, end)
+    }
+
+    /// Generated changelog entries in `[start, end)`, bucketed by time period.
+    pub fn group_changelog_by_period(
+        env: Env,
+        project_id: u64,
+        start: u64,
+        end: u64,
+        period_seconds: u64,
+    ) -> Result<Vec<ChangelogPeriodGroup>, ContractError> {
+        ChangelogGenerator::group_changelog_by_period(&env, project_id, start, end, period_seconds)
+    }
+
+    pub fn get_generated_changelog(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<GeneratedChangelogEntry> {
+        ChangelogGenerator::get_generated_changelog(&env, project_id, start_index, limit)
+    }
+
+    pub fn get_generated_changelog_entry(env: Env, entry_id: u64) -> Option<GeneratedChangelogEntry> {
+        ChangelogGenerator::get_generated_changelog_entry(&env, entry_id)
+    }
+
+    pub fn get_project_event(env: Env, project_id: u64, seq: u64) -> Option<ProjectEventRecord> {
+        ChangelogGenerator::get_project_event(&env, project_id, seq)
+    }
+
+    pub fn get_project_event_count(env: Env, project_id: u64) -> u64 {
+        ChangelogGenerator::get_project_event_count(&env, project_id)
     }
 
     // --- Subscription / Follow ---

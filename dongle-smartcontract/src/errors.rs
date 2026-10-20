@@ -343,6 +343,9 @@ pub enum ContractError {
     InvalidPremiumDuration = 145,
     /// Project already has an active premium featured campaign.
     ProjectAlreadyPremiumFeatured = 146,
+    /// Changelog time window or period is invalid (start >= end, zero period,
+    /// or too many buckets) (#929).
+    InvalidChangelogWindow = 147,
 }
 
 pub type Error = ContractError;

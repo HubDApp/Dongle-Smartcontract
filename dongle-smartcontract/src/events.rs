@@ -4460,3 +4460,40 @@ pub fn publish_premium_featured_bid_event(
         event_data,
     );
 }
+
+// ── Changelog Generation Events (#929) ────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogGeneratedEvent {
+    pub project_id: u64,
+    pub events_processed: u32,
+    pub entries_generated: u32,
+    /// Next unprocessed event `seq` after this run.
+    pub cursor: u64,
+    pub timestamp: u64,
+}
+
+pub fn publish_changelog_generated_event(
+    env: &Env,
+    project_id: u64,
+    events_processed: u32,
+    entries_generated: u32,
+    cursor: u64,
+) {
+    let event_data = ChangelogGeneratedEvent {
+        project_id,
+        events_processed,
+        entries_generated,
+        cursor,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("CHANGELOG"),
+            symbol_short!("GENERATED"),
+            project_id,
+        ),
+        event_data,
+    );
+}

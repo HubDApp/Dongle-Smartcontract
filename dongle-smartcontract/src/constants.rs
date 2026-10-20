@@ -677,3 +677,12 @@ pub const MIN_PREMIUM_FEATURED_DURATION: u64 = PREMIUM_FEATURED_DAY_SECONDS;
 pub const MAX_PREMIUM_FEATURED_DURATION: u64 = 90 * PREMIUM_FEATURED_DAY_SECONDS;
 /// Upper bound on slots an admin can configure for a single tier.
 pub const MAX_PREMIUM_FEATURED_SLOTS: u32 = 20;
+
+// ── Changelog generation (#929) ────────────────────────────────────────────
+
+/// Maximum events processed by one `generate_changelog_from_events` call.
+pub const MAX_CHANGELOG_GEN_BATCH: u32 = 100;
+/// Maximum generated entries scanned when building a summary or grouping.
+pub const MAX_CHANGELOG_SUMMARY_SCAN: u32 = 500;
+/// Maximum number of period buckets returned by `group_changelog_by_period`.
+pub const MAX_CHANGELOG_PERIOD_BUCKETS: u32 = 366;
