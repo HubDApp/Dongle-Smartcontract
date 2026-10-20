@@ -41,6 +41,7 @@ mod social_analytics_registry;
 pub mod storage_keys;
 pub mod trust_and_safety;
 pub mod storage_manager;
+mod subscription_bulk;
 mod subscription_registry;
 mod timelock_manager;
 pub mod types;
@@ -2942,6 +2943,47 @@ impl DongleContract {
             user,
             start_index,
             limit,
+        )
+    }
+
+    // --- Bulk Subscriptions (#932) ---
+
+    /// Create up to `MAX_SUBSCRIPTION_BATCH_SIZE` subscriptions in one call.
+    /// Each distinct subscriber must authorize. Duplicates and per-entry
+    /// failures are reported in the result rather than aborting the batch.
+    pub fn subscribe_to_events_batch(
+        env: Env,
+        subscriptions: Vec<crate::types::EventSubscription>,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::subscribe_to_events_batch(&env, subscriptions)
+    }
+
+    /// Export `subscriber`'s subscriptions for a later `import_subscriptions`.
+    pub fn export_subscriptions(env: Env, subscriber: Address) -> crate::types::SubscriptionExport {
+        crate::subscription_bulk::SubscriptionBulk::export_subscriptions(&env, subscriber)
+    }
+
+    /// Re-create the subscriptions in `export` for `subscriber`.
+    pub fn import_subscriptions(
+        env: Env,
+        subscriber: Address,
+        export: crate::types::SubscriptionExport,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::import_subscriptions(&env, subscriber, export)
+    }
+
+    /// Admin-only: subscribe `target` to every project `source` follows.
+    pub fn clone_subscriptions_from_address(
+        env: Env,
+        admin: Address,
+        source: Address,
+        target: Address,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::clone_subscriptions_from_address(
+            &env, admin, source, target,
         )
     }
 

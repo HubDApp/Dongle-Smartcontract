@@ -3458,3 +3458,44 @@ pub struct ReviewFlag {
     pub flagged_by: Address,
     pub flagged_at: u64,
 }
+
+/// One `(subscriber, project)` pair for bulk subscription calls (#932).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventSubscription {
+    pub subscriber: Address,
+    pub project_id: u64,
+}
+
+/// A subscription that could not be created in a bulk call.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubscriptionFailure {
+    pub subscription: EventSubscription,
+    /// `ContractError` discriminant explaining the failure.
+    pub error_code: u32,
+}
+
+/// Outcome of a bulk subscription call. Every input entry appears in exactly
+/// one of the three lists, in input order.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchSubscriptionResult {
+    pub subscribed: Vec<EventSubscription>,
+    /// Entries that repeat an earlier entry in the batch, or that the
+    /// subscriber already follows.
+    pub duplicates: Vec<EventSubscription>,
+    pub failed: Vec<SubscriptionFailure>,
+}
+
+/// Portable copy of one address's subscriptions, produced by
+/// `export_subscriptions` and consumed by `import_subscriptions`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubscriptionExport {
+    /// `SUBSCRIPTION_EXPORT_FORMAT_VERSION` at export time.
+    pub format_version: u32,
+    pub subscriber: Address,
+    pub project_ids: Vec<u64>,
+    pub exported_at: u64,
+}

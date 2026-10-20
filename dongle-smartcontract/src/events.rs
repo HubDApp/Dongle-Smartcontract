@@ -4393,3 +4393,63 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+/// Summary of one bulk subscribe or import call (#932). Per-project
+/// `PROJECT/FOLLOWED` events are emitted separately for each new subscription.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubscriptionsBatchedEvent {
+    pub subscribed: u32,
+    pub duplicates: u32,
+    pub failed: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_subscriptions_batched_event(env: &Env, subscribed: u32, duplicates: u32, failed: u32) {
+    env.events().publish(
+        (symbol_short!("SUBS"), symbol_short!("BATCH")),
+        SubscriptionsBatchedEvent {
+            subscribed,
+            duplicates,
+            failed,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Emitted when an admin copies one address's subscriptions onto another.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubscriptionsClonedEvent {
+    pub admin: Address,
+    pub source: Address,
+    pub target: Address,
+    pub subscribed: u32,
+    pub duplicates: u32,
+    pub failed: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_subscriptions_cloned_event(
+    env: &Env,
+    admin: Address,
+    source: Address,
+    target: Address,
+    subscribed: u32,
+    duplicates: u32,
+    failed: u32,
+) {
+    env.events().publish(
+        (symbol_short!("SUBS"), symbol_short!("CLONED"), target.clone()),
+        SubscriptionsClonedEvent {
+            admin,
+            source,
+            target,
+            subscribed,
+            duplicates,
+            failed,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+

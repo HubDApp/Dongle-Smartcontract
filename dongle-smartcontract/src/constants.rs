@@ -41,6 +41,12 @@ pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 /// Maximum reviews one `moderate_reviews_batch` call may target.
 pub const MAX_MODERATION_BATCH_SIZE: u32 = 25;
 
+/// Maximum subscriptions one bulk subscribe, import, or clone call may write.
+pub const MAX_SUBSCRIPTION_BATCH_SIZE: u32 = 100;
+
+/// Format version of `SubscriptionExport`. Bump when its fields change.
+pub const SUBSCRIPTION_EXPORT_FORMAT_VERSION: u32 = 1;
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 
