@@ -1,20 +1,30 @@
-//! Project health score computation and history tracking (#756).
+//! Project health score computation and history tracking (#982).
 //!
 //! ## Score formula (0–100)
 //!
-//! The score is composed of three components weighted equally at first but
-//! configurable via `HealthScoreWeights`:
+//! The composite score is composed of four weighted components:
 //!
-//! | Component          | Input                             | Max pts |
-//! |--------------------|-----------------------------------|---------|
-//! | Rating             | Bayesian avg ÷ 5 × weight         |   40    |
-//! | Activity           | Recent updates + reviews (capped) |   30    |
-//! | Verification       | Status bonus                      |   30    |
+//! | Component          | Signal                                  | Default weight |
+//! |--------------------|-----------------------------------------|---------------|
+//! | Rating             | Bayesian avg ÷ 5 × weight               | 35             |
+//! | Activity           | Recency of last update (linear decay)   | 25             |
+//! | Verification       | Status bonus                            | 25             |
+//! | Engagement         | Endorsements (capped) × weight          | 15             |
 //!
-//! Historical snapshots are stored (up to `MAX_HEALTH_HISTORY_ENTRIES`) and
-//! the breakdown is preserved alongside each snapshot for auditing.
+//! Weights are admin-configurable via [`HealthScoreConfig`]; they must always
+//! sum to 100. Historical snapshots are stored up to
+//! [`MAX_HEALTH_HISTORY_ENTRIES`] per project.
+//!
+//! ## Decay
+//!
+//! The activity component linearly decays from `activity_weight` (full score
+//! when just updated) to `0` once the project has been inactive for longer
+//! than [`ACTIVITY_WINDOW_SECS`] (30 days). This causes the total score to
+//! decay automatically over time for inactive projects.
 
+use crate::endorsement_registry::EndorsementRegistry;
 use crate::errors::ContractError;
+use crate::events::publish_project_health_score_updated_event;
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
 use crate::storage_keys::HealthScoreKey as HSK;
@@ -23,24 +33,34 @@ use crate::types::{
     HealthScoreBreakdown, HealthScoreConfig, HealthScoreSnapshot, ProjectHealthScore,
     VerificationStatus,
 };
-use soroban_sdk::{symbol_short, Address, Env, Vec};
+use soroban_sdk::{Address, Env, Vec};
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 /// Maximum number of historical snapshots retained per project.
 pub const MAX_HEALTH_HISTORY_ENTRIES: u32 = 365;
 
 /// Default weights (must sum to 100).
-pub const DEFAULT_RATING_WEIGHT: u32 = 40;
-pub const DEFAULT_ACTIVITY_WEIGHT: u32 = 30;
-pub const DEFAULT_VERIFICATION_WEIGHT: u32 = 30;
+pub const DEFAULT_RATING_WEIGHT: u32 = 35;
+pub const DEFAULT_ACTIVITY_WEIGHT: u32 = 25;
+pub const DEFAULT_VERIFICATION_WEIGHT: u32 = 25;
+pub const DEFAULT_ENGAGEMENT_WEIGHT: u32 = 15;
 
 /// Maximum seconds of inactivity before full activity deduction (30 days).
 const ACTIVITY_WINDOW_SECS: u64 = 30 * 24 * 3600;
 
+/// Endorsement count at which the engagement component is saturated (full weight).
+/// Projects with ≥ `ENGAGEMENT_SATURATION` endorsements receive the full engagement weight.
+const ENGAGEMENT_SATURATION: u32 = 50;
+
+// ── Registry ──────────────────────────────────────────────────────────────────
+
 pub struct HealthScoreRegistry;
 
 impl HealthScoreRegistry {
-    // ── Config helpers ────────────────────────────────────────────────────
+    // ── Config helpers ────────────────────────────────────────────────────────
 
+    /// Return the current health score configuration (defaults applied when absent).
     pub fn get_config(env: &Env) -> HealthScoreConfig {
         env.storage()
             .persistent()
@@ -49,10 +69,15 @@ impl HealthScoreRegistry {
                 rating_weight: DEFAULT_RATING_WEIGHT,
                 activity_weight: DEFAULT_ACTIVITY_WEIGHT,
                 verification_weight: DEFAULT_VERIFICATION_WEIGHT,
+                engagement_weight: DEFAULT_ENGAGEMENT_WEIGHT,
                 update_frequency_secs: 3600, // 1 hour default
             })
     }
 
+    /// Admin: update the health score component weights and update frequency.
+    ///
+    /// `rating_weight + activity_weight + verification_weight + engagement_weight`
+    /// must equal exactly 100.
     pub fn set_config(
         env: &Env,
         admin: &Address,
@@ -61,20 +86,28 @@ impl HealthScoreRegistry {
         admin.require_auth();
         crate::admin_manager::AdminManager::require_admin(env, admin)?;
 
-        if config.rating_weight.saturating_add(config.activity_weight)
-            .saturating_add(config.verification_weight) != 100
-        {
+        let weight_sum = config
+            .rating_weight
+            .saturating_add(config.activity_weight)
+            .saturating_add(config.verification_weight)
+            .saturating_add(config.engagement_weight);
+
+        if weight_sum != 100 {
             return Err(ContractError::InvalidInput);
         }
 
-        env.storage().persistent().set(&HSK::HealthScoreConfig, &config);
+        env.storage()
+            .persistent()
+            .set(&HSK::HealthScoreConfig, &config);
         StorageManager::extend_if_exists_hsk(env, &HSK::HealthScoreConfig);
         Ok(())
     }
 
-    // ── Score computation ─────────────────────────────────────────────────
+    // ── Score computation ─────────────────────────────────────────────────────
 
-    /// Compute and store a health score snapshot for a project.
+    /// Compute and persist a health score snapshot for `project_id`.
+    ///
+    /// Emits a [`ProjectHealthScoreUpdatedEvent`].
     pub fn compute_and_store(
         env: &Env,
         project_id: u64,
@@ -83,29 +116,34 @@ impl HealthScoreRegistry {
             .ok_or(ContractError::ProjectNotFound)?;
         let config = Self::get_config(env);
 
-        // ── Rating component ──────────────────────────────────────────────
+        // ── 1. Rating component ──────────────────────────────────────────────
+        //
+        // `average_rating` from ProjectStats is already scaled ×100
+        // (e.g. 4.50 stars → 450). We normalise to [0, rating_weight].
         let stats = ReviewRegistry::get_project_stats(env, project_id);
-        // average_rating is scaled by 100 (e.g. 450 = 4.50 stars out of 5).
-        // Normalise to 0–weight range.
         let rating_score = if stats.review_count == 0 {
             0u32
         } else {
-            // (avg / 500) * weight, where avg is in [0, 500].
-            (stats.average_rating.min(500) as u64 * config.rating_weight as u64 / 500) as u32
+            // average_rating ∈ [0, 500], weight ∈ [0, 100]
+            (stats.average_rating.min(500) as u64
+                * config.rating_weight as u64
+                / 500) as u32
         };
 
-        // ── Activity component ────────────────────────────────────────────
+        // ── 2. Activity component (time-decay) ───────────────────────────────
+        //
+        // Full weight when updated at the current ledger timestamp.
+        // Linear decay to 0 after ACTIVITY_WINDOW_SECS (30 days) of inactivity.
         let now = env.ledger().timestamp();
         let age_secs = now.saturating_sub(project.updated_at);
         let activity_score = if age_secs >= ACTIVITY_WINDOW_SECS {
             0u32
         } else {
-            // Linear decay: more recent = higher score.
-            let fraction = (ACTIVITY_WINDOW_SECS - age_secs) as u64;
-            (fraction * config.activity_weight as u64 / ACTIVITY_WINDOW_SECS) as u32
+            let remaining = ACTIVITY_WINDOW_SECS - age_secs;
+            (remaining * config.activity_weight as u64 / ACTIVITY_WINDOW_SECS) as u32
         };
 
-        // ── Verification component ────────────────────────────────────────
+        // ── 3. Verification component ────────────────────────────────────────
         let verification_score = match project.verification_status {
             VerificationStatus::Verified => config.verification_weight,
             VerificationStatus::Probationary => config.verification_weight * 80 / 100,
@@ -115,19 +153,37 @@ impl HealthScoreRegistry {
             VerificationStatus::Unverified => 0,
         };
 
+        // ── 4. Engagement component ──────────────────────────────────────────
+        //
+        // Community engagement is measured by endorsement count.
+        // Score saturates at ENGAGEMENT_SATURATION endorsements.
+        let endorsement_count =
+            EndorsementRegistry::get_endorsement_count(env, project_id);
+        let engagement_score = if config.engagement_weight == 0 {
+            0u32
+        } else {
+            let capped = endorsement_count.min(ENGAGEMENT_SATURATION);
+            (capped as u64 * config.engagement_weight as u64
+                / ENGAGEMENT_SATURATION as u64) as u32
+        };
+
+        // ── Composite score ──────────────────────────────────────────────────
         let total_score = rating_score
             .saturating_add(activity_score)
             .saturating_add(verification_score)
+            .saturating_add(engagement_score)
             .min(100);
 
         let breakdown = HealthScoreBreakdown {
             rating_score,
             activity_score,
             verification_score,
+            engagement_score,
             review_count: stats.review_count,
             average_rating: stats.average_rating,
             last_updated_at: project.updated_at,
             verification_status: project.verification_status,
+            endorsement_count,
         };
 
         let health = ProjectHealthScore {
@@ -137,13 +193,13 @@ impl HealthScoreRegistry {
             breakdown: breakdown.clone(),
         };
 
-        // Persist current score.
+        // ── Persist current score ────────────────────────────────────────────
         env.storage()
             .persistent()
             .set(&HSK::ProjectHealthScore(project_id), &health);
         StorageManager::extend_if_exists_hsk(env, &HSK::ProjectHealthScore(project_id));
 
-        // Append snapshot to history (evict oldest if at cap).
+        // ── Append to history (evict oldest when at cap) ─────────────────────
         let mut history: Vec<HealthScoreSnapshot> = env
             .storage()
             .persistent()
@@ -151,14 +207,13 @@ impl HealthScoreRegistry {
             .unwrap_or_else(|| Vec::new(env));
 
         if history.len() >= MAX_HEALTH_HISTORY_ENTRIES {
-            // Remove the oldest entry (index 0).
-            let mut new_history = Vec::new(env);
+            let mut trimmed = Vec::new(env);
             for i in 1..history.len() {
-                if let Some(s) = history.get(i) {
-                    new_history.push_back(s);
+                if let Some(snap) = history.get(i) {
+                    trimmed.push_back(snap);
                 }
             }
-            history = new_history;
+            history = trimmed;
         }
 
         history.push_back(HealthScoreSnapshot {
@@ -172,21 +227,29 @@ impl HealthScoreRegistry {
             .set(&HSK::ProjectHealthHistory(project_id), &history);
         StorageManager::extend_if_exists_hsk(env, &HSK::ProjectHealthHistory(project_id));
 
-        env.events().publish(
-            (symbol_short!("HLTH_SCR"), project_id),
-            (total_score, now),
+        // ── Emit typed event ─────────────────────────────────────────────────
+        publish_project_health_score_updated_event(
+            env,
+            project_id,
+            total_score,
+            rating_score,
+            activity_score,
+            verification_score,
+            engagement_score,
         );
 
         Ok(health)
     }
 
-    /// Return the latest stored health score for a project (or compute if absent).
+    /// Return the latest stored health score for a project, computing it on
+    /// first access if no snapshot exists yet.
     pub fn get_health_score(
         env: &Env,
         project_id: u64,
     ) -> Result<ProjectHealthScore, ContractError> {
-        // Ensure project exists.
-        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        // Verify the project exists first.
+        ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
 
         match env
             .storage()
@@ -198,16 +261,17 @@ impl HealthScoreRegistry {
         }
     }
 
-    /// Return paginated health score history for a project.
+    /// Return paginated health score history for a project (oldest-first).
     ///
-    /// Returns up to `limit` snapshots starting at `offset` (oldest-first).
+    /// Returns up to `limit` snapshots starting at `offset`.
     pub fn get_health_history(
         env: &Env,
         project_id: u64,
         offset: u32,
         limit: u32,
     ) -> Result<Vec<HealthScoreSnapshot>, ContractError> {
-        ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
 
         let history: Vec<HealthScoreSnapshot> = env
             .storage()

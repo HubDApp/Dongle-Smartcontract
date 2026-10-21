@@ -86,6 +86,7 @@ fn ranks_related_project_using_all_core_signals() {
                 external_cid: None,
                 external_url: None,
                 external_contract: None,
+                version_requirement: None,
             },
             label: Some(String::from_str(&env, "dependency")),
             metadata_cid: None,

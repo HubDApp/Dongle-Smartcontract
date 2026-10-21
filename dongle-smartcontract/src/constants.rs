@@ -38,6 +38,16 @@ pub const MAX_PAGE_LIMIT: u32 = 100;
 /// Maximum records that can be refreshed by one batch TTL extension call.
 pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 
+/// Maximum reviews one `moderate_reviews_batch` call may target.
+pub const MAX_MODERATION_BATCH_SIZE: u32 = 25;
+
+/// Length of the per-admin moderation rate-limit window (one hour).
+pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
+
+/// Review moderation actions one admin may attempt per window. Failed items
+/// count too, so probing with bad IDs still spends the budget.
+pub const MODERATION_ACTIONS_PER_WINDOW: u32 = 100;
+
 // ── Field length limits (string byte lengths) ──────────────────────────────
 //
 // Every user-supplied string field is bounded on write. The limits balance
@@ -272,6 +282,44 @@ pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
 /// bytes = 4 KiB, well within a single ledger entry.
 pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
 
+/// Maximum nesting depth of the collection hierarchy (issue #905).
+///
+/// A top-level collection sits at depth `1`; a collection nested inside it
+/// sits at depth `2`, and so on.  The chain is capped at 5 levels so that
+/// tree walks (`get_collection_tree`, `get_collection_path`) are always
+/// bounded and can never loop forever.
+pub const MAX_COLLECTION_DEPTH: u32 = 5;
+
+/// Maximum number of nodes returned by `get_collection_tree` (issue #905).
+/// 200: bounds the response size of a subtree walk; the hierarchy itself is
+/// capped at `MAX_COLLECTIONS` (100) entries.
+pub const MAX_COLLECTION_TREE_NODES: u32 = 200;
+
+/// Maximum number of staged-recovery phases (issue #904).
+///
+/// The recovery plan is `read ops → reviews → verification → fees`:
+///
+/// | Phase | Resumed |
+/// |-------|---------|
+/// | 0 | nothing (fully paused) |
+/// | 1 | read operations |
+/// | 2 | reviews |
+/// | 3 | verification |
+/// | 4 | fees — the contract is fully running again |
+pub const MAX_RESUME_PHASE: u32 = 4;
+
+/// Maximum byte length of a pause reason (issue #901).
+/// 256 bytes: a short operator note ("fee token migration in progress").
+pub const MAX_PAUSE_REASON_LEN: usize = 256;
+
+/// Maximum number of addresses subscribed to pause notifications (issue #901).
+/// 100: the subscriber list is a `Vec<Address>` in a single ledger entry.
+pub const MAX_PAUSE_SUBSCRIBERS: u32 = 100;
+
+/// Maximum number of recorded staged-recovery phase transitions (issue #904).
+/// 50 entries: enough history for an incident review without unbounded growth.
+pub const MAX_PHASE_HISTORY_LEN: u32 = 50;
+
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
 /// Maximum entries returned per admin action log paginated query.
@@ -379,6 +427,16 @@ pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
 /// 20: smart folders are metadata-only (no stored list) but each query scans
 /// the full bookmark list, so a small cap keeps aggregate query cost bounded.
 pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
+
+/// Maximum number of smart bookmark collections per user (#914).
+pub const MAX_SMART_BOOKMARK_COLLECTIONS_PER_USER: u32 = 20;
+
+/// Trending time windows in seconds (#912).
+pub const TRENDING_WINDOW_24H: u64 = 24 * 60 * 60;
+pub const TRENDING_WINDOW_7D: u64 = 7 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_30D: u64 = 30 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_ALL_TIME: u64 = 0;
+
 
 /// Maximum number of bookmarks inside a single folder.
 /// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
@@ -644,3 +702,34 @@ pub const SOCIAL_ANALYTICS_MIN_CHECKPOINTS_FOR_GROWTH: u32 = 2;
 pub const SOCIAL_WINDOW_7_DAYS: u32 = 7;
 /// Number of days in the "last-30-days" preset window used by export.
 pub const SOCIAL_WINDOW_30_DAYS: u32 = 30;
+
+// ── Verification audit trail ───────────────────────────────────────────────
+
+/// Maximum length of approval notes / rejection reasons recorded in the
+/// verification audit trail.
+pub const MAX_AUDIT_NOTES_LEN: usize = 512;
+/// Maximum number of projects in a single audit export.
+pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
+/// Maximum number of audit entries returned by a single export.
+pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
+/// Current layout version of `VerificationAuditExport`.
+pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Report routing (#920) ──────────────────────────────────────────────────
+
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
+
+// ── Report evidence (#921) ─────────────────────────────────────────────────
+
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;
+
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
+
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;
