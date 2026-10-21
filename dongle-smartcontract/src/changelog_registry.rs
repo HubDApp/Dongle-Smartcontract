@@ -634,7 +634,7 @@ impl ChangelogRegistry {
     }
 
     // Internal helper function to get project changelog entry IDs
-    fn get_project_changelog_entries(env: &Env, project_id: u64) -> Vec<u64> {
+    pub(crate) fn get_project_changelog_entries(env: &Env, project_id: u64) -> Vec<u64> {
         env.storage()
             .persistent()
             .get(&ExtensionKey::ProjectChangelogEntries(project_id))

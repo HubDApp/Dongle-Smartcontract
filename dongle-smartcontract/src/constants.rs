@@ -41,6 +41,30 @@ pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 /// Maximum reviews one `moderate_reviews_batch` call may target.
 pub const MAX_MODERATION_BATCH_SIZE: u32 = 25;
 
+/// Maximum subscriptions one bulk subscribe, import, or clone call may write.
+pub const MAX_SUBSCRIPTION_BATCH_SIZE: u32 = 100;
+
+/// Format version of `SubscriptionExport`. Bump when its fields change.
+pub const SUBSCRIPTION_EXPORT_FORMAT_VERSION: u32 = 1;
+
+/// Maximum project IDs one state snapshot or migration export page covers.
+/// Every review and verification record of those projects is included, so
+/// keep this small enough to stay within read limits.
+pub const MAX_SNAPSHOT_PAGE_SIZE: u32 = 25;
+
+/// Format version of `ContractStateSnapshot`. Bump when its fields, or the
+/// tuple hashed into `state_hash`, change.
+pub const STATE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
+
+/// Maximum project IDs one `export_analytics_data` call scans.
+pub const MAX_ANALYTICS_SCAN_SIZE: u32 = 50;
+
+/// First `MigrationBundle` layout (#935).
+pub const MIGRATION_FORMAT_V1: u32 = 1;
+
+/// Bundle layouts this contract can produce and validate.
+pub const SUPPORTED_MIGRATION_FORMATS: &[u32] = &[MIGRATION_FORMAT_V1];
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 
@@ -181,6 +205,43 @@ pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 /// `docs/DEPENDENCY_REGISTRY.md`.
 pub const MAX_DEPENDENCY_DEPTH: u32 = 5;
 
+/// Maximum traversal depth accepted by `get_dependency_graph` (issue #924).
+/// Requests for a deeper graph are clamped to this value to keep exports
+/// bounded.
+pub const MAX_DEPENDENCY_GRAPH_DEPTH: u32 = 10;
+
+/// Maximum number of nodes returned by a single `get_dependency_graph` call.
+/// The traversal stops and sets `truncated` once this many projects are
+/// reached.
+pub const MAX_DEPENDENCY_GRAPH_NODES: u32 = 200;
+
+/// Maximum length of a deprecation reason passed to `deprecate_project`
+/// (issue #925).
+pub const MAX_DEPRECATION_REASON_LEN: u32 = 512;
+
+/// Maximum number of `DependencyDeprecated` alerts emitted in one call.
+/// `deprecate_project` alerts the first batch of dependents; the rest are
+/// alerted page by page through `notify_deprecation_dependents`.
+pub const MAX_DEPRECATION_NOTIFY_BATCH: u32 = 50;
+
+// ── Feature campaigns (#926) ───────────────────────────────────────────────
+
+/// Maximum length of a feature campaign name.
+pub const MAX_CAMPAIGN_NAME_LEN: u32 = 64;
+/// Maximum length of a feature campaign theme.
+pub const MAX_CAMPAIGN_THEME_LEN: u32 = 64;
+/// Maximum number of projects in a single feature campaign.
+pub const MAX_PROJECTS_PER_CAMPAIGN: u32 = 50;
+/// Maximum campaign duration: 365 days.
+pub const MAX_CAMPAIGN_DURATION_SECS: u64 = 365 * 24 * 60 * 60;
+
+// ── Featured rotation (#927) ───────────────────────────────────────────────
+
+/// Maximum rotation period accepted by `schedule_featured_rotation`.
+pub const MAX_ROTATION_PERIOD_DAYS: u32 = 365;
+/// Seconds per rotation day.
+pub const ROTATION_SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.
@@ -281,6 +342,44 @@ pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
 /// 500: the membership list is a `Vec<u64>` in the collection entry; 500 × 8
 /// bytes = 4 KiB, well within a single ledger entry.
 pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
+
+/// Maximum nesting depth of the collection hierarchy (issue #905).
+///
+/// A top-level collection sits at depth `1`; a collection nested inside it
+/// sits at depth `2`, and so on.  The chain is capped at 5 levels so that
+/// tree walks (`get_collection_tree`, `get_collection_path`) are always
+/// bounded and can never loop forever.
+pub const MAX_COLLECTION_DEPTH: u32 = 5;
+
+/// Maximum number of nodes returned by `get_collection_tree` (issue #905).
+/// 200: bounds the response size of a subtree walk; the hierarchy itself is
+/// capped at `MAX_COLLECTIONS` (100) entries.
+pub const MAX_COLLECTION_TREE_NODES: u32 = 200;
+
+/// Maximum number of staged-recovery phases (issue #904).
+///
+/// The recovery plan is `read ops → reviews → verification → fees`:
+///
+/// | Phase | Resumed |
+/// |-------|---------|
+/// | 0 | nothing (fully paused) |
+/// | 1 | read operations |
+/// | 2 | reviews |
+/// | 3 | verification |
+/// | 4 | fees — the contract is fully running again |
+pub const MAX_RESUME_PHASE: u32 = 4;
+
+/// Maximum byte length of a pause reason (issue #901).
+/// 256 bytes: a short operator note ("fee token migration in progress").
+pub const MAX_PAUSE_REASON_LEN: usize = 256;
+
+/// Maximum number of addresses subscribed to pause notifications (issue #901).
+/// 100: the subscriber list is a `Vec<Address>` in a single ledger entry.
+pub const MAX_PAUSE_SUBSCRIBERS: u32 = 100;
+
+/// Maximum number of recorded staged-recovery phase transitions (issue #904).
+/// 50 entries: enough history for an incident review without unbounded growth.
+pub const MAX_PHASE_HISTORY_LEN: u32 = 50;
 
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
@@ -389,6 +488,16 @@ pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
 /// 20: smart folders are metadata-only (no stored list) but each query scans
 /// the full bookmark list, so a small cap keeps aggregate query cost bounded.
 pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
+
+/// Maximum number of smart bookmark collections per user (#914).
+pub const MAX_SMART_BOOKMARK_COLLECTIONS_PER_USER: u32 = 20;
+
+/// Trending time windows in seconds (#912).
+pub const TRENDING_WINDOW_24H: u64 = 24 * 60 * 60;
+pub const TRENDING_WINDOW_7D: u64 = 7 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_30D: u64 = 30 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_ALL_TIME: u64 = 0;
+
 
 /// Maximum number of bookmarks inside a single folder.
 /// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
@@ -667,36 +776,21 @@ pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
 
-// ── Premium featured placement (#928) ──────────────────────────────────────
+// ── Report routing (#920) ──────────────────────────────────────────────────
 
-/// Seconds in one billable day of premium featured placement.
-pub const PREMIUM_FEATURED_DAY_SECONDS: u64 = 86_400;
-/// Shortest premium featured campaign that can be bid for.
-pub const MIN_PREMIUM_FEATURED_DURATION: u64 = PREMIUM_FEATURED_DAY_SECONDS;
-/// Longest premium featured campaign that can be bid for (90 days).
-pub const MAX_PREMIUM_FEATURED_DURATION: u64 = 90 * PREMIUM_FEATURED_DAY_SECONDS;
-/// Upper bound on slots an admin can configure for a single tier.
-pub const MAX_PREMIUM_FEATURED_SLOTS: u32 = 20;
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
 
-// ── Changelog generation (#929) ────────────────────────────────────────────
+// ── Report evidence (#921) ─────────────────────────────────────────────────
 
-/// Maximum events processed by one `generate_changelog_from_events` call.
-pub const MAX_CHANGELOG_GEN_BATCH: u32 = 100;
-/// Maximum generated entries scanned when building a summary or grouping.
-pub const MAX_CHANGELOG_SUMMARY_SCAN: u32 = 500;
-/// Maximum number of period buckets returned by `group_changelog_by_period`.
-pub const MAX_CHANGELOG_PERIOD_BUCKETS: u32 = 366;
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;
 
-// ── Changelog approval (#930) ──────────────────────────────────────────────
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
 
-/// Maximum entries one bulk changelog approval / rejection / publish may target.
-pub const MAX_CHANGELOG_APPROVAL_BATCH: u32 = 25;
-
-// ── Event subscriptions (#931) ─────────────────────────────────────────────
-
-/// Maximum active event subscriptions per address.
-pub const MAX_EVENT_SUBSCRIPTIONS_PER_ADDRESS: u32 = 10;
-/// Maximum project IDs in a subscription's filter.
-pub const MAX_EVENT_FILTER_PROJECTS: u32 = 20;
-/// Maximum subscriptions indexed under a single topic.
-pub const MAX_SUBSCRIPTIONS_PER_TOPIC: u32 = 1_000;
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;

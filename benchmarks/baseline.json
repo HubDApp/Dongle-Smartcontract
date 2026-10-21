@@ -1,0 +1,10 @@
+{
+  "updated": "2026-10-19",
+  "threshold_bps": 1000,
+  "baselines": [
+    { "name": "register_project", "storage_reads": 6, "exec_units": 150000 },
+    { "name": "add_review", "storage_reads": 5, "exec_units": 120000 },
+    { "name": "list_projects", "storage_reads": 4, "exec_units": 80000 },
+    { "name": "get_project_stats", "storage_reads": 2, "exec_units": 30000 }
+  ]
+}
