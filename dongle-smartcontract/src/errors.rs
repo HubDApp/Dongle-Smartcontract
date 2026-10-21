@@ -329,71 +329,93 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Admin permission denied for role.
+    PermissionDenied = 140,
+    /// Approval quorum not met.
+    ApprovalQuorumNotMet = 141,
+    /// Timelock emergency bypass not authorized.
+    BypassNotAuthorized = 142,
+    /// Multi-stage cooldown or stage delay has not passed.
+    StageDelayNotPassed = 143,
+    /// Configured approval workflow not found.
+    WorkflowNotFound = 144,
+    /// Sensitive proposal already approved.
+    ProposalAlreadyApproved = 145,
+    /// Sensitive proposal already executed.
+    ProposalAlreadyExecuted = 146,
+    /// Review is already flagged for moderator follow-up.
+    ReviewAlreadyFlagged = 140,
+    /// Admin exhausted the review moderation budget for the current window.
+    ModerationRateLimitExceeded = 141,
+    /// Smart bookmark collection referenced by ID does not exist (#914).
+    SmartBookmarkCollectionNotFound = 142,
+    /// Maximum smart bookmark collections per user exceeded (#914).
+    MaxSmartBookmarkCollectionsExceeded = 143,
+    /// Project similarity score did not meet the required threshold (#913).
+    SimilarityThresholdNotMet = 144,
 
-    // ── Shareable bookmark collection errors (#916) ──────────────────────
-    /// Bookmark collection not found.
-    BookmarkCollectionNotFound = 140,
-    /// Bookmark collection is private and the caller is not its owner.
-    BookmarkCollectionNotPublic = 141,
-    /// Bookmark collection is already public.
-    BookmarkCollectionAlreadyPublic = 142,
-    /// User has reached `MAX_BOOKMARK_COLLECTIONS_PER_USER`.
-    MaxBookmarkCollectionsExceeded = 143,
-    /// Collection has reached `MAX_PROJECTS_PER_BOOKMARK_COLLECTION`.
-    BookmarkCollectionFull = 144,
-    /// Project is already in the bookmark collection.
-    ProjectAlreadyInBookmarkCollection = 145,
-    /// Project is not in the bookmark collection.
-    ProjectNotInBookmarkCollection = 146,
-    /// Caller already follows this bookmark collection.
-    AlreadyFollowingBookmarkCollection = 147,
-    /// Caller does not follow this bookmark collection.
-    NotFollowingBookmarkCollection = 148,
-    /// Owners cannot follow their own bookmark collection.
-    CannotFollowOwnBookmarkCollection = 149,
-    /// User has reached `MAX_FOLLOWED_BOOKMARK_COLLECTIONS`.
-    MaxFollowedBookmarkCollectionsExceeded = 150,
-
-    // ── Endorsement graph errors (#917) ───────────────────────────────────
-    /// An address cannot endorse itself.
-    SelfEndorsement = 151,
-    /// Endorser already endorses this address.
-    AddressAlreadyEndorsed = 152,
-    /// Endorser does not endorse this address.
-    AddressNotEndorsed = 153,
-    /// Endorser or endorsee reached `MAX_ADDRESS_ENDORSEMENTS_PER_USER`.
-    MaxAddressEndorsementsExceeded = 154,
-
-    // ── Conditional endorsement errors (#918) ─────────────────────────────
-    /// Endorsement record not found.
-    EndorsementNotFound = 155,
-    /// Expertise area is empty, too long, or duplicated.
-    InvalidEndorsementArea = 156,
-    /// More than `MAX_ENDORSEMENT_AREAS` areas supplied.
-    TooManyEndorsementAreas = 157,
-    /// Expiry timestamp is not in the future.
-    InvalidEndorsementExpiry = 158,
-    /// Endorsement has no expiry, so there is nothing to renew.
-    EndorsementNotRenewable = 159,
-
-    // ── Endorsement delegation errors (#919) ──────────────────────────────
-    /// An address cannot delegate endorsement authority to itself.
-    SelfDelegation = 160,
-    /// Caller neither holds an active endorsement nor valid delegated
-    /// authority for the project.
-    NoEndorsementAuthority = 161,
-    /// Delegate already holds delegated authority for this project.
-    AlreadyDelegated = 162,
-    /// No matching delegation exists.
-    DelegationNotFound = 163,
-    /// Granting the delegation would create a cycle in the delegation chain.
-    DelegationCycleDetected = 164,
-    /// Requested areas exceed the scope of the delegator's authority.
-    DelegationScopeExceeded = 165,
-    /// Delegator reached `MAX_DELEGATES_PER_ENDORSER`.
-    MaxDelegatesExceeded = 166,
-    /// Delegation chain would exceed `MAX_DELEGATION_CHAIN_DEPTH`.
-    DelegationChainTooDeep = 167,
+    // ── Fee extensions ─────────────────────────────────────────────────────
+    /// A fee waiver application already exists for this project.
+    WaiverAlreadyApplied = 145,
+    /// No fee waiver record found for this project.
+    WaiverNotFound = 146,
+    /// The fee waiver application is not in a pending state.
+    WaiverNotPending = 147,
+    /// Auto-refund record not found for this project.
+    AutoRefundNotFound = 148,
+    /// The auto-refund has already been fully settled.
+    AutoRefundAlreadySettled = 149,
+    /// Fee receipt not found for the given payment ID.
+    FeeReceiptNotFound = 150,
+    /// A fee dispute is already open for this project.
+    EscrowAlreadyActive = 151,
+    /// No active fee escrow found for this project.
+    EscrowNotFound = 152,
+    /// Partial refund amount exceeds the escrowed balance.
+    PartialRefundExceedsEscrow = 153,
+    /// The fee is not in a state that allows being disputed (must be pending/consumed).
+    FeeNotDisputable = 154,
 }
 
 pub type Error = ContractError;
+
+impl ContractError {
+    /// Numeric error code as exposed in the contract ABI.
+    pub fn code(self) -> u32 {
+        self as u32
+    }
+
+    /// Short troubleshooting hint surfaced alongside the error code so users
+    /// know what went wrong and where to look (full guides: ERROR_CATALOG.md).
+    pub fn troubleshooting_hint(self) -> &'static str {
+        match self {
+            ContractError::AlreadyInitialized => "Contract already initialized; do not re-initialize.",
+            ContractError::Unauthorized | ContractError::AdminOnly => {
+                "Caller lacks permission; check admin list and require_auth."
+            }
+            ContractError::ProjectNotFound
+            | ContractError::ReviewNotFound
+            | ContractError::VerificationNotFound
+            | ContractError::CollectionNotFound
+            | ContractError::FolderNotFound
+            | ContractError::AppealNotFound
+            | ContractError::AssignmentNotFound
+            | ContractError::RecoveryCaseNotFound
+            | ContractError::EmergencyRecoveryNotFound => {
+                "Referenced record does not exist; verify the id/slug first."
+            }
+            ContractError::InvalidRating => "Rating must be an integer 1-5.",
+            ContractError::DuplicateReview | ContractError::DuplicateProjectName | ContractError::ProjectAlreadyExists => {
+                "Duplicate submission; fetch existing records before retrying."
+            }
+            ContractError::InsufficientFee | ContractError::FeeConfigNotSet | ContractError::ReviewFeeRequired => {
+                "Check fee config and amount paid; see ERROR_CATALOG.md."
+            }
+            ContractError::ContractPaused => "Contract is paused; wait for unpause.",
+            ContractError::RateLimitExceeded => {
+                "Too many calls; wait for the window reset or request a trusted override."
+            }
+            _ => "See ERROR_CATALOG.md for root cause, debugging steps, and resolution.",
+        }
+    }
+}

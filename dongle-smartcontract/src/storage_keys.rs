@@ -340,6 +340,39 @@ pub enum ExtensionKey2 {
     AdminSessionHistory(Address),
     /// Next admin session ID counter.
     NextAdminSessionId,
+    /// Custom verification requirements for a project, stored as IPFS CIDs.
+    /// Keyed by project_id -> ProjectVerificationRequirements.
+    ProjectVerificationRequirements(u64),
+}
+
+/// Storage keys for the emergency-pause subsystem (issues #901, #902, #904).
+///
+/// `StorageKey`, `ExtensionKey` and `ExtensionKey2` are all at (or near) the
+/// 50-variant Soroban `#[contracttype]` cap, so the pause subsystem uses this
+/// independent namespace following the same pattern as `NotificationKey`,
+/// `BookmarkKey` and `FeeHistoryKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseKey {
+    /// The full emergency-pause record (`EmergencyPauseState`): pause state,
+    /// reason, estimated resume time, pause timestamp and recovery phase.
+    PauseState,
+    /// Addresses subscribed to pause notifications (issue #901).
+    PauseSubscribers,
+    /// Ordered history of staged-recovery phase transitions (issue #904).
+    PhaseHistory,
+}
+
+/// Storage keys for the collection hierarchy (issue #905).
+///
+/// `Collection` itself carries `parent_collection_id`; this enum stores the
+/// reverse index (parent → direct children) used to walk a subtree without
+/// scanning every collection.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CollectionHierarchyKey {
+    /// Identifiers of the direct child collections of a collection.
+    Children(u64),
 }
 
 /// Storage keys for fee configuration history, split into a separate enum to stay under
@@ -378,6 +411,10 @@ pub enum NotificationKey {
     /// by `cleanup_expired_proposals` so callers can discover them without
     /// scanning the full proposal list.
     ExpiredProposalIds,
+    /// Scheduled verification revocation by project_id.
+    VerificationRevocationSchedule(u64),
+    /// List of all project IDs with scheduled verification revocations.
+    ScheduledRevocationProjectIds,
 }
 
 /// Per-address operation windows, stored in a separate namespace to keep the
@@ -431,6 +468,18 @@ pub enum BookmarkKey {
     /// Per-user index: project_id → folder_id.  Lets `move_bookmark` find
     /// the current folder of a project without scanning all folder lists.
     BookmarkFolderIndex(Address, u64),
+    /// Global bookmark configuration (#915).
+    GlobalBookmarkConfig,
+    /// Per-user bookmark expiration policy (#915).
+    UserBookmarkPolicy(Address),
+    /// Per-bookmark expiration policy override: (user, project_id) (#915).
+    BookmarkExpirationPolicy(Address, u64),
+    /// Timestamp when project was bookmarked: (user, project_id) (#915).
+    BookmarkCreatedAt(Address, u64),
+    /// Archived bookmark project IDs for user (#915).
+    UserArchivedBookmarks(Address),
+    /// Archived bookmark details: (user, project_id) (#915).
+    ArchivedBookmarkDetails(Address, u64),
 }
 
 /// Storage keys for featured algorithm configuration, A/B testing, and metrics (#816).
@@ -673,6 +722,22 @@ pub enum RecommendationKey {
     /// Per-user impression tracking (recommendation_id, user) → bool, so we
     /// can enforce "impression before click" invariants and dedupe impressions.
     ImpressionSeen(u64, Address),
+    /// Active A/B test configuration (#749).
+    ABConfig,
+    /// Aggregate A/B analytics for Variant A (#749).
+    VariantAAnalytics,
+    /// Aggregate A/B analytics for Variant B (#749).
+    VariantBAnalytics,
+    /// Ordered list of recent project views for viewer (#749).
+    ViewHistory(Address),
+    /// Deduplication key for personalized recommendations: (viewer, source, candidate, algorithm).
+    PersonalizedRecommendation(Address, u64, u64, u32),
+    /// Click dedup tracking per viewer.
+    ClickSeen(u64, Address),
+    /// Conversion tracking per viewer.
+    Converted(u64, Address),
+    /// Total conversions recorded for a recommendation.
+    ConversionCount(u64),
 }
 /// Storage keys for community collections (issue #821). Held in its own enum to
 /// respect the 50-variant Soroban union cap (StorageKey = 50, ExtensionKey ≈ 50)
@@ -780,56 +845,136 @@ pub enum ProjectControlsKey {
     QuarantinedProjects,
 }
 
-/// Storage keys for shareable bookmark collections (#916). Own enum to
-/// respect Soroban's 50-variant union cap on `StorageKey` / `ExtensionKey`.
+/// Storage keys for smart bookmark collections (#914).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum BookmarkCollectionKey {
-    /// `BookmarkCollection` record by global collection ID.
+pub enum SmartBookmarkKey {
+    /// Stored SmartBookmarkCollection by collection_id.
     Collection(u64),
-    /// Next global collection ID counter.
+    /// List of smart bookmark collection IDs owned by an Address.
+    UserCollections(Address),
+    /// Global counter for next collection ID.
     NextCollectionId,
-    /// Collection IDs owned by a user.
-    OwnerCollections(Address),
-    /// Ordered IDs of every currently public collection.
-    PublicCollections,
-    /// Follower addresses of a collection.
-    Followers(u64),
-    /// Collection IDs a user follows.
-    FollowedBy(Address),
 }
 
-/// Storage keys for the address endorsement graph (#917).
+/// Storage keys for fee waivers, receipts, auto-refunds, and escrow.
+///
+/// Introduced as a dedicated enum because `ExtensionKey` is at its
+/// 50-variant Soroban `#[contracttype]` hard cap. Follows the same
+/// pattern as `FeeHistoryKey`, `NotificationKey`, etc.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EndorsementGraphKey {
-    /// Addresses endorsed by this address (outgoing edges).
-    Outgoing(Address),
-    /// Addresses endorsing this address (incoming edges).
-    Incoming(Address),
+pub enum FeeExtensionKey {
+    // ── Fee waiver keys ──────────────────────────────────────────────────────
+    /// Fee waiver record for a project: project_id -> FeeWaiverRecord.
+    ProjectFeeWaiver(u64),
+    /// List of all project IDs that have a fee waiver (for admin dashboard).
+    FeeWaiverProjectIds,
+    /// Pre-approved IPFS proof CIDs for auto-grant: String -> FeeWaiverType.
+    PreApprovedWaiverProof(String),
+
+    // ── Auto-refund keys ─────────────────────────────────────────────────────
+    /// Auto-refund record by project: project_id -> AutoRefundRecord.
+    AutoRefundRecord(u64),
+    /// List of project IDs with pending auto-refunds.
+    PendingAutoRefundIds,
+
+    // ── Fee receipt keys ─────────────────────────────────────────────────────
+    /// Fee receipt by payment_id: payment_id -> FeeReceipt.
+    FeeReceipt(u64),
+    /// Next payment receipt ID counter.
+    NextFeeReceiptId,
+    /// List of receipt IDs for a project (verification fees).
+    ProjectFeeReceiptIds(u64),
+    /// List of receipt IDs for an address (registration fees).
+    AddressFeeReceiptIds(Address),
+
+    // ── Fee escrow keys ──────────────────────────────────────────────────────
+    /// Escrowed fee for a project: project_id -> EscrowedFee.
+    EscrowedFee(u64),
+    /// List of project IDs with active fee escrows.
+    ActiveEscrowProjectIds,
 }
 
-/// Storage keys for conditional endorsement records (#918).
+/// Storage keys for dynamic trending projects cache (#912).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EndorsementRecordKey {
-    /// `Endorsement` record by ID.
-    Record(u64),
-    /// Next endorsement ID counter.
-    NextId,
-    /// (project_id, endorser) → endorsement ID.
-    ProjectEndorser(u64, Address),
-    /// (project_id, area) → endorsement IDs covering that area.
-    AreaIndex(u64, String),
+pub enum TrendingKey {
+    /// Cached trending projects list for a given time window.
+    TrendingCache(u64),
+    /// Timestamp when trending projects list was cached for a given time window.
+    TrendingCacheTimestamp(u64),
 }
 
-/// Storage keys for delegated endorsement authority (#919).
+/// Storage keys for the project archive lifecycle (#873).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EndorsementDelegationKey {
-    /// (project_id, delegate) → `EndorsementDelegation`.  A delegate holds at
-    /// most one delegation per project, so every chain is a simple list.
-    Delegation(u64, Address),
-    /// (project_id, delegator) → delegates appointed by that delegator.
-    Delegates(u64, Address),
+pub enum ArchiveLifecycleKey {
+    /// Reason the project is currently archived (removed on reactivation).
+    Reason(u64),
+    /// Number of archive audit entries for a project.
+    AuditCount(u64),
+    /// Archive audit entry: (project_id, index) -> ArchiveAuditEntry.
+    AuditEntry(u64, u32),
+}
+
+/// Storage keys for the immutable verification audit trail. Own enum to
+/// respect Soroban's 50-variant union cap on the shared key enums. Entries
+/// under these keys are append-only: nothing in the contract removes them.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationAuditKey {
+    /// Next global audit entry ID.
+    NextEntryId,
+    /// Number of audit entries for a project.
+    EntryCount(u64),
+    /// Audit entry: (project_id, index) -> VerificationAuditEntry.
+    Entry(u64, u32),
+    /// Number of rejection records for a project.
+    RejectionCount(u64),
+    /// Rejection record: (project_id, index) -> RejectionRecord.
+    Rejection(u64, u32),
+}
+
+/// Storage keys for report categorisation and moderator routing (#920).
+/// Own enum to respect Soroban's 50-variant union cap on the shared key enums.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReportModerationKey {
+    /// Next global report ID.
+    NextReportId,
+    /// Report by ID: report_id -> ProjectReport.
+    Report(u64),
+    /// Routing rule for a category: category -> ReportRoutingRule.
+    RoutingRule(crate::types::ReportCategory),
+    /// Current assignment of a report: report_id -> ReportAssignment.
+    Assignment(u64),
+    /// Report IDs currently assigned to a moderator.
+    ModeratorAssignments(Address),
+    /// Append-only evidence audit trail: report_id -> Vec<ReportEvidenceAttachment> (#921).
+    EvidenceAudit(u64),
+}
+
+/// Storage keys for report decisions and moderation appeals (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModerationAppealKey {
+    /// Decision for a report: report_id -> ReportDecisionRecord.
+    Decision(u64),
+    /// Next appeal ID counter.
+    NextAppealId,
+    /// Appeal by ID: appeal_id -> AppealRecord.
+    Appeal(u64),
+    /// Appeal filed against a report: report_id -> appeal_id.
+    ReportAppeal(u64),
+    /// Admins designated as senior moderators.
+    SeniorModerators,
+    /// Round-robin cursor into `SeniorModerators`.
+    SeniorCursor,
+    /// Pending appeal IDs assigned to a senior moderator.
+    SeniorQueue(Address),
+    /// Appeal statistics for decisions made by a moderator.
+    ModeratorStats(Address),
+    /// Appeal statistics across all moderators.
+    GlobalStats,
 }

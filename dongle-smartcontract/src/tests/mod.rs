@@ -3,10 +3,15 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+mod admin_governance_security;
 // Issue #670: Admin concurrent operation atomicity and consistency verification
 mod admin_concurrent;
 mod archival;
 mod auto_archival;
+// Issue #873: archive reasons, audit log and bulk archive
+mod archive_lifecycle;
+// Issue #874: project visibility modes
+mod project_visibility;
 mod collection_registry_crud;
 mod collections;
 mod collection_visibility;
@@ -25,7 +30,9 @@ mod cleanup;
 mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
 mod moderation;
+mod moderation_batch;
 mod name_search;
+mod project_registration_e2e;
 mod project_search;
 mod pagination;
 mod pause_state_recovery;
@@ -35,6 +42,8 @@ mod claim_state_machine;
 mod claim_status;
 mod config;
 mod dependencies;
+// Issue #923: dependency version requirements
+mod dependency_versions;
 mod lifecycle_status;
 mod maintainers;
 mod renewal;
@@ -87,6 +96,8 @@ mod proptest_pagination;
 
 // Property-based tests for all validation functions (issue #498)
 mod proptest_validation;
+// Property-based fuzzing harness for contract invariants (issue #939)
+mod fuzz_test_harness;
 // Recommendation generation, personalization, A/B testing, and conversion funnel
 mod recommendations;
 // Issue #221: fee amount boundary tests
@@ -122,6 +133,8 @@ mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;
+mod ttl_edge_cases;
+mod bulk_load_tests;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
@@ -173,3 +186,22 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #914: Smart Bookmark Collections
+mod smart_bookmark_collections;
+// Issue #912: Dynamic Trending Projects
+mod trending_projects;
+// Issue #913: Similar and Duplicate Projects Detection
+mod similarity_projects;
+// Issue #909: Search Enhancements with Wildcards and Phrases
+mod search_enhancements;
+
+// Issue #972: Test reentrancy and race condition protection
+mod reentrancy_race_972;
+// Issue #973: Verify contract state integrity after emergency operations
+mod emergency_state_integrity_973;
+// Issue #974: Backward and forward compatibility
+mod compatibility_974;
+// Issue #975: Performance testing with realistic data volumes
+mod performance_volume_975;
+
