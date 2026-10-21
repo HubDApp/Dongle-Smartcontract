@@ -12,15 +12,16 @@ use crate::events::{
     publish_project_archived_event, publish_project_claimable_set_event,
     publish_project_lifecycle_status_updated_event, publish_project_reactivated_event,
     publish_project_registered_event, publish_project_updated_event,
-    publish_verification_status_reset_event,
+    publish_project_visibility_changed_event, publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
-use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::storage_keys::{ArchiveLifecycleKey, ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
+    ArchiveAction, ArchiveAuditEntry, ArchiveReason, ClaimKind, ClaimRequest, ClaimStatus,
+    ContractClaimRequest, Project, ProjectLifecycleStatus, ProjectRegistrationParams,
+    ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams, ProjectVisibility,
     SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
@@ -221,6 +222,7 @@ impl ProjectRegistry {
             verification_status: VerificationStatus::Unverified,
             current_verification_id: None,
             archived: false,
+            visibility: ProjectVisibility::Public,
             claimable: false,
             lifecycle_status: ProjectLifecycleStatus::Active,
             created_at: now,
@@ -235,6 +237,7 @@ impl ProjectRegistry {
             security_contact_proof_cid: None,
             security_contact_verified: false,
             language_code: params.language_code.clone(),
+            verification_requirements: params.verification_requirements.clone(),
         };
 
         // Get current owner projects
@@ -334,6 +337,22 @@ impl ProjectRegistry {
             env.storage()
                 .persistent()
                 .set(&StorageKey::ProjectBountyUrl(count), bounty_url);
+        }
+
+        // Store verification requirements if provided
+        if let Some(ref reqs) = params.verification_requirements {
+            if !reqs.is_empty() {
+                let req_record = crate::types::ProjectVerificationRequirements {
+                    project_id: count,
+                    requirement_cids: reqs.clone(),
+                    updated_at: now,
+                    updated_by: Some(params.owner.clone()),
+                };
+                env.storage().persistent().set(
+                    &ExtensionKey2::ProjectVerificationRequirements(count),
+                    &req_record,
+                );
+            }
         }
 
         Self::store_integrity_hash(
@@ -697,6 +716,40 @@ impl ProjectRegistry {
                 Utils::validate_language_code(code)?;
             }
             project.language_code = value;
+        }
+
+        // Handle verification requirements update
+        if let Some(value) = params.verification_requirements {
+            let now = env.ledger().timestamp();
+            if let Some(ref reqs) = value {
+                // Validate each requirement CID if any are provided
+                for req_cid in reqs.iter() {
+                    Utils::validate_metadata_cid(req_cid)?;
+                }
+                if !reqs.is_empty() {
+                    let req_record = crate::types::ProjectVerificationRequirements {
+                        project_id: params.project_id,
+                        requirement_cids: reqs.clone(),
+                        updated_at: now,
+                        updated_by: Some(params.caller.clone()),
+                    };
+                    env.storage().persistent().set(
+                        &ExtensionKey2::ProjectVerificationRequirements(params.project_id),
+                        &req_record,
+                    );
+                } else {
+                    // If empty vec provided, clear the requirements
+                    env.storage()
+                        .persistent()
+                        .remove(&ExtensionKey2::ProjectVerificationRequirements(params.project_id));
+                }
+            } else {
+                // Some(None) - clear the requirements
+                env.storage()
+                    .persistent()
+                    .remove(&ExtensionKey2::ProjectVerificationRequirements(params.project_id));
+            }
+            project.verification_requirements = value;
         }
 
         // If name was updated, update the ProjectByName and ProjectByNormalizedName mappings
@@ -1083,6 +1136,23 @@ impl ProjectRegistry {
         projects
     }
 
+    /// Batch-fetch projects in a single scan over the requested IDs.
+    /// Skips missing IDs. Clamped to 100 entries to bound storage reads.
+    /// Alias for bulk clients; prefer over N individual `get_project` calls.
+    pub fn get_projects_batch(env: &Env, project_ids: Vec<u64>) -> Vec<Project> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(project_ids.len(), MAX_BATCH);
+        let mut projects = Vec::new(env);
+        for i in 0..len {
+            if let Some(id) = project_ids.get(i) {
+                if let Some(project) = Self::get_project(env, id) {
+                    projects.push_back(project);
+                }
+            }
+        }
+        projects
+    }
+
     pub fn list_projects_by_status(
         env: &Env,
         status: VerificationStatus,
@@ -1162,7 +1232,9 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
+                if !project.archived
+                    && project.visibility == ProjectVisibility::Public
+                {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -1171,23 +1243,116 @@ impl ProjectRegistry {
         projects
     }
 
+    fn wildcard_matches(text: &[u8], pattern: &[u8]) -> bool {
+        let mut t_idx = 0;
+        let mut p_idx = 0;
+        let mut star_idx = None;
+        let mut match_idx = 0;
+
+        let to_lower = |b: u8| if b >= b'A' && b <= b'Z' { b + 32 } else { b };
+
+        while t_idx < text.len() {
+            if p_idx < pattern.len()
+                && (pattern[p_idx] == b'?' || to_lower(pattern[p_idx]) == to_lower(text[t_idx]))
+            {
+                t_idx += 1;
+                p_idx += 1;
+            } else if p_idx < pattern.len() && pattern[p_idx] == b'*' {
+                star_idx = Some(p_idx);
+                p_idx += 1;
+                match_idx = t_idx;
+            } else if let Some(star) = star_idx {
+                p_idx = star + 1;
+                match_idx += 1;
+                t_idx = match_idx;
+            } else {
+                return false;
+            }
+        }
+
+        while p_idx < pattern.len() && pattern[p_idx] == b'*' {
+            p_idx += 1;
+        }
+
+        p_idx == pattern.len()
+    }
+
     fn search_match_index(text: &String, query: &String) -> Option<u32> {
-        let text_len = text.len();
-        let query_len = query.len();
-        if query_len == 0 || query_len > text_len {
+        let text_len = text.len() as usize;
+        let mut query_len = query.len() as usize;
+        if query_len == 0 {
             return None;
         }
 
-        let mut text_bytes = vec![0u8; text_len as usize];
-        let mut query_bytes = vec![0u8; query_len as usize];
+        let mut text_bytes = vec![0u8; text_len];
+        let mut query_bytes = vec![0u8; query_len];
         text.copy_into_slice(&mut text_bytes);
         query.copy_into_slice(&mut query_bytes);
+
+        // Phrase search: if enclosed in quotes "phrase", strip quotes and match exact phrase
+        let is_quoted = query_len >= 2
+            && query_bytes[0] == b'"'
+            && query_bytes[query_len - 1] == b'"';
+        let query_slice = if is_quoted {
+            &query_bytes[1..query_len - 1]
+        } else {
+            &query_bytes[..]
+        };
+
+        if query_slice.is_empty() {
+            return None;
+        }
+        query_len = query_slice.len();
+
+        // Wildcard search if pattern contains '*' or '?'
+        let has_wildcard = query_slice.iter().any(|&c| c == b'*' || c == b'?');
+        if has_wildcard {
+            // Check whole text
+            if Self::wildcard_matches(&text_bytes, query_slice) {
+                return Some(0);
+            }
+            // Check word-by-word
+            let mut word_start = None;
+            for i in 0..=text_len {
+                let is_sep = i == text_len
+                    || text_bytes[i] == b' '
+                    || text_bytes[i] == b','
+                    || text_bytes[i] == b'.'
+                    || text_bytes[i] == b'-'
+                    || text_bytes[i] == b'_';
+                if is_sep {
+                    if let Some(start) = word_start {
+                        let word = &text_bytes[start..i];
+                        if Self::wildcard_matches(word, query_slice) {
+                            return Some(start as u32);
+                        }
+                        word_start = None;
+                    }
+                } else if word_start.is_none() {
+                    word_start = Some(i);
+                }
+            }
+
+            // Also check with leading/trailing wildcard if pattern doesn't start/end with '*'
+            let mut loose_pat = vec![b'*'];
+            loose_pat.extend_from_slice(query_slice);
+            loose_pat.push(b'*');
+            if Self::wildcard_matches(&text_bytes, &loose_pat) {
+                return Some(0);
+            }
+
+            return None;
+        }
+
+        if query_len > text_len {
+            return None;
+        }
 
         for start in 0..=text_len - query_len {
             let mut matches = true;
             for offset in 0..query_len {
-                let mut text_byte = text_bytes[(start + offset) as usize];
-                let mut query_byte = query_bytes[offset as usize];
+                let mut text_byte = text_bytes[start + offset];
+                let mut query_byte = query_slice[offset];
                 if text_byte >= b'A' && text_byte <= b'Z' {
                     text_byte += 32;
                 }
@@ -1200,11 +1365,12 @@ impl ProjectRegistry {
                 }
             }
             if matches {
-                return Some(start);
+                return Some(start as u32);
             }
         }
         None
     }
+
 
     fn project_search_score(env: &Env, project: &Project, query: &String) -> Option<u32> {
         let mut score = 0u32;
@@ -1331,6 +1497,15 @@ impl ProjectRegistry {
             }
         }
         result
+    }
+
+    /// Search active projects with limit (defaults start_index = 0) (#909).
+    pub fn search_projects_with_limit(
+        env: &Env,
+        query: String,
+        limit: u32,
+    ) -> Vec<Project> {
+        Self::search_projects(env, query, 0, limit)
     }
 
     pub fn list_projects_by_category(
@@ -1722,6 +1897,7 @@ impl ProjectRegistry {
 
         Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
+        Self::record_archive_audit(env, project_id, ArchiveAction::Archived, &caller, None);
         publish_project_archived_event(env, project_id, caller);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
             env,
@@ -1729,6 +1905,171 @@ impl ProjectRegistry {
             crate::types::NotificationKind::ProjectArchived,
         );
         Ok(())
+    }
+
+    /// Archive a project with a tracked reason (#873). Same authorization
+    /// rules as `archive_project`.
+    pub fn archive_project_with_reason(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        reason: ArchiveReason,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        Self::archive_with_reason_unauthorized(env, project_id, &caller, reason)
+    }
+
+    /// Archive several projects in one call (#873). The caller authenticates
+    /// once and must own each project or be an admin. The batch is atomic:
+    /// any failure reverts every archive in the call. Returns the number of
+    /// projects archived.
+    pub fn bulk_archive_projects(
+        env: &Env,
+        caller: Address,
+        project_ids: Vec<u64>,
+        reason: ArchiveReason,
+    ) -> Result<u32, ContractError> {
+        caller.require_auth();
+        if project_ids.is_empty() || project_ids.len() > MAX_PAGE_LIMIT {
+            return Err(ContractError::InvalidInput);
+        }
+        for project_id in project_ids.iter() {
+            Self::archive_with_reason_unauthorized(env, project_id, &caller, reason)?;
+        }
+        Ok(project_ids.len())
+    }
+
+    fn archive_with_reason_unauthorized(
+        env: &Env,
+        project_id: u64,
+        caller: &Address,
+        reason: ArchiveReason,
+    ) -> Result<(), ContractError> {
+        Self::archive_project_unauthorized(env, project_id, caller.clone())?;
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::Reason(project_id), &reason);
+        // Attach the reason to the audit entry just written by the archive.
+        let count = Self::archive_audit_count(env, project_id);
+        let key = ArchiveLifecycleKey::AuditEntry(project_id, count - 1);
+        if let Some(mut entry) = env.storage().persistent().get::<_, ArchiveAuditEntry>(&key) {
+            entry.reason = Some(reason);
+            env.storage().persistent().set(&key, &entry);
+        }
+        Ok(())
+    }
+
+    /// Reason the project is currently archived, if one was recorded (#873).
+    pub fn get_archive_reason(env: &Env, project_id: u64) -> Option<ArchiveReason> {
+        env.storage()
+            .persistent()
+            .get(&ArchiveLifecycleKey::Reason(project_id))
+    }
+
+    /// Paginated archive/unarchive audit log for a project, oldest first (#873).
+    pub fn get_archive_audit_log(
+        env: &Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<ArchiveAuditEntry> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let count = Self::archive_audit_count(env, project_id);
+        let end = core::cmp::min(start.saturating_add(effective_limit), count);
+        let mut entries = Vec::new(env);
+        for index in start..end {
+            if let Some(entry) = env
+                .storage()
+                .persistent()
+                .get(&ArchiveLifecycleKey::AuditEntry(project_id, index))
+            {
+                entries.push_back(entry);
+            }
+        }
+        entries
+    }
+
+    fn archive_audit_count(env: &Env, project_id: u64) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&ArchiveLifecycleKey::AuditCount(project_id))
+            .unwrap_or(0)
+    }
+
+    fn record_archive_audit(
+        env: &Env,
+        project_id: u64,
+        action: ArchiveAction,
+        caller: &Address,
+        reason: Option<ArchiveReason>,
+    ) {
+        let count = Self::archive_audit_count(env, project_id);
+        let entry = ArchiveAuditEntry {
+            project_id,
+            action,
+            caller: caller.clone(),
+            reason,
+            timestamp: env.ledger().timestamp(),
+        };
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::AuditEntry(project_id, count), &entry);
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::AuditCount(project_id), &(count + 1));
+    }
+
+    /// Change a project's visibility (#874). Owner only.
+    pub fn set_project_visibility(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        visibility: ProjectVisibility,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        let old_visibility = project.visibility;
+        if old_visibility == visibility {
+            return Ok(());
+        }
+        project.visibility = visibility;
+        project.updated_at = env.ledger().timestamp();
+        Self::persist_project(env, &project);
+        publish_project_visibility_changed_event(
+            env,
+            project_id,
+            caller,
+            old_visibility,
+            visibility,
+        );
+        Ok(())
+    }
+
+    /// Whether `viewer` may read `project` under its visibility mode (#874).
+    /// `None` is an anonymous viewer and can only read `Public` projects.
+    pub fn can_view_project(env: &Env, project: &Project, viewer: Option<&Address>) -> bool {
+        if project.visibility == ProjectVisibility::Public {
+            return true;
+        }
+        let Some(viewer) = viewer else {
+            return false;
+        };
+        if project.owner == *viewer || AdminManager::is_admin(env, viewer) {
+            return true;
+        }
+        project.visibility == ProjectVisibility::Restricted
+            && project
+                .maintainers
+                .as_ref()
+                .is_some_and(|m| m.contains(viewer))
     }
 
     /// Reactivate an archived project. The owner or any admin can reactivate.
@@ -1759,6 +2100,10 @@ impl ProjectRegistry {
 
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
+        env.storage()
+            .persistent()
+            .remove(&ArchiveLifecycleKey::Reason(project_id));
+        Self::record_archive_audit(env, project_id, ArchiveAction::Reactivated, &caller, None);
         publish_project_reactivated_event(env, project_id, caller);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
             env,
@@ -4003,6 +4348,213 @@ impl ProjectRegistry {
         Ok(new_project_id)
     }
 
+    // ── Complex Query Filters for Project Discovery (#910) ──────────────────
+
+    /// Query projects with complex criteria, boolean logic (AND / OR), sorting, and cursor-based pagination.
+    pub fn query_projects(
+        env: &Env,
+        filter: ProjectQueryFilter,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let total_projects: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        if total_projects == 0 {
+            return ProjectQueryResult {
+                projects: Vec::new(env),
+                next_cursor: None,
+                has_more: false,
+                total_matched: 0,
+            };
+        }
+
+        let featured_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FeaturedProjects)
+            .unwrap_or_else(|| Vec::new(env));
+
+        let criteria = &filter.criteria;
+        let mut matched_projects: alloc::vec::Vec<Project> = alloc::vec::Vec::new();
+
+        let has_any_condition = criteria.category.is_some()
+            || criteria.min_rating.is_some()
+            || criteria.verification_status.is_some()
+            || criteria.owner_address.is_some()
+            || criteria.featured_only.is_some();
+
+        for id in 1..=total_projects {
+            let Some(project) = Self::get_project(env, id) else {
+                continue;
+            };
+
+            if project.archived {
+                continue;
+            }
+
+            let matches = if !has_any_condition {
+                true
+            } else {
+                let match_category = criteria.category.as_ref().map(|c| project.category == *c);
+                let match_rating = criteria.min_rating.map(|min| project.rating >= min);
+                let match_verification = criteria.verification_status.as_ref().map(|expected_status| {
+                    project.verification_status == *expected_status
+                });
+                let match_owner = criteria.owner_address.as_ref().map(|o| project.owner == *o);
+                let match_featured = criteria.featured_only.map(|feat| {
+                    if feat {
+                        featured_ids.contains(id)
+                    } else {
+                        !featured_ids.contains(id)
+                    }
+                });
+
+                match filter.logic {
+                    FilterLogic::And => {
+                        let mut ok = true;
+                        if let Some(m) = match_category {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_rating {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_verification {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_owner {
+                            ok = ok && m;
+                        }
+                        if let Some(m) = match_featured {
+                            ok = ok && m;
+                        }
+                        ok
+                    }
+                    FilterLogic::Or => {
+                        let mut ok = false;
+                        if let Some(m) = match_category {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_rating {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_verification {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_owner {
+                            ok = ok || m;
+                        }
+                        if let Some(m) = match_featured {
+                            ok = ok || m;
+                        }
+                        ok
+                    }
+                }
+            };
+
+            if matches {
+                matched_projects.push(project);
+            }
+        }
+
+        let total_matched = matched_projects.len() as u32;
+
+        // Apply sorting
+        let ascending = filter.ascending.unwrap_or(false);
+        if let Some(sort_by) = filter.sort_by {
+            matched_projects.sort_by(|a, b| {
+                let cmp = match sort_by {
+                    ProjectFilterSortBy::Rating => a.rating.cmp(&b.rating),
+                    ProjectFilterSortBy::RegistrationDate => a.created_at.cmp(&b.created_at),
+                    ProjectFilterSortBy::ReviewCount => a.review_count.cmp(&b.review_count),
+                    ProjectFilterSortBy::Name => {
+                        let mut a_bytes = [0u8; 64];
+                        let mut b_bytes = [0u8; 64];
+                        let a_len = (a.name.len() as usize).min(64);
+                        let b_len = (b.name.len() as usize).min(64);
+                        a.name.copy_into_slice(&mut a_bytes[..a_len]);
+                        b.name.copy_into_slice(&mut b_bytes[..b_len]);
+                        a_bytes[..a_len].cmp(&b_bytes[..b_len])
+                    }
+                };
+                if ascending {
+                    cmp.then_with(|| a.id.cmp(&b.id))
+                } else {
+                    cmp.reverse().then_with(|| a.id.cmp(&b.id))
+                }
+            });
+        }
+
+        // Apply cursor pagination
+        let start_pos = if let Some(cur_id) = cursor {
+            match matched_projects.iter().position(|p| p.id == cur_id) {
+                Some(pos) => pos + 1,
+                None => 0,
+            }
+        } else {
+            0
+        };
+
+        let mut page = Vec::new(env);
+        let end_pos = core::cmp::min(start_pos + effective_limit as usize, matched_projects.len());
+
+        for i in start_pos..end_pos {
+            page.push_back(matched_projects[i].clone());
+        }
+
+        let next_cursor = if end_pos < matched_projects.len() && !page.is_empty() {
+            Some(matched_projects[end_pos - 1].id)
+        } else {
+            None
+        };
+
+        let has_more = end_pos < matched_projects.len();
+
+        ProjectQueryResult {
+            projects: page,
+            next_cursor,
+            has_more,
+            total_matched,
+        }
+    }
+
+    /// Convenience wrapper to filter projects directly with parameters.
+    pub fn list_projects_filtered(
+        env: &Env,
+        category: Option<String>,
+        min_rating: Option<u32>,
+        verification_status: Option<VerificationStatus>,
+        owner_address: Option<Address>,
+        featured_only: Option<bool>,
+        logic: Option<FilterLogic>,
+        sort_by: Option<ProjectFilterSortBy>,
+        cursor: Option<u64>,
+        limit: u32,
+    ) -> ProjectQueryResult {
+        let criteria = ProjectFilterCriteria {
+            category,
+            min_rating,
+            verification_status,
+            owner_address,
+            featured_only,
+        };
+        let query_filter = ProjectQueryFilter {
+            criteria,
+            logic: logic.unwrap_or(FilterLogic::And),
+            sort_by,
+            ascending: None,
+        };
+        Self::query_projects(env, query_filter, cursor, limit)
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
