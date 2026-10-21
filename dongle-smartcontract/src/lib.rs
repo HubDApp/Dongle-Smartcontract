@@ -14,6 +14,8 @@ pub mod category_types;
 mod category_registry;
 mod changelog_registry;
 mod collection_registry;
+mod computed_view_cache;
+mod rate_limiter;
 // mod community_collection_registry;
 mod config_registry;
 pub mod constants;

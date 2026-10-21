@@ -192,6 +192,38 @@ jobs:
       - name: Run tests
         run: cargo test -p dongle-contract
 
+  fuzz:
+    name: Fuzz (proptest harness)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-fuzz-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-
+
+      - name: Run fuzz harness
+        run: cargo test -p dongle-contract fuzz_test_harness
+
+      - name: Upload proptest regressions
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proptest-regressions
+          path: dongle-smartcontract/proptest-regressions/
+
   build:
     name: Build Contract
     runs-on: ubuntu-latest
