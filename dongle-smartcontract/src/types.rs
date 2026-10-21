@@ -2501,6 +2501,34 @@ pub struct ChangelogEntry {
     /// Optional IPFS CID pointing to a structured release-notes document.
     /// Complements `cid` when separate machine-readable release metadata is needed.
     pub changelog_cid: Option<String>,
+    /// Approval state. Only `Published` entries appear in the public
+    /// changelog (#930).
+    pub status: ChangelogStatus,
+    /// Admin that approved the entry, if it went through approval.
+    pub approved_by: Option<Address>,
+    /// When the entry was published, if it has been.
+    pub published_at: Option<u64>,
+}
+
+/// Approval state of a changelog entry (#930).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChangelogStatus {
+    /// Submitted by the owner, awaiting admin approval.
+    Draft,
+    /// Approved by an admin, waiting to be published.
+    Approved,
+    /// Visible in the public changelog.
+    Published,
+}
+
+/// Outcome of a bulk changelog approval operation (#930).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangelogBatchResult {
+    pub succeeded: Vec<u64>,
+    /// IDs skipped because they do not exist or are in the wrong status.
+    pub failed: Vec<u64>,
 }
 
 /// Changelog sort order for paginated reads

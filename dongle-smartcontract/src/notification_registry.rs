@@ -149,7 +149,17 @@ impl NotificationRegistry {
     /// against `UserNotificationPrefs` / `ProjectNotificationOverride`.
     pub fn emit_project_notification(env: &Env, project_id: u64, update_kind: NotificationKind) {
         let follower_count = SubscriptionRegistry::get_follower_count(env, project_id);
-        publish_project_update_notification_event(env, project_id, update_kind, follower_count);
+        publish_project_update_notification_event(
+            env,
+            project_id,
+            update_kind.clone(),
+            follower_count,
+        );
+        crate::changelog_generator::ChangelogGenerator::record_project_event(
+            env,
+            project_id,
+            update_kind,
+        );
     }
 
     // ── Pause notifications (issue #901) ───────────────────────────────────

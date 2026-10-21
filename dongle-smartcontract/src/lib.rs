@@ -15,6 +15,7 @@ mod bookmark_registry;
 mod campaign_registry;
 pub mod category_types;
 mod category_registry;
+mod changelog_generator;
 mod changelog_registry;
 mod collection_registry;
 mod computed_view_cache;
@@ -29,6 +30,7 @@ mod emergency_pause;
 mod endorsement_delegation;
 mod endorsement_graph;
 mod endorsement_registry;
+mod event_subscription_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
@@ -88,7 +90,9 @@ use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
+use crate::event_subscription_registry::EventSubscriptionRegistry;
 use crate::featured_registry::FeaturedRegistry;
+use crate::premium_featured_registry::PremiumFeaturedRegistry;
 use crate::fee_manager::FeeManager;
 use crate::fee_extensions::FeeExtensions;
 use crate::probation_registry::ProbationRegistry;
@@ -4081,6 +4085,135 @@ impl DongleContract {
     /// - `u32` number of changelog entries
     pub fn get_changelog_count(env: Env, project_id: u64) -> u32 {
         ChangelogRegistry::get_changelog_count(&env, project_id)
+    }
+
+    // --- Changelog Approval (#930) ---
+
+    /// Submit a changelog entry for admin approval (owner only). The entry is
+    /// stored as `Draft` and hidden until approved and published.
+    pub fn submit_changelog_for_approval(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        cid: String,
+        description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        ChangelogRegistry::submit_changelog_for_approval(
+            &env,
+            project_id,
+            owner,
+            cid,
+            description,
+            version,
+            changelog_cid,
+        )
+    }
+
+    /// Admin bulk approval of draft entries; `publish = true` also publishes them.
+    pub fn approve_changelog_entries(
+        env: Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+        publish: bool,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::approve_changelog_entries(&env, admin, changelog_ids, publish)
+    }
+
+    /// Admin bulk rejection of draft entries (rejected drafts are deleted).
+    pub fn reject_changelog_entries(
+        env: Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::reject_changelog_entries(&env, admin, changelog_ids)
+    }
+
+    /// Bulk-publish approved entries (admin or the project owner).
+    pub fn publish_changelog_entries(
+        env: Env,
+        caller: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        ChangelogRegistry::publish_changelog_entries(&env, caller, changelog_ids)
+    }
+
+    /// Require admin approval for all new changelog entries (admin only).
+    pub fn set_changelog_approval_required(
+        env: Env,
+        admin: Address,
+        required: bool,
+    ) -> Result<(), ContractError> {
+        ChangelogRegistry::set_changelog_approval_required(&env, admin, required)
+    }
+
+    pub fn is_changelog_approval_required(env: Env) -> bool {
+        ChangelogRegistry::is_changelog_approval_required(&env)
+    }
+
+    /// Draft entries awaiting admin review, oldest first.
+    pub fn get_pending_changelog_entries(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ChangelogEntry> {
+        ChangelogRegistry::get_pending_changelog_entries(&env, start_index, limit)
+    }
+
+    // --- Changelog Generation from Events (#929) ---
+
+    /// On-demand trigger: turn up to `max_events` unprocessed project events
+    /// into changelog entries. Permissionless and idempotent, so a keeper can
+    /// run it as a background job. Returns the number of entries generated.
+    pub fn generate_changelog_from_events(
+        env: Env,
+        project_id: u64,
+        max_events: u32,
+    ) -> Result<u32, ContractError> {
+        ChangelogGenerator::generate_changelog_from_events(&env, project_id, max_events)
+    }
+
+    /// Generated changelog entries in `[start, end)`, grouped by type.
+    pub fn generate_changelog_summary(
+        env: Env,
+        project_id: u64,
+        start: u64,
+        end: u64,
+    ) -> Result<ChangelogSummary, ContractError> {
+        ChangelogGenerator::generate_changelog_summary(&env, project_id, start, end)
+    }
+
+    /// Generated changelog entries in `[start, end)`, bucketed by time period.
+    pub fn group_changelog_by_period(
+        env: Env,
+        project_id: u64,
+        start: u64,
+        end: u64,
+        period_seconds: u64,
+    ) -> Result<Vec<ChangelogPeriodGroup>, ContractError> {
+        ChangelogGenerator::group_changelog_by_period(&env, project_id, start, end, period_seconds)
+    }
+
+    pub fn get_generated_changelog(
+        env: Env,
+        project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<GeneratedChangelogEntry> {
+        ChangelogGenerator::get_generated_changelog(&env, project_id, start_index, limit)
+    }
+
+    pub fn get_generated_changelog_entry(env: Env, entry_id: u64) -> Option<GeneratedChangelogEntry> {
+        ChangelogGenerator::get_generated_changelog_entry(&env, entry_id)
+    }
+
+    pub fn get_project_event(env: Env, project_id: u64, seq: u64) -> Option<ProjectEventRecord> {
+        ChangelogGenerator::get_project_event(&env, project_id, seq)
+    }
+
+    pub fn get_project_event_count(env: Env, project_id: u64) -> u64 {
+        ChangelogGenerator::get_project_event_count(&env, project_id)
     }
 
     // --- Subscription / Follow ---
