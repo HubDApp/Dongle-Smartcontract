@@ -931,6 +931,18 @@ impl ReviewRegistry {
             return Err(ContractError::AdminOnly);
         }
 
+        Self::apply_admin_delete_review(env, project_id, reviewer, admin)
+    }
+
+    /// Body of `admin_delete_review` after auth and the admin check, shared
+    /// with batch moderation so the admin authorizes once per batch.
+    /// Every early return happens before the first storage write.
+    pub(crate) fn apply_admin_delete_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
         // Check if project exists
         if ProjectRegistry::get_project(env, project_id).is_none() {
             return Err(ContractError::ProjectNotFound);
@@ -1050,6 +1062,24 @@ impl ReviewRegistry {
             if let Some((project_id, reviewer)) = ids.get(i) {
                 if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
                     // Exclude hidden reviews from bulk listing (issue #658).
+                    if !review.hidden && review.attribution == ReviewAttribution::Attributed {
+                        reviews.push_back(review);
+                    }
+                }
+            }
+        }
+        reviews
+    }
+
+    /// Batch-fetch reviews with a single pass over the requested keys.
+    /// Same visibility filtering as `get_reviews_by_ids`. Clamped to 100 entries.
+    pub fn get_reviews_batch(env: &Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_BATCH);
+        let mut reviews = Vec::new(env);
+        for i in 0..len {
+            if let Some((project_id, reviewer)) = ids.get(i) {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
                     if !review.hidden && review.attribution == ReviewAttribution::Attributed {
                         reviews.push_back(review);
                     }
@@ -1351,6 +1381,17 @@ impl ReviewRegistry {
             return Err(ContractError::AdminOnly);
         }
 
+        Self::apply_hide_review(env, project_id, reviewer, admin)
+    }
+
+    /// Body of `hide_review` after auth and the admin check, shared with
+    /// batch moderation. Every early return happens before the first write.
+    pub(crate) fn apply_hide_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
         // Check if project exists
         if ProjectRegistry::get_project(env, project_id).is_none() {
             return Err(ContractError::ProjectNotFound);
@@ -1435,6 +1476,17 @@ impl ReviewRegistry {
             return Err(ContractError::AdminOnly);
         }
 
+        Self::apply_restore_review(env, project_id, reviewer, admin)
+    }
+
+    /// Body of `restore_review` after auth and the admin check, shared with
+    /// batch moderation. Every early return happens before the first write.
+    pub(crate) fn apply_restore_review(
+        env: &Env,
+        project_id: u64,
+        reviewer: Address,
+        admin: Address,
+    ) -> Result<(), ContractError> {
         // Check if project exists
         if ProjectRegistry::get_project(env, project_id).is_none() {
             return Err(ContractError::ProjectNotFound);

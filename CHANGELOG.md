@@ -40,6 +40,10 @@ for the full policy.
 
 ### Added
 
+- Project visibility modes (`Public` / `Private` / `Restricted`) with `set_project_visibility`, `get_project_as_viewer`, and the `ProjectVisibilityChanged` event; `get_project` and `list_projects` return only public projects. **BREAKING** (`Project` struct gains `visibility`) (#874).
+- Archive lifecycle: `archive_project_with_reason`, `bulk_archive_projects`, `get_archive_reason`, and `get_archive_audit_log` (#873).
+- `.pre-commit-config.yaml` with fmt, clippy, and doc hooks plus `scripts/test_pre_commit_hooks.py` (#872).
+- CI `compat` matrix across Rust 1.70 / 1.74 / stable on Linux, macOS, and Windows (#871).
 - **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
   configuration) covering vulnerability, license, duplicate-crate, and source
   checks. New `audit` CI job runs `cargo deny check` on every PR and push to

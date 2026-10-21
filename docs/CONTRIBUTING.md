@@ -36,6 +36,28 @@ Example: `feat: add project review capability`
 
 ## 2. Local Testing & Building
 
+### 2.1 Pre-commit Hooks
+The repository ships a `.pre-commit-config.yaml` that runs the same Rust
+quality gates as CI before every commit:
+
+| Hook           | Command                                                                 |
+|----------------|-------------------------------------------------------------------------|
+| `cargo-fmt`    | `cargo fmt --all -- --check`                                            |
+| `cargo-clippy` | `cargo clippy -p dongle-contract --target wasm32-unknown-unknown --all-features -- -D warnings` |
+| `cargo-doc`    | `RUSTDOCFLAGS=-Dwarnings cargo doc -p dongle-contract --no-deps`        |
+
+Setup (once per clone):
+```bash
+pip install pre-commit
+rustup target add wasm32-unknown-unknown   # required by the clippy hook
+pre-commit install
+```
+
+Hooks then run automatically on `git commit` whenever Rust files are staged.
+Run them manually against the whole tree with `pre-commit run --all-files`.
+Verify the hook setup with `python3 scripts/test_pre_commit_hooks.py`
+(this also runs in CI as the `pre-commit-hooks` job).
+
 ### Running Tests
 Always run the test suite locally before pushing changes:
 ```bash
