@@ -205,6 +205,43 @@ pub const MIN_PROJECT_AGE_SECONDS: u64 = 0;
 /// `docs/DEPENDENCY_REGISTRY.md`.
 pub const MAX_DEPENDENCY_DEPTH: u32 = 5;
 
+/// Maximum traversal depth accepted by `get_dependency_graph` (issue #924).
+/// Requests for a deeper graph are clamped to this value to keep exports
+/// bounded.
+pub const MAX_DEPENDENCY_GRAPH_DEPTH: u32 = 10;
+
+/// Maximum number of nodes returned by a single `get_dependency_graph` call.
+/// The traversal stops and sets `truncated` once this many projects are
+/// reached.
+pub const MAX_DEPENDENCY_GRAPH_NODES: u32 = 200;
+
+/// Maximum length of a deprecation reason passed to `deprecate_project`
+/// (issue #925).
+pub const MAX_DEPRECATION_REASON_LEN: u32 = 512;
+
+/// Maximum number of `DependencyDeprecated` alerts emitted in one call.
+/// `deprecate_project` alerts the first batch of dependents; the rest are
+/// alerted page by page through `notify_deprecation_dependents`.
+pub const MAX_DEPRECATION_NOTIFY_BATCH: u32 = 50;
+
+// ── Feature campaigns (#926) ───────────────────────────────────────────────
+
+/// Maximum length of a feature campaign name.
+pub const MAX_CAMPAIGN_NAME_LEN: u32 = 64;
+/// Maximum length of a feature campaign theme.
+pub const MAX_CAMPAIGN_THEME_LEN: u32 = 64;
+/// Maximum number of projects in a single feature campaign.
+pub const MAX_PROJECTS_PER_CAMPAIGN: u32 = 50;
+/// Maximum campaign duration: 365 days.
+pub const MAX_CAMPAIGN_DURATION_SECS: u64 = 365 * 24 * 60 * 60;
+
+// ── Featured rotation (#927) ───────────────────────────────────────────────
+
+/// Maximum rotation period accepted by `schedule_featured_rotation`.
+pub const MAX_ROTATION_PERIOD_DAYS: u32 = 365;
+/// Seconds per rotation day.
+pub const ROTATION_SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
 /// Maximum number of tags per project.
 /// 10: tags are stored as a `Vec<String>` inside the project entry and are
 /// scanned linearly on every tag-index update; 10 keeps that O(n) work trivial.

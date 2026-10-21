@@ -12,6 +12,7 @@ pub mod auto_archive_types;
 pub mod auth;
 mod blacklist_registry;
 mod bookmark_registry;
+mod campaign_registry;
 pub mod category_types;
 mod category_registry;
 mod changelog_registry;
@@ -22,6 +23,7 @@ mod rate_limiter;
 mod config_registry;
 pub mod constants;
 mod dependency_registry;
+mod deprecation_registry;
 mod dispute_registry;
 mod emergency_pause;
 mod endorsement_delegation;
@@ -30,6 +32,7 @@ mod endorsement_registry;
 pub mod errors;
 pub mod events;
 mod featured_registry;
+mod featured_rotation_registry;
 mod fee_manager;
 mod fee_extensions;
 mod governance_ranges;
@@ -103,6 +106,14 @@ use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
 use crate::notification_registry::NotificationRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
+    // #924 dependency graph
+    DependencyGraph,
+    // #925 dependency deprecation
+    DeprecationRecord,
+    // #926 feature campaigns
+    CampaignInteraction, CampaignStats, FeatureCampaign, FeatureCampaignConfig,
+    // #927 featured rotation
+    FeaturedRotationSchedule,
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
     SimilarProject, SmartBookmarkCollection, SmartBookmarkRules, TrendingProject,
@@ -1315,6 +1326,146 @@ impl DongleContract {
     /// Return the number of projects currently in the featured list.
     pub fn get_featured_count(env: Env) -> u32 {
         FeaturedRegistry::get_featured_count(&env)
+    }
+
+    // --- Featured Rotation (#927) ---
+
+    /// Admin: schedule (or replace) an automatic rotation through `projects`,
+    /// advancing to the next project every `rotation_period_days`.
+    pub fn schedule_featured_rotation(
+        env: Env,
+        admin: Address,
+        projects: Vec<u64>,
+        rotation_period_days: u32,
+    ) -> Result<FeaturedRotationSchedule, ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::schedule_featured_rotation(
+            &env,
+            admin,
+            projects,
+            rotation_period_days,
+        )
+    }
+
+    /// The rotation schedule evaluated at the current ledger time (lazy:
+    /// the current project advances without any transaction).
+    pub fn get_featured_rotation_schedule(env: Env) -> Option<FeaturedRotationSchedule> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::get_featured_rotation_schedule(
+            &env,
+        )
+    }
+
+    /// The project currently featured by the rotation, if any.
+    pub fn get_current_rotation_project(env: Env) -> Option<u64> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::get_current_rotation_project(
+            &env,
+        )
+    }
+
+    /// Persist the current rotation slot and emit `FEATURED/ROTATED` when
+    /// the featured project changed. Callable by anyone.
+    pub fn advance_featured_rotation(env: Env) -> Result<FeaturedRotationSchedule, ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::advance_featured_rotation(&env)
+    }
+
+    /// Admin: remove the featured rotation schedule.
+    pub fn clear_featured_rotation(env: Env, admin: Address) -> Result<(), ContractError> {
+        crate::featured_rotation_registry::FeaturedRotationRegistry::clear_featured_rotation(
+            &env, admin,
+        )
+    }
+
+    // --- Feature Campaigns (#926) ---
+
+    /// Admin: create a time-bound feature campaign. Returns its ID.
+    pub fn create_feature_campaign(
+        env: Env,
+        admin: Address,
+        campaign_config: FeatureCampaignConfig,
+    ) -> Result<u64, ContractError> {
+        crate::campaign_registry::CampaignRegistry::create_feature_campaign(
+            &env,
+            admin,
+            campaign_config,
+        )
+    }
+
+    /// Admin: add a project to a campaign that has not yet ended.
+    pub fn add_to_campaign(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        campaign_id: u64,
+    ) -> Result<(), ContractError> {
+        crate::campaign_registry::CampaignRegistry::add_to_campaign(
+            &env,
+            admin,
+            project_id,
+            campaign_id,
+        )
+    }
+
+    /// Projects in a campaign, in insertion order, paginated.
+    pub fn get_projects_by_campaign(
+        env: Env,
+        campaign_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<Vec<Project>, ContractError> {
+        crate::campaign_registry::CampaignRegistry::get_projects_by_campaign(
+            &env,
+            campaign_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Record a viewer impression or engagement on a project in an active
+    /// campaign.
+    pub fn record_campaign_interaction(
+        env: Env,
+        viewer: Address,
+        campaign_id: u64,
+        project_id: u64,
+        interaction: CampaignInteraction,
+    ) -> Result<(), ContractError> {
+        crate::campaign_registry::CampaignRegistry::record_campaign_interaction(
+            &env,
+            viewer,
+            campaign_id,
+            project_id,
+            interaction,
+        )
+    }
+
+    pub fn get_feature_campaign(env: Env, campaign_id: u64) -> Option<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::get_feature_campaign(&env, campaign_id)
+    }
+
+    pub fn list_feature_campaigns(env: Env, start_index: u32, limit: u32) -> Vec<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::list_feature_campaigns(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Campaigns running at the current ledger timestamp.
+    pub fn get_active_campaigns(env: Env) -> Vec<FeatureCampaign> {
+        crate::campaign_registry::CampaignRegistry::get_active_campaigns(&env)
+    }
+
+    /// Aggregate impression / engagement counters for a campaign.
+    pub fn get_campaign_stats(env: Env, campaign_id: u64) -> CampaignStats {
+        crate::campaign_registry::CampaignRegistry::get_campaign_stats(&env, campaign_id)
+    }
+
+    /// Impression / engagement counters for one project within a campaign.
+    pub fn get_campaign_project_stats(env: Env, campaign_id: u64, project_id: u64) -> CampaignStats {
+        crate::campaign_registry::CampaignRegistry::get_campaign_project_stats(
+            &env,
+            campaign_id,
+            project_id,
+        )
     }
 
     // --- Review Registry ---
@@ -3684,6 +3835,83 @@ impl DongleContract {
     /// Retrieve the full transitive dependency graph (project IDs only)
     pub fn get_transitive_dependencies(env: Env, project_id: u64) -> Vec<u64> {
         crate::dependency_registry::DependencyRegistry::get_transitive_dependencies(&env, project_id)
+    }
+
+    /// Structured dependency graph for indexers and frontends (issue #924).
+    ///
+    /// Returns typed `DependsOn` / `UsedBy` / `RelatedTo` edges reachable
+    /// from `project_id`, walking transitive dependencies and dependents up
+    /// to `max_depth` hops (clamped to `MAX_DEPENDENCY_GRAPH_DEPTH`; `0`
+    /// selects the maximum). Cycles are reported in `has_cycle` /
+    /// `cycle_nodes`.
+    pub fn get_dependency_graph(
+        env: Env,
+        project_id: u64,
+        max_depth: u32,
+    ) -> Result<DependencyGraph, ContractError> {
+        crate::dependency_registry::DependencyRegistry::get_dependency_graph(
+            &env, project_id, max_depth,
+        )
+    }
+
+    // --- Dependency Deprecation (#925) ---
+
+    /// Admin: deprecate a project and alert its dependents via
+    /// `DependencyDeprecated` events (first `MAX_DEPRECATION_NOTIFY_BATCH`
+    /// dependents; page through the rest with `notify_deprecation_dependents`).
+    pub fn deprecate_project(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        reason: String,
+        migration_guide_cid: Option<String>,
+    ) -> Result<DeprecationRecord, ContractError> {
+        crate::deprecation_registry::DeprecationRegistry::deprecate_project(
+            &env,
+            admin,
+            project_id,
+            reason,
+            migration_guide_cid,
+        )
+    }
+
+    /// Admin: batch-emit `DependencyDeprecated` alerts for one page of a
+    /// deprecated project's dependents. Returns the number of alerts sent.
+    pub fn notify_deprecation_dependents(
+        env: Env,
+        admin: Address,
+        deprecated_project_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Result<u32, ContractError> {
+        crate::deprecation_registry::DeprecationRegistry::notify_deprecation_dependents(
+            &env,
+            admin,
+            deprecated_project_id,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Projects affected by a deprecation (direct dependents). Empty when
+    /// the project is not deprecated.
+    pub fn get_projects_depending_on(env: Env, deprecated_project_id: u64) -> Vec<u64> {
+        crate::deprecation_registry::DeprecationRegistry::get_projects_depending_on(
+            &env,
+            deprecated_project_id,
+        )
+    }
+
+    pub fn get_deprecation_record(env: Env, project_id: u64) -> Option<DeprecationRecord> {
+        crate::deprecation_registry::DeprecationRegistry::get_deprecation_record(&env, project_id)
+    }
+
+    pub fn list_deprecated_projects(env: Env, start_index: u32, limit: u32) -> Vec<u64> {
+        crate::deprecation_registry::DeprecationRegistry::list_deprecated_projects(
+            &env,
+            start_index,
+            limit,
+        )
     }
 
     /// Retrieve the reverse dependency graph (projects that depend on this project)

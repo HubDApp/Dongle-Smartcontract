@@ -1674,6 +1674,62 @@ pub struct ProjectDependency {
     pub updated_at: u64,
 }
 
+/// Relationship type carried by an edge of a `DependencyGraph` (issue #924).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DependencyRelation {
+    /// `from` declares a project dependency on `to`.
+    DependsOn,
+    /// `from` is used by `to` (the reverse of `DependsOn`).
+    UsedBy,
+    /// `from` and `to` are linked via `link_project`; no dependency implied.
+    RelatedTo,
+}
+
+/// A project reached while building a `DependencyGraph`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyGraphNode {
+    pub project_id: u64,
+    /// Hops from the root project (the root itself is depth 0).
+    pub depth: u32,
+}
+
+/// A directed, typed edge of a `DependencyGraph`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyGraphEdge {
+    pub from: u64,
+    pub to: u64,
+    pub relation: DependencyRelation,
+}
+
+/// Structured dependency graph rooted at one project, returned by
+/// `get_dependency_graph` for indexers and frontends (issue #924).
+///
+/// The struct is XDR-encoded on chain and maps one-to-one onto a JSON object
+/// (`{ root, max_depth, nodes: [...], edges: [...], ... }`) when decoded by an
+/// RPC client, so no separate JSON serialisation is performed in the contract.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyGraph {
+    pub root: u64,
+    /// Effective depth limit used for the traversal, after clamping to
+    /// `MAX_DEPENDENCY_GRAPH_DEPTH`.
+    pub max_depth: u32,
+    /// Every project in the graph, root first, in breadth-first order.
+    pub nodes: Vec<DependencyGraphNode>,
+    pub edges: Vec<DependencyGraphEdge>,
+    /// True when the `DependsOn` edges in the graph contain a cycle.
+    pub has_cycle: bool,
+    /// Projects that lie on (or between) dependency cycles. Empty when
+    /// `has_cycle` is false.
+    pub cycle_nodes: Vec<u64>,
+    /// True when the traversal stopped early because of the depth limit or
+    /// `MAX_DEPENDENCY_GRAPH_NODES`, i.e. more of the graph exists.
+    pub truncated: bool,
+}
+
 /// Emitted when a project's featured status changes.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

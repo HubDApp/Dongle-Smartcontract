@@ -4,7 +4,7 @@ use crate::storage_manager::StorageManager;
 use crate::types::{DependencyRef, ProjectDependency};
 use crate::version_spec::VersionSpecParser;
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 pub struct DependencyRegistry;
 
