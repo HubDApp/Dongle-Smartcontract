@@ -1,2 +1,26 @@
 target/
 test_snapshots/
+
+# Test/build output dumps (local artifacts; do not commit)
+check_output.txt
+errors.txt
+final_test_output.txt
+final_test_results.txt
+final_test_run.txt
+full_test_output.txt
+test_final.txt
+test_output.txt
+test_output_latest.txt
+
+# Common variants generated while capturing test/build output
+*_output.txt
+*_output_*.txt
+*_errors.txt
+build_error*.log
+build_errors*.log
+test_results*.txt
+test_build_errors*.txt
+final_test_*.txt
+full_test_*.txt
+test_final*.txt
+test_output*.txt

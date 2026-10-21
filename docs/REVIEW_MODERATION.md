@@ -20,7 +20,7 @@ This guide reflects the implementation under `dongle-smartcontract/src`.
 The public contract entrypoints are defined in
 [`lib.rs`](../dongle-smartcontract/src/lib.rs), and their behavior is
 implemented by
-[`ReviewRegistry`](../dongle-smartcontract/src/review_registry.rs).
+[`ReviewRegistry`](../dongle-smartcontract/src/review_registry/mod.rs).
 
 ## Reporting a Review
 

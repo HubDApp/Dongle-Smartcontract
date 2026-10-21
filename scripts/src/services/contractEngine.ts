@@ -176,7 +176,7 @@ class ContractEngineService {
   public updateProject(
     caller: string,
     id: number,
-    updates: Partial<Pick<Project, 'name' | 'description' | 'website' | 'category' | 'tags' | 'metadataCid' | 'repository' | 'documentation'>>
+    updates: Partial<Pick<Project, 'name' | 'description' | 'website' | 'category' | 'tags' | 'metadataCid' | 'repository' | 'license' | 'repositorySync' | 'documentation'>>
   ): Project {
     const projIndex = this.projects.findIndex((p) => p.id === id);
     if (projIndex === -1) throw new Error('ErrProjectNotFound');

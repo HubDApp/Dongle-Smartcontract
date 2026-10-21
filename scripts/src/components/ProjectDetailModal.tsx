@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Project, Review, UserAccount } from '../types';
 import { contractEngine } from '../services/contractEngine';
+import { fetchRepositoryMetadata } from '../services/repositoryMetadataSync';
 
 interface ProjectDetailModalProps {
   project: Project | null;
@@ -43,10 +44,53 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const [disputeSuccess, setDisputeSuccess] = useState(false);
   const [disputeError, setDisputeError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isSyncingRepository, setIsSyncingRepository] = useState(false);
 
   if (!project) return null;
 
   const reviews = contractEngine.getReviewsForProject(project.id);
+  const repositorySync = project.repositorySync ?? { enabled: false, intervalMinutes: 60 };
+  const canManageMetadata = project.owner === currentUser.address || currentUser.role === 'admin';
+
+  const handleRepositorySync = async () => {
+    if (!project.repository) return;
+    setIsSyncingRepository(true);
+    const attemptedAt = Date.now();
+    try {
+      const metadata = await fetchRepositoryMetadata(project.repository);
+      contractEngine.updateProject(currentUser.address, project.id, {
+        ...metadata,
+        repositorySync: {
+          ...repositorySync,
+          lastAttemptAt: attemptedAt,
+          lastSyncedAt: Date.now(),
+          lastError: undefined,
+        },
+      });
+      setActionNotice('Repository name, description, topics, and license synced.');
+      onUpdate();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Repository sync failed.';
+      contractEngine.updateProject(currentUser.address, project.id, {
+        repositorySync: { ...repositorySync, lastAttemptAt: attemptedAt, lastError: message },
+      });
+      setActionNotice(`Repository sync failed: ${message}`);
+      onUpdate();
+    } finally {
+      setIsSyncingRepository(false);
+    }
+  };
+
+  const updateRepositorySyncSettings = (updates: Partial<typeof repositorySync>) => {
+    try {
+      contractEngine.updateProject(currentUser.address, project.id, {
+        repositorySync: { ...repositorySync, ...updates },
+      });
+      onUpdate();
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : 'Could not update repository sync settings.');
+    }
+  };
 
   const handleExtendTtl = () => {
     try {
@@ -187,11 +231,82 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     </div>
                   )}
 
+                  {project.license && (
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase">License</span>
+                      <span className="text-slate-300">{project.license}</span>
+                    </div>
+                  )}
+
                   <div>
                     <span className="text-slate-500 block text-[10px] uppercase">Metadata CID</span>
                     <span className="text-slate-300">{project.metadataCid.slice(0, 16)}...</span>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-slate-950/50 p-5 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <h3 className="font-semibold text-white text-sm">Repository metadata sync</h3>
+                      <p className="text-[11px] text-slate-500">Public GitHub and GitLab repositories · runs while this explorer is open</p>
+                    </div>
+                  </div>
+                  {canManageMetadata && (
+                    <button
+                      onClick={handleRepositorySync}
+                      disabled={!project.repository || isSyncingRepository}
+                      className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white transition flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingRepository ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingRepository ? 'Syncing...' : 'Sync now'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-slate-800 pt-3">
+                  {canManageMetadata ? (
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={repositorySync.enabled}
+                        disabled={!project.repository}
+                        onChange={(event) => updateRepositorySyncSettings({ enabled: event.target.checked })}
+                        className="h-4 w-4 accent-blue-500"
+                      />
+                      Automatic sync
+                    </label>
+                  ) : (
+                    <span className="text-xs text-slate-400">{repositorySync.enabled ? 'Automatic sync enabled' : 'Automatic sync disabled'}</span>
+                  )}
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
+                    Every
+                    <select
+                      value={repositorySync.intervalMinutes}
+                      disabled={!canManageMetadata || !repositorySync.enabled}
+                      onChange={(event) => updateRepositorySyncSettings({ intervalMinutes: Number(event.target.value) })}
+                      className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 disabled:opacity-50"
+                    >
+                      <option value={15}>15 minutes</option>
+                      <option value={60}>1 hour</option>
+                      <option value={360}>6 hours</option>
+                      <option value={1440}>24 hours</option>
+                    </select>
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    {repositorySync.lastSyncedAt
+                      ? `Last synced ${new Date(repositorySync.lastSyncedAt).toLocaleString()}`
+                      : 'Not synced yet'}
+                  </span>
+                </div>
+                {repositorySync.lastError && (
+                  <p role="status" className="text-xs text-rose-300">Last sync failed: {repositorySync.lastError}</p>
+                )}
+                {!project.repository && (
+                  <p className="text-xs text-amber-300">Add a GitHub or GitLab repository URL to enable sync.</p>
+                )}
               </div>
 
               {/* Security Contact */}

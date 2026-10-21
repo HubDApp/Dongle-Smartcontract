@@ -1,0 +1,72 @@
+# cargo-deny configuration — used by `cargo deny check` in CI to audit
+# dependencies for security vulnerabilities, license compliance, and
+# duplicate crates.
+#
+# Run locally:  cargo deny check
+# Docs:         https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Analyse the full dependency graph (including dev-dependencies).
+all-features = true
+
+# ---------------------------------------------------------------------------
+# Vulnerability auditing
+# ---------------------------------------------------------------------------
+[advisories]
+# Path to the local clone of the RustSec advisory database.
+# When running in CI the database is fetched automatically; leave this
+# unset so `cargo deny` always fetches the latest data.
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# Deny any crate with an outstanding security advisory.
+vulnerability = "deny"
+
+# Treat unmaintained crates as warnings, not hard errors.
+unmaintained = "warn"
+
+# Yanked crates are a hard error (they were yanked for a reason).
+yanked = "deny"
+
+# Notify about crates that have been given a security notice but no CVE yet.
+notice = "warn"
+
+# ---------------------------------------------------------------------------
+# License compliance
+# ---------------------------------------------------------------------------
+[licenses]
+# Acceptable open-source licenses for this project.  All Soroban/Stellar SDK
+# crates are Apache-2.0 or MIT; proptest is MIT/Apache-2.0.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "Zlib",
+]
+# Confidence threshold for license detection (0.0–1.0).
+confidence-threshold = 0.8
+
+# ---------------------------------------------------------------------------
+# Duplicate crate detection
+# ---------------------------------------------------------------------------
+[bans]
+# Warn when the same crate appears at multiple versions.  Soroban's dependency
+# tree is compact enough that duplicates almost always indicate an accidental
+# version mismatch.
+multiple-versions = "warn"
+wildcards = "deny"
+
+# ---------------------------------------------------------------------------
+# Source restrictions
+# ---------------------------------------------------------------------------
+[sources]
+# Only allow crates published to crates.io.  No git or path dependencies
+# should exist in production builds.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

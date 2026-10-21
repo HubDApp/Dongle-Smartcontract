@@ -30,9 +30,16 @@ Pattern: `^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$`
 - Max 64 characters
 - Lowercase `a-z`, digits, `-`, `_` only
 - Start and end with alphanumeric
+- Uppercase input is rejected and cannot be stored as a slug
 
 **Valid:** `my-project`, `project_123`, `awesome-app-v2`, `a`, `123`  
 **Invalid:** `My-Project`, `-project`, `project-`, `my project`, `my@project`
+
+### Case-sensitivity rule
+
+Project names are treated as case-insensitive for uniqueness. The contract lowercases and normalizes names before checking `ProjectByNormalizedName`, so `Project Atlas`, `project atlas`, and `PROJECT_ATLAS` are duplicates.
+
+Slugs also use a canonical lowercase key. The contract stores `ProjectBySlug(lowercase_slug)`, rejects uppercase slugs at validation time, and treats `my-project` and `My-Project` as the same unique slug.
 
 ### Storage
 

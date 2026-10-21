@@ -100,6 +100,12 @@ Use the invocation helper script for common functions:
 
 # Fetch project details by Slug
 ./scripts/invoke.sh get_project_by_slug "my-project"
+
+# Multi-sig governance (see Admin Management below)
+./scripts/invoke.sh create_proposal add_admin <new_admin_address>
+./scripts/invoke.sh approve_proposal <proposal_id>
+./scripts/invoke.sh execute_proposal <proposal_id>
+./scripts/invoke.sh get_proposal <proposal_id>
 ```
 
 > [!IMPORTANT]
@@ -570,6 +576,84 @@ soroban contract invoke \
 |---|---|
 | `CannotRemoveLastAdmin` | Removing this admin would leave the contract with no admins |
 | `AdminNotFound` | The address to remove is not an admin |
+| `Unauthorized` | Caller is not an admin, or `get_admin_approval_threshold() > 1` (use the proposal workflow) |
+
+#### Multi-sig proposal workflow
+
+When the approval threshold is greater than `1`, `add_admin`, `remove_admin`, and further threshold changes cannot be called directly. Use `scripts/invoke.sh` with a different `DEPLOYER_IDENTITY` for each admin.
+
+**Step 1 — Raise the threshold** (still allowed while threshold is `1`):
+
+```bash
+export NETWORK=testnet
+export CONTRACT_ID=<CONTRACT_ID>
+export DEPLOYER_IDENTITY=alice
+
+./scripts/invoke.sh add_admin "$(soroban keys address bob)"
+./scripts/invoke.sh add_admin "$(soroban keys address carol)"
+./scripts/invoke.sh set_admin_approval_threshold 2
+```
+
+**Step 2 — Create a proposal** (`create_proposal`). The proposer is recorded as the first approval. Returns `proposal_id`.
+
+```bash
+export DEPLOYER_IDENTITY=alice
+./scripts/invoke.sh create_proposal add_admin "$(soroban keys address dave)"
+./scripts/invoke.sh get_proposal 1
+```
+
+Equivalent raw invoke:
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source alice \
+  --network testnet \
+  -- create_proposal \
+  --proposer <ALICE_ADDRESS> \
+  --payload '{"AddAdmin":"<DAVE_ADDRESS>"}'
+```
+
+Supported helper payloads: `add_admin`, `remove_admin`, `set_threshold`, `set_fee`, `approve_verification`, `reject_verification`, `revoke_verification`.
+
+**Step 3 — Approve** (`approve_proposal`) with a *different* admin until the threshold is met. Duplicate approval by the same admin fails.
+
+```bash
+export DEPLOYER_IDENTITY=bob
+./scripts/invoke.sh approve_proposal 1
+```
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source bob \
+  --network testnet \
+  -- approve_proposal \
+  --admin <BOB_ADDRESS> \
+  --proposal_id 1
+```
+
+**Step 4 — Execute** (`execute_proposal`) once status is `Approved`. This applies the payload and sets status to `Executed`.
+
+```bash
+export DEPLOYER_IDENTITY=carol
+./scripts/invoke.sh execute_proposal 1
+./scripts/invoke.sh is_admin "$(soroban keys address dave)"
+```
+
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --source carol \
+  --network testnet \
+  -- execute_proposal \
+  --caller <CAROL_ADDRESS> \
+  --proposal_id 1
+```
+
+If the threshold is `1`, skip step 3: creating the proposal already satisfies the threshold, so any admin can `execute_proposal` immediately.
+
+A full deploy-then-govern walkthrough lives in the root [Deployment Documentation](../DEPLOYMENT.md#post-deploy-governance-operations).
 
 #### Check Admin Status
 
@@ -1757,8 +1841,8 @@ src/
 
 ## Schemas & References
 
-- **Event Reference:** [EVENTS_SCHEMA.md](../EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
-- **Threat Model:** [THREAT_MODEL.md](../THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
+- **Event Reference:** [EVENTS_SCHEMA.md](../docs/EVENTS_SCHEMA.md) defines topics, payload structures, and compatibility patterns for all emitted contract events.
+- **Threat Model:** [THREAT_MODEL.md](../docs/THREAT_MODEL.md) documents trust boundaries, admin capabilities, mitigation steps, and unresolved risks.
 - **Review CID Schema:** [review-cid.schema.json](../docs/review-cid.schema.json) defines the off-chain JSON schema expected for review content CIDs.
 - **Review Example:** [review-cid.example.json](../docs/review-cid.example.json) provides a valid off-chain review document matching the schema.
 

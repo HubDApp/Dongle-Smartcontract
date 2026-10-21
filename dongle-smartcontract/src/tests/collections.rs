@@ -1,8 +1,9 @@
 use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    Address, Env, String, Vec,
+    symbol_short,
+    testutils::{Address as _, Events, Ledger},
+    Address, Env, IntoVal, String, Vec,
 };
 
 #[test]
@@ -365,7 +366,7 @@ fn test_remove_project_not_in_collection() {
         &project_id,
     );
 
-    assert_eq!(result, Err(Ok(ContractError::AlreadyInCollection)));
+    assert_eq!(result, Err(Ok(ContractError::NotInCollection)));
 }
 
 #[test]
@@ -666,11 +667,36 @@ fn test_delete_collection_removes_project_associations() {
         .mock_all_auths()
         .delete_collection(&admin, &collection_id);
 
+    let expected: soroban_sdk::Vec<soroban_sdk::Val> = (
+        symbol_short!("COLLECT"),
+        symbol_short!("REMOVED"),
+        collection_id,
+        project_id,
+    )
+        .into_val(&env);
+    assert!(env.events().all().iter().any(|(_, topics, _)| topics == expected));
+
     let result = client.get_collection(&collection_id);
     assert_eq!(result, None);
 
     let project = client.get_project(&project_id);
     assert_eq!(project.unwrap().id, project_id);
+    assert_eq!(
+        client
+            .list_collection_projects(&collection_id, &0, &10)
+            .len(),
+        0
+    );
+    assert!(env.events().all().iter().any(|(_, topics, _)| {
+        topics
+            == (
+                symbol_short!("COLLECT"),
+                symbol_short!("REMOVED"),
+                collection_id,
+                project_id,
+            )
+                .into_val(&env)
+    }));
 }
 
 #[test]

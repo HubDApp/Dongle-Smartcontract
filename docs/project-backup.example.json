@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0.0",
+  "snapshotId": "snap-2026-09-25T02-00-00Z-a1b2c3d4",
+  "timestamp": "2026-09-25T02:00:00Z",
+  "unixTimestamp": 1790294400,
+  "ledgerSequence": 5241890,
+  "network": "testnet",
+  "contractId": "CCWUXOTO2RJK5QRPNDP2K2OTW247V7OVDJ3Z4R3V47N4TZOQCXJ42N73",
+  "totalProjects": 2,
+  "stateIntegrityHash": "9b1c7c9a62243e8d2e8b23fba9c87d461765c3bbd8c83fa4d17f41cf65d9e504",
+  "merkleRoot": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8eef00c71a3d0016e3c091bc",
+  "decentralizedStorage": {
+    "cid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+    "cidVersion": 1,
+    "arweaveTxId": "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789_-abcde",
+    "storageProviders": ["ipfs", "pinata", "arweave"],
+    "pinStatus": "pinned",
+    "gatewayUrls": [
+      "https://ipfs.io/ipfs/bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+      "https://gateway.pinata.cloud/ipfs/bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+      "https://arweave.net/aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789_-abcde"
+    ]
+  },
+  "projects": [
+    {
+      "id": 1,
+      "owner": "GDAMR3SOTO2RJK5QRPNDP2K2OTW247V7OVDJ3Z4R3V47N4TZOQCXJ42N",
+      "name": "Dongle Protocol",
+      "slug": "dongle-protocol",
+      "description": "Decentralized developer tooling and smart contract registry on Stellar.",
+      "category": "Infrastructure",
+      "website": "https://dongle.network",
+      "license": "Apache-2.0",
+      "logoCid": "bafybeicg2gg4pux6e22fwtj4d32f5f4iomq443t6n2y2k6s7xomk5yvyda",
+      "metadataCid": "bafkreifzjut3w2nh5xurjwwa72fph75fn4xyfzst4su7hxnlp4w24d2eqe",
+      "verificationStatus": "Verified",
+      "currentVerificationId": 1,
+      "archived": false,
+      "claimable": false,
+      "lifecycleStatus": "Active",
+      "createdAt": 1785000000,
+      "updatedAt": 1785100000,
+      "tags": ["stellar", "soroban", "registry"],
+      "socialLinks": {
+        "github": "https://github.com/HubDApp/Dongle-Smartcontract",
+        "twitter": "https://x.com/donglenetwork"
+      },
+      "launchTimestamp": 1785000000,
+      "maintainers": ["GDAMR3SOTO2RJK5QRPNDP2K2OTW247V7OVDJ3Z4R3V47N4TZOQCXJ42N"],
+      "bountyUrl": "https://immunefi.com/bounty/dongle",
+      "repositoryUrl": "https://github.com/HubDApp/Dongle-Smartcontract",
+      "securityContact": "security@dongle.network",
+      "securityContactProofCid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+      "securityContactVerified": true,
+      "region": "GLOBAL",
+      "integrityHash": "5a4b7f8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a",
+      "stats": {
+        "ratingSum": 25,
+        "reviewCount": 5,
+        "averageRating": 480
+      },
+      "linkedProjects": [2]
+    },
+    {
+      "id": 2,
+      "owner": "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+      "name": "Stellar Oracle Service",
+      "slug": "stellar-oracle-service",
+      "description": "High-frequency decentralized price feed oracles for Soroban DeFi.",
+      "category": "DeFi",
+      "website": "https://stellar-oracle.io",
+      "license": "MIT",
+      "logoCid": "bafybeih6m472h7w5445sqfuzcvspdrzsfqj3f5p7k5rsv2j24l43yvyda",
+      "metadataCid": "bafkreif4k2gg4pux6e22fwtj4d32f5f4iomq443t6n2y2k6s7xomk5yvyda",
+      "verificationStatus": "Pending",
+      "currentVerificationId": 2,
+      "archived": false,
+      "claimable": false,
+      "lifecycleStatus": "Beta",
+      "createdAt": 1785200000,
+      "updatedAt": 1785300000,
+      "tags": ["oracle", "defi", "pricing"],
+      "socialLinks": {
+        "github": "https://github.com/stellar-oracle/contracts"
+      },
+      "launchTimestamp": 1785200000,
+      "maintainers": null,
+      "bountyUrl": null,
+      "repositoryUrl": "https://github.com/stellar-oracle/contracts",
+      "securityContact": null,
+      "securityContactProofCid": null,
+      "securityContactVerified": false,
+      "region": "NA",
+      "integrityHash": "7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+      "stats": {
+        "ratingSum": 8,
+        "reviewCount": 2,
+        "averageRating": 400
+      },
+      "linkedProjects": [1]
+    }
+  ]
+}

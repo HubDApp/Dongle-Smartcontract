@@ -2,8 +2,9 @@ use crate::errors::ContractError;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{DependencyRef, ProjectDependency};
+use crate::version_spec::VersionSpecParser;
 use crate::utils::Utils;
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{Address, Env, Map, String, Vec};
 
 pub struct DependencyRegistry;
 
@@ -34,7 +35,7 @@ impl DependencyRegistry {
             return Err(ContractError::InvalidProjectData);
         }
         for &c in buf.iter() {
-            if !(c.is_ascii_uppercase() || (c >= b'2' && c <= b'7')) {
+            if !(c.is_ascii_uppercase() || (b'2'..=b'7').contains(&c)) {
                 return Err(ContractError::InvalidProjectData);
             }
         }
@@ -42,14 +43,13 @@ impl DependencyRegistry {
     }
 
     fn validate_dependency_ref(env: &Env, dep: &DependencyRef) -> Result<(), ContractError> {
-        let has_pid = dep.project_id.is_some();
-        let has_cid = dep.external_cid.is_some();
-        let has_url = dep.external_url.is_some();
-        let has_contract = dep.external_contract.is_some();
-
         // Exactly one reference kind must be set.
-        let cnt = (has_pid as u8) + (has_cid as u8) + (has_url as u8) + (has_contract as u8);
-        if cnt != 1 {
+        if !Utils::exactly_one_some([
+            dep.project_id.map(|_| ()),
+            dep.external_cid.as_ref().map(|_| ()),
+            dep.external_url.as_ref().map(|_| ()),
+            dep.external_contract.as_ref().map(|_| ()),
+        ]) {
             return Err(ContractError::InvalidProjectData);
         }
 
@@ -75,6 +75,19 @@ impl DependencyRegistry {
             Self::validate_contract_address(contract)?;
         }
 
+        if let Some(spec) = &dep.version_requirement {
+            VersionSpecParser::parse(&spec.raw)?;
+        }
+
+        Ok(())
+    }
+
+    /// Replace a caller-supplied version requirement with the canonical
+    /// parse of its `raw` string so stored fields always match the spec.
+    fn normalize_version_requirement(dep: &mut DependencyRef) -> Result<(), ContractError> {
+        if let Some(spec) = &dep.version_requirement {
+            dep.version_requirement = Some(VersionSpecParser::parse(&spec.raw)?);
+        }
         Ok(())
     }
 
@@ -133,11 +146,90 @@ impl DependencyRegistry {
             let mut buf = [0u8; 4 + 56];
             buf[0..4].copy_from_slice(b"CTR:");
             contract.copy_into_slice(&mut buf[4..60]);
-            let key_str = core::str::from_utf8(&buf[..60])
-                .map_err(|_| ContractError::InvalidProjectData)?;
+            let key_str =
+                core::str::from_utf8(&buf[..60]).map_err(|_| ContractError::InvalidProjectData)?;
             return Ok(String::from_str(env, key_str));
         }
         Err(ContractError::InvalidProjectData)
+    }
+
+    /// Collect the `project_id` targets of a project's registered
+    /// dependencies. External references (cid / url / contract) are ignored
+    /// because they cannot form a cycle inside this contract's graph.
+    fn dependency_project_ids(env: &Env, project_id: u64) -> Vec<u64> {
+        let mut out = Vec::new(env);
+        let keys: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        for i in 0..keys.len() {
+            if let Some(k) = keys.get(i) {
+                if let Some(dep) = env
+                    .storage()
+                    .persistent()
+                    .get::<_, ProjectDependency>(&ExtensionKey::ProjectDependency(project_id, k))
+                {
+                    if let Some(pid) = dep.reference.project_id {
+                        out.push_back(pid);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Guard against circular references and excessive nesting before a
+    /// project-to-project dependency edge (`dependent` -> `new_dep`) is stored.
+    ///
+    /// The edge `dependent -> new_dep` is treated as level 1. Starting from
+    /// `new_dep`, the transitive dependency graph is walked breadth-first:
+    /// - reaching `dependent` again means the edge would close a cycle
+    ///   (`CircularDependency`);
+    /// - a walk that still has unexplored nodes beyond
+    ///   `MAX_DEPENDENCY_DEPTH` levels means the chain is too deep
+    ///   (`DependencyDepthExceeded`).
+    fn check_project_dependency_graph(
+        env: &Env,
+        dependent: u64,
+        new_dep: u64,
+    ) -> Result<(), ContractError> {
+        if new_dep == dependent {
+            return Err(ContractError::CannotLinkToSelf);
+        }
+
+        let mut frontier: Vec<u64> = Vec::new(env);
+        frontier.push_back(new_dep);
+        let mut visited: Vec<u64> = Vec::new(env);
+        visited.push_back(new_dep);
+
+        let mut level: u32 = 1;
+        while frontier.len() > 0 {
+            if level > crate::constants::MAX_DEPENDENCY_DEPTH {
+                return Err(ContractError::DependencyDepthExceeded);
+            }
+            let mut next: Vec<u64> = Vec::new(env);
+            for i in 0..frontier.len() {
+                if let Some(node) = frontier.get(i) {
+                    if node == dependent {
+                        return Err(ContractError::CircularDependency);
+                    }
+                    let children = Self::dependency_project_ids(env, node);
+                    for j in 0..children.len() {
+                        if let Some(child) = children.get(j) {
+                            if !visited.contains(child) {
+                                visited.push_back(child);
+                                next.push_back(child);
+                            }
+                        }
+                    }
+                }
+            }
+            frontier = next;
+            level += 1;
+        }
+
+        Ok(())
     }
 
     pub fn add_dependency(
@@ -153,6 +245,12 @@ impl DependencyRegistry {
             return Err(ContractError::Unauthorized);
         }
         Self::validate_dependency_ref(env, &dependency.reference)?;
+        let mut dependency = dependency;
+        Self::normalize_version_requirement(&mut dependency.reference)?;
+
+        if let Some(dep_pid) = dependency.reference.project_id {
+            Self::check_project_dependency_graph(env, project_id, dep_pid)?;
+        }
 
         let key = Self::dependency_key(env, &dependency.reference)?;
 
@@ -180,6 +278,21 @@ impl DependencyRegistry {
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &keys);
+
+        // Update reverse dependency index if it's a project reference
+        if let Some(dep_pid) = dependency.reference.project_id {
+            let mut dependents: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid))
+                .unwrap_or_else(|| Vec::new(env));
+            if !dependents.contains(&project_id) {
+                dependents.push_back(project_id);
+                env.storage()
+                    .persistent()
+                    .set(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid), &dependents);
+            }
+        }
 
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
@@ -212,10 +325,13 @@ impl DependencyRegistry {
             return Err(ContractError::ProjectNotFound);
         }
 
-        // Keep same key slot; allow updating metadata.
+        // Keep same key slot; allow updating metadata and the version requirement.
         let mut stored = new_dependency;
+        let version_requirement = stored.reference.version_requirement.clone();
         // Ensure dependency reference doesn't change the identity slot (still uses key)
         stored.reference = dependency_key;
+        stored.reference.version_requirement = version_requirement;
+        Self::normalize_version_requirement(&mut stored.reference)?;
 
         env.storage()
             .persistent()
@@ -253,7 +369,7 @@ impl DependencyRegistry {
             .persistent()
             .remove(&ExtensionKey::ProjectDependency(project_id, key.clone()));
 
-        let mut keys: Vec<String> = env
+        let keys: Vec<String> = env
             .storage()
             .persistent()
             .get(&ExtensionKey::ProjectDependencyKeys(project_id))
@@ -262,6 +378,26 @@ impl DependencyRegistry {
         env.storage()
             .persistent()
             .set(&ExtensionKey::ProjectDependencyKeys(project_id), &new_keys);
+
+        // Update reverse dependency index if it's a project reference
+        if let Some(dep_pid) = dependency_key.project_id {
+            let dependents: Vec<u64> = env
+                .storage()
+                .persistent()
+                .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid))
+                .unwrap_or_else(|| Vec::new(env));
+            let mut new_dependents = Vec::new(env);
+            for i in 0..dependents.len() {
+                if let Some(d) = dependents.get(i) {
+                    if d != project_id {
+                        new_dependents.push_back(d);
+                    }
+                }
+            }
+            env.storage()
+                .persistent()
+                .set(&crate::storage_keys::ExtensionKey2::ProjectDependents(dep_pid), &new_dependents);
+        }
 
         StorageManager::extend_project_dependency_ttl(env, project_id);
         Ok(())
@@ -288,5 +424,109 @@ impl DependencyRegistry {
         }
         StorageManager::extend_project_dependency_ttl(env, project_id);
         out
+    }
+
+    /// Returns the number of dependencies registered for a project.
+    ///
+    /// This is a cheap O(1) operation — it reads only the key-list length
+    /// without fetching individual dependency records, making it suitable for
+    /// displaying a dependency-count badge in UIs.
+    pub fn get_dependency_count(env: &Env, project_id: u64) -> u32 {
+        let keys: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependencyKeys(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+        keys.len()
+    }
+
+    pub fn get_dependent_projects(env: &Env, project_id: u64) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&crate::storage_keys::ExtensionKey2::ProjectDependents(project_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    pub fn get_transitive_dependencies(env: &Env, project_id: u64) -> Vec<u64> {
+        let mut out: Vec<u64> = Vec::new(env);
+        let mut frontier: Vec<u64> = Vec::new(env);
+        frontier.push_back(project_id);
+        
+        let mut level = 0;
+        // Limit depth to avoid running out of gas/instructions, cycle detection is handled,
+        // but large graphs still need limits on reads
+        while frontier.len() > 0 && level < crate::constants::MAX_DEPENDENCY_DEPTH {
+            let mut next_frontier = Vec::new(env);
+            for i in 0..frontier.len() {
+                if let Some(node) = frontier.get(i) {
+                    let children = Self::dependency_project_ids(env, node);
+                    for j in 0..children.len() {
+                        if let Some(child) = children.get(j) {
+                            if !out.contains(child) {
+                                out.push_back(child);
+                                next_frontier.push_back(child);
+                            }
+                        }
+                    }
+                }
+            }
+            frontier = next_frontier;
+            level += 1;
+        }
+        out
+    }
+
+    /// Versions of a project-to-project dependency that satisfy its version
+    /// requirement (#923).
+    ///
+    /// Candidate versions come from the `version` field of the dependency
+    /// project's changelog entries, in changelog order and de-duplicated.
+    /// Entries whose version is not `MAJOR.MINOR.PATCH` are skipped. Without
+    /// a version requirement every valid version is compatible.
+    pub fn get_compatible_versions(
+        env: &Env,
+        project_id: u64,
+        dependency_project_id: u64,
+    ) -> Result<Vec<String>, ContractError> {
+        let dep_ref = DependencyRef {
+            project_id: Some(dependency_project_id),
+            external_cid: None,
+            external_url: None,
+            external_contract: None,
+            version_requirement: None,
+        };
+        let key = Self::dependency_key(env, &dep_ref)?;
+        let dependency: ProjectDependency = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependency(project_id, key))
+            .ok_or(ContractError::DependencyNotFound)?;
+
+        let mut out: Vec<String> = Vec::new(env);
+        let entries = crate::changelog_registry::ChangelogRegistry::get_project_changelog_entries(
+            env,
+            dependency_project_id,
+        );
+        for changelog_id in entries.iter() {
+            let Some(entry) =
+                crate::changelog_registry::ChangelogRegistry::get_changelog_entry(env, changelog_id)
+            else {
+                continue;
+            };
+            let Some(version) = entry.version else {
+                continue;
+            };
+            let Some(parsed) = VersionSpecParser::parse_version(&version) else {
+                continue;
+            };
+            let compatible = match &dependency.reference.version_requirement {
+                Some(spec) => VersionSpecParser::matches(spec, parsed),
+                None => true,
+            };
+            if compatible && !out.contains(&version) {
+                out.push_back(version);
+            }
+        }
+        Ok(out)
     }
 }

@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use crate::errors::ContractError;
 use crate::tests::fixtures::{create_test_project, setup_contract};
 use soroban_sdk::{testutils::Address as _, Address, Env, Vec};
 
@@ -139,6 +140,33 @@ fn test_bookmark_nonexistent_project_returns_error() {
         result.is_err(),
         "bookmarking nonexistent project should fail"
     );
+}
+
+/// Issue #314: `bookmark_project` must return a typed `ContractError::ProjectNotFound`
+/// for a nonexistent project instead of panicking (host trap), mirroring
+/// `endorse_project` and every other registry's "not found" handling.
+#[test]
+fn test_bookmark_nonexistent_project_returns_typed_not_found_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let user = Address::generate(&env);
+
+    let result = client.try_bookmark_project(&999u64, &user);
+    assert_eq!(result, Err(Ok(ContractError::ProjectNotFound)));
+}
+
+#[test]
+fn test_unbookmark_nonexistent_project_returns_project_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin) = setup_contract(&env);
+    let user = Address::generate(&env);
+
+    let result = client.try_unbookmark_project(&999u64, &user);
+    assert_eq!(result, Err(Ok(crate::ContractError::ProjectNotFound)));
 }
 
 #[test]

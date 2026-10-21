@@ -3,41 +3,87 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+mod admin_governance_security;
+// Issue #670: Admin concurrent operation atomicity and consistency verification
+mod admin_concurrent;
 mod archival;
+mod auto_archival;
+// Issue #873: archive reasons, audit log and bulk archive
+mod archive_lifecycle;
+// Issue #874: project visibility modes
+mod project_visibility;
+mod collection_registry_crud;
 mod collections;
+mod collection_visibility;
 mod error_handling_tests;
 mod featured;
+mod fork_detection;
 // mod fee;
 // mod indexer;
 mod review;
+mod transfer;
 
 // New test modules
 // mod authorization;
 // mod basic_new_features;
 mod cleanup;
 mod events;
+// Issue #628: pause/unpause cycles preserve data integrity
 mod moderation;
+mod moderation_batch;
+mod subscription_bulk;
+mod state_snapshot;
+mod analytics_export;
+mod migration_export;
+mod name_search;
+mod project_registration_e2e;
+mod project_search;
+mod pagination;
+mod pause_state_recovery;
 // mod pagination;
 mod claim;
+mod claim_state_machine;
+mod claim_status;
 mod config;
 mod dependencies;
+// Issue #923: dependency version requirements
+mod dependency_versions;
+mod lifecycle_status;
 mod maintainers;
 mod renewal;
 mod review_history;
 mod review_settings;
 mod security_contact;
 mod verification;
+mod verification_expert_assignment;
 mod verification_features;
+mod verification_lifecycle;
+mod verification_replacement;
 
 // String validation: names, descriptions, CIDs, categories, URLs
+// Issue #545: property-based fuzz tests for the CID and URL validators
+mod fuzz_validation;
+mod language_code;
 mod license_metadata;
+mod sorted_listing;
 mod string_validation;
+// Issue #667: CID validation edge cases (empty string, malformed, CIDv0/CIDv1, future formats)
+mod cid_validation;
+mod tag_index;
+mod tags;
 
 // Metadata freeze policy for verified projects
-// mod verified_freeze;
+// Issue #671: slug immutability on verified projects
+mod verified_freeze;
 
 // Fee token rotation and payment behavior
 mod fee_token_rotation;
+
+// Full verification-fee payment lifecycle integration test
+mod fee_lifecycle;
+
+// Issue #617: multi-step end-to-end workflow integration suite
+mod integration_workflows;
 
 // Storage field size boundary tests
 mod field_limits;
@@ -51,23 +97,48 @@ mod invariants;
 // Property-based pagination tests using proptest
 // mod proptest_pagination;
 mod proptest_pagination;
+
+// Property-based tests for all validation functions (issue #498)
+mod proptest_validation;
+// Property-based fuzzing harness for contract invariants (issue #939)
+mod fuzz_test_harness;
+// Recommendation generation, personalization, A/B testing, and conversion funnel
+mod recommendations;
 // Issue #221: fee amount boundary tests
 mod fee_boundary;
 // Issues #240, #241, #246: review tombstones, sorting, cooldown
 mod review_features;
 
 // Test infrastructure
+mod bookmark_pagination;
 mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+// Issue #917: multi-hop endorsement chains
+mod endorsement_graph;
+// Issue #918: area-scoped and time-limited endorsements
+mod endorsement_conditions;
+// Issue #919: delegated endorsement authority
+mod endorsement_delegation;
+mod fee_refund;
+mod reward_pool;
 pub mod fixtures;
 mod issues_242_252_256;
-mod linked_projects;
+// mod linked_projects;
+// Issues #458, #463, #465, #466: typed-error and admin-log regressions
+mod typed_error_regressions;
+// Issues #654, #655, #656, #657: dispute state machine, changelog immutability,
+// transfer atomicity, and refund idempotency
+mod issues_654_655_656_657;
 mod multisig_and_history;
+mod proposal_threshold;
+mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;
+mod ttl_edge_cases;
+mod bulk_load_tests;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
@@ -75,5 +146,66 @@ mod ttl_batch;
 // Project region metadata (#238) and integrity hash (#250)
 mod region_and_integrity;
 
-// Contract-level configuration view (`get_config`, pause toggle)
-mod config;
+// Contract API compatibility (issue #257)
+mod api_compat;
+
+// Issue #620: Project metadata validation gaps (https-only, CID charset)
+mod validation_620;
+
+// Issue #622: Fee payment state machine enforcement
+mod fee_state_machine_622;
+
+// Issue #623: Admin threshold downgrade supermajority edge cases
+mod supermajority_623;
+
+// Issue #624: Verification Expiry Check Automation
+mod verification_expiry_624_tests;
+
+// Issue #625: Review History Pagination Performance
+mod review_pagination_625_perf_tests;
+
+// Issue #626: Tag Indexing Watermark Edge Cases
+mod tag_index_watermark_626_tests;
+
+// Issue #627: Collection Capacity Enforcement
+mod collection_capacity_627_tests;
+
+// Issue #470: pay_fee guards for archived project and active verification status
+mod pay_fee_guards_470;
+
+// Issue #811: Notification preference registry
+mod notifications;
+
+// Issue #815: Bookmark folders and smart folders
+mod bookmark_folders;
+// Issue #916: shareable public bookmark collections
+mod bookmark_collection_sharing;
+// Issue #804: Review archival to cheaper storage
+mod review_archive;
+
+// Issues #720-#723: CID validation strengthening, string injection audit,
+// reentrancy analysis, and access control matrix
+mod issues_720_723;
+
+// Performance metrics: approval time, appeal rate, reversal rate, percentiles,
+// per-admin comparison, and monthly reports (#perf)
+mod verification_performance;
+
+// Issue #914: Smart Bookmark Collections
+mod smart_bookmark_collections;
+// Issue #912: Dynamic Trending Projects
+mod trending_projects;
+// Issue #913: Similar and Duplicate Projects Detection
+mod similarity_projects;
+// Issue #909: Search Enhancements with Wildcards and Phrases
+mod search_enhancements;
+
+// Issue #972: Test reentrancy and race condition protection
+mod reentrancy_race_972;
+// Issue #973: Verify contract state integrity after emergency operations
+mod emergency_state_integrity_973;
+// Issue #974: Backward and forward compatibility
+mod compatibility_974;
+// Issue #975: Performance testing with realistic data volumes
+mod performance_volume_975;
+

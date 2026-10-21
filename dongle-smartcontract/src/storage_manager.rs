@@ -4,8 +4,12 @@
 //! critical information persists and doesn't expire unexpectedly.
 
 use crate::constants::*;
-use crate::storage_keys::{ExtensionKey, StorageKey};
-use soroban_sdk::{Address, Env, IntoVal, Val, String, Vec};
+use crate::storage_keys::{
+    ActivityFeedKey, BookmarkKey, ExtensionKey, HealthScoreKey, MetadataEnrichmentKey,
+    ReviewIntegrityKey, SecurityContactVerifKey, StorageKey,
+    BookmarkKey, ExtensionKey, ExtensionKey2, ReviewIntegrityKey, StorageKey,
+};
+use soroban_sdk::{Address, Env, IntoVal, String, Val, Vec};
 
 /// Storage manager for TTL operations
 pub struct StorageManager;
@@ -79,6 +83,21 @@ impl StorageManager {
         );
     }
 
+    pub fn extend_project_version_ttl(env: &Env, project_id: u64, version: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersionCount(project_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectVersion(project_id, version),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project count
     pub fn extend_project_count_ttl(env: &Env) {
         Self::extend_if_exists(
@@ -99,21 +118,24 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for the slug-to-project-id index entry.
+    pub fn extend_project_by_slug_ttl(env: &Env, slug: &String) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ProjectBySlug(slug.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
     /// Extend TTL for project by normalized name mapping.
     pub fn extend_project_by_normalized_name_ttl(env: &Env, normalized_name: &String) {
-        if env
-            .storage()
-            .persistent()
-            .has(&StorageKey::ProjectByNormalizedName(
-                normalized_name.clone(),
-            ))
-        {
-            env.storage().persistent().extend_ttl(
-                &StorageKey::ProjectByNormalizedName(normalized_name.clone()),
-                LEDGER_THRESHOLD_PROJECT,
-                LEDGER_BUMP_PROJECT,
-            );
-        }
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::ProjectByNormalizedName(normalized_name.clone()),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
     }
 
     /// Extend TTL for category projects index
@@ -125,6 +147,54 @@ impl StorageManager {
             LEDGER_BUMP_PROJECT,
         );
     }
+
+    // ── Dynamic project category TTL (#752) ────────────────────────────────
+
+    pub fn extend_project_category_ttl(env: &Env, category_id: u64) {
+        use crate::storage_keys::ProjectCategoryKey as CK;
+        Self::extend_if_exists(
+            env,
+            &CK::Category(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Children(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Parent(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::Stats(category_id),
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    pub fn extend_project_category_global_ttl(env: &Env) {
+        use crate::storage_keys::ProjectCategoryKey as CK;
+        Self::extend_if_exists(
+            env,
+            &CK::NextCategoryId,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+        Self::extend_if_exists(
+            env,
+            &CK::CategoryList,
+            LEDGER_THRESHOLD_PROJECT,
+            LEDGER_BUMP_PROJECT,
+        );
+    }
+
+    // ── Project Stats ─────────────────────────────────────────────────────
 
     /// Extend TTL for project stats
     pub fn extend_project_stats_ttl(env: &Env, project_id: u64) {
@@ -173,6 +243,14 @@ impl StorageManager {
             LEDGER_THRESHOLD_REVIEW,
             LEDGER_BUMP_REVIEW,
         );
+        // Also extend evidence links stored separately under ExtensionKey2.
+        // Requirements: 7.3, 7.4
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey2::ReviewEvidenceLinks(project_id, reviewer.clone()),
+            LEDGER_THRESHOLD_REVIEW,
+            LEDGER_BUMP_REVIEW,
+        );
     }
 
     /// Extend TTL for project reviews list
@@ -180,6 +258,16 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &StorageKey::ProjectReviews(project_id),
+            LEDGER_THRESHOLD_REVIEW,
+            LEDGER_BUMP_REVIEW,
+        );
+    }
+
+    /// Extend TTL for a review integrity seal (#809).
+    pub fn extend_review_integrity_seal_ttl(env: &Env, project_id: u64, reviewer: &Address) {
+        Self::extend_if_exists(
+            env,
+            &ReviewIntegrityKey::ReviewIntegrityHash(project_id, reviewer.clone()),
             LEDGER_THRESHOLD_REVIEW,
             LEDGER_BUMP_REVIEW,
         );
@@ -241,7 +329,7 @@ impl StorageManager {
     }
 
     /// Extend TTL for project bounty url (removed - not part of core storage)
-    pub fn extend_project_bounty_url_ttl(env: &Env, project_id: u64) {
+    pub fn extend_project_bounty_url_ttl(_env: &Env, _project_id: u64) {
         // Bounty URL storage removed - not part of core implementation
     }
 
@@ -252,6 +340,16 @@ impl StorageManager {
         Self::extend_if_exists(
             env,
             &StorageKey::OwnerProjects(owner.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for the active owner projects list.
+    pub fn extend_active_owner_projects_ttl(env: &Env, owner: &Address) {
+        Self::extend_if_exists(
+            env,
+            &StorageKey::ActiveOwnerProjects(owner.clone()),
             LEDGER_THRESHOLD_USER,
             LEDGER_BUMP_USER,
         );
@@ -321,11 +419,44 @@ impl StorageManager {
         );
     }
 
+    /// Extend TTL for one indexed endorsement entry and its membership index.
+    pub fn extend_endorsement_entry_ttl(env: &Env, project_id: u64, user: &Address, index: u32) {
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementAt(project_id, index),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &ExtensionKey::EndorsementIndex(project_id, user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
     /// Extend TTL for user subscriptions list
     pub fn extend_user_subscriptions_ttl(env: &Env, user: &Address) {
         Self::extend_if_exists(
             env,
             &ExtensionKey::UserSubscriptions(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for notification preferences and digest queue (user-scoped).
+    pub fn extend_notification_prefs_ttl(env: &Env, user: &Address) {
+        use crate::storage_keys::NotificationKey;
+        Self::extend_if_exists(
+            env,
+            &NotificationKey::UserNotificationPrefs(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &NotificationKey::UserDigestQueue(user.clone()),
             LEDGER_THRESHOLD_USER,
             LEDGER_BUMP_USER,
         );
@@ -346,6 +477,10 @@ impl StorageManager {
         Self::extend_project_ttl(env, project_id);
         Self::extend_project_stats_ttl(env, project_id);
         Self::extend_project_by_name_ttl(env, name);
+        Self::extend_project_by_normalized_name_ttl(
+            env,
+            &crate::utils::Utils::normalize_project_name(env, name),
+        );
         Self::extend_project_maintainers_ttl(env, project_id);
     }
 
@@ -399,6 +534,92 @@ impl StorageManager {
                 }
             }
         }
+    }
+
+    // ── Bookmark Folder TTL Management (#815) ──────────────────────────────
+
+    /// Extend TTL for a user's folder-ID list.
+    pub fn extend_user_folder_ids_ttl(env: &Env, user: &Address) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::UserFolderIds(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a single bookmark folder record.
+    pub fn extend_folder_ttl(env: &Env, user: &Address, folder_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::BookmarkFolder(user.clone(), folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::FolderBookmarks(user.clone(), folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a user's smart-folder-ID list.
+    pub fn extend_user_smart_folder_ids_ttl(env: &Env, user: &Address) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::UserSmartFolderIds(user.clone()),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for a single smart folder record.
+    pub fn extend_smart_folder_ttl(env: &Env, user: &Address, smart_folder_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::SmartFolder(user.clone(), smart_folder_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    /// Extend TTL for the bookmark-folder index entry for a project.
+    pub fn extend_bookmark_folder_index_ttl(env: &Env, user: &Address, project_id: u64) {
+        Self::extend_if_exists(
+            env,
+            &BookmarkKey::BookmarkFolderIndex(user.clone(), project_id),
+            LEDGER_THRESHOLD_USER,
+            LEDGER_BUMP_USER,
+        );
+    }
+
+    // ── Security Contact Verification TTL (#757) ─────────────────────────
+
+    /// Extend TTL for a security contact verification record.
+    pub fn extend_if_exists_scvk(env: &Env, key: &SecurityContactVerifKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Health Score TTL (#756) ───────────────────────────────────────────
+
+    /// Extend TTL for a health score key.
+    pub fn extend_if_exists_hsk(env: &Env, key: &HealthScoreKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Activity Feed TTL (#759) ──────────────────────────────────────────
+
+    /// Extend TTL for an activity feed key.
+    pub fn extend_if_exists_afk(env: &Env, key: &ActivityFeedKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
+    }
+
+    // ── Metadata Enrichment TTL (#760) ────────────────────────────────────
+
+    /// Extend TTL for a metadata enrichment key.
+    pub fn extend_if_exists_mek(env: &Env, key: &MetadataEnrichmentKey) {
+        Self::extend_if_exists(env, key, LEDGER_THRESHOLD_PROJECT, LEDGER_BUMP_PROJECT);
     }
 }
 

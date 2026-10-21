@@ -6,28 +6,94 @@
 //! through a single `get_config` entry point and a stable on-chain type
 //! (`ContractConfigView`).
 //!
-//! ## Scope: pause flag is *not* enforced
+//! ## Scope: pause flag and the pause record
 //! [`set_pause`] writes the admin's intent to storage and emits a matching
-//! audit-log entry, but **does not block mutating entry points**. Wiring
-//! pause enforcement through `register_project`, `pay_fee`, … is a
-//! separate, future ticket. Frontends should treat the flag as advisory
-//! for now.
+//! audit-log entry.  It delegates to the emergency-pause module so that the
+//! legacy boolean flag and the fine-grained pause record (issues #902/#904)
+//! stay in sync; the pause **is** enforced by the mutating entry points
+//! through `EmergencyPause::require_not_paused`.
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth;
 use crate::constants::{
     CONTRACT_VERSION, LEDGER_BUMP_CRITICAL, LEDGER_THRESHOLD_CRITICAL, MAX_DESCRIPTION_LEN,
-    MAX_NAME_LEN, MAX_PAGE_LIMIT, MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT,
-    VERIFICATION_VALIDITY_PERIOD,
+    MAX_EVIDENCE_LINKS_PER_REVIEW, MAX_FEATURED_PROJECTS, MAX_NAME_LEN, MAX_PAGE_LIMIT,
+    MAX_PROJECTS_PER_USER, MAX_REVIEWS_PER_PROJECT, VERIFICATION_VALIDITY_PERIOD,
 };
 use crate::errors::ContractError;
-use crate::storage_keys::{ExtensionKey, StorageKey};
+use crate::storage_keys::{FeeHistoryKey, StorageKey};
 use crate::types::{AdminActionType, ContractConfigView, ContractLimits, FeeConfig};
 use soroban_sdk::{Address, Env, String};
 
 pub struct ConfigRegistry;
 
 impl ConfigRegistry {
+    // ── Configurable maximum reviews per project ────────────────────────────
+
+    /// Returns the admin-configured maximum number of reviewers per project.
+    ///
+    /// Falls back to the compile-time default (`MAX_REVIEWS_PER_PROJECT = 500`)
+    /// when no value has been written to storage, preserving backwards-compatible
+    /// behavior for existing deployments.
+    pub fn get_max_reviews_per_project(env: &Env) -> u32 {
+        let key = FeeHistoryKey::MaxReviewsPerProject;
+        let value: u32 = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(MAX_REVIEWS_PER_PROJECT);
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().extend_ttl(
+                &key,
+                LEDGER_THRESHOLD_CRITICAL,
+                LEDGER_BUMP_CRITICAL,
+            );
+        }
+        value
+    }
+
+    /// Admin-only: update the maximum number of reviews allowed per project.
+    ///
+    /// # Validation
+    /// - `max` must be at least 1 (zero is rejected as `InvalidInput`).
+    ///
+    /// # Storage
+    /// The value is persisted under `ExtensionKey::MaxReviewsPerProject` with the
+    /// critical-config TTL so it survives as long as other admin-managed config.
+    ///
+    /// # Authorization
+    /// Requires a registered admin — delegates to `auth::require_admin_auth`.
+    pub fn set_max_reviews_per_project(
+        env: &Env,
+        admin: Address,
+        max: u32,
+    ) -> Result<(), ContractError> {
+        auth::require_admin_auth(env, &admin)?;
+
+        if max == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let key = FeeHistoryKey::MaxReviewsPerProject;
+        env.storage().persistent().set(&key, &max);
+        env.storage().persistent().extend_ttl(
+            &key,
+            LEDGER_THRESHOLD_CRITICAL,
+            LEDGER_BUMP_CRITICAL,
+        );
+
+        AdminActionLog::record_action(
+            env,
+            admin,
+            AdminActionType::MaxReviewsPerProjectSet,
+            None,
+            None,
+            None,
+        );
+
+        Ok(())
+    }
+
     /// Returns true if the contract has been paused by an admin via
     /// [`ConfigRegistry::set_pause`]. Defaults to `false` when no flag
     /// has ever been set, which keeps post-init reads well-defined.
@@ -37,12 +103,14 @@ impl ConfigRegistry {
     /// not bumped, since there is nothing to preserve yet — `set_pause`
     /// bumps TTL on the corresponding write.
     pub fn is_paused(env: &Env) -> bool {
-        let key = ExtensionKey::Paused;
+        let key = StorageKey::ContractPaused;
         let paused: bool = env.storage().persistent().get(&key).unwrap_or(false);
         if env.storage().persistent().has(&key) {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, LEDGER_THRESHOLD_CRITICAL, LEDGER_BUMP_CRITICAL);
+            env.storage().persistent().extend_ttl(
+                &key,
+                LEDGER_THRESHOLD_CRITICAL,
+                LEDGER_BUMP_CRITICAL,
+            );
         }
         paused
     }
@@ -50,6 +118,11 @@ impl ConfigRegistry {
     /// Toggle the global pause flag (admin only). Records an
     /// `AdminActionLog` entry for audit parity with every other admin
     /// mutation in this contract.
+    ///
+    /// The toggle is delegated to [`crate::emergency_pause::EmergencyPause`]
+    /// so that the legacy boolean flag and the fine-grained pause record
+    /// (issues #902/#904) can never disagree.  Pausing emits a
+    /// `CONTRACT/PAUSED` event and notifies the pause subscribers.
     ///
     /// # Returns
     /// The pause state **before** the call. Callers that only care about
@@ -60,8 +133,15 @@ impl ConfigRegistry {
         auth::require_admin_auth(env, &admin)?;
 
         let previous = Self::is_paused(env);
-        let key = ExtensionKey::Paused;
-        env.storage().persistent().set(&key, &paused);
+        let key = StorageKey::ContractPaused;
+
+        // Keep the fine-grained pause record and the legacy flag in sync.
+        if paused {
+            crate::emergency_pause::EmergencyPause::pause(env, &admin)?;
+        } else {
+            crate::emergency_pause::EmergencyPause::unpause(env, &admin)?;
+        }
+
         env.storage().persistent().extend_ttl(
             &key,
             LEDGER_THRESHOLD_CRITICAL,
@@ -99,7 +179,7 @@ impl ConfigRegistry {
     /// Composed from existing storage: fee config
     /// (`StorageKey::FeeConfig`), treasury address (`StorageKey::Treasury`),
     /// admin count + threshold (`AdminManager`), the pause flag
-    /// (`ExtensionKey::Paused`), and the static `ContractLimits` derived
+    /// (`StorageKey::ContractPaused`), and the static `ContractLimits` derived
     /// from `constants.rs`.
     ///
     /// # Behaviour absent `set_fee`
@@ -137,10 +217,12 @@ impl ConfigRegistry {
             limits: ContractLimits {
                 max_page_limit: MAX_PAGE_LIMIT,
                 max_projects_per_user: MAX_PROJECTS_PER_USER,
-                max_reviews_per_project: MAX_REVIEWS_PER_PROJECT,
+                max_reviews_per_project: Self::get_max_reviews_per_project(env),
                 max_name_len: MAX_NAME_LEN as u32,
                 max_description_len: MAX_DESCRIPTION_LEN as u32,
                 verification_validity_period: VERIFICATION_VALIDITY_PERIOD,
+                max_featured_projects: MAX_FEATURED_PROJECTS,
+                max_evidence_links_per_review: MAX_EVIDENCE_LINKS_PER_REVIEW,
             },
         })
     }

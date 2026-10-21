@@ -1,0 +1,19 @@
+# Clippy configuration file.
+#
+# These settings apply to `cargo clippy` runs both locally and in CI.
+# The CI job runs with `-D warnings` (via RUSTFLAGS in ci.yml and
+# .cargo/config.toml) so any new warning introduced is a build failure.
+#
+# Reference: https://doc.rust-lang.org/clippy/configuration.html
+
+# Treat cognitive complexity above this threshold as a warning so that
+# overly nested functions are caught early.
+cognitive-complexity-threshold = 30
+
+# Enforce standard Rust naming for type parameters (CamelCase).
+# This is the default; listed explicitly for documentation.
+avoid-breaking-exported-api = true
+
+# Minimum number of enum variants before clippy suggests boxing large ones.
+# Soroban SDK enums tend to be large by design; set a permissive threshold.
+enum-variant-size-threshold = 200

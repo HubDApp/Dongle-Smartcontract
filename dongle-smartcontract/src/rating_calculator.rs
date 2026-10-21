@@ -33,8 +33,13 @@ impl RatingCalculator {
     /// Tuple of (new_sum, new_count, new_average)
     pub fn add_rating(current_sum: u64, current_count: u32, new_rating: u32) -> (u64, u32, u32) {
         let scaled_rating = (new_rating as u64) * 100;
-        let new_sum = current_sum + scaled_rating;
-        let new_count = current_count + 1;
+        // Saturating, matching update_rating/remove_rating below (issue #694):
+        // a rating aggregate degrading gracefully by clamping at the type's
+        // bound, rather than panicking/wrapping, is the existing convention
+        // for this struct — nothing about accumulating one more rating
+        // should abort a review submission with a hard error.
+        let new_sum = current_sum.saturating_add(scaled_rating);
+        let new_count = current_count.saturating_add(1);
         let new_average = Self::calculate_average(new_sum, new_count);
         (new_sum, new_count, new_average)
     }
@@ -83,17 +88,65 @@ impl RatingCalculator {
 
     /// Calculate Bayesian weighted rating using stored aggregates.
     ///
-    /// Formula (result scaled by 100, same as `average_rating`):
+    /// # Algorithm Overview
+    /// This implements a Bayesian average (also known as a weighted rating) to provide
+    /// more reliable ratings for projects with few reviews. The algorithm smooths
+    /// extreme ratings by blending actual review data with a prior belief about what
+    /// a typical project rating should be.
+    ///
+    /// # Formula
     /// ```text
     /// weighted = (C * m + rating_sum) / (C + review_count)
     /// ```
-    /// Where `C` = `WEIGHTED_RATING_PRIOR_COUNT`, `m` = `WEIGHTED_RATING_PRIOR_MEAN`,
-    /// and `rating_sum` is the sum of individual ratings each scaled by 100.
     ///
-    /// Edge cases:
-    /// - `review_count == 0` → returns prior mean `m`
-    /// - `review_count == 1` → blends prior with the single review
-    /// - large `review_count` → converges toward the arithmetic mean
+    /// Where:
+    /// - `C` = `WEIGHTED_RATING_PRIOR_COUNT` (5) - represents the "strength" of the prior
+    /// - `m` = `WEIGHTED_RATING_PRIOR_MEAN` (350 = 3.50 stars) - the prior mean rating
+    /// - `rating_sum` = sum of individual ratings each scaled by 100
+    /// - `review_count` = number of actual reviews
+    ///
+    /// # Weight Factors Explained
+    ///
+    /// ## Prior Count (C = 5)
+    /// - Represents the weight given to the prior belief vs actual data
+    /// - A value of 5 means the prior is treated as if it were 5 hypothetical reviews
+    /// - Higher values give more weight to the prior (more conservative ratings)
+    /// - Lower values give more weight to actual reviews (more volatile ratings)
+    /// - Chosen as 5 to balance stability with responsiveness to genuine feedback
+    ///
+    /// ## Prior Mean (m = 3.50 stars)
+    /// - Represents the baseline rating for an "average" project
+    /// - Set to 3.50 (middle of 1-5 scale, slightly above midpoint) to assume
+    ///   most projects are decent but not perfect
+    /// - Prevents new projects from starting at the extremes (1.0 or 5.0)
+    /// - As review count grows, the actual average dominates this prior
+    ///
+    /// ## Current Implementation Notes
+    /// The current algorithm uses a simple Bayesian average with two factors:
+    /// - Review count (implicitly weighted through the Bayesian formula)
+    /// - Prior mean (fixed at 3.50)
+    ///
+    /// Future enhancements could add additional weight factors:
+    /// - Review age: decay older reviews to favor recent feedback
+    /// - Reviewer reputation: weight reviews from trusted reviewers more heavily
+    /// - Review helpfulness: weight reviews marked as helpful by other users
+    ///
+    /// # Edge Cases
+    /// - `review_count == 0` → returns prior mean `m` (3.50 stars)
+    /// - `review_count == 1` → blends prior with the single review (weighted toward prior)
+    /// - `review_count == C` (5) → prior and actual data have equal weight
+    /// - `review_count >> C` → converges toward the arithmetic mean (actual data dominates)
+    ///
+    /// # Example Calculations
+    /// ```text
+    /// Project with 0 reviews: weighted = (5 * 3.50 + 0) / (5 + 0) = 3.50
+    /// Project with 1 review of 5.0: weighted = (5 * 3.50 + 5.0) / (5 + 1) = 3.75
+    /// Project with 5 reviews of 5.0: weighted = (5 * 3.50 + 25.0) / (5 + 5) = 4.25
+    /// Project with 100 reviews of 4.0: weighted = (5 * 3.50 + 400.0) / (5 + 100) ≈ 3.98
+    /// ```
+    ///
+    /// # Returns
+    /// Weighted rating scaled by 100 (e.g., 375 = 3.75 stars)
     pub fn calculate_weighted(rating_sum: u64, review_count: u32) -> u32 {
         use crate::constants::{WEIGHTED_RATING_PRIOR_COUNT, WEIGHTED_RATING_PRIOR_MEAN};
         let c = WEIGHTED_RATING_PRIOR_COUNT as u64;
@@ -337,5 +390,150 @@ mod tests {
         assert_eq!(sum, 0);
         assert_eq!(count, 0);
         assert_eq!(avg, 0);
+    }
+
+    // ── Weighted Rating Tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_calculate_weighted_zero_reviews() {
+        // Project with 0 reviews: weighted = (5 * 3.50 + 0) / (5 + 0) = 3.50
+        let weighted = RatingCalculator::calculate_weighted(0, 0);
+        assert_eq!(weighted, 350); // 3.50 stars
+    }
+
+    #[test]
+    fn test_calculate_weighted_single_review_five_stars() {
+        // Project with 1 review of 5.0: weighted = (5 * 3.50 + 5.0) / (5 + 1) = 3.75
+        let rating_sum = 500; // 5.00 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 1);
+        assert_eq!(weighted, 375); // 3.75 stars
+    }
+
+    #[test]
+    fn test_calculate_weighted_single_review_one_star() {
+        // Project with 1 review of 1.0: weighted = (5 * 3.50 + 1.0) / (5 + 1) = 3.08
+        let rating_sum = 100; // 1.00 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 1);
+        assert_eq!(weighted, 308); // 3.08 stars (rounded down)
+    }
+
+    #[test]
+    fn test_calculate_weighted_five_reviews_five_stars() {
+        // Project with 5 reviews of 5.0: weighted = (5 * 3.50 + 25.0) / (5 + 5) = 4.25
+        let rating_sum = 2500; // 5.00 * 5 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 5);
+        assert_eq!(weighted, 425); // 4.25 stars
+    }
+
+    #[test]
+    fn test_calculate_weighted_five_reviews_one_star() {
+        // Project with 5 reviews of 1.0: weighted = (5 * 3.50 + 5.0) / (5 + 5) = 2.25
+        let rating_sum = 500; // 1.00 * 5 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 5);
+        assert_eq!(weighted, 225); // 2.25 stars
+    }
+
+    #[test]
+    fn test_calculate_weighted_many_reviews_four_stars() {
+        // Project with 100 reviews of 4.0: weighted = (5 * 3.50 + 400.0) / (5 + 100) ≈ 3.98
+        let rating_sum = 40000; // 4.00 * 100 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 100);
+        assert_eq!(weighted, 398); // 3.98 stars (rounded down)
+    }
+
+    #[test]
+    fn test_calculate_weighted_mixed_reviews() {
+        // Project with 10 reviews: two 5s, three 4s, three 3s, two 2s
+        // Average = (10 + 12 + 9 + 4) / 10 = 3.50
+        // Weighted = (5 * 3.50 + 35.0) / (5 + 10) = 3.50
+        let rating_sum = 3500; // 3.50 * 10 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 10);
+        assert_eq!(weighted, 350); // 3.50 stars
+    }
+
+    #[test]
+    fn test_calculate_weighted_convergence_to_average() {
+        // With many reviews, weighted rating should converge to arithmetic mean
+        // 1000 reviews of 4.5 stars
+        let rating_sum = 450000; // 4.50 * 1000 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 1000);
+        // Calculation: (5 * 350 + 450000) / (5 + 1000) = 451750 / 1005 = 449.50 → 449
+        assert_eq!(weighted, 449); // Very close to 450 (4.50 stars)
+    }
+
+    #[test]
+    fn test_calculate_weighted_prior_dominance() {
+        // With few reviews, prior should dominate
+        // 1 review of 5.0 should be pulled down toward 3.50
+        let rating_sum = 500; // 5.00 * 100
+        let weighted = RatingCalculator::calculate_weighted(rating_sum, 1);
+        // Result (375) should be closer to prior (350) than to actual (500)
+        assert!(weighted < 450 && weighted > 350);
+    }
+
+    // ── Edge-case coverage (issue #951) ──────────────────────────────────────
+
+    #[test]
+    fn test_rating_overflow_saturates() {
+        // Saturating arithmetic: a near-max sum plus another rating clamps
+        // at u64::MAX instead of wrapping or panicking.
+        let (sum, count, avg) = RatingCalculator::add_rating(u64::MAX, 10, 5);
+        assert_eq!(sum, u64::MAX);
+        assert_eq!(count, 11);
+        assert_eq!(avg, (u64::MAX / 11) as u32);
+    }
+
+    #[test]
+    fn test_rating_underflow_saturates() {
+        // Removing a larger rating than the accumulated sum clamps at zero.
+        let (sum, count, avg) = RatingCalculator::remove_rating(50, 1, 5);
+        assert_eq!(sum, 0);
+        assert_eq!(count, 0);
+        assert_eq!(avg, 0);
+    }
+
+    #[test]
+    fn test_rating_update_underflow_saturates() {
+        // Downgrading past the accumulated sum clamps at zero, count kept.
+        let (sum, count, avg) = RatingCalculator::update_rating(100, 2, 5, 1);
+        assert_eq!(sum, 0);
+        assert_eq!(count, 2);
+        assert_eq!(avg, 0);
+    }
+
+    #[test]
+    fn test_rating_bounds_valid_range() {
+        // Every valid rating (1-5 stars) yields an average inside [100, 500].
+        for rating in 1..=5u32 {
+            let (_, _, avg) = RatingCalculator::add_rating(0, 0, rating);
+            assert!(avg >= 100 && avg <= 500, "rating {rating} out of bounds: {avg}");
+        }
+    }
+
+    #[test]
+    fn test_weighted_rating_bounds() {
+        // Bayesian weighted ratings stay within the 1-5 star band (100-500).
+        for (sum, count) in [(0u64, 0u32), (500, 1), (2500, 5), (40000, 100)] {
+            let weighted = RatingCalculator::calculate_weighted(sum, count);
+            assert!(
+                weighted >= 100 && weighted <= 500,
+                "weighted out of bounds: {weighted}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_rating_recalculation_after_deletion() {
+        // Add three reviews (5, 4, 3), delete the 3-star one: avg must be 4.50.
+        let (sum, count, _) = RatingCalculator::add_rating(0, 0, 5);
+        let (sum, count, _) = RatingCalculator::add_rating(sum, count, 4);
+        let (sum, count, _) = RatingCalculator::add_rating(sum, count, 3);
+        assert_eq!((sum, count), (1200, 3));
+        let (sum, count, avg) = RatingCalculator::remove_rating(sum, count, 3);
+        assert_eq!((sum, count, avg), (900, 2, 450));
+        // Deleting the rest recalculates back to the empty state.
+        let (sum, count, _) = RatingCalculator::remove_rating(sum, count, 5);
+        let (sum, count, avg) = RatingCalculator::remove_rating(sum, count, 4);
+        assert_eq!((sum, count, avg), (0, 0, 0));
     }
 }

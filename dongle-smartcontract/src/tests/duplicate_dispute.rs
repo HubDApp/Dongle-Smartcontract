@@ -68,7 +68,10 @@ fn test_resolve_dispute_archive() {
     let id1 = create_test_project(&client, &owner1, "OriginalProject");
     let id2 = create_test_project(&client, &owner2, "DuplicateProject");
 
-    let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
+    let evidence_cid = String::from_str(
+        &env,
+        "QmTestEvidenceCid123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+    );
 
     let dispute_id =
         client
@@ -102,7 +105,10 @@ fn test_resolve_dispute_link() {
     let id1 = create_test_project(&client, &owner1, "OriginalProject");
     let id2 = create_test_project(&client, &owner2, "DuplicateProject");
 
-    let evidence_cid = String::from_str(&env, "QmTestEvidenceCid123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
+    let evidence_cid = String::from_str(
+        &env,
+        "QmTestEvidenceCid123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+    );
 
     let dispute_id =
         client
