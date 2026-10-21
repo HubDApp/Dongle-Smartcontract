@@ -12,15 +12,16 @@ use crate::events::{
     publish_project_archived_event, publish_project_claimable_set_event,
     publish_project_lifecycle_status_updated_event, publish_project_reactivated_event,
     publish_project_registered_event, publish_project_updated_event,
-    publish_verification_status_reset_event,
+    publish_project_visibility_changed_event, publish_verification_status_reset_event,
 };
 use crate::fee_manager::FeeManager;
-use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::storage_keys::{ArchiveLifecycleKey, ExtensionKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::project_operation_limiter::ProjectOperationLimiter;
 use crate::types::{
-    ClaimKind, ClaimRequest, ClaimStatus, ContractClaimRequest, Project, ProjectLifecycleStatus,
-    ProjectRegistrationParams, ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams,
+    ArchiveAction, ArchiveAuditEntry, ArchiveReason, ClaimKind, ClaimRequest, ClaimStatus,
+    ContractClaimRequest, Project, ProjectLifecycleStatus, ProjectRegistrationParams,
+    ProjectSortMode, ProjectSunsetPlan, ProjectUpdateParams, ProjectVisibility,
     SecurityContactStatus, VerificationStatus,
 };
 use crate::utils::Utils;
@@ -221,6 +222,7 @@ impl ProjectRegistry {
             verification_status: VerificationStatus::Unverified,
             current_verification_id: None,
             archived: false,
+            visibility: ProjectVisibility::Public,
             claimable: false,
             lifecycle_status: ProjectLifecycleStatus::Active,
             created_at: now,
@@ -1230,7 +1232,9 @@ impl ProjectRegistry {
                 break;
             }
             if let Some(project) = Self::get_project(env, id) {
-                if !project.archived {
+                if !project.archived
+                    && project.visibility == ProjectVisibility::Public
+                {
                     projects.push_back(project);
                     collected += 1;
                 }
@@ -1893,6 +1897,7 @@ impl ProjectRegistry {
 
         Self::remove_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
+        Self::record_archive_audit(env, project_id, ArchiveAction::Archived, &caller, None);
         publish_project_archived_event(env, project_id, caller);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
             env,
@@ -1900,6 +1905,171 @@ impl ProjectRegistry {
             crate::types::NotificationKind::ProjectArchived,
         );
         Ok(())
+    }
+
+    /// Archive a project with a tracked reason (#873). Same authorization
+    /// rules as `archive_project`.
+    pub fn archive_project_with_reason(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        reason: ArchiveReason,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        Self::archive_with_reason_unauthorized(env, project_id, &caller, reason)
+    }
+
+    /// Archive several projects in one call (#873). The caller authenticates
+    /// once and must own each project or be an admin. The batch is atomic:
+    /// any failure reverts every archive in the call. Returns the number of
+    /// projects archived.
+    pub fn bulk_archive_projects(
+        env: &Env,
+        caller: Address,
+        project_ids: Vec<u64>,
+        reason: ArchiveReason,
+    ) -> Result<u32, ContractError> {
+        caller.require_auth();
+        if project_ids.is_empty() || project_ids.len() > MAX_PAGE_LIMIT {
+            return Err(ContractError::InvalidInput);
+        }
+        for project_id in project_ids.iter() {
+            Self::archive_with_reason_unauthorized(env, project_id, &caller, reason)?;
+        }
+        Ok(project_ids.len())
+    }
+
+    fn archive_with_reason_unauthorized(
+        env: &Env,
+        project_id: u64,
+        caller: &Address,
+        reason: ArchiveReason,
+    ) -> Result<(), ContractError> {
+        Self::archive_project_unauthorized(env, project_id, caller.clone())?;
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::Reason(project_id), &reason);
+        // Attach the reason to the audit entry just written by the archive.
+        let count = Self::archive_audit_count(env, project_id);
+        let key = ArchiveLifecycleKey::AuditEntry(project_id, count - 1);
+        if let Some(mut entry) = env.storage().persistent().get::<_, ArchiveAuditEntry>(&key) {
+            entry.reason = Some(reason);
+            env.storage().persistent().set(&key, &entry);
+        }
+        Ok(())
+    }
+
+    /// Reason the project is currently archived, if one was recorded (#873).
+    pub fn get_archive_reason(env: &Env, project_id: u64) -> Option<ArchiveReason> {
+        env.storage()
+            .persistent()
+            .get(&ArchiveLifecycleKey::Reason(project_id))
+    }
+
+    /// Paginated archive/unarchive audit log for a project, oldest first (#873).
+    pub fn get_archive_audit_log(
+        env: &Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<ArchiveAuditEntry> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+        let count = Self::archive_audit_count(env, project_id);
+        let end = core::cmp::min(start.saturating_add(effective_limit), count);
+        let mut entries = Vec::new(env);
+        for index in start..end {
+            if let Some(entry) = env
+                .storage()
+                .persistent()
+                .get(&ArchiveLifecycleKey::AuditEntry(project_id, index))
+            {
+                entries.push_back(entry);
+            }
+        }
+        entries
+    }
+
+    fn archive_audit_count(env: &Env, project_id: u64) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&ArchiveLifecycleKey::AuditCount(project_id))
+            .unwrap_or(0)
+    }
+
+    fn record_archive_audit(
+        env: &Env,
+        project_id: u64,
+        action: ArchiveAction,
+        caller: &Address,
+        reason: Option<ArchiveReason>,
+    ) {
+        let count = Self::archive_audit_count(env, project_id);
+        let entry = ArchiveAuditEntry {
+            project_id,
+            action,
+            caller: caller.clone(),
+            reason,
+            timestamp: env.ledger().timestamp(),
+        };
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::AuditEntry(project_id, count), &entry);
+        env.storage()
+            .persistent()
+            .set(&ArchiveLifecycleKey::AuditCount(project_id), &(count + 1));
+    }
+
+    /// Change a project's visibility (#874). Owner only.
+    pub fn set_project_visibility(
+        env: &Env,
+        project_id: u64,
+        caller: Address,
+        visibility: ProjectVisibility,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let mut project =
+            Self::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
+        if project.owner != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        let old_visibility = project.visibility;
+        if old_visibility == visibility {
+            return Ok(());
+        }
+        project.visibility = visibility;
+        project.updated_at = env.ledger().timestamp();
+        Self::persist_project(env, &project);
+        publish_project_visibility_changed_event(
+            env,
+            project_id,
+            caller,
+            old_visibility,
+            visibility,
+        );
+        Ok(())
+    }
+
+    /// Whether `viewer` may read `project` under its visibility mode (#874).
+    /// `None` is an anonymous viewer and can only read `Public` projects.
+    pub fn can_view_project(env: &Env, project: &Project, viewer: Option<&Address>) -> bool {
+        if project.visibility == ProjectVisibility::Public {
+            return true;
+        }
+        let Some(viewer) = viewer else {
+            return false;
+        };
+        if project.owner == *viewer || AdminManager::is_admin(env, viewer) {
+            return true;
+        }
+        project.visibility == ProjectVisibility::Restricted
+            && project
+                .maintainers
+                .as_ref()
+                .is_some_and(|m| m.contains(viewer))
     }
 
     /// Reactivate an archived project. The owner or any admin can reactivate.
@@ -1930,6 +2100,10 @@ impl ProjectRegistry {
 
         Self::add_active_owner_project(env, &project.owner, project_id);
         StorageManager::extend_project_ttl(env, project_id);
+        env.storage()
+            .persistent()
+            .remove(&ArchiveLifecycleKey::Reason(project_id));
+        Self::record_archive_audit(env, project_id, ArchiveAction::Reactivated, &caller, None);
         publish_project_reactivated_event(env, project_id, caller);
         crate::notification_registry::NotificationRegistry::emit_project_notification(
             env,

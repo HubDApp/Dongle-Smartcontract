@@ -1,0 +1,29 @@
+# Pre-commit hooks (#872): run the same Rust quality gates as CI locally.
+#
+#   pip install pre-commit && pre-commit install
+#
+# See docs/CONTRIBUTING.md §2.1 for details. Hooks use the toolchain pinned
+# in rust-toolchain.toml and mirror the fmt / clippy jobs in .github/workflows/ci.yml.
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt (check)
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy (wasm32, -D warnings)
+        entry: cargo clippy -p dongle-contract --target wasm32-unknown-unknown --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-doc
+        name: cargo doc (deny rustdoc warnings)
+        entry: env RUSTDOCFLAGS=-Dwarnings cargo doc -p dongle-contract --no-deps
+        language: system
+        types: [rust]
+        pass_filenames: false

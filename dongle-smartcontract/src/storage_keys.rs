@@ -809,6 +809,18 @@ pub enum TrendingKey {
     TrendingCacheTimestamp(u64),
 }
 
+/// Storage keys for the project archive lifecycle (#873).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ArchiveLifecycleKey {
+    /// Reason the project is currently archived (removed on reactivation).
+    Reason(u64),
+    /// Number of archive audit entries for a project.
+    AuditCount(u64),
+    /// Archive audit entry: (project_id, index) -> ArchiveAuditEntry.
+    AuditEntry(u64, u32),
+}
+
 /// Storage keys for the immutable verification audit trail. Own enum to
 /// respect Soroban's 50-variant union cap on the shared key enums. Entries
 /// under these keys are append-only: nothing in the contract removes them.
