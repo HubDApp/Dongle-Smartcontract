@@ -428,6 +428,16 @@ pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
 /// the full bookmark list, so a small cap keeps aggregate query cost bounded.
 pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
 
+/// Maximum number of smart bookmark collections per user (#914).
+pub const MAX_SMART_BOOKMARK_COLLECTIONS_PER_USER: u32 = 20;
+
+/// Trending time windows in seconds (#912).
+pub const TRENDING_WINDOW_24H: u64 = 24 * 60 * 60;
+pub const TRENDING_WINDOW_7D: u64 = 7 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_30D: u64 = 30 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_ALL_TIME: u64 = 0;
+
+
 /// Maximum number of bookmarks inside a single folder.
 /// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
 /// 4 KiB, well within a single ledger entry.
@@ -704,3 +714,22 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Report routing (#920) ──────────────────────────────────────────────────
+
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
+
+// ── Report evidence (#921) ─────────────────────────────────────────────────
+
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;
+
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
+
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;

@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Dongle API Tester</title>
+<style>body{font-family:sans-serif;margin:16px}textarea,pre{width:100%;box-sizing:border-box}pre{background:#f4f4f4;padding:8px}</style>
+</head><body>
+<h1>Dongle API Testing Interface</h1>
+<div>
+<label>Method <select id="method">
+<option value="get_project">get_project(project_id: u64)</option>
+<option value="get_projects_batch">get_projects_batch(project_ids: Vec u64)</option>
+<option value="list_projects">list_projects(start_id, limit)</option>
+<option value="list_projects_cursor">list_projects_cursor(cursor, limit)</option>
+<option value="submit_review">submit_review(project_id, content_cid)</option>
+<option value="get_reviews_batch">get_reviews_batch(ids)</option>
+<option value="get_verifications_batch">get_verifications_batch(ids)</option>
+</select></label>
+<button onclick="saveTpl()">Save template</button>
+<button onclick="loadTpl()">Load template</button>
+</div>
+<h3>Parameters (JSON)</h3>
+<textarea id="params" rows="5">{"project_id": 1}</textarea>
+<div id="err" style="color:red"></div>
+<button onclick="preview()">Validate + Preview</button>
+<h3>Request format</h3><pre id="req"></pre>
+<h3>Response preview</h3><pre id="res">(invoke against RPC to see live response)</pre>
+<h3>curl snippet</h3><pre id="curl"></pre>
+<h3>JavaScript snippet</h3><pre id="js"></pre>
+<script>
+function validate(m,p){
+  const isU=(v)=>Number.isInteger(v)&&v>=0, isAddr=(v)=>typeof v==='string'&&/^G[A-Z0-9]{55}$/.test(v);
+  if(m==='get_project'&&!isU(p.project_id))return 'project_id must be u64';
+  if(m==='get_projects_batch'&&(!Array.isArray(p.project_ids)||!p.project_ids.every(isU)))return 'project_ids must be u64[]';
+  if((m==='list_projects')&&(!isU(p.start_id)||!isU(p.limit)))return 'start_id/limit must be u64/u32';
+  if(m==='submit_review'&&(!isU(p.project_id)||typeof p.content_cid!=='string'))return 'project_id u64 + content_cid string required';
+  return '';
+}
+function preview(){
+  const m=document.getElementById('method').value;let p;
+  try{p=JSON.parse(document.getElementById('params').value);}catch(e){document.getElementById('err').textContent='Invalid JSON: '+e.message;return;}
+  const e=validate(m,p);document.getElementById('err').textContent=e;
+  const req={method:m,params:p};
+  document.getElementById('req').textContent=JSON.stringify(req,null,2);
+  document.getElementById('res').textContent=e?'(fix validation error)':JSON.stringify({ok:true,echo:req},null,2);
+  document.getElementById('curl').textContent=`curl -X POST $RPC -H 'Content-Type: application/json' -d '${JSON.stringify({method:m,params:p})}'`;
+  document.getElementById('js').textContent=`import {Contract} from '@stellar/stellar-sdk';\nconst c=new Contract(CONTRACT_ID);\nawait c.call('${m}', ${JSON.stringify(p)});`;
+}
+function saveTpl(){localStorage.setItem('dongle-tpl-'+document.getElementById('method').value,document.getElementById('params').value);alert('saved');}
+function loadTpl(){const v=localStorage.getItem('dongle-tpl-'+document.getElementById('method').value);if(v)document.getElementById('params').value=v;preview();}
+preview();
+</script></body></html>

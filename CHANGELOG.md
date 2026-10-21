@@ -40,31 +40,10 @@ for the full policy.
 
 ### Added
 
-- **#905: Collection hierarchies and nesting.** `Collection` now carries a
-  `parent_collection_id`; added `create_nested_collection`,
-  `set_collection_parent`, `get_collection_tree`, `get_collection_path`,
-  `get_collection_children` and `get_collection_depth`.  The hierarchy is
-  capped at `MAX_COLLECTION_DEPTH` (5) levels and cycles are rejected
-  (`CollectionDepthExceeded`, `CollectionHierarchyCycle`,
-  `CollectionHasChildren`).
-- **#904: Staged resumption after an emergency pause.** Added
-  `resume_operations_phase(admin, phase)` and `rollback_operations_phase(admin)`
-  implementing the *read ops → reviews → verification → fees* recovery plan,
-  with phase progress tracking (`get_resume_phase`, `get_phase_history`) and a
-  `CONTRACT/PHASE` event.  Operator guide: `docs/PAUSE_RECOVERY_PHASES.md`.
-- **#902: Fine-grained pause states.** The boolean pause was replaced by the
-  `PauseState` enum (`Running`, `PausedAll`, `PausedVerification`,
-  `PausedFees`, `PausedReviews`); `EmergencyPause::require_not_paused()` now
-  takes the `PauseOperation` family of the call.  Added `set_pause_state`,
-  `get_pause_state` and `get_contract_status().paused_operations`.  Matrix:
-  `docs/PAUSE_MATRIX.md`.
-- **#901: Pause reasons and pause notifications.** Added
-  `set_pause_with_reason(admin, reason, estimated_resume)`, the
-  `get_contract_status()` endpoint, a `CONTRACT/PAUSED` event carrying the
-  reason and the estimated resume time, and a subscriber list for pause
-  notifications (`subscribe_pause_notifications`,
-  `unsubscribe_pause_notifications`, `list_pause_subscribers`) that emits
-  `CONTRACT/NOTIFY`.
+- Project visibility modes (`Public` / `Private` / `Restricted`) with `set_project_visibility`, `get_project_as_viewer`, and the `ProjectVisibilityChanged` event; `get_project` and `list_projects` return only public projects. **BREAKING** (`Project` struct gains `visibility`) (#874).
+- Archive lifecycle: `archive_project_with_reason`, `bulk_archive_projects`, `get_archive_reason`, and `get_archive_audit_log` (#873).
+- `.pre-commit-config.yaml` with fmt, clippy, and doc hooks plus `scripts/test_pre_commit_hooks.py` (#872).
+- CI `compat` matrix across Rust 1.70 / 1.74 / stable on Linux, macOS, and Windows (#871).
 - **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
   configuration) covering vulnerability, license, duplicate-crate, and source
   checks. New `audit` CI job runs `cargo deny check` on every PR and push to
