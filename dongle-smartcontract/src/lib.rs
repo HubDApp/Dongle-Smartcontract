@@ -23,6 +23,8 @@ pub mod constants;
 mod dependency_registry;
 mod dispute_registry;
 mod emergency_pause;
+mod endorsement_delegation;
+mod endorsement_graph;
 mod endorsement_registry;
 pub mod errors;
 pub mod events;
@@ -4260,6 +4262,233 @@ impl DongleContract {
 
     pub fn has_endorsed(env: Env, project_id: u64, user: Address) -> bool {
         crate::endorsement_registry::EndorsementRegistry::has_endorsed(&env, project_id, &user)
+    }
+
+    // --- Conditional Endorsements (#918) ---
+
+    /// Endorse a project for specific expertise areas, optionally expiring
+    /// at `expires_at`.  Returns the endorsement ID.
+    pub fn endorse_project_with_conditions(
+        env: Env,
+        project_id: u64,
+        user: Address,
+        areas: Vec<String>,
+        expires_at: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_registry::EndorsementRegistry::endorse_project_with_conditions(
+            &env, project_id, user, areas, expires_at,
+        )
+    }
+
+    /// Renew a time-limited endorsement.  Returns the new expiry timestamp.
+    pub fn renew_endorsement(
+        env: Env,
+        endorser: Address,
+        endorsement_id: u64,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_registry::EndorsementRegistry::renew_endorsement(
+            &env,
+            endorser,
+            endorsement_id,
+        )
+    }
+
+    pub fn get_endorsement(env: Env, endorsement_id: u64) -> Option<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_endorsement(&env, endorsement_id)
+    }
+
+    pub fn get_user_project_endorsement(
+        env: Env,
+        project_id: u64,
+        user: Address,
+    ) -> Option<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_user_project_endorsement(
+            &env,
+            project_id,
+            &user,
+        )
+    }
+
+    /// Whether `user` holds an unexpired endorsement on `project_id`.
+    pub fn has_active_endorsement(env: Env, project_id: u64, user: Address) -> bool {
+        crate::endorsement_registry::EndorsementRegistry::has_active_endorsement(
+            &env,
+            project_id,
+            &user,
+        )
+    }
+
+    /// Active endorsements of `project_id` covering `area`, paginated.
+    pub fn get_endorsements_by_area(
+        env: Env,
+        project_id: u64,
+        area: String,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<crate::types::Endorsement> {
+        crate::endorsement_registry::EndorsementRegistry::get_endorsements_by_area(
+            &env,
+            project_id,
+            area,
+            start_index,
+            limit,
+        )
+    }
+
+    /// Endorsers of `project_id` whose active endorsement covers all `areas`.
+    pub fn filter_endorsers_by_areas(
+        env: Env,
+        project_id: u64,
+        areas: Vec<String>,
+    ) -> Vec<Address> {
+        crate::endorsement_registry::EndorsementRegistry::filter_endorsers_by_areas(
+            &env, project_id, areas,
+        )
+    }
+
+    // --- Endorsement Delegation (#919) ---
+
+    /// Delegate endorsement authority on `project_id` to `delegate`, limited
+    /// to `scope` expertise areas (empty = the delegator's full scope).
+    pub fn delegate_endorsement_authority(
+        env: Env,
+        project_id: u64,
+        delegator: Address,
+        delegate: Address,
+        scope: Vec<String>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_delegation::EndorsementDelegationRegistry::delegate_endorsement_authority(
+            &env, project_id, delegator, delegate, scope,
+        )
+    }
+
+    /// Revoke previously delegated endorsement authority.
+    pub fn revoke_endorsement_delegation(
+        env: Env,
+        project_id: u64,
+        delegator: Address,
+        delegate: Address,
+    ) -> Result<(), ContractError> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::revoke_endorsement_delegation(
+            &env, project_id, delegator, delegate,
+        )
+    }
+
+    /// Endorse a project using delegated authority.  Returns the endorsement ID.
+    pub fn endorse_project_on_behalf(
+        env: Env,
+        project_id: u64,
+        delegate: Address,
+        areas: Vec<String>,
+        expires_at: Option<u64>,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_delegation::EndorsementDelegationRegistry::endorse_project_on_behalf(
+            &env, project_id, delegate, areas, expires_at,
+        )
+    }
+
+    pub fn get_endorsement_delegation(
+        env: Env,
+        project_id: u64,
+        delegate: Address,
+    ) -> Option<crate::types::EndorsementDelegation> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegation(
+            &env, project_id, delegate,
+        )
+    }
+
+    /// Delegates appointed by `delegator` for `project_id`.
+    pub fn get_endorsement_delegates(env: Env, project_id: u64, delegator: Address) -> Vec<Address> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegates(
+            &env, project_id, delegator,
+        )
+    }
+
+    /// Delegation chain from `address` up to its root endorser.
+    pub fn get_endorsement_delegation_chain(
+        env: Env,
+        project_id: u64,
+        address: Address,
+    ) -> Vec<Address> {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::get_delegation_chain(
+            &env, project_id, address,
+        )
+    }
+
+    /// Whether `address` may endorse `project_id` directly or via delegation.
+    pub fn has_endorsement_authority(env: Env, project_id: u64, address: Address) -> bool {
+        crate::endorsement_delegation::EndorsementDelegationRegistry::has_endorsement_authority(
+            &env, project_id, address,
+        )
+    }
+
+    // --- Endorsement Graph (#917) ---
+
+    /// `endorser` vouches for `endorsee` in the address endorsement graph.
+    pub fn endorse_address(
+        env: Env,
+        endorser: Address,
+        endorsee: Address,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::endorsement_graph::EndorsementGraph::endorse_address(&env, endorser, endorsee)
+    }
+
+    /// Remove an address endorsement.
+    pub fn revoke_address_endorsement(
+        env: Env,
+        endorser: Address,
+        endorsee: Address,
+    ) -> Result<(), ContractError> {
+        crate::endorsement_graph::EndorsementGraph::revoke_address_endorsement(
+            &env, endorser, endorsee,
+        )
+    }
+
+    pub fn has_endorsed_address(env: Env, endorser: Address, endorsee: Address) -> bool {
+        crate::endorsement_graph::EndorsementGraph::has_endorsed_address(&env, &endorser, &endorsee)
+    }
+
+    /// Addresses directly endorsed by `user`.
+    pub fn get_address_endorsements(env: Env, user: Address) -> Vec<Address> {
+        crate::endorsement_graph::EndorsementGraph::get_address_endorsements(&env, user)
+    }
+
+    /// Addresses directly endorsing `user`.
+    pub fn get_address_endorsers(env: Env, user: Address) -> Vec<Address> {
+        crate::endorsement_graph::EndorsementGraph::get_address_endorsers(&env, user)
+    }
+
+    /// Reputation (direct endorser count) of `user`.
+    pub fn get_endorsement_reputation(env: Env, user: Address) -> u32 {
+        crate::endorsement_graph::EndorsementGraph::get_endorsement_reputation(&env, user)
+    }
+
+    /// Shortest transitive endorsement chain from `from` to `to`.
+    pub fn get_endorsement_path(
+        env: Env,
+        from: Address,
+        to: Address,
+    ) -> Option<crate::types::EndorsementChain> {
+        crate::endorsement_graph::EndorsementGraph::get_endorsement_path(&env, from, to)
+    }
+
+    /// Who can vouch for `target` within `max_depth` hops (0 = default cap).
+    pub fn get_vouchers(
+        env: Env,
+        target: Address,
+        max_depth: u32,
+    ) -> Vec<crate::types::EndorsementVoucher> {
+        crate::endorsement_graph::EndorsementGraph::get_vouchers(&env, target, max_depth)
+    }
+
+    /// Shortest endorsement cycle through `start`, if any.
+    pub fn detect_endorsement_cycle(env: Env, start: Address) -> Option<Vec<Address>> {
+        crate::endorsement_graph::EndorsementGraph::detect_endorsement_cycle(&env, start)
     }
 
     // --- Admin Timelock ---

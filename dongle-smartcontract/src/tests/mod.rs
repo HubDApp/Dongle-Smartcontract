@@ -111,6 +111,12 @@ mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+// Issue #917: multi-hop endorsement chains
+mod endorsement_graph;
+// Issue #918: area-scoped and time-limited endorsements
+mod endorsement_conditions;
+// Issue #919: delegated endorsement authority
+mod endorsement_delegation;
 mod fee_refund;
 mod reward_pool;
 pub mod fixtures;
@@ -168,6 +174,8 @@ mod notifications;
 
 // Issue #815: Bookmark folders and smart folders
 mod bookmark_folders;
+// Issue #916: shareable public bookmark collections
+mod bookmark_collection_sharing;
 // Issue #804: Review archival to cheaper storage
 mod review_archive;
 
