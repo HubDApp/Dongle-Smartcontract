@@ -3,6 +3,7 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+mod admin_governance_security;
 // Issue #670: Admin concurrent operation atomicity and consistency verification
 mod admin_concurrent;
 mod archival;

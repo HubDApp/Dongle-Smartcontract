@@ -1,6 +1,8 @@
+extern crate alloc;
+use alloc::format;
 use crate::constants::MAX_ADMIN_ACTION_LOG_PAGE;
-use crate::storage_keys::{ExtensionKey2, StorageKey};
-use crate::types::{AdminActionEntry, AdminActionType};
+use crate::storage_keys::{ExtensionKey, ExtensionKey2, StorageKey};
+use crate::types::{AdminActionCategory, AdminActionEntry, AdminActionType, AdminActivityReport};
 use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct AdminActionLog;
@@ -189,5 +191,229 @@ impl AdminActionLog {
             .get(&StorageKey::AdminActionLogCount)
             .unwrap_or(0)
             + 1
+    }
+
+    /// Map an admin action type to its high-level compliance audit category.
+    pub fn categorize_action(action_type: &AdminActionType) -> AdminActionCategory {
+        match action_type {
+            AdminActionType::VerificationApproved
+            | AdminActionType::VerificationRejected
+            | AdminActionType::VerificationAppealSubmitted
+            | AdminActionType::VerificationAppealApproved
+            | AdminActionType::VerificationAppealRejected
+            | AdminActionType::VerificationRevoked
+            | AdminActionType::VerificationSuspended
+            | AdminActionType::VerificationRestored
+            | AdminActionType::VerificationRiskModelUpdated
+            | AdminActionType::VerificationRiskOverridden
+            | AdminActionType::VerificationRenewalApproved
+            | AdminActionType::VerificationRenewalRejected
+            | AdminActionType::VerificationDurationSet
+            | AdminActionType::VerificationAssigned
+            | AdminActionType::VerificationAssignmentAccepted
+            | AdminActionType::VerificationAssignmentDeclined
+            | AdminActionType::VerificationAssignmentEscalated
+            | AdminActionType::VerificationSlaSet
+            | AdminActionType::MinProjectAgeSet
+            | AdminActionType::VerificationHistoryCleared
+            | AdminActionType::RenewalHistoryCleared => AdminActionCategory::Verification,
+
+            AdminActionType::CollectionCreated
+            | AdminActionType::CollectionUpdated
+            | AdminActionType::CollectionDeleted
+            | AdminActionType::ProjectAddedToCollection
+            | AdminActionType::ProjectRemovedFromCollection => AdminActionCategory::Collection,
+
+            AdminActionType::ContractPaused
+            | AdminActionType::ContractResumed => AdminActionCategory::Pause,
+
+            AdminActionType::FeeChanged
+            | AdminActionType::ThresholdChanged
+            | AdminActionType::MaxReviewsPerProjectSet
+            | AdminActionType::AdminAdded
+            | AdminActionType::AdminRemoved
+            | AdminActionType::AdminExpertiseSet
+            | AdminActionType::AdminRoleSet
+            | AdminActionType::EmergencyBypass
+            | AdminActionType::ReservedNameAdded
+            | AdminActionType::ReservedNameRemoved
+            | AdminActionType::FeeRefunded => AdminActionCategory::Config,
+
+            _ => AdminActionCategory::Config,
+        }
+    }
+
+    /// Retrieve an audit report of admin actions within a timestamp window [start, end].
+    ///
+    /// Includes category breakdowns, action details, and suspicious activity detection
+    /// (e.g. bulk operations in rapid succession, or actions at unusual times).
+    pub fn get_admin_activity_report(
+        env: &Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> AdminActivityReport {
+        Self::get_admin_activity_report_filtered(env, admin, start, end, AdminActionCategory::All)
+    }
+
+    /// Retrieve an audit report filtered by a specific action category.
+    pub fn get_admin_activity_report_filtered(
+        env: &Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+        category: AdminActionCategory,
+    ) -> AdminActivityReport {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey2::AdminActionLogByAdmin(admin.clone()))
+            .or_else(|| {
+                env.storage()
+                    .persistent()
+                    .get(&ExtensionKey::AdminActionLogByAdmin(admin.clone()))
+            })
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut actions = Vec::new(env);
+        let mut verification_count = 0u32;
+        let mut collection_count = 0u32;
+        let mut pause_count = 0u32;
+        let mut config_count = 0u32;
+        let mut other_count = 0u32;
+        let mut total_actions = 0u32;
+
+        let total_ids = ids.len();
+        for i in 0..total_ids {
+            if let Some(log_id) = ids.get(i) {
+                if let Some(entry) = Self::get_log_entry(env, log_id) {
+                    if entry.timestamp >= start && entry.timestamp <= end {
+                        total_actions += 1;
+                        let cat = Self::categorize_action(&entry.action_type);
+                        match cat {
+                            AdminActionCategory::Verification => verification_count += 1,
+                            AdminActionCategory::Collection => collection_count += 1,
+                            AdminActionCategory::Pause => pause_count += 1,
+                            AdminActionCategory::Config => config_count += 1,
+                            _ => other_count += 1,
+                        }
+
+                        if category == AdminActionCategory::All || cat == category {
+                            actions.push_back(entry);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Suspicious activity detection:
+        // 1. Bulk operations: >= 5 actions within a 60-second window
+        // 2. Unusual times: actions executed between 00:00 and 04:00 UTC (timestamp % 86400 < 4 * 3600)
+        let mut has_suspicious_activity = false;
+        let mut suspicious_reasons = Vec::new(env);
+
+        let mut bulk_detected = false;
+        let mut unusual_time_detected = false;
+
+        let action_count = actions.len();
+        if action_count >= 5 {
+            for i in 0..action_count.saturating_sub(4) {
+                if let (Some(first), Some(fifth)) = (actions.get(i), actions.get(i + 4)) {
+                    if fifth.timestamp.saturating_sub(first.timestamp) <= 60 {
+                        bulk_detected = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        for i in 0..action_count {
+            if let Some(entry) = actions.get(i) {
+                if (entry.timestamp % 86400) < (4 * 3600) {
+                    unusual_time_detected = true;
+                    break;
+                }
+            }
+        }
+
+        if bulk_detected {
+            has_suspicious_activity = true;
+            suspicious_reasons.push_back(String::from_str(
+                env,
+                "BULK_OPERATIONS_DETECTED: 5+ actions in rapid succession (<= 60s)",
+            ));
+        }
+
+        if unusual_time_detected {
+            has_suspicious_activity = true;
+            suspicious_reasons.push_back(String::from_str(
+                env,
+                "UNUSUAL_TIME_OPERATION: action detected during off-hours (00:00-04:00 UTC)",
+            ));
+        }
+
+        AdminActivityReport {
+            admin,
+            start_time: start,
+            end_time: end,
+            total_actions,
+            verification_count,
+            collection_count,
+            pause_count,
+            config_count,
+            other_count,
+            actions,
+            has_suspicious_activity,
+            suspicious_reasons,
+        }
+    }
+
+    /// Generate an audit report in standard JSON format.
+    pub fn generate_admin_audit_report_json(
+        env: &Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> String {
+        let report = Self::get_admin_activity_report(env, admin, start, end);
+        let json_str = format!(
+            r#"{{"admin":"{}","start_time":{},"end_time":{},"total_actions":{},"verification":{},"collection":{},"pause":{},"config":{},"other":{},"has_suspicious_activity":{}}}"#,
+            report.admin,
+            report.start_time,
+            report.end_time,
+            report.total_actions,
+            report.verification_count,
+            report.collection_count,
+            report.pause_count,
+            report.config_count,
+            report.other_count,
+            report.has_suspicious_activity,
+        );
+        String::from_str(env, &json_str)
+    }
+
+    /// Generate an audit report in standard CSV format.
+    pub fn generate_admin_audit_report_csv(
+        env: &Env,
+        admin: Address,
+        start: u64,
+        end: u64,
+    ) -> String {
+        let report = Self::get_admin_activity_report(env, admin, start, end);
+        let mut csv = format!("id,admin,timestamp,target_id\n");
+        let count = report.actions.len();
+        for i in 0..count {
+            if let Some(entry) = report.actions.get(i) {
+                let tid = match entry.target_id {
+                    Some(id) => format!("{}", id),
+                    None => format!(""),
+                };
+                csv.push_str(&format!(
+                    "{},{},{},{}\n",
+                    entry.id, entry.admin, entry.timestamp, tid
+                ));
+            }
+        }
+        String::from_str(env, &csv)
     }
 }

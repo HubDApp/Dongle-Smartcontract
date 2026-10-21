@@ -4711,6 +4711,248 @@ pub fn publish_project_transfer_cancelled_event(
     );
 }
 
+// ── Admin Governance, Role, Approval Workflow, and Timelock Bypass Events ───
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRoleAssignedEvent {
+    pub admin: Address,
+    pub role: crate::types::AdminRole,
+    pub assigned_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_admin_role_assigned_event(
+    env: &Env,
+    admin: Address,
+    role: crate::types::AdminRole,
+    assigned_by: Address,
+) {
+    let event_data = AdminRoleAssignedEvent {
+        admin: admin.clone(),
+        role,
+        assigned_by: assigned_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("ROLE_SET"), admin, assigned_by),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionProposedEvent {
+    pub proposal_id: u64,
+    pub proposer: Address,
+    pub action_type: crate::types::SensitiveActionType,
+    pub required_quorum: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_proposed_event(
+    env: &Env,
+    proposal_id: u64,
+    proposer: Address,
+    action_type: crate::types::SensitiveActionType,
+    required_quorum: u32,
+) {
+    let event_data = SensitiveActionProposedEvent {
+        proposal_id,
+        proposer: proposer.clone(),
+        action_type,
+        required_quorum,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_CRT"), proposal_id, proposer),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionApprovedEvent {
+    pub proposal_id: u64,
+    pub admin: Address,
+    pub approvals_count: u32,
+    pub required_quorum: u32,
+    pub is_approved: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_approved_event(
+    env: &Env,
+    proposal_id: u64,
+    admin: Address,
+    approvals_count: u32,
+    required_quorum: u32,
+    is_approved: bool,
+) {
+    let event_data = SensitiveActionApprovedEvent {
+        proposal_id,
+        admin: admin.clone(),
+        approvals_count,
+        required_quorum,
+        is_approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_APP"), proposal_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionRejectedEvent {
+    pub proposal_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_rejected_event(
+    env: &Env,
+    proposal_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = SensitiveActionRejectedEvent {
+        proposal_id,
+        admin: admin.clone(),
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_REJ"), proposal_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionExecutedEvent {
+    pub proposal_id: u64,
+    pub executor: Address,
+    pub action_type: crate::types::SensitiveActionType,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_executed_event(
+    env: &Env,
+    proposal_id: u64,
+    executor: Address,
+    action_type: crate::types::SensitiveActionType,
+) {
+    let event_data = SensitiveActionExecutedEvent {
+        proposal_id,
+        executor: executor.clone(),
+        action_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_EXE"), proposal_id, executor),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassProposedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub proposer: Address,
+    pub justification_cid: String,
+    pub threshold: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_proposed_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    proposer: Address,
+    justification_cid: String,
+    threshold: u32,
+) {
+    let event_data = EmergencyBypassProposedEvent {
+        bypass_id,
+        timelock_id,
+        proposer: proposer.clone(),
+        justification_cid,
+        threshold,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_P"), bypass_id, proposer),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassApprovedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub admin: Address,
+    pub approvals_count: u32,
+    pub threshold: u32,
+    pub is_approved: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_approved_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    admin: Address,
+    approvals_count: u32,
+    threshold: u32,
+    is_approved: bool,
+) {
+    let event_data = EmergencyBypassApprovedEvent {
+        bypass_id,
+        timelock_id,
+        admin: admin.clone(),
+        approvals_count,
+        threshold,
+        is_approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_A"), bypass_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassExecutedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub executor: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_executed_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    executor: Address,
+) {
+    let event_data = EmergencyBypassExecutedEvent {
+        bypass_id,
+        timelock_id,
+        executor: executor.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_E"), bypass_id, executor),
+        event_data,
+    );
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewFlaggedEvent {

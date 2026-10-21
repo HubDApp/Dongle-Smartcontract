@@ -303,7 +303,7 @@ impl EmergencyPause {
         Self::apply_state(env, state, reason, estimate, 0, admin)
     }
 
-    /// Unpause the contract (admin-only).
+    /// Unpause the contract (admin-only, requires EmergencyPause permission).
     ///
     /// Restores normal operation, clears the pause reason and resets the
     /// staged-recovery phase.  Emits a `ContractUnpaused` event.
@@ -449,6 +449,16 @@ impl EmergencyPause {
         // Push the pause (with its reason) to every subscriber (issue #901).
         NotificationRegistry::emit_pause_notification(env, reason, estimated_resume);
 
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::ContractResumed,
+            None,
+            None,
+            None,
+        );
+
         Ok(())
     }
 }
+

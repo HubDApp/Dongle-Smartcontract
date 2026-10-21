@@ -2043,6 +2043,10 @@ pub enum AdminActionType {
     AdminExpertiseSet,
     /// Verification SLA was configured.
     VerificationSlaSet,
+    /// Timelock emergency bypass was proposed or executed.
+    EmergencyBypass,
+    /// Admin role was assigned or updated.
+    AdminRoleSet,
     /// Review flagged for moderator follow-up via batch moderation.
     ReviewFlagged,
     /// Admin audited verification requirements for consistency with tier.
