@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "collection_id": 42,
+  "version": 1,
+  "name": "DeFi Ecosystem Gems",
+  "description": "Top-tier decentralized finance tools and lending protocols on Stellar",
+  "owner": "GD5X2P7PFFJ4F5S5B4F55555555555555555555555555555555555555555",
+  "is_public": true,
+  "created_at": 1729350000,
+  "project_count": 2,
+  "projects": [
+    {
+      "id": 101,
+      "name": "Anchor Lending",
+      "description": "Peer-to-peer liquidity protocol",
+      "category": "DeFi",
+      "owner": "GAA65V4K2K2Y247ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+      "website": "https://anchor-lending.org",
+      "rating": 480,
+      "review_count": 12,
+      "verification_status": "Verified",
+      "metadata_cid": "bafybeigdyrzt5sfp7udm7ahu76uh7y26nf3efuylqabf3oclgtqy55fbkd",
+      "tags": ["defi", "lending", "yield"]
+    },
+    {
+      "id": 102,
+      "name": "Stellar Swap AMM",
+      "description": "Automated market maker protocol",
+      "category": "DeFi",
+      "owner": "GBB77V4K2K2Y247ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+      "website": "https://stellarswap.xyz",
+      "rating": 450,
+      "review_count": 8,
+      "verification_status": "Verified",
+      "metadata_cid": "bafybeigdyrzt5sfp7udm7ahu76uh7y26nf3efuylqabf3oclgtqy55fbkd",
+      "tags": ["defi", "amm", "swap"]
+    }
+  ]
+}

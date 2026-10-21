@@ -1,0 +1,114 @@
+# docker-compose.yml
+#
+# Local development environment for the Dongle smart contract.
+#
+# Services:
+#   stellar   — Stellar standalone node (quickstart image) exposing Soroban RPC
+#   contract  — Dev container for building, testing, and deploying the WASM
+#
+# Quick start:
+#   docker compose up -d stellar                       # start the chain
+#   docker compose run --rm contract make build        # compile the WASM
+#   docker compose run --rm contract make test         # run all tests
+#
+# See DOCKER_SETUP.md for full usage instructions.
+
+name: dongle-smartcontract
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  dongle-net:
+    driver: bridge
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  stellar-data:       # Horizon + Stellar Core data (persisted across restarts)
+  cargo-registry:     # Cargo dependency cache (speeds up rebuilds)
+  cargo-git:          # Cargo git source cache
+
+# ── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # ── Stellar standalone node ────────────────────────────────────────────────
+  stellar:
+    image: stellar/quickstart:latest
+    container_name: dongle-stellar-node
+    command:
+      - --standalone
+      - --enable-soroban-rpc
+    ports:
+      - "8000:8000"     # Horizon HTTP API / Soroban RPC
+      - "11626:11626"   # Stellar Core peer port (optional)
+    volumes:
+      - stellar-data:/opt/stellar
+    networks:
+      - dongle-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Contract dev container ─────────────────────────────────────────────────
+  #
+  # Mount the repo source so edits on the host are immediately visible.
+  # Use `docker compose run --rm contract <cmd>` to run one-off commands.
+  contract:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: dongle-contract-dev
+    depends_on:
+      stellar:
+        condition: service_healthy
+    environment:
+      # Stellar CLI network configuration
+      - SOROBAN_RPC_URL=http://stellar:8000/soroban/rpc
+      - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2017
+      # Cargo cache paths
+      - CARGO_HOME=/usr/local/cargo
+      - CARGO_TARGET_DIR=/app/target
+    volumes:
+      # Live-mount source code
+      - .:/app
+      # Persist Cargo registry/git caches across container restarts
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    networks:
+      - dongle-net
+    working_dir: /app/dongle-smartcontract
+    # Keep the container alive; exec or run commands against it
+    command: >
+      bash -c "echo 'Dongle dev container ready.
+      Run: docker compose exec contract make build
+           docker compose exec contract make test' && tail -f /dev/null"
+    restart: unless-stopped
+
+  # ── One-shot test runner (useful in CI) ───────────────────────────────────
+  #
+  # docker compose --profile test run --rm test
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    depends_on:
+      stellar:
+        condition: service_healthy
+    environment:
+      - SOROBAN_RPC_URL=http://stellar:8000/soroban/rpc
+      - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2017
+      - CARGO_HOME=/usr/local/cargo
+    volumes:
+      - .:/app
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+    networks:
+      - dongle-net
+    working_dir: /app/dongle-smartcontract
+    command: ["cargo", "test"]
+    profiles:
+      - test

@@ -6,12 +6,12 @@
 //! through a single `get_config` entry point and a stable on-chain type
 //! (`ContractConfigView`).
 //!
-//! ## Scope: pause flag is *not* enforced
+//! ## Scope: pause flag and the pause record
 //! [`set_pause`] writes the admin's intent to storage and emits a matching
-//! audit-log entry, but **does not block mutating entry points**. Wiring
-//! pause enforcement through `register_project`, `pay_fee`, … is a
-//! separate, future ticket. Frontends should treat the flag as advisory
-//! for now.
+//! audit-log entry.  It delegates to the emergency-pause module so that the
+//! legacy boolean flag and the fine-grained pause record (issues #902/#904)
+//! stay in sync; the pause **is** enforced by the mutating entry points
+//! through `EmergencyPause::require_not_paused`.
 
 use crate::admin_action_log::AdminActionLog;
 use crate::auth;
@@ -119,6 +119,11 @@ impl ConfigRegistry {
     /// `AdminActionLog` entry for audit parity with every other admin
     /// mutation in this contract.
     ///
+    /// The toggle is delegated to [`crate::emergency_pause::EmergencyPause`]
+    /// so that the legacy boolean flag and the fine-grained pause record
+    /// (issues #902/#904) can never disagree.  Pausing emits a
+    /// `CONTRACT/PAUSED` event and notifies the pause subscribers.
+    ///
     /// # Returns
     /// The pause state **before** the call. Callers that only care about
     /// success should ignore the value; callers that need to react to a
@@ -129,7 +134,14 @@ impl ConfigRegistry {
 
         let previous = Self::is_paused(env);
         let key = StorageKey::ContractPaused;
-        env.storage().persistent().set(&key, &paused);
+
+        // Keep the fine-grained pause record and the legacy flag in sync.
+        if paused {
+            crate::emergency_pause::EmergencyPause::pause(env, &admin)?;
+        } else {
+            crate::emergency_pause::EmergencyPause::unpause(env, &admin)?;
+        }
+
         env.storage().persistent().extend_ttl(
             &key,
             LEDGER_THRESHOLD_CRITICAL,

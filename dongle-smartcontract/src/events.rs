@@ -1,9 +1,9 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AppealStatus, ProjectLifecycleStatus, ReportCategory, ReportDecision, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
@@ -70,6 +70,16 @@ pub struct ProjectArchivedEvent {
 pub struct ProjectReactivatedEvent {
     pub project_id: u64,
     pub caller: Address,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectVisibilityChangedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub old_visibility: crate::types::ProjectVisibility,
+    pub new_visibility: crate::types::ProjectVisibility,
     pub timestamp: u64,
 }
 
@@ -646,6 +656,30 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Add
         (
             symbol_short!("PROJECT"),
             symbol_short!("RESTORED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_visibility_changed_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    old_visibility: crate::types::ProjectVisibility,
+    new_visibility: crate::types::ProjectVisibility,
+) {
+    let event_data = ProjectVisibilityChangedEvent {
+        project_id,
+        caller,
+        old_visibility,
+        new_visibility,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("VISIBLE"),
             project_id,
         ),
         event_data,
@@ -2526,6 +2560,12 @@ pub struct ChangelogRemovedEvent {
 pub struct ContractPausedEvent {
     pub admin: Address,
     pub timestamp: u64,
+    /// Human-readable reason for the pause (issue #901).  `None` when the
+    /// contract was paused without giving a reason.
+    pub reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).  `None` when
+    /// no estimate was supplied.
+    pub estimated_resume: Option<u64>,
 }
 
 #[contracttype]
@@ -2535,10 +2575,55 @@ pub struct ContractUnpausedEvent {
     pub timestamp: u64,
 }
 
-pub fn publish_contract_paused_event(env: &Env, admin: Address) {
+/// Emitted whenever the staged-recovery phase changes (issue #904).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PausePhaseChangedEvent {
+    /// The phase that is now in effect.
+    pub phase: u32,
+    /// The phase that was in effect before this transition.
+    pub previous_phase: u32,
+    /// Admin that requested the transition.
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when the contract is paused so that subscribed operators can be
+/// notified (issue #901).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseNotificationEvent {
+    /// Human-readable reason for the pause.
+    pub reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp.
+    pub estimated_resume: Option<u64>,
+    /// Number of addresses currently subscribed to pause notifications.
+    pub subscriber_count: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when an address subscribes to (or unsubscribes from) pause
+/// notifications (issue #901).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseSubscriberEvent {
+    pub subscriber: Address,
+    /// `true` when the address was added, `false` when it was removed.
+    pub subscribed: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_contract_paused_event(
+    env: &Env,
+    admin: Address,
+    reason: Option<String>,
+    estimated_resume: Option<u64>,
+) {
     let event_data = ContractPausedEvent {
         admin,
         timestamp: env.ledger().timestamp(),
+        reason,
+        estimated_resume,
     };
     env.events().publish(
         (symbol_short!("CONTRACT"), symbol_short!("PAUSED")),
@@ -2553,6 +2638,57 @@ pub fn publish_contract_unpaused_event(env: &Env, admin: Address) {
     };
     env.events().publish(
         (symbol_short!("CONTRACT"), symbol_short!("UNPAUSED")),
+        event_data,
+    );
+}
+
+/// Emit the staged-recovery phase transition event (issue #904).
+pub fn publish_pause_phase_changed_event(
+    env: &Env,
+    phase: u32,
+    previous_phase: u32,
+    admin: Address,
+) {
+    let event_data = PausePhaseChangedEvent {
+        phase,
+        previous_phase,
+        admin,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("PHASE")),
+        event_data,
+    );
+}
+
+/// Emit the pause notification event consumed by subscribers (issue #901).
+pub fn publish_pause_notification_event(
+    env: &Env,
+    reason: Option<String>,
+    estimated_resume: Option<u64>,
+    subscriber_count: u32,
+) {
+    let event_data = PauseNotificationEvent {
+        reason,
+        estimated_resume,
+        subscriber_count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("NOTIFY")),
+        event_data,
+    );
+}
+
+/// Emit the pause subscriber (un)subscription event (issue #901).
+pub fn publish_pause_subscriber_event(env: &Env, subscriber: Address, subscribed: bool) {
+    let event_data = PauseSubscriberEvent {
+        subscriber,
+        subscribed,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("CONTRACT"), symbol_short!("SUB")),
         event_data,
     );
 }
@@ -4575,6 +4711,248 @@ pub fn publish_project_transfer_cancelled_event(
     );
 }
 
+// ── Admin Governance, Role, Approval Workflow, and Timelock Bypass Events ───
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRoleAssignedEvent {
+    pub admin: Address,
+    pub role: crate::types::AdminRole,
+    pub assigned_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_admin_role_assigned_event(
+    env: &Env,
+    admin: Address,
+    role: crate::types::AdminRole,
+    assigned_by: Address,
+) {
+    let event_data = AdminRoleAssignedEvent {
+        admin: admin.clone(),
+        role,
+        assigned_by: assigned_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("ROLE_SET"), admin, assigned_by),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionProposedEvent {
+    pub proposal_id: u64,
+    pub proposer: Address,
+    pub action_type: crate::types::SensitiveActionType,
+    pub required_quorum: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_proposed_event(
+    env: &Env,
+    proposal_id: u64,
+    proposer: Address,
+    action_type: crate::types::SensitiveActionType,
+    required_quorum: u32,
+) {
+    let event_data = SensitiveActionProposedEvent {
+        proposal_id,
+        proposer: proposer.clone(),
+        action_type,
+        required_quorum,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_CRT"), proposal_id, proposer),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionApprovedEvent {
+    pub proposal_id: u64,
+    pub admin: Address,
+    pub approvals_count: u32,
+    pub required_quorum: u32,
+    pub is_approved: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_approved_event(
+    env: &Env,
+    proposal_id: u64,
+    admin: Address,
+    approvals_count: u32,
+    required_quorum: u32,
+    is_approved: bool,
+) {
+    let event_data = SensitiveActionApprovedEvent {
+        proposal_id,
+        admin: admin.clone(),
+        approvals_count,
+        required_quorum,
+        is_approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_APP"), proposal_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionRejectedEvent {
+    pub proposal_id: u64,
+    pub admin: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_rejected_event(
+    env: &Env,
+    proposal_id: u64,
+    admin: Address,
+    reason: String,
+) {
+    let event_data = SensitiveActionRejectedEvent {
+        proposal_id,
+        admin: admin.clone(),
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_REJ"), proposal_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SensitiveActionExecutedEvent {
+    pub proposal_id: u64,
+    pub executor: Address,
+    pub action_type: crate::types::SensitiveActionType,
+    pub timestamp: u64,
+}
+
+pub fn publish_sensitive_action_executed_event(
+    env: &Env,
+    proposal_id: u64,
+    executor: Address,
+    action_type: crate::types::SensitiveActionType,
+) {
+    let event_data = SensitiveActionExecutedEvent {
+        proposal_id,
+        executor: executor.clone(),
+        action_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("ADMIN"), symbol_short!("PROP_EXE"), proposal_id, executor),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassProposedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub proposer: Address,
+    pub justification_cid: String,
+    pub threshold: u32,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_proposed_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    proposer: Address,
+    justification_cid: String,
+    threshold: u32,
+) {
+    let event_data = EmergencyBypassProposedEvent {
+        bypass_id,
+        timelock_id,
+        proposer: proposer.clone(),
+        justification_cid,
+        threshold,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_P"), bypass_id, proposer),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassApprovedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub admin: Address,
+    pub approvals_count: u32,
+    pub threshold: u32,
+    pub is_approved: bool,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_approved_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    admin: Address,
+    approvals_count: u32,
+    threshold: u32,
+    is_approved: bool,
+) {
+    let event_data = EmergencyBypassApprovedEvent {
+        bypass_id,
+        timelock_id,
+        admin: admin.clone(),
+        approvals_count,
+        threshold,
+        is_approved,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_A"), bypass_id, admin),
+        event_data,
+    );
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyBypassExecutedEvent {
+    pub bypass_id: u64,
+    pub timelock_id: u64,
+    pub executor: Address,
+    pub timestamp: u64,
+}
+
+pub fn publish_emergency_bypass_executed_event(
+    env: &Env,
+    bypass_id: u64,
+    timelock_id: u64,
+    executor: Address,
+) {
+    let event_data = EmergencyBypassExecutedEvent {
+        bypass_id,
+        timelock_id,
+        executor: executor.clone(),
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("TIMELOCK"), symbol_short!("BYPASS_E"), bypass_id, executor),
+        event_data,
+    );
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReviewFlaggedEvent {
@@ -4624,5 +5002,258 @@ pub fn publish_reviews_moderated_event(
             failed,
             timestamp: env.ledger().timestamp(),
         },
+    );
+}
+
+// ── Fee Extension Events ───────────────────────────────────────────────────────
+// Events for fee waivers, auto-refunds, fee receipts, and fee escrow.
+
+use crate::types::{FeeWaiverType, WaiverStatus, RefundTrigger, FeeDisputeResolution};
+
+// ── Fee Waiver Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverAppliedEvent {
+    pub project_id: u64,
+    pub applicant: Address,
+    pub waiver_type: FeeWaiverType,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverDecidedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub status: WaiverStatus,
+    pub waiver_type: FeeWaiverType,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_waiver_applied_event(
+    env: &Env,
+    project_id: u64,
+    applicant: Address,
+    waiver_type: FeeWaiverType,
+    proof_cid: String,
+) {
+    let event_data = FeeWaiverAppliedEvent {
+        project_id,
+        applicant,
+        waiver_type,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("WAIVER"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_waiver_decided_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    status: WaiverStatus,
+    waiver_type: FeeWaiverType,
+) {
+    let event_data = FeeWaiverDecidedEvent {
+        project_id,
+        admin,
+        status,
+        waiver_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("WAIVCIDE"), project_id),
+        event_data,
+    );
+}
+
+// ── Auto-Refund Events ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundCreatedEvent {
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub trigger: RefundTrigger,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundClaimedEvent {
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub timestamp: u64,
+}
+
+pub fn publish_auto_refund_created_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+    trigger: RefundTrigger,
+) {
+    let event_data = AutoRefundCreatedEvent {
+        project_id,
+        payer,
+        amount,
+        trigger,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("AUTOREF"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_auto_refund_claimed_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+) {
+    let event_data = AutoRefundClaimedEvent {
+        project_id,
+        payer,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RFDCLM"), project_id),
+        event_data,
+    );
+}
+
+// ── Fee Receipt Events ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceiptIssuedEvent {
+    pub payment_id: u64,
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub operation: FeeOperation,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceiptSignedEvent {
+    pub payment_id: u64,
+    pub admin: Address,
+    pub receipt_cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_receipt_issued_event(
+    env: &Env,
+    payment_id: u64,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+    operation: FeeOperation,
+) {
+    let event_data = FeeReceiptIssuedEvent {
+        payment_id,
+        project_id,
+        payer,
+        amount,
+        operation,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RECEIPT"), payment_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_receipt_signed_event(
+    env: &Env,
+    payment_id: u64,
+    admin: Address,
+    receipt_cid: String,
+) {
+    let event_data = FeeReceiptSignedEvent {
+        payment_id,
+        admin,
+        receipt_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RCTSIGN"), payment_id),
+        event_data,
+    );
+}
+
+// ── Fee Escrow Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeEscrowCreatedEvent {
+    pub project_id: u64,
+    pub disputer: Address,
+    pub amount: u128,
+    pub dispute_reason: String,
+    pub locked_until: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeEscrowReleasedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub amount: u128,
+    pub resolution: FeeDisputeResolution,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_escrow_created_event(
+    env: &Env,
+    project_id: u64,
+    disputer: Address,
+    amount: u128,
+    dispute_reason: String,
+    locked_until: u64,
+) {
+    let event_data = FeeEscrowCreatedEvent {
+        project_id,
+        disputer,
+        amount,
+        dispute_reason,
+        locked_until,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("ESCRW"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_escrow_released_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    amount: u128,
+    resolution: FeeDisputeResolution,
+) {
+    let event_data = FeeEscrowReleasedEvent {
+        project_id,
+        admin,
+        amount,
+        resolution,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("ESCRREL"), project_id),
+        event_data,
     );
 }

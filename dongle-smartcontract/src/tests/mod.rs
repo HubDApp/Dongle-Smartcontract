@@ -3,10 +3,15 @@
 // Existing test modules
 mod admin;
 mod admin_action_log;
+mod admin_governance_security;
 // Issue #670: Admin concurrent operation atomicity and consistency verification
 mod admin_concurrent;
 mod archival;
 mod auto_archival;
+// Issue #873: archive reasons, audit log and bulk archive
+mod archive_lifecycle;
+// Issue #874: project visibility modes
+mod project_visibility;
 mod collection_registry_crud;
 mod collections;
 mod collection_visibility;
@@ -26,7 +31,12 @@ mod events;
 // Issue #628: pause/unpause cycles preserve data integrity
 mod moderation;
 mod moderation_batch;
+mod subscription_bulk;
+mod state_snapshot;
+mod analytics_export;
+mod migration_export;
 mod name_search;
+mod project_registration_e2e;
 mod project_search;
 mod pagination;
 mod pause_state_recovery;
@@ -36,6 +46,8 @@ mod claim_state_machine;
 mod claim_status;
 mod config;
 mod dependencies;
+// Issue #923: dependency version requirements
+mod dependency_versions;
 mod lifecycle_status;
 mod maintainers;
 mod renewal;
@@ -88,6 +100,8 @@ mod proptest_pagination;
 
 // Property-based tests for all validation functions (issue #498)
 mod proptest_validation;
+// Property-based fuzzing harness for contract invariants (issue #939)
+mod fuzz_test_harness;
 // Recommendation generation, personalization, A/B testing, and conversion funnel
 mod recommendations;
 // Issue #221: fee amount boundary tests
@@ -101,6 +115,12 @@ mod bookmarks;
 mod changelog;
 mod duplicate_dispute;
 mod endorsements;
+// Issue #917: multi-hop endorsement chains
+mod endorsement_graph;
+// Issue #918: area-scoped and time-limited endorsements
+mod endorsement_conditions;
+// Issue #919: delegated endorsement authority
+mod endorsement_delegation;
 mod fee_refund;
 mod reward_pool;
 pub mod fixtures;
@@ -117,6 +137,8 @@ mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;
+mod ttl_edge_cases;
+mod bulk_load_tests;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;
@@ -156,6 +178,8 @@ mod notifications;
 
 // Issue #815: Bookmark folders and smart folders
 mod bookmark_folders;
+// Issue #916: shareable public bookmark collections
+mod bookmark_collection_sharing;
 // Issue #804: Review archival to cheaper storage
 mod review_archive;
 
@@ -176,16 +200,12 @@ mod similarity_projects;
 // Issue #909: Search Enhancements with Wildcards and Phrases
 mod search_enhancements;
 
-// Issue #968: Storage invariants — counter consistency, index integrity,
-// referential integrity, key uniqueness, and concurrent-operation safety
-mod storage_invariants_968;
-// Issue #969: Event emission — all mutating operations emit correct events
-// with accurate payloads, consistent topics, and correct ordering
-mod events_emission_969;
-// Issue #970: Authorization — admin-only, owner-only, multi-sig, timelock,
-// and pause-state access control boundaries
-mod authorization_970;
-// Issue #971: Numeric overflow/underflow — u64 max/zero, u128 max/zero,
-// invalid ratings, and RatingCalculator saturation coverage
-mod numeric_overflow_971;
+// Issue #972: Test reentrancy and race condition protection
+mod reentrancy_race_972;
+// Issue #973: Verify contract state integrity after emergency operations
+mod emergency_state_integrity_973;
+// Issue #974: Backward and forward compatibility
+mod compatibility_974;
+// Issue #975: Performance testing with realistic data volumes
+mod performance_volume_975;
 

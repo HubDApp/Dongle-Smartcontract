@@ -7,7 +7,7 @@ use crate::events::{
     publish_timelock_action_scheduled_event,
 };
 use crate::fee_manager::FeeManager;
-use crate::storage_keys::ExtensionKey;
+use crate::storage_keys::{AdminSecurityKey, ExtensionKey};
 use crate::types::{
     AdminActionType, TimelockAction, TimelockAdminAddParams, TimelockAdminRemoveParams,
     TimelockFeeParams,
@@ -91,6 +91,16 @@ impl TimelockManager {
     }
 
     fn require_expired(env: &Env, action: &TimelockAction) -> Result<(), ContractError> {
+        // If an emergency bypass was approved and executed for this action, allow execution immediately
+        if env
+            .storage()
+            .persistent()
+            .get(&AdminSecurityKey::TimelockBypassed(action.id))
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+
         let now = env.ledger().timestamp();
         if now < action.execution_timestamp {
             return Err(ContractError::TimelockNotExpired);

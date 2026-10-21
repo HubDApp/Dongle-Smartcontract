@@ -7,18 +7,19 @@ use crate::dependency_registry::DependencyRegistry;
 use crate::errors::ContractError;
 use crate::events::{
     publish_project_view_recorded_event, publish_recommendation_ab_config_event,
-    publish_recommendation_analytics_snapshot_event, publish_recommendation_clicked_event,
-    publish_recommendation_conversion_event, publish_recommendation_created_event,
-    publish_recommendation_engagement_event, publish_recommendation_feedback_event,
-    publish_recommendation_impression_event,
+    publish_recommendation_analytics_snapshot_event, publish_recommendation_click_event,
+    publish_recommendation_clicked_event, publish_recommendation_conversion_event,
+    publish_recommendation_created_event, publish_recommendation_engagement_event,
+    publish_recommendation_feedback_event, publish_recommendation_impression_event,
 };
 use crate::project_registry::ProjectRegistry;
 use crate::review_registry::ReviewRegistry;
-use crate::storage_keys::{RecommendationKey as RK, StorageKey};
+use crate::storage_keys::{FeatureRecommendationKey, RecommendationKey as RK, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    Recommendation, RecommendationAlgorithm, RecommendationAnalytics, RecommendationEngagementKind,
-    RecommendationFeedback,
+    ProjectView, Recommendation, RecommendationABConfig, RecommendationAlgorithm,
+    RecommendationAnalytics, RecommendationEngagementKind, RecommendationFeedback,
+    RecommendationOptions, RecommendationStrategy, RecommendationVariant,
 };
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{Address, Env, String, Vec};
@@ -1187,4 +1188,212 @@ impl RecommendationRegistry {
         }
         page
     }
+
+    // ── Feature-Based Recommendations & ML Feedback (#911) ─────────────────
+
+    /// Suggest similar or related projects based on category, tags, and link graph.
+    pub fn get_recommended_projects(
+        env: &Env,
+        project_id: u64,
+        limit: u32,
+    ) -> Vec<u64> {
+        let options = RecommendationOptions {
+            strategy: RecommendationStrategy::Similar,
+            count: limit,
+            max_per_category: 0,
+        };
+        Self::get_recommended_projects_with_options(env, project_id, options)
+    }
+
+    /// Configurable recommendation engine supporting similar, complementary, and trending strategies
+    /// with category diversity and bounded count limits.
+    pub fn get_recommended_projects_with_options(
+        env: &Env,
+        project_id: u64,
+        options: RecommendationOptions,
+    ) -> Vec<u64> {
+        let count_target = if options.count == 0 || options.count > MAX_PAGE_LIMIT {
+            DEFAULT_RECOMMENDATION_LIMIT
+        } else {
+            options.count
+        };
+
+        let Some(source) = ProjectRegistry::get_project(env, project_id) else {
+            return Vec::new(env);
+        };
+
+        let total_projects: u64 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectCount)
+            .unwrap_or(0);
+
+        if total_projects <= 1 {
+            return Vec::new(env);
+        }
+
+        let source_tags: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectTags(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let source_links: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::ProjectLinkedProjects(project_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let mut scored: alloc::vec::Vec<(u64, u64)> = alloc::vec::Vec::new();
+
+        for candidate_id in 1..=total_projects {
+            if candidate_id == project_id {
+                continue;
+            }
+
+            let Some(candidate) = ProjectRegistry::get_project(env, candidate_id) else {
+                continue;
+            };
+
+            if candidate.archived {
+                continue;
+            }
+
+            let candidate_tags: Vec<String> = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::ProjectTags(candidate_id))
+                .unwrap_or_else(|| Vec::new(env));
+
+            let mut tag_matches = 0u64;
+            for i in 0..source_tags.len() {
+                if let Some(st) = source_tags.get(i) {
+                    for j in 0..candidate_tags.len() {
+                        if let Some(ct) = candidate_tags.get(j) {
+                            if st == ct {
+                                tag_matches += 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let is_linked = source_links.contains(candidate_id);
+
+            let score: u64 = match options.strategy {
+                RecommendationStrategy::Similar => {
+                    let mut s = 0u64;
+                    if candidate.category == source.category {
+                        s += 50;
+                    }
+                    s += tag_matches * 25;
+                    if is_linked {
+                        s += 15;
+                    }
+                    s += (candidate.rating as u64) / 10;
+                    s
+                }
+                RecommendationStrategy::Complementary => {
+                    let mut s = 0u64;
+                    if is_linked {
+                        s += 100;
+                    }
+                    if candidate.category != source.category {
+                        s += 40;
+                        s += tag_matches * 20;
+                    } else if is_linked {
+                        s += 20;
+                    }
+                    s += (candidate.rating as u64) / 10;
+                    s
+                }
+                RecommendationStrategy::Trending => {
+                    let mut s = (candidate.review_count as u64) * 20;
+                    s += candidate.rating as u64;
+                    if candidate.category == source.category {
+                        s += 25;
+                    }
+                    if tag_matches > 0 {
+                        s += tag_matches * 10;
+                    }
+                    s
+                }
+            };
+
+            if score > 0 {
+                scored.push((candidate_id, score));
+            }
+        }
+
+        scored.sort_by(|a, b| {
+            b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0))
+        });
+
+        let mut result = Vec::new(env);
+        let mut category_counts: alloc::collections::BTreeMap<String, u32> = alloc::collections::BTreeMap::new();
+
+        for (cid, _) in scored {
+            if result.len() >= count_target {
+                break;
+            }
+            if let Some(cand) = ProjectRegistry::get_project(env, cid) {
+                if options.max_per_category > 0 {
+                    let cur = category_counts.get(&cand.category).copied().unwrap_or(0);
+                    if cur >= options.max_per_category {
+                        continue;
+                    }
+                    category_counts.insert(cand.category.clone(), cur + 1);
+                }
+                result.push_back(cid);
+            }
+        }
+
+        result
+    }
+
+    /// Record a user recommendation click for off-chain / ML model feedback.
+    pub fn track_click(
+        env: &Env,
+        user: Address,
+        source_project_id: u64,
+        recommended_project_id: u64,
+    ) -> Result<(), ContractError> {
+        user.require_auth();
+
+        if ProjectRegistry::get_project(env, source_project_id).is_none()
+            || ProjectRegistry::get_project(env, recommended_project_id).is_none()
+        {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let key = FeatureRecommendationKey::RecommendationClickCount(source_project_id, recommended_project_id);
+        let clicks: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+        env.storage().persistent().set(&key, &clicks.saturating_add(1));
+
+        let tot_key = FeatureRecommendationKey::ProjectTotalRecommendationClicks(source_project_id);
+        let tot: u64 = env.storage().persistent().get(&tot_key).unwrap_or(0);
+        env.storage().persistent().set(&tot_key, &tot.saturating_add(1));
+
+        publish_recommendation_click_event(
+            env,
+            user,
+            source_project_id,
+            recommended_project_id,
+            env.ledger().timestamp(),
+        );
+
+        Ok(())
+    }
+
+    /// Retrieve tracked clicks for a recommendation pair.
+    pub fn get_click_count(
+        env: &Env,
+        source_project_id: u64,
+        recommended_project_id: u64,
+    ) -> u64 {
+        let key = FeatureRecommendationKey::RecommendationClickCount(source_project_id, recommended_project_id);
+        env.storage().persistent().get(&key).unwrap_or(0)
+    }
 }
+

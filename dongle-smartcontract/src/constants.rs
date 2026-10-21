@@ -41,6 +41,30 @@ pub const MAX_TTL_BATCH_SIZE: u32 = 100;
 /// Maximum reviews one `moderate_reviews_batch` call may target.
 pub const MAX_MODERATION_BATCH_SIZE: u32 = 25;
 
+/// Maximum subscriptions one bulk subscribe, import, or clone call may write.
+pub const MAX_SUBSCRIPTION_BATCH_SIZE: u32 = 100;
+
+/// Format version of `SubscriptionExport`. Bump when its fields change.
+pub const SUBSCRIPTION_EXPORT_FORMAT_VERSION: u32 = 1;
+
+/// Maximum project IDs one state snapshot or migration export page covers.
+/// Every review and verification record of those projects is included, so
+/// keep this small enough to stay within read limits.
+pub const MAX_SNAPSHOT_PAGE_SIZE: u32 = 25;
+
+/// Format version of `ContractStateSnapshot`. Bump when its fields, or the
+/// tuple hashed into `state_hash`, change.
+pub const STATE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
+
+/// Maximum project IDs one `export_analytics_data` call scans.
+pub const MAX_ANALYTICS_SCAN_SIZE: u32 = 50;
+
+/// First `MigrationBundle` layout (#935).
+pub const MIGRATION_FORMAT_V1: u32 = 1;
+
+/// Bundle layouts this contract can produce and validate.
+pub const SUPPORTED_MIGRATION_FORMATS: &[u32] = &[MIGRATION_FORMAT_V1];
+
 /// Length of the per-admin moderation rate-limit window (one hour).
 pub const MODERATION_RATE_LIMIT_WINDOW_SECONDS: u64 = 3_600;
 
@@ -281,6 +305,44 @@ pub const MAX_COLLECTION_DESCRIPTION_LEN: usize = 500;
 /// 500: the membership list is a `Vec<u64>` in the collection entry; 500 × 8
 /// bytes = 4 KiB, well within a single ledger entry.
 pub const MAX_PROJECTS_PER_COLLECTION: u32 = 500;
+
+/// Maximum nesting depth of the collection hierarchy (issue #905).
+///
+/// A top-level collection sits at depth `1`; a collection nested inside it
+/// sits at depth `2`, and so on.  The chain is capped at 5 levels so that
+/// tree walks (`get_collection_tree`, `get_collection_path`) are always
+/// bounded and can never loop forever.
+pub const MAX_COLLECTION_DEPTH: u32 = 5;
+
+/// Maximum number of nodes returned by `get_collection_tree` (issue #905).
+/// 200: bounds the response size of a subtree walk; the hierarchy itself is
+/// capped at `MAX_COLLECTIONS` (100) entries.
+pub const MAX_COLLECTION_TREE_NODES: u32 = 200;
+
+/// Maximum number of staged-recovery phases (issue #904).
+///
+/// The recovery plan is `read ops → reviews → verification → fees`:
+///
+/// | Phase | Resumed |
+/// |-------|---------|
+/// | 0 | nothing (fully paused) |
+/// | 1 | read operations |
+/// | 2 | reviews |
+/// | 3 | verification |
+/// | 4 | fees — the contract is fully running again |
+pub const MAX_RESUME_PHASE: u32 = 4;
+
+/// Maximum byte length of a pause reason (issue #901).
+/// 256 bytes: a short operator note ("fee token migration in progress").
+pub const MAX_PAUSE_REASON_LEN: usize = 256;
+
+/// Maximum number of addresses subscribed to pause notifications (issue #901).
+/// 100: the subscriber list is a `Vec<Address>` in a single ledger entry.
+pub const MAX_PAUSE_SUBSCRIBERS: u32 = 100;
+
+/// Maximum number of recorded staged-recovery phase transitions (issue #904).
+/// 50 entries: enough history for an incident review without unbounded growth.
+pub const MAX_PHASE_HISTORY_LEN: u32 = 50;
 
 /// TTL bump amount - how much to extend when bumping.
 /// Set to the same as the threshold to maintain consistent lifetime.
@@ -676,3 +738,22 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Report routing (#920) ──────────────────────────────────────────────────
+
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
+
+// ── Report evidence (#921) ─────────────────────────────────────────────────
+
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;
+
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
+
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;
