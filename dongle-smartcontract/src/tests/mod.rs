@@ -176,3 +176,12 @@ mod similarity_projects;
 // Issue #909: Search Enhancements with Wildcards and Phrases
 mod search_enhancements;
 
+// Issue #972: Test reentrancy and race condition protection
+mod reentrancy_race_972;
+// Issue #973: Verify contract state integrity after emergency operations
+mod emergency_state_integrity_973;
+// Issue #974: Backward and forward compatibility
+mod compatibility_974;
+// Issue #975: Performance testing with realistic data volumes
+mod performance_volume_975;
+
