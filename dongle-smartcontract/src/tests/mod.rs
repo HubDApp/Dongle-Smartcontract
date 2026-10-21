@@ -176,3 +176,16 @@ mod similarity_projects;
 // Issue #909: Search Enhancements with Wildcards and Phrases
 mod search_enhancements;
 
+// Issue #968: Storage invariants — counter consistency, index integrity,
+// referential integrity, key uniqueness, and concurrent-operation safety
+mod storage_invariants_968;
+// Issue #969: Event emission — all mutating operations emit correct events
+// with accurate payloads, consistent topics, and correct ordering
+mod events_emission_969;
+// Issue #970: Authorization — admin-only, owner-only, multi-sig, timelock,
+// and pause-state access control boundaries
+mod authorization_970;
+// Issue #971: Numeric overflow/underflow — u64 max/zero, u128 max/zero,
+// invalid ratings, and RatingCalculator saturation coverage
+mod numeric_overflow_971;
+
