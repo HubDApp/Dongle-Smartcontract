@@ -22,9 +22,20 @@
 //! validation): `docs/EMERGENCY_PAUSE_RECOVERY.md`. Not to be confused with the
 //! separate, unenforced `ConfigRegistry::set_pause` flag surfaced by
 //! `get_config`.
+//!
+//! Since issue #903 the pause supports **staged recovery**: while the contract
+//! is paused, an admin can resume one area at a time (read ops -> core writes
+//! -> reviews -> verification -> fees) with
+//! `PauseRecovery::resume_operations_phase`, and roll the last resumed area
+//! back with `PauseRecovery::rollback_recovery_phase`. The guards below are
+//! phase aware: `require_not_paused` covers the core-write phase while
+//! `require_phase` covers a specific phase. Operator guide:
+//! `docs/PAUSE_RECOVERY_PHASES.md`.
 
+use crate::constants::PAUSE_PHASE_CORE_WRITES;
 use crate::errors::ContractError;
 use crate::events::{publish_contract_paused_event, publish_contract_unpaused_event};
+use crate::pause_recovery::PauseRecovery;
 use crate::storage_keys::StorageKey;
 use soroban_sdk::{Address, Env};
 
@@ -43,12 +54,22 @@ impl EmergencyPause {
     ///
     /// Call this at the top of every mutating function that should be blocked
     /// during an emergency.
+    ///
+    /// Since issue #903 the contract supports *staged* recovery: while the
+    /// contract is paused this guard accepts calls whose recovery phase
+    /// (`PAUSE_PHASE_CORE_WRITES`) has been resumed through
+    /// `PauseRecovery::resume_operations_phase`.
     pub fn require_not_paused(env: &Env) -> Result<(), ContractError> {
-        if Self::is_paused(env) {
-            Err(ContractError::ContractPaused)
-        } else {
-            Ok(())
-        }
+        PauseRecovery::require_phase(env, PAUSE_PHASE_CORE_WRITES)
+    }
+
+    /// Guard for operations that belong to a specific recovery phase
+    /// (issue #903).
+    ///
+    /// `phase` is one of the `PAUSE_PHASE_*` constants. While the contract is
+    /// paused the operation is only allowed if that phase has been resumed.
+    pub fn require_phase(env: &Env, phase: u32) -> Result<(), ContractError> {
+        PauseRecovery::require_phase(env, phase)
     }
 
     /// Pause the contract (admin-only).
@@ -62,6 +83,10 @@ impl EmergencyPause {
         env.storage()
             .persistent()
             .set(&StorageKey::ContractPaused, &true);
+
+        // A fresh incident starts from a full pause: no recovery phase is live
+        // until an operator resumes it explicitly (issue #903).
+        PauseRecovery::reset(env);
 
         publish_contract_paused_event(env, admin.clone());
 
@@ -78,6 +103,10 @@ impl EmergencyPause {
         env.storage()
             .persistent()
             .set(&StorageKey::ContractPaused, &false);
+
+        // The contract is fully operational again — drop any staged recovery
+        // state (issue #903).
+        PauseRecovery::reset(env);
 
         publish_contract_unpaused_event(env, admin.clone());
 

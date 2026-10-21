@@ -68,6 +68,8 @@ Stored under `Collection(u64)`:
 | `description` | `String` | Blurb (≤ `MAX_COLLECTION_DESCRIPTION_LEN` = 500 bytes) |
 | `owner` | `Address` | Owner/creator with management rights |
 | `is_public` | `bool` | Visibility flag: `true` for public, `false` for private |
+| `voting_enabled` | `bool` | Whether community members may vote on this collection's membership (issue #907) |
+| `vote_threshold_bps` | `u32` | Approval ratio (bps) that auto-accepts a membership proposal (default `7_500` = 75 %) |
 | `created_at` / `updated_at` | `u64` | Timestamps |
 
 Membership is a `Vec<u64>` capped at `MAX_PROJECTS_PER_COLLECTION` = 500; the
@@ -190,3 +192,68 @@ The following JSON schema and example files are co-located here in `docs/`:
 | `UserReviews(Address)` | `Vec<u64>` | Projects reviewed by an address (≤ `MAX_REVIEWS_PER_USER`) |
 
 See [`STORAGE_INDEXES.md`](./STORAGE_INDEXES.md) for the full index catalog.
+
+---
+
+## Smart Collection Keys (`SmartCollectionKey`)
+
+Rule-based collections (issue #906) live in their own key enum so the
+50-variant Soroban union limit of the shared key enums is never reached. See
+[`SMART_COLLECTION_CURATION.md`](./SMART_COLLECTION_CURATION.md).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `NextId` | `u64` | Next auto-incrementing smart-collection id |
+| `Collection(u64)` | `SmartCollection` | The smart collection (owner, rules, `rule_version`, timestamps) |
+| `CollectionList` | `Vec<u64>` | Ordered list of smart-collection ids |
+| `NameIndex(String)` | `u64` | Normalized collection name -> id (uniqueness) |
+| `RuleVersion(u64, u32)` | `SmartCollectionRuleVersion` | Immutable rule-set snapshot (collection, version) |
+| `RuleVersionList(u64)` | `Vec<u32>` | Stored rule-set versions of a collection |
+| `AutoMembers(u64)` | `Vec<u64>` | Projects that curation itself added (only these are auto-removed) |
+| `RefreshDueAt(u64)` | `u64` | Timestamp after which a lazy refresh is due |
+
+The member list itself is the shared `CollectionProjectIds(u64)` list, so a
+smart collection is visible through the regular collection endpoints.
+
+## Collection Vote Keys (`CollectionVoteKey`)
+
+Community membership votes (issue #907). See
+[`COLLECTION_MEMBERSHIP_VOTING.md`](./COLLECTION_MEMBERSHIP_VOTING.md).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `Vote(u64, u64, Address)` | `CollectionMembershipVote` | One vote (collection, project, voter) - append-only |
+| `ApproveCount(u64, u64)` | `u32` | Running approve-vote count (collection, project) |
+| `RejectCount(u64, u64)` | `u32` | Running reject-vote count (collection, project) |
+| `Resolved(u64, u64)` | `bool` | Whether the proposal was already applied |
+| `VotedProjects(u64)` | `Vec<u64>` | Projects that received votes in a collection |
+
+## Pause Recovery Keys (`PauseRecoveryKey`)
+
+Staged pause recovery (issue #903). See
+[`PAUSE_RECOVERY_PHASES.md`](./PAUSE_RECOVERY_PHASES.md).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `EnabledPhases` | `Vec<u32>` | Live recovery phases (stack; last = most recent) |
+| `CompletedPhases` | `Vec<u32>` | Phases of the plan the operator already moved past |
+| `Plan` | `Vec<u32>` | The active recovery ladder |
+| `LastChangedAt` | `u64` | Timestamp of the last phase change |
+| `LastChangedBy` | `Option<Address>` | Admin that performed the last phase change |
+| `PhaseHistory(u32)` | `u32` | Recorded phase change (index -> phase code) |
+| `PhaseHistoryCount` | `u32` | Number of recorded phase changes |
+
+## Admin Rotation Keys (`AdminRotationKey`)
+
+Automatic admin-key rotation (issue #900). See
+[`ADMIN_ROTATION_SCHEDULES.md`](./ADMIN_ROTATION_SCHEDULES.md).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `Schedule` | `AdminRotationSchedule` | Interval, next rotation, replacement pool, pre-flight state |
+| `NextRotationId` | `u64` | Next rotation id counter |
+| `Record(u64)` | `AdminRotationRecord` | One executed rotation (removed / added admins) |
+| `RecordIds` | `Vec<u64>` | Ordered list of rotation ids |
+| `AdminJoinedAt(Address)` | `u64` | Timestamp at which an address joined the admin set |
+| `Notification(u64, u32)` | `AdminRotationNotification` | Per-key-holder notification of a rotation |
+| `NotificationCount(u64)` | `u32` | Number of notifications recorded for a rotation |

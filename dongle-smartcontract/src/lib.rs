@@ -6,6 +6,7 @@ extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
+mod admin_rotation;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
@@ -14,6 +15,7 @@ pub mod category_types;
 mod category_registry;
 mod changelog_registry;
 mod collection_registry;
+mod collection_voting;
 // mod community_collection_registry;
 mod config_registry;
 pub mod constants;
@@ -32,6 +34,7 @@ mod probation_registry;
 mod project_registry;
 pub mod project_controls;
 mod project_operation_limiter;
+mod pause_recovery;
 pub mod rating_calculator;
 // mod recommendation_registry;
 mod report_registry;
@@ -56,6 +59,7 @@ mod activity_feed_registry;
 mod metadata_enrichment_registry;
 mod similarity_registry;
 mod smart_bookmark_registry;
+mod smart_collection_registry;
 mod trending_registry;
 
 #[cfg(test)]
@@ -66,6 +70,7 @@ use crate::admin_manager::AdminManager;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
+use crate::constants::{PAUSE_PHASE_FEES, PAUSE_PHASE_REVIEWS, PAUSE_PHASE_VERIFICATION};
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
@@ -132,6 +137,14 @@ use crate::types::{
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
     // Custom verification requirements
     VerificationRequirementAudit, ProjectVerificationRequirements,
+    // #906 rule-based curation (smart collections)
+    CurationRefreshResult, CurationRule, SmartCollection, SmartCollectionRuleVersion,
+    // #907 community voting on collection membership
+    CollectionMembershipVote, CollectionVoteTally, MembershipVoteOutcome, VoteDirection,
+    // #903 staged pause recovery
+    PauseRecoveryState,
+    // #900 automatic admin rotation schedules
+    AdminRotationNotification, AdminRotationRecord, AdminRotationSchedule, RotationChecklistItem,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -514,13 +527,14 @@ impl DongleContract {
             secondary_owner,
             admin,
         )
+    }
+
     pub fn export_project_data(env: Env, project_id: u64, owner: Address) -> Result<crate::types::ProjectDataExport, ContractError> {
         ProjectRegistry::export_project_data(&env, project_id, owner)
     }
 
     pub fn import_project_data(env: Env, export: crate::types::ProjectDataExport, owner: Address) -> Result<u64, ContractError> {
         ProjectRegistry::import_project_data(&env, export, owner)
-    }
     }
 
     pub fn schedule_project_sunset(
@@ -1119,7 +1133,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_REVIEWS)?;
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None, None)
     }
 
@@ -1132,7 +1146,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_REVIEWS)?;
         ReviewRegistry::add_review_with_attribution(
             &env,
             project_id,
@@ -1184,7 +1198,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_REVIEWS)?;
         ReviewRegistry::submit_review_with_attribution(
             &env,
             project_id,
@@ -1555,7 +1569,7 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_VERIFICATION)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
@@ -2232,7 +2246,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_FEES)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -2242,7 +2256,7 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         if !AdminManager::is_admin(&env, &caller) {
-            EmergencyPause::require_not_paused(&env)?;
+            EmergencyPause::require_phase(&env, PAUSE_PHASE_FEES)?;
         }
         FeeManager::cancel_fee_payment(&env, caller, project_id)
     }
@@ -2421,7 +2435,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_phase(&env, PAUSE_PHASE_REVIEWS)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -4789,5 +4803,342 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #906 - Auto-curate collections based on project attributes
+    // ---------------------------------------------------------------------
+
+    /// Create a rule-based ("smart") collection.
+    ///
+    /// Membership is derived from the supplied curation rules (tag match,
+    /// minimum rating and/or category) instead of being hand-picked.
+    pub fn create_smart_collection(
+        env: Env,
+        admin: Address,
+        name: String,
+        description: String,
+        rules: Vec<CurationRule>,
+        is_public: bool,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::smart_collection_registry::SmartCollectionRegistry::create_smart_collection(
+            &env,
+            admin,
+            name,
+            description,
+            rules,
+            is_public,
+        )
+    }
+
+    /// Read a smart collection (including its active rule set).
+    pub fn get_smart_collection(env: Env, collection_id: u64) -> Option<SmartCollection> {
+        crate::smart_collection_registry::SmartCollectionRegistry::get_smart_collection(
+            &env,
+            collection_id,
+        )
+    }
+
+    /// The active curation rules of a smart collection.
+    pub fn get_smart_collection_rules(env: Env, collection_id: u64) -> Vec<CurationRule> {
+        crate::smart_collection_registry::SmartCollectionRegistry::get_smart_collection_rules(
+            &env,
+            collection_id,
+        )
+    }
+
+    /// List all smart collections with pagination.
+    pub fn list_smart_collections(env: Env, start_index: u32, limit: u32) -> Vec<SmartCollection> {
+        crate::smart_collection_registry::SmartCollectionRegistry::list_smart_collections(
+            &env,
+            start_index,
+            limit,
+        )
+    }
+
+    /// The project ids currently curated into a smart collection.
+    pub fn list_smart_collection_projects(env: Env, collection_id: u64) -> Vec<u64> {
+        crate::smart_collection_registry::SmartCollectionRegistry::list_smart_collection_projects(
+            &env,
+            collection_id,
+        )
+    }
+
+    /// All stored rule-set versions of a smart collection (oldest first).
+    pub fn list_smart_collection_versions(
+        env: Env,
+        collection_id: u64,
+    ) -> Vec<SmartCollectionRuleVersion> {
+        crate::smart_collection_registry::SmartCollectionRegistry::list_smart_collection_rule_versions(
+            &env,
+            collection_id,
+        )
+    }
+
+    /// Replace the active rule set of a smart collection (admin-only).
+    ///
+    /// Returns the new rule-set version.
+    pub fn update_smart_collection_rules(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+        rules: Vec<CurationRule>,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::smart_collection_registry::SmartCollectionRegistry::update_smart_collection_rules(
+            &env,
+            admin,
+            collection_id,
+            rules,
+        )
+    }
+
+    /// Roll the rule set of a smart collection back to a stored version
+    /// (admin-only). Returns the new rule-set version.
+    pub fn rollback_smart_collection_rules(
+        env: Env,
+        admin: Address,
+        collection_id: u64,
+        version: u32,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::smart_collection_registry::SmartCollectionRegistry::rollback_smart_collection_rules(
+            &env,
+            admin,
+            collection_id,
+            version,
+        )
+    }
+
+    /// Recompute the membership of a smart collection from its active rules.
+    ///
+    /// Lazy evaluation: the refresh is idempotent and can be triggered by any
+    /// authenticated caller (front-end, indexer or keeper).
+    pub fn refresh_smart_collection(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+    ) -> Result<CurationRefreshResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::smart_collection_registry::SmartCollectionRegistry::refresh_smart_collection(
+            &env,
+            caller,
+            collection_id,
+        )
+    }
+
+    /// Background job: refresh every smart collection whose refresh is due.
+    pub fn run_scheduled_curation_refresh(
+        env: Env,
+        caller: Address,
+        max_collections: u32,
+    ) -> Result<Vec<CurationRefreshResult>, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::smart_collection_registry::SmartCollectionRegistry::run_scheduled_curation_refresh(
+            &env,
+            caller,
+            max_collections,
+        )
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #907 - Community voting on collection membership
+    // ---------------------------------------------------------------------
+
+    /// Enable (or disable) community voting for a collection and set the
+    /// approval threshold in basis points (default 7_500 = 75 %).
+    pub fn set_collection_voting(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        enabled: bool,
+        threshold_bps: u32,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::collection_voting::CollectionVoting::set_collection_voting(
+            &env,
+            caller,
+            collection_id,
+            enabled,
+            threshold_bps,
+        )
+    }
+
+    /// Cast a community vote on the membership of a project in a collection.
+    ///
+    /// The vote is auto-applied when the collection's approval threshold is
+    /// crossed (anti-gaming rules: one vote per address, reputation
+    /// requirement, quorum, no self-promotion).
+    pub fn vote_on_collection_membership(
+        env: Env,
+        voter: Address,
+        collection_id: u64,
+        project_id: u64,
+        direction: VoteDirection,
+    ) -> Result<CollectionVoteTally, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::collection_voting::CollectionVoting::vote_on_collection_membership(
+            &env,
+            voter,
+            collection_id,
+            project_id,
+            direction,
+        )
+    }
+
+    /// The aggregated vote state for a collection-membership proposal.
+    pub fn get_collection_membership_votes(
+        env: Env,
+        collection_id: u64,
+        project_id: u64,
+    ) -> CollectionVoteTally {
+        crate::collection_voting::CollectionVoting::get_collection_membership_votes(
+            &env,
+            collection_id,
+            project_id,
+        )
+    }
+
+    /// The vote of a single voter, if any.
+    pub fn get_collection_membership_vote(
+        env: Env,
+        collection_id: u64,
+        project_id: u64,
+        voter: Address,
+    ) -> Option<CollectionMembershipVote> {
+        crate::collection_voting::CollectionVoting::get_collection_membership_vote(
+            &env,
+            collection_id,
+            project_id,
+            voter,
+        )
+    }
+
+    /// The projects that received community votes in a collection.
+    pub fn list_collection_voted_projects(
+        env: Env,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        crate::collection_voting::CollectionVoting::list_voted_projects(
+            &env,
+            collection_id,
+            start_index,
+            limit,
+        )
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #903 - Staged resumption of operations after an emergency pause
+    // ---------------------------------------------------------------------
+
+    /// Resume a single recovery phase of the staged pause-recovery plan.
+    ///
+    /// Phase codes: 1 = read ops, 2 = core writes, 3 = reviews,
+    /// 4 = verification, 5 = fees, 6 = everything.
+    pub fn resume_operations_phase(
+        env: Env,
+        admin: Address,
+        phase: u32,
+    ) -> Result<PauseRecoveryState, ContractError> {
+        crate::pause_recovery::PauseRecovery::resume_operations_phase(&env, admin, phase)
+    }
+
+    /// Roll the most recently resumed recovery phase back (halts that area
+    /// again).
+    pub fn rollback_recovery_phase(
+        env: Env,
+        admin: Address,
+    ) -> Result<PauseRecoveryState, ContractError> {
+        crate::pause_recovery::PauseRecovery::rollback_recovery_phase(&env, admin)
+    }
+
+    /// The current staged pause-recovery state (plan, live phases, progress).
+    pub fn get_pause_recovery_state(env: Env) -> PauseRecoveryState {
+        crate::pause_recovery::PauseRecovery::get_state(&env)
+    }
+
+    /// Install a custom recovery plan (admin-only).
+    pub fn set_pause_recovery_plan(
+        env: Env,
+        admin: Address,
+        phases: Vec<u32>,
+    ) -> Result<PauseRecoveryState, ContractError> {
+        crate::pause_recovery::PauseRecovery::set_pause_recovery_plan(&env, admin, phases)
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #900 - Automatic admin rotation schedules
+    // ---------------------------------------------------------------------
+
+    /// Install (or replace) the automatic admin rotation schedule.
+    ///
+    /// `interval_days` must be 30, 60 or 90.
+    pub fn set_rotation_schedule(
+        env: Env,
+        admin: Address,
+        interval_days: u32,
+        replacement_pool: Vec<Address>,
+    ) -> Result<AdminRotationSchedule, ContractError> {
+        crate::admin_rotation::AdminRotation::set_rotation_schedule(
+            &env,
+            admin,
+            interval_days,
+            replacement_pool,
+        )
+    }
+
+    /// The active rotation schedule, if any.
+    pub fn get_rotation_schedule(env: Env) -> Option<AdminRotationSchedule> {
+        crate::admin_rotation::AdminRotation::get_rotation_schedule(&env)
+    }
+
+    /// The pre-flight checklist that must be confirmed before a rotation runs.
+    pub fn get_rotation_preflight_checklist(
+        env: Env,
+        admin: Address,
+    ) -> Result<Vec<RotationChecklistItem>, ContractError> {
+        crate::admin_rotation::AdminRotation::get_rotation_preflight_checklist(&env, admin)
+    }
+
+    /// Confirm the rotation pre-flight checklist (admin-only).
+    pub fn confirm_rotation_preflight(
+        env: Env,
+        admin: Address,
+    ) -> Result<AdminRotationSchedule, ContractError> {
+        crate::admin_rotation::AdminRotation::confirm_rotation_preflight(&env, admin)
+    }
+
+    /// Execute the scheduled rotation (keeper-callable once due and
+    /// confirmed).
+    pub fn execute_scheduled_rotation(
+        env: Env,
+        caller: Address,
+    ) -> Result<AdminRotationRecord, ContractError> {
+        crate::admin_rotation::AdminRotation::execute_scheduled_rotation(&env, caller)
+    }
+
+    /// A single rotation record.
+    pub fn get_admin_rotation_record(env: Env, rotation_id: u64) -> Option<AdminRotationRecord> {
+        crate::admin_rotation::AdminRotation::get_admin_rotation_record(&env, rotation_id)
+    }
+
+    /// All rotation records with pagination.
+    pub fn list_admin_rotation_records(
+        env: Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<AdminRotationRecord> {
+        crate::admin_rotation::AdminRotation::list_admin_rotation_records(&env, start_index, limit)
+    }
+
+    /// The notifications emitted by a rotation.
+    pub fn get_admin_rotation_notifications(
+        env: Env,
+        rotation_id: u64,
+    ) -> Vec<AdminRotationNotification> {
+        crate::admin_rotation::AdminRotation::get_admin_rotation_notifications(&env, rotation_id)
     }
 }

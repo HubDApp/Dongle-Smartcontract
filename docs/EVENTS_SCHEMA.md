@@ -374,3 +374,134 @@ Reserved project-name changes use the `CONFIG` topic namespace. See
   * `admin` (`Address`): Admin address that removed the name.
   * `timestamp` (`u64`): Unix timestamp.
 * Not emitted when the name was not present (idempotent no-op).
+
+## 8. Smart Collection Events (issue #906)
+
+Rule-based collections use the `SMARTCOL` topic namespace. See
+[`SMART_COLLECTION_CURATION.md`](./SMART_COLLECTION_CURATION.md).
+
+### Smart Collection Created
+* **Topic:** `(Symbol("SMARTCOL"), Symbol("CREATED"), collection_id: u64)`
+* **Payload (`SmartCollectionCreatedEvent`):**
+  * `collection_id` (`u64`): The smart collection that was created.
+  * `name` (`String`): Display name of the collection.
+  * `owner` (`Address`): Admin that owns the collection.
+  * `rule_count` (`u32`): Number of curation rules attached.
+  * `rule_version` (`u32`): Version of the initial rule set (always `1`).
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Smart Collection Rules Updated
+* **Topic:** `(Symbol("SMARTCOL"), Symbol("RULES"), collection_id: u64)`
+* **Payload (`SmartCollectionRulesUpdatedEvent`):**
+  * `collection_id` (`u64`): The smart collection.
+  * `admin` (`Address`): Admin that changed the rule set.
+  * `previous_version` (`u32`): Version that was active before the change.
+  * `new_version` (`u32`): Version that is active after the change.
+  * `rule_count` (`u32`): Number of rules in the new rule set.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Smart Collection Rolled Back
+* **Topic:** `(Symbol("SMARTCOL"), Symbol("ROLLBACK"), collection_id: u64)`
+* **Payload (`SmartCollectionRolledBackEvent`):**
+  * `collection_id` (`u64`): The smart collection.
+  * `admin` (`Address`): Admin that performed the rollback.
+  * `restored_from_version` (`u32`): Stored version whose rules were restored.
+  * `new_version` (`u32`): Version created by the rollback.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Smart Collection Refreshed
+* **Topic:** `(Symbol("SMARTCOL"), Symbol("REFRESH"), collection_id: u64)`
+* **Payload (`SmartCollectionRefreshedEvent`):**
+  * `collection_id` (`u64`): The smart collection.
+  * `caller` (`Address`): Address that triggered the refresh.
+  * `rule_version` (`u32`): Rule version that was applied.
+  * `added` (`u32`): Projects added by this refresh.
+  * `removed` (`u32`): Projects removed by this refresh.
+  * `unchanged` (`u32`): Auto-managed projects that still matched.
+  * `total_matched` (`u32`): Projects that matched the rules.
+  * `scanned` (`u32`): Projects that were scanned.
+  * `timestamp` (`u64`): Unix timestamp.
+
+## 9. Collection Membership Vote Events (issue #907)
+
+Community votes use the `COLVOTE` topic namespace. See
+[`COLLECTION_MEMBERSHIP_VOTING.md`](./COLLECTION_MEMBERSHIP_VOTING.md).
+
+### Membership Vote Cast
+* **Topic:** `(Symbol("COLVOTE"), Symbol("CAST"), collection_id: u64, project_id: u64)`
+* **Payload (`CollectionMembershipVoteCastEvent`):**
+  * `collection_id` (`u64`): The collection that was voted on.
+  * `project_id` (`u64`): The project that was voted on.
+  * `voter` (`Address`): Address that cast the vote.
+  * `direction` (`VoteDirection`): `Approve` or `Reject`.
+  * `approve_votes` (`u32`): Running approve-vote count.
+  * `reject_votes` (`u32`): Running reject-vote count.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Membership Vote Resolved
+* **Topic:** `(Symbol("COLVOTE"), Symbol("RESOLVED"), collection_id: u64, project_id: u64)`
+* **Payload (`CollectionMembershipResolvedEvent`):**
+  * `collection_id` (`u64`): The collection that was voted on.
+  * `project_id` (`u64`): The project that was voted on.
+  * `outcome` (`MembershipVoteOutcome`): `Approved` or `Rejected`.
+  * `approve_votes` (`u32`): Running approve-vote count.
+  * `reject_votes` (`u32`): Running reject-vote count.
+  * `approval_bps` (`u32`): Approval ratio in basis points.
+  * `timestamp` (`u64`): Unix timestamp.
+
+## 10. Pause Recovery Events (issue #903)
+
+Staged pause recovery uses the `PAUSE` topic namespace. See
+[`PAUSE_RECOVERY_PHASES.md`](./PAUSE_RECOVERY_PHASES.md).
+
+### Pause Phase Changed
+* **Topic:** `(Symbol("PAUSE"), Symbol("PHASE"))`
+* **Payload (`PausePhaseChangedEvent`):**
+  * `phase` (`u32`): The phase that is current after the change (`0` = nothing live).
+  * `previous_phase` (`u32`): The phase that was current before the change.
+  * `enabled_phases` (`Vec<u32>`): All live recovery phases.
+  * `completed_phases` (`Vec<u32>`): Phases of the plan already moved past.
+  * `admin` (`Address`): Admin that performed the change.
+  * `rolled_back` (`bool`): `true` when the change was a rollback.
+  * `timestamp` (`u64`): Unix timestamp.
+
+## 11. Admin Rotation Events (issue #900)
+
+Automatic admin-key rotation uses the `ADMINROT` topic namespace. See
+[`ADMIN_ROTATION_SCHEDULES.md`](./ADMIN_ROTATION_SCHEDULES.md).
+
+### Admin Rotation Scheduled
+* **Topic:** `(Symbol("ADMINROT"), Symbol("SCHEDULED"))`
+* **Payload (`AdminRotationScheduledEvent`):**
+  * `interval_days` (`u32`): Rotation interval (30, 60 or 90 days).
+  * `next_rotation_at` (`u64`): When the next rotation becomes due.
+  * `admin` (`Address`): Admin that installed the schedule.
+  * `replacement_pool_size` (`u32`): Number of replacement candidates.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Admin Rotation Preflight Confirmed
+* **Topic:** `(Symbol("ADMINROT"), Symbol("PREFLIGHT"))`
+* **Payload (`AdminRotationPreflightEvent`):**
+  * `rotation_id` (`u64`): Rotation the confirmation applies to.
+  * `admin` (`Address`): Admin that confirmed the checklist.
+  * `checklist_size` (`u32`): Number of checklist items.
+  * `all_satisfied` (`bool`): Whether every checklist item passed.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Admin Rotation Executed
+* **Topic:** `(Symbol("ADMINROT"), Symbol("EXECUTED"), rotation_id: u64)`
+* **Payload (`AdminRotationExecutedEvent`):**
+  * `rotation_id` (`u64`): The executed rotation.
+  * `executed_by` (`Address`): Keeper that executed the rotation.
+  * `removed_admins` (`Vec<Address>`): Admins that were removed.
+  * `added_admins` (`Vec<Address>`): Admins that were promoted.
+  * `next_rotation_at` (`u64`): When the next rotation becomes due.
+  * `timestamp` (`u64`): Unix timestamp.
+
+### Admin Rotation Notification
+* **Topic:** `(Symbol("ADMINROT"), Symbol("NOTIFY"), rotation_id: u64)`
+* **Payload (`AdminRotationNotificationEvent`):**
+  * `rotation_id` (`u64`): The rotation the notification belongs to.
+  * `admin` (`Address`): The affected admin key holder.
+  * `removed` (`bool`): `true` for the outgoing key, `false` for the incoming one.
+  * `timestamp` (`u64`): Unix timestamp.

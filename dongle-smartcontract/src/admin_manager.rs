@@ -43,6 +43,10 @@ impl AdminManager {
         // Extend TTL for admin data
         StorageManager::extend_all_admin_ttl(env, &admin);
 
+        // Track when the key joined the admin set so that the automatic
+        // rotation schedule (issue #900) knows which key is the oldest.
+        crate::admin_rotation::AdminRotation::record_admin_join(env, &admin);
+
         publish_admin_added_event(env, admin);
 
         Ok(())
@@ -99,6 +103,9 @@ impl AdminManager {
 
         // Extend TTL for admin data
         StorageManager::extend_all_admin_ttl(env, &new_admin);
+
+        // Track the join timestamp for the automatic rotation schedule (#900).
+        crate::admin_rotation::AdminRotation::record_admin_join(env, &new_admin);
 
         publish_admin_added_event(env, new_admin.clone());
 
@@ -552,6 +559,7 @@ impl AdminManager {
                         .persistent()
                         .set(&StorageKey::AdminList, &admins);
                     StorageManager::extend_all_admin_ttl(env, &new_admin);
+                    crate::admin_rotation::AdminRotation::record_admin_join(env, &new_admin);
                     publish_admin_added_event(env, new_admin.clone());
                 }
             }
@@ -1110,6 +1118,7 @@ impl AdminManager {
                     .persistent()
                     .set(&StorageKey::AdminList, &admins);
                 StorageManager::extend_all_admin_ttl(env, &new_admin);
+                crate::admin_rotation::AdminRotation::record_admin_join(env, &new_admin);
                 publish_admin_added_event(env, new_admin);
             }
 

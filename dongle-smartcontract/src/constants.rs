@@ -676,3 +676,62 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// -- Rule-based curation / smart collections (issue #906) ---------------------
+
+/// Maximum number of smart (rule-based) collections that can exist.
+pub const MAX_SMART_COLLECTIONS: u32 = 50;
+/// Maximum number of curation rules attached to a single smart collection.
+pub const MAX_CURATION_RULES: u32 = 10;
+/// Maximum number of projects scanned by a single smart-collection refresh.
+/// The scan is bounded so a refresh can never exceed the transaction budget.
+pub const MAX_CURATION_SCAN_PROJECTS: u32 = 200;
+/// Minimum age (in seconds) before a smart collection is considered due for
+/// an automatic refresh. One hour keeps the curation close to real time while
+/// keeping the keeper sweep cheap.
+pub const CURATION_REFRESH_INTERVAL_SECS: u64 = 3_600;
+/// Maximum length (bytes) of a curation-rule tag.
+pub const MAX_CURATION_TAG_LEN: usize = 64;
+/// Maximum length (bytes) of a curation-rule category.
+pub const MAX_CURATION_CATEGORY_LEN: usize = 64;
+/// Highest rating value in the scaled rating format used by curation rules
+/// (`350` = 3.5 stars, `500` = 5.0 stars).
+pub const MAX_CURATION_RATING_SCALED: u32 = 500;
+/// Number of seconds in a day (used to convert rotation intervals).
+pub const SECONDS_PER_DAY: u64 = 86_400;
+/// Default interval (in days) between two automatic admin rotations.
+pub const DEFAULT_ADMIN_ROTATION_INTERVAL_DAYS: u32 = 30;
+/// Maximum number of replacement candidates kept in the rotation pool.
+pub const MAX_ROTATION_POOL_SIZE: u32 = 10;
+
+// -- Community voting on collection membership (issue #907) -------------------
+
+/// Default approval threshold (basis points) for auto-accepting a collection
+/// membership proposal: 7_500 bps = 75 % approval.
+pub const DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS: u32 = 7_500;
+/// Minimum number of votes required before a membership proposal can be
+/// auto-accepted. Prevents a single enthusiastic voter from curating.
+pub const MIN_COLLECTION_VOTES_FOR_RESOLUTION: u32 = 3;
+/// Minimum reviewer points a voter must have accumulated to be allowed to
+/// vote (anti-gaming requirement).
+pub const MIN_VOTER_REPUTATION_POINTS: u64 = 10;
+/// Minimum number of reviews a voter must have authored to be allowed to vote
+/// (alternative reputation signal, anti-gaming requirement).
+pub const MIN_VOTER_REVIEWS: u32 = 1;
+
+// -- Staged pause recovery (issue #903) ---------------------------------------
+
+/// Phase 0 � everything is halted (the contract is fully paused).
+pub const PAUSE_PHASE_FULL_PAUSE: u32 = 0;
+/// Phase 1 � read-only operations are served again.
+pub const PAUSE_PHASE_READ_OPS: u32 = 1;
+/// Phase 2 � core project mutations (register / update / archive) are served again.
+pub const PAUSE_PHASE_CORE_WRITES: u32 = 2;
+/// Phase 3 � review mutations are served again.
+pub const PAUSE_PHASE_REVIEWS: u32 = 3;
+/// Phase 4 � verification mutations are served again.
+pub const PAUSE_PHASE_VERIFICATION: u32 = 4;
+/// Phase 5 � fee mutations are served again.
+pub const PAUSE_PHASE_FEES: u32 = 5;
+/// Phase 6 � the contract is fully operational again.
+pub const PAUSE_PHASE_ALL: u32 = 6;

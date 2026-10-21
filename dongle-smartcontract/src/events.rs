@@ -1,7 +1,8 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
-    AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AdminActionType, DigestFrequency, EvidenceLink, MembershipVoteOutcome, ModerateAction,
+    NotificationKind, ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData,
+    VerificationStatus, VoteDirection,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 
@@ -4622,6 +4623,406 @@ pub fn publish_reviews_moderated_event(
             action,
             succeeded,
             failed,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+// -- Issue #906: rule-based ("smart") collection curation ---------------------
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollectionCreatedEvent {
+    pub collection_id: u64,
+    pub name: String,
+    pub owner: Address,
+    pub rule_count: u32,
+    pub rule_version: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollectionRulesUpdatedEvent {
+    pub collection_id: u64,
+    pub admin: Address,
+    pub previous_version: u32,
+    pub new_version: u32,
+    pub rule_count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollectionRolledBackEvent {
+    pub collection_id: u64,
+    pub admin: Address,
+    pub restored_from_version: u32,
+    pub new_version: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollectionRefreshedEvent {
+    pub collection_id: u64,
+    pub caller: Address,
+    pub rule_version: u32,
+    pub added: u32,
+    pub removed: u32,
+    pub unchanged: u32,
+    pub total_matched: u32,
+    pub scanned: u32,
+    pub timestamp: u64,
+}
+
+/// Publishes the creation of a rule-based collection (issue #906).
+pub fn publish_smart_collection_created_event(
+    env: &Env,
+    collection_id: u64,
+    name: String,
+    owner: Address,
+    rule_count: u32,
+    rule_version: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("SMARTCOL"),
+            symbol_short!("CREATED"),
+            collection_id,
+        ),
+        SmartCollectionCreatedEvent {
+            collection_id,
+            name,
+            owner,
+            rule_count,
+            rule_version,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes a rule-set change of a smart collection (issue #906).
+pub fn publish_smart_collection_rules_updated_event(
+    env: &Env,
+    collection_id: u64,
+    admin: Address,
+    previous_version: u32,
+    new_version: u32,
+    rule_count: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("SMARTCOL"),
+            symbol_short!("RULES"),
+            collection_id,
+        ),
+        SmartCollectionRulesUpdatedEvent {
+            collection_id,
+            admin,
+            previous_version,
+            new_version,
+            rule_count,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes a rule-set rollback of a smart collection (issue #906).
+pub fn publish_smart_collection_rolled_back_event(
+    env: &Env,
+    collection_id: u64,
+    admin: Address,
+    restored_from_version: u32,
+    new_version: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("SMARTCOL"),
+            symbol_short!("ROLLBACK"),
+            collection_id,
+        ),
+        SmartCollectionRolledBackEvent {
+            collection_id,
+            admin,
+            restored_from_version,
+            new_version,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes the outcome of a smart-collection refresh (issue #906).
+pub fn publish_smart_collection_refreshed_event(
+    env: &Env,
+    collection_id: u64,
+    caller: Address,
+    rule_version: u32,
+    added: u32,
+    removed: u32,
+    unchanged: u32,
+    total_matched: u32,
+    scanned: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("SMARTCOL"),
+            symbol_short!("REFRESH"),
+            collection_id,
+        ),
+        SmartCollectionRefreshedEvent {
+            collection_id,
+            caller,
+            rule_version,
+            added,
+            removed,
+            unchanged,
+            total_matched,
+            scanned,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+// -- Issue #907: community voting on collection membership ---------------------
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionMembershipVoteCastEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub voter: Address,
+    pub direction: VoteDirection,
+    pub approve_votes: u32,
+    pub reject_votes: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionMembershipResolvedEvent {
+    pub collection_id: u64,
+    pub project_id: u64,
+    pub outcome: MembershipVoteOutcome,
+    pub approve_votes: u32,
+    pub reject_votes: u32,
+    pub approval_bps: u32,
+    pub timestamp: u64,
+}
+
+/// Publishes a community vote on a collection-membership proposal (issue #907).
+pub fn publish_collection_membership_vote_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    voter: Address,
+    direction: VoteDirection,
+    approve_votes: u32,
+    reject_votes: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("COLVOTE"),
+            symbol_short!("CAST"),
+            collection_id,
+            project_id,
+        ),
+        CollectionMembershipVoteCastEvent {
+            collection_id,
+            project_id,
+            voter,
+            direction,
+            approve_votes,
+            reject_votes,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes the auto-accept / auto-reject of a membership proposal (issue #907).
+pub fn publish_collection_membership_resolved_event(
+    env: &Env,
+    collection_id: u64,
+    project_id: u64,
+    outcome: MembershipVoteOutcome,
+    approve_votes: u32,
+    reject_votes: u32,
+    approval_bps: u32,
+) {
+    env.events().publish(
+        (
+            symbol_short!("COLVOTE"),
+            symbol_short!("RESOLVED"),
+            collection_id,
+            project_id,
+        ),
+        CollectionMembershipResolvedEvent {
+            collection_id,
+            project_id,
+            outcome,
+            approve_votes,
+            reject_votes,
+            approval_bps,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+// -- Issue #903: staged pause recovery ----------------------------------------
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PausePhaseChangedEvent {
+    pub phase: u32,
+    pub previous_phase: u32,
+    pub enabled_phases: Vec<u32>,
+    pub completed_phases: Vec<u32>,
+    pub admin: Address,
+    pub rolled_back: bool,
+    pub timestamp: u64,
+}
+
+/// Publishes a change of the active pause-recovery phase (issue #903).
+pub fn publish_pause_phase_changed_event(
+    env: &Env,
+    phase: u32,
+    previous_phase: u32,
+    enabled_phases: Vec<u32>,
+    completed_phases: Vec<u32>,
+    admin: Address,
+    rolled_back: bool,
+) {
+    env.events().publish(
+        (symbol_short!("PAUSE"), symbol_short!("PHASE")),
+        PausePhaseChangedEvent {
+            phase,
+            previous_phase,
+            enabled_phases,
+            completed_phases,
+            admin,
+            rolled_back,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+// -- Issue #900: automatic admin-key rotation ---------------------------------
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationScheduledEvent {
+    pub interval_days: u32,
+    pub next_rotation_at: u64,
+    pub admin: Address,
+    pub replacement_pool_size: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationPreflightEvent {
+    pub rotation_id: u64,
+    pub admin: Address,
+    pub checklist_size: u32,
+    pub all_satisfied: bool,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationExecutedEvent {
+    pub rotation_id: u64,
+    pub executed_by: Address,
+    pub removed_admins: Vec<Address>,
+    pub added_admins: Vec<Address>,
+    pub next_rotation_at: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationNotificationEvent {
+    pub rotation_id: u64,
+    pub admin: Address,
+    pub removed: bool,
+    pub timestamp: u64,
+}
+
+/// Publishes the (re)configuration of the admin rotation schedule (issue #900).
+pub fn publish_admin_rotation_scheduled_event(
+    env: &Env,
+    interval_days: u32,
+    next_rotation_at: u64,
+    admin: Address,
+    replacement_pool_size: u32,
+) {
+    env.events().publish(
+        (symbol_short!("ADMINROT"), symbol_short!("SCHEDULED")),
+        AdminRotationScheduledEvent {
+            interval_days,
+            next_rotation_at,
+            admin,
+            replacement_pool_size,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes the confirmation of the rotation pre-flight checklist (issue #900).
+pub fn publish_admin_rotation_preflight_event(
+    env: &Env,
+    rotation_id: u64,
+    admin: Address,
+    checklist_size: u32,
+    all_satisfied: bool,
+) {
+    env.events().publish(
+        (symbol_short!("ADMINROT"), symbol_short!("PREFLIGHT")),
+        AdminRotationPreflightEvent {
+            rotation_id,
+            admin,
+            checklist_size,
+            all_satisfied,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes the execution of an admin rotation (issue #900).
+pub fn publish_admin_rotation_executed_event(
+    env: &Env,
+    rotation_id: u64,
+    executed_by: Address,
+    removed_admins: Vec<Address>,
+    added_admins: Vec<Address>,
+    next_rotation_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("ADMINROT"), symbol_short!("EXECUTED"), rotation_id),
+        AdminRotationExecutedEvent {
+            rotation_id,
+            executed_by,
+            removed_admins,
+            added_admins,
+            next_rotation_at,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publishes a per-admin rotation notification (issue #900).
+pub fn publish_admin_rotation_notification_event(
+    env: &Env,
+    rotation_id: u64,
+    admin: Address,
+    removed: bool,
+) {
+    env.events().publish(
+        (symbol_short!("ADMINROT"), symbol_short!("NOTIFY"), rotation_id),
+        AdminRotationNotificationEvent {
+            rotation_id,
+            admin,
+            removed,
             timestamp: env.ledger().timestamp(),
         },
     );

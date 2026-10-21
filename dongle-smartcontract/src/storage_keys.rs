@@ -826,3 +826,85 @@ pub enum VerificationAuditKey {
     /// Rejection record: (project_id, index) -> RejectionRecord.
     Rejection(u64, u32),
 }
+
+/// Storage keys for rule-based ("smart") collections — issue #906.
+///
+/// Kept in its own enum so the 50-variant Soroban union cap of the shared key
+/// enums (`StorageKey`, `ExtensionKey`, …) is never reached.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SmartCollectionKey {
+    /// Next auto-incrementing smart-collection id counter.
+    NextId,
+    /// A single `SmartCollection` struct keyed by id.
+    Collection(u64),
+    /// Ordered list of all smart-collection ids (oldest first).
+    CollectionList,
+    /// Normalized collection name -> smart-collection id (uniqueness index).
+    NameIndex(String),
+    /// Rule-set snapshot: (collection_id, version) -> SmartCollectionRuleVersion.
+    RuleVersion(u64, u32),
+    /// Ordered list of rule-set snapshot versions for a collection.
+    RuleVersionList(u64),
+    /// Project ids that were added to the collection by curation (auto-managed
+    /// membership). Only these are removed again when a project stops matching.
+    AutoMembers(u64),
+    /// Timestamp (seconds) after which a lazy refresh is considered due.
+    RefreshDueAt(u64),
+}
+
+/// Storage keys for collection-membership voting — issue #907.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CollectionVoteKey {
+    /// A single vote: (collection_id, project_id, voter) -> CollectionMembershipVote.
+    Vote(u64, u64, Address),
+    /// Running approve-vote count for (collection_id, project_id).
+    ApproveCount(u64, u64),
+    /// Running reject-vote count for (collection_id, project_id).
+    RejectCount(u64, u64),
+    /// Whether a proposal was already resolved: (collection_id, project_id) -> bool.
+    Resolved(u64, u64),
+    /// Ordered list of projects that received votes in a collection.
+    VotedProjects(u64),
+}
+
+/// Storage keys for the staged pause-recovery plan — issue #903.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseRecoveryKey {
+    /// Recovery phases that have been resumed (phase codes).
+    EnabledPhases,
+    /// Recovery phases that have been completed and may be rolled back.
+    CompletedPhases,
+    /// The ordered recovery plan (phase codes).
+    Plan,
+    /// Unix timestamp (seconds) of the last phase change.
+    LastChangedAt,
+    /// Admin that performed the last phase change.
+    LastChangedBy,
+    /// History of phase changes: (index) -> phase code.
+    PhaseHistory(u32),
+    /// Number of recorded phase changes.
+    PhaseHistoryCount,
+}
+
+/// Storage keys for automatic admin-key rotation — issue #900.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdminRotationKey {
+    /// The active `AdminRotationSchedule`.
+    Schedule,
+    /// Next rotation id counter.
+    NextRotationId,
+    /// A single `AdminRotationRecord` keyed by rotation id.
+    Record(u64),
+    /// Ordered list of rotation ids (oldest first).
+    RecordIds,
+    /// Timestamp (seconds) at which an admin joined the admin set.
+    AdminJoinedAt(Address),
+    /// Notifications of a rotation: (rotation_id, index) -> AdminRotationNotification.
+    Notification(u64, u32),
+    /// Number of notifications recorded for a rotation.
+    NotificationCount(u64),
+}

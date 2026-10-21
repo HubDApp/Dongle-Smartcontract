@@ -339,6 +339,57 @@ pub enum ContractError {
     MaxSmartBookmarkCollectionsExceeded = 143,
     /// Project similarity score did not meet the required threshold (#913).
     SimilarityThresholdNotMet = 144,
+
+    // ── Rule-based curation / smart collections (issue #906) ───────────────
+    /// The referenced smart (rule-based) collection does not exist.
+    SmartCollectionNotFound = 145,
+    /// A curation rule is invalid — it has no condition set, or a condition
+    /// value is out of range (e.g. `min_rating` above 500 = 5.00 stars).
+    InvalidCurationRule = 146,
+    /// The number of rules attached to a smart collection exceeds the cap.
+    TooManyCurationRules = 147,
+    /// The requested rule-set version does not exist for this collection.
+    SmartCollectionRuleVersionNotFound = 148,
+    /// A smart collection must have at least one rule.
+    EmptyCurationRules = 149,
+    /// A smart collection with the same name already exists.
+    SmartCollectionNameExists = 150,
+
+    // ── Community voting on collection membership (issue #907) ─────────────
+    /// Community voting is disabled for this collection.
+    CollectionVotingDisabled = 151,
+    /// The voter already cast a vote for this project in this collection.
+    CollectionVoteAlreadyCast = 152,
+    /// The voter does not meet the minimum reputation requirements.
+    CollectionVoteInsufficientReputation = 153,
+    /// The vote threshold (basis points) is out of range.
+    InvalidVoteThreshold = 154,
+    /// The membership proposal was already resolved by a previous vote.
+    CollectionVoteAlreadyResolved = 155,
+
+    // ── Staged pause recovery (issue #903) ─────────────────────────────────
+    /// The requested pause-recovery phase is not part of the recovery plan.
+    InvalidPausePhase = 156,
+    /// The contract is not paused, so there is no recovery plan to act on.
+    ContractNotPaused = 157,
+    /// There is no completed phase left to roll back to.
+    NoPhaseToRollBack = 158,
+
+    // ── Automatic admin-key rotation (issue #900) ─────────────────────────
+    /// No admin rotation schedule has been configured.
+    RotationScheduleNotSet = 159,
+    /// The rotation interval is not one of the supported values (30/60/90 days).
+    InvalidRotationInterval = 160,
+    /// The scheduled rotation is not due yet.
+    RotationNotDue = 161,
+    /// The rotation pre-flight checklist has not been confirmed by an admin.
+    RotationPreflightNotConfirmed = 162,
+    /// No admin is eligible for rotation right now.
+    NoAdminsDueForRotation = 163,
+    /// The rotation would remove the last remaining admin.
+    RotationWouldRemoveLastAdmin = 164,
+    /// The rotation pre-flight checklist has unfinished items.
+    RotationPreflightChecklistIncomplete = 165,
 }
 
 pub type Error = ContractError;

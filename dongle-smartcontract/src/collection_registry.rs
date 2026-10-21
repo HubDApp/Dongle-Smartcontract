@@ -2,8 +2,8 @@ use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::auth::require_admin_auth;
 use crate::constants::{
-    MAX_COLLECTIONS, MAX_COLLECTION_DESCRIPTION_LEN, MAX_COLLECTION_NAME_LEN,
-    MAX_PROJECTS_PER_COLLECTION,
+    DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS, MAX_COLLECTIONS, MAX_COLLECTION_DESCRIPTION_LEN,
+    MAX_COLLECTION_NAME_LEN, MAX_PROJECTS_PER_COLLECTION,
 };
 use crate::errors::ContractError;
 use crate::events::{
@@ -80,6 +80,10 @@ impl CollectionRegistry {
             name: name.clone(),
             description,
             is_public,
+            // Community voting is opt-in: the owner (or an admin) enables it
+            // later through `set_collection_voting` (issue #907).
+            voting_enabled: false,
+            vote_threshold_bps: DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS,
             created_at: timestamp,
             updated_at: timestamp,
         };

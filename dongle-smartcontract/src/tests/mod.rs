@@ -176,3 +176,12 @@ mod similarity_projects;
 // Issue #909: Search Enhancements with Wildcards and Phrases
 mod search_enhancements;
 
+// Issue #906: rule-based ("smart") collection curation
+mod smart_collection_curation;
+// Issue #907: community voting on collection membership
+mod collection_membership_voting;
+// Issue #903: staged pause-recovery phases
+mod pause_recovery_phases;
+// Issue #900: automatic admin-key rotation schedules
+mod admin_rotation;
+

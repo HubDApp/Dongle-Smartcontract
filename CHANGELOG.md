@@ -40,6 +40,55 @@ for the full policy.
 
 ### Added
 
+- **#906: Auto-curate collections based on project attributes.** New
+  `smart_collection_registry` module with the `CurationRule` struct (tag
+  match, minimum rating, category), `create_smart_collection`, rule
+  versioning with `update_smart_collection_rules` / `rollback_smart_collection_rules`
+  (immutable snapshots per version), lazy evaluation via
+  `refresh_smart_collection` and a keeper-facing background sweep
+  `run_scheduled_curation_refresh`. Only projects that curation itself added
+  are removed again when they stop matching. See
+  `docs/SMART_COLLECTION_CURATION.md`.
+
+- **#907: Community voting on collection membership.** `Collection` gained
+  `voting_enabled` and `vote_threshold_bps`; new `collection_voting` module
+  with `set_collection_voting`, `vote_on_collection_membership`,
+  `get_collection_membership_votes` and `get_collection_membership_vote`.
+  Proposals are auto-accepted / auto-rejected at the collection threshold
+  (default 75 %). Anti-gaming: one vote per address, reputation requirement
+  (reviews / reviewer points / verified reviewer identity), a quorum of three
+  votes, no self-promotion by the project owner and finality of a resolved
+  proposal. See `docs/COLLECTION_MEMBERSHIP_VOTING.md`.
+
+- **#903: Staged resumption of operations after an emergency pause.** New
+  `pause_recovery` module with a phase ladder (read ops → core writes →
+  reviews → verification → fees → all), `resume_operations_phase`,
+  `rollback_recovery_phase`, `get_pause_recovery_state` and
+  `set_pause_recovery_plan`. Operation groups are now gated by their
+  recovery phase instead of a single global flag, and every phase change
+  emits a `PausePhaseChanged` event. Operator guide:
+  `docs/PAUSE_RECOVERY_PHASES.md`.
+
+- **#900: Automatic admin rotation schedules.** New `admin_rotation` module
+  with `set_rotation_schedule` (30 / 60 / 90 day intervals and a replacement
+  pool), a machine-readable pre-flight checklist
+  (`get_rotation_preflight_checklist`) with an on-chain confirmation flow
+  (`confirm_rotation_preflight`), and `execute_scheduled_rotation` which
+  rotates the oldest admin key out, promotes the next replacement candidate
+  and emits a notification for every affected key holder. The admin manager
+  now records when each key joined the admin set. See
+  `docs/ADMIN_ROTATION_SCHEDULES.md`.
+
+### Changed
+
+- **#907: BREAKING — the `Collection` struct gained two fields.** `Collection`
+  now carries `voting_enabled` (`bool`) and `vote_threshold_bps` (`u32`).
+  Collection records written before this change do not contain those fields
+  and therefore cannot be decoded by the new contract. Operators must
+  re-create (or migrate) the affected collections before the upgrade; see
+  `docs/STORAGE_MIGRATION_GUIDE.md` and
+  `docs/COLLECTION_MEMBERSHIP_VOTING.md`.
+
 - **#716: Security audit infrastructure.** Added `deny.toml` (cargo-deny
   configuration) covering vulnerability, license, duplicate-crate, and source
   checks. New `audit` CI job runs `cargo deny check` on every PR and push to
