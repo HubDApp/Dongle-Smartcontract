@@ -50,6 +50,10 @@ mod verification_registry;
 mod social_analytics_registry;
 mod probation_registry;
 mod performance_metrics;
+mod invariant_checker;
+mod pow_challenge;
+mod compliance_mode;
+mod benchmark_suite;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
@@ -4257,6 +4261,132 @@ impl DongleContract {
     /// without guessing.
     pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
+    }
+
+    // ── #940: Runtime Invariant Checks ────────────────────────────────────
+
+    /// Admin-only debug endpoint: run enabled invariant checks
+    /// (project count, review counts, admin count, fee balance),
+    /// log violations, and return them.
+    pub fn verify_contract_invariants(
+        env: Env,
+        admin: Address,
+    ) -> Result<Vec<crate::invariant_checker::InvariantViolation>, ContractError> {
+        crate::invariant_checker::InvariantChecker::verify_contract_invariants(&env, admin)
+    }
+
+    /// Admin-only: enable or disable a single invariant check.
+    pub fn set_invariant_check_enabled(
+        env: Env,
+        admin: Address,
+        check: crate::invariant_checker::InvariantCheckId,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        crate::invariant_checker::InvariantChecker::set_check_enabled(&env, admin, check, enabled)
+    }
+
+    /// Return all logged invariant violations (oldest first).
+    pub fn get_invariant_violations(
+        env: Env,
+    ) -> Vec<crate::invariant_checker::InvariantViolation> {
+        crate::invariant_checker::InvariantChecker::get_violations(&env)
+    }
+
+    // ── #946: Proof-of-Work for Expensive Operations ──────────────────────
+
+    /// Issue a PoW challenge scaled to the operation cost (e.g. batch size).
+    /// See `pow_challenge` docs for the algorithm and difficulty levels.
+    pub fn issue_pow_challenge(env: Env, op_cost: u32) -> crate::pow_challenge::PowChallenge {
+        crate::pow_challenge::PowGate::issue(&env, op_cost)
+    }
+
+    /// Difficulty (leading-zero bits) required for the given operation cost.
+    pub fn pow_difficulty_for(op_cost: u32) -> u32 {
+        crate::pow_challenge::PowGate::difficulty_for(op_cost)
+    }
+
+    /// Validate a PoW solution before running a resource-heavy function.
+    pub fn verify_pow(
+        env: Env,
+        challenge: crate::pow_challenge::PowChallenge,
+        nonce: u64,
+        op_cost: u32,
+    ) -> Result<(), ContractError> {
+        crate::pow_challenge::PowGate::verify(&env, &challenge, nonce, op_cost)
+    }
+
+    // ── #947: Restricted-Mode Compliance Deployments ─────────────────────
+
+    /// Admin-only: set compliance mode config (restricted features, geo/KYC).
+    pub fn set_compliance_config(
+        env: Env,
+        admin: Address,
+        config: crate::compliance_mode::ComplianceConfig,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_config(&env, admin, config)
+    }
+
+    /// Return the current compliance mode config.
+    pub fn get_compliance_config(env: Env) -> crate::compliance_mode::ComplianceConfig {
+        crate::compliance_mode::ComplianceMode::get_config(&env)
+    }
+
+    /// Set the geographic country code for a project (compliance geo rule).
+    pub fn set_project_geo(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        country_code: String,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_project_geo(&env, caller, project_id, country_code)
+    }
+
+    /// Admin-only KYC/AML hook: approve or revoke a user.
+    pub fn set_kyc_approved(
+        env: Env,
+        admin: Address,
+        user: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_kyc_approved(&env, admin, user, approved)
+    }
+
+    /// Return the compliance audit log.
+    pub fn get_compliance_audit_log(
+        env: Env,
+    ) -> Vec<crate::compliance_mode::ComplianceAuditEntry> {
+        crate::compliance_mode::ComplianceMode::get_audit_log(&env)
+    }
+
+    // ── #941: Benchmark Suite & Regression Alerts ────────────────────────
+
+    /// Record a benchmark sample for a critical function (admin-only).
+    pub fn record_benchmark(
+        env: Env,
+        caller: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::record(&env, caller, name, storage_reads, exec_units)
+    }
+
+    /// Admin-only: pin the baseline for a benchmark.
+    pub fn set_benchmark_baseline(
+        env: Env,
+        admin: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::set_baseline(&env, admin, name, storage_reads, exec_units)
+    }
+
+    /// Compare latest samples vs baselines; returns regressions over 10%.
+    pub fn check_benchmark_regressions(
+        env: Env,
+    ) -> Vec<crate::benchmark_suite::BenchmarkRegression> {
+        crate::benchmark_suite::BenchmarkSuite::check_regressions(&env)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────
