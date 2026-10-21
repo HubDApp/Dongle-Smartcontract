@@ -125,6 +125,8 @@ mod report_registry;
 mod subscriptions;
 mod timelock;
 mod ttl_batch;
+mod ttl_edge_cases;
+mod bulk_load_tests;
 
 // Atomicity tests for multi-storage operations
 // mod atomicity;

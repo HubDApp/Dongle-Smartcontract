@@ -60,6 +60,7 @@ mod benchmark_suite;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
+mod bounty_registry;
 mod metadata_enrichment_registry;
 mod similarity_registry;
 mod smart_bookmark_registry;
@@ -5581,5 +5582,62 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
+    }
+
+    // --- Community bounties (#950) ---
+
+    /// Post a bounty for a project. Only the project owner may post.
+    pub fn post_bounty(
+        env: Env,
+        project_id: u64,
+        owner: Address,
+        title: String,
+        amount: u128,
+        deadline: u64,
+        acceptance_criteria: String,
+    ) -> Result<u64, ContractError> {
+        crate::bounty_registry::BountyRegistry::post_bounty(
+            &env,
+            project_id,
+            owner,
+            title,
+            amount,
+            deadline,
+            acceptance_criteria,
+        )
+    }
+
+    /// Claim an open bounty with a work CID.
+    pub fn claim_bounty(
+        env: Env,
+        bounty_id: u64,
+        claimant: Address,
+        work_cid: String,
+    ) -> Result<(), ContractError> {
+        crate::bounty_registry::BountyRegistry::claim_bounty(&env, bounty_id, claimant, work_cid)
+    }
+
+    /// Owner approves a claimed bounty and records payout history.
+    pub fn approve_bounty(
+        env: Env,
+        bounty_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        crate::bounty_registry::BountyRegistry::approve_bounty(&env, bounty_id, owner)
+    }
+
+    /// Get a bounty by id.
+    pub fn get_bounty(env: Env, bounty_id: u64) -> Option<crate::types::Bounty> {
+        crate::bounty_registry::BountyRegistry::get_bounty(&env, bounty_id)
+    }
+
+    /// List bounty ids for a project and payout history for a bounty.
+    pub fn list_project_bounties(env: Env, project_id: u64) -> Vec<u64> {
+        crate::bounty_registry::BountyRegistry::list_project_bounties(&env, project_id)
+    }
+
+    /// Payout history for a bounty.
+    pub fn bounty_payout_history(env: Env, bounty_id: u64) -> Vec<crate::types::BountyPayout> {
+        crate::bounty_registry::BountyRegistry::payout_history(&env, bounty_id)
     }
 }
