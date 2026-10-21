@@ -46,6 +46,7 @@ mod probation_registry;
 mod project_registry;
 pub mod project_controls;
 mod project_operation_limiter;
+mod pause_recovery;
 pub mod rating_calculator;
 mod recommendation_registry;
 mod report_registry;
@@ -77,6 +78,7 @@ mod bounty_registry;
 mod metadata_enrichment_registry;
 mod similarity_registry;
 mod smart_bookmark_registry;
+mod smart_collection_registry;
 mod trending_registry;
 
 #[cfg(test)]
@@ -88,6 +90,7 @@ use crate::blacklist_registry::BlacklistRegistry;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
+use crate::constants::{PAUSE_PHASE_FEES, PAUSE_PHASE_REVIEWS, PAUSE_PHASE_VERIFICATION};
 use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::event_subscription_registry::EventSubscriptionRegistry;
@@ -678,13 +681,14 @@ impl DongleContract {
             secondary_owner,
             admin,
         )
+    }
+
     pub fn export_project_data(env: Env, project_id: u64, owner: Address) -> Result<crate::types::ProjectDataExport, ContractError> {
         ProjectRegistry::export_project_data(&env, project_id, owner)
     }
 
     pub fn import_project_data(env: Env, export: crate::types::ProjectDataExport, owner: Address) -> Result<u64, ContractError> {
         ProjectRegistry::import_project_data(&env, export, owner)
-    }
     }
 
     pub fn schedule_project_sunset(

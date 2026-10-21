@@ -166,6 +166,11 @@ the incident. Widening the gate is tracked separately from this document.
 - [ ] Apply the fix using admin-recovery calls that bypass the pause
       (fee config, verification / review moderation, admin set changes,
       timelock/multisig governance, TTL extension).
+- [ ] If the system can be brought back **one area at a time**, use the staged
+      recovery plan instead of a single `unpause`: `resume_operations_phase`
+      re-enables one area (read ops -> core writes -> reviews -> verification ->
+      fees) and `rollback_recovery_phase` halts the last resumed area again.
+      See [PAUSE_RECOVERY_PHASES.md](PAUSE_RECOVERY_PHASES.md).
 - [ ] For anything the pause does **not** cover (see [§3a](#3a-known-limitation--enforcement-coverage-is-partial)),
       decide and document the mitigation explicitly.
 - [ ] Keep a running log of every admin call made during the incident (tx hash,

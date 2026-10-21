@@ -115,6 +115,10 @@ impl CollectionRegistry {
             name: name.clone(),
             description,
             is_public,
+            // Community voting is opt-in: the owner (or an admin) enables it
+            // later through `set_collection_voting` (issue #907).
+            voting_enabled: false,
+            vote_threshold_bps: DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS,
             created_at: timestamp,
             updated_at: timestamp,
             parent_collection_id,

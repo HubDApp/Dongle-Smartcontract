@@ -1890,6 +1890,13 @@ pub struct Collection {
     pub description: String,
     /// Whether the collection is public (searchable/discoverable) or private (owner-only).
     pub is_public: bool,
+    /// Whether community members may vote on this collection's membership
+    /// (issue #907). When `false` the collection is curated exclusively by its
+    /// owner / admins and `vote_on_collection_membership` rejects every call.
+    pub voting_enabled: bool,
+    /// Approval ratio (in basis points) required before a membership vote is
+    /// auto-accepted (issue #907). `7_500` = 75 % approval.
+    pub vote_threshold_bps: u32,
     /// Unix timestamp (seconds) when the collection was created.
     pub created_at: u64,
     /// Unix timestamp (seconds) when the collection metadata was last updated.
@@ -2027,6 +2034,257 @@ pub struct ContractStatus {
     pub resume_phase: u32,
     /// The operation families that are currently blocked.
     pub paused_operations: Vec<PauseOperation>,
+}
+
+// ── Collection membership voting (issue #907) ─────────────────────────────────
+
+/// Direction of a community vote cast on a collection-membership proposal.
+///
+/// `Approve` asks for the project to be added to the collection, `Reject` asks
+/// for it to be removed (or kept out).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VoteDirection {
+    Approve,
+    Reject,
+}
+
+/// Terminal / non-terminal state of a collection-membership vote tally.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MembershipVoteOutcome {
+    /// Not enough votes (or no threshold crossing) yet — the proposal is still open.
+    Pending,
+    /// The approval threshold was crossed — the project was added to the collection.
+    Approved,
+    /// The rejection threshold was crossed — the project was rejected.
+    Rejected,
+}
+
+/// A single community vote on a collection-membership proposal.
+///
+/// Votes are append-only: one vote per `(collection_id, project_id, voter)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionMembershipVote {
+    /// Collection the vote was cast in.
+    pub collection_id: u64,
+    /// Project the vote is about.
+    pub project_id: u64,
+    /// Address that cast the vote.
+    pub voter: Address,
+    /// Direction of the vote.
+    pub direction: VoteDirection,
+    /// Unix timestamp (seconds) when the vote was cast.
+    pub created_at: u64,
+}
+
+/// Aggregated vote state for one `(collection_id, project_id)` pair.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionVoteTally {
+    /// Collection the tally belongs to.
+    pub collection_id: u64,
+    /// Project the tally is about.
+    pub project_id: u64,
+    /// Number of `Approve` votes.
+    pub approve_votes: u32,
+    /// Number of `Reject` votes.
+    pub reject_votes: u32,
+    /// Total number of votes cast.
+    pub total_votes: u32,
+    /// Approval ratio in basis points (`approve_votes * 10_000 / total_votes`).
+    pub approval_bps: u32,
+    /// Threshold (in basis points) that triggers auto-accept / auto-reject.
+    pub threshold_bps: u32,
+    /// Current resolution state of the proposal.
+    pub outcome: MembershipVoteOutcome,
+    /// Whether the proposal has been resolved (accept / reject applied).
+    pub resolved: bool,
+}
+
+// ── Smart collections / rule-based curation (issue #906) ──────────────────────
+
+/// A single curation rule used to auto-populate a smart collection.
+///
+/// A rule is a conjunction of the conditions that are set: a project matches
+/// the rule when it satisfies **every** populated condition (tag, minimum
+/// rating and/or category). A project is added to a smart collection when it
+/// matches **at least one** of the collection's rules (disjunction across
+/// rules).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CurationRule {
+    /// Project tag the project must carry (exact, case-insensitive match).
+    pub tag: Option<String>,
+    /// Minimum average rating, scaled by 100 (`350` = 3.5 stars). The
+    /// project's Bayesian-weighted `ProjectStats::average_rating` must be
+    /// greater than or equal to this value.
+    pub min_rating: Option<u32>,
+    /// Category the project must belong to (case-insensitive match).
+    pub category: Option<String>,
+}
+
+/// A rule-based ("smart") collection whose membership is derived from
+/// [`CurationRule`]s instead of being hand-picked.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollection {
+    /// Unique monotonically-increasing smart-collection identifier.
+    pub id: u64,
+    /// Admin address that owns the smart collection.
+    pub owner: Address,
+    /// Human-readable collection name.
+    pub name: String,
+    /// Description of the curation intent.
+    pub description: String,
+    /// The active rule set (version `rule_version`).
+    pub rules: Vec<CurationRule>,
+    /// Monotonically-increasing version of the active rule set.
+    pub rule_version: u32,
+    /// Whether the collection is public (discoverable) or private.
+    pub is_public: bool,
+    /// Unix timestamp (seconds) when the collection was created.
+    pub created_at: u64,
+    /// Unix timestamp (seconds) when the collection or its rules were updated.
+    pub updated_at: u64,
+    /// Unix timestamp (seconds) of the last successful refresh.
+    pub last_refreshed_at: Option<u64>,
+}
+
+/// An immutable snapshot of a smart collection's rule set.
+///
+/// Snapshots are what makes rule versioning and rollback possible: every
+/// rule change stores the *new* rule set under the next version number, and
+/// `rollback_smart_collection_rules` re-activates a stored snapshot.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartCollectionRuleVersion {
+    /// The smart collection this snapshot belongs to.
+    pub collection_id: u64,
+    /// Version number of the snapshot (1-based, monotonically increasing).
+    pub version: u32,
+    /// The rule set captured by this snapshot.
+    pub rules: Vec<CurationRule>,
+    /// Unix timestamp (seconds) when the snapshot was created.
+    pub created_at: u64,
+    /// Admin that created the snapshot.
+    pub created_by: Address,
+    /// Optional human-readable note (e.g. the rollback reason).
+    pub note: Option<String>,
+}
+
+/// Result of a smart-collection refresh (lazy evaluation / background job).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CurationRefreshResult {
+    /// The smart collection that was refreshed.
+    pub collection_id: u64,
+    /// Rule version that was applied.
+    pub rule_version: u32,
+    /// Number of projects added to the collection by this refresh.
+    pub added: u32,
+    /// Number of projects removed from the collection by this refresh.
+    pub removed: u32,
+    /// Number of projects that matched the rules and were already members.
+    pub unchanged: u32,
+    /// Total number of projects that matched the rules.
+    pub total_matched: u32,
+    /// Number of projects that were scanned.
+    pub scanned: u32,
+    /// Unix timestamp (seconds) when the refresh ran.
+    pub refreshed_at: u64,
+}
+
+// ── Staged pause recovery (issue #903) ───────────────────────────────────────
+
+/// Current state of the staged pause-recovery plan.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseRecoveryState {
+    /// Whether the contract is currently paused.
+    pub is_paused: bool,
+    /// The recovery phases that have been resumed (phase codes, ascending).
+    pub enabled_phases: Vec<u32>,
+    /// The recovery phases that have been completed (and may be rolled back).
+    pub completed_phases: Vec<u32>,
+    /// The full recovery plan (ordered phase codes), defaulting to the
+    /// canonical read → core → reviews → verification → fees → all ladder.
+    pub plan: Vec<u32>,
+    /// Unix timestamp (seconds) of the last phase change.
+    pub last_changed_at: u64,
+    /// Admin that performed the last phase change.
+    pub last_changed_by: Option<Address>,
+}
+
+// ── Admin key rotation schedules (issue #900) ────────────────────────────────
+
+/// Configuration of the automatic admin-key rotation schedule.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationSchedule {
+    /// Whether the schedule is armed.
+    pub enabled: bool,
+    /// Rotation interval in days (30, 60 or 90).
+    pub interval_days: u32,
+    /// Unix timestamp (seconds) at which the next rotation becomes due.
+    pub next_rotation_at: u64,
+    /// Unix timestamp (seconds) of the last executed rotation.
+    pub last_rotation_at: Option<u64>,
+    /// Addresses eligible to be promoted into the admin set during a rotation.
+    pub replacement_pool: Vec<Address>,
+    /// Whether an admin has confirmed the pre-flight checklist for the
+    /// pending rotation.
+    pub preflight_confirmed: bool,
+    /// Unix timestamp (seconds) when the pre-flight checklist was confirmed.
+    pub preflight_confirmed_at: Option<u64>,
+    /// Number of rotations executed so far.
+    pub rotation_count: u32,
+}
+
+/// One line of the admin-rotation pre-flight checklist.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RotationChecklistItem {
+    /// Machine-readable identifier of the check.
+    pub code: String,
+    /// Human-readable description of the check.
+    pub description: String,
+    /// Whether the check currently passes.
+    pub satisfied: bool,
+}
+
+/// Outcome of an executed admin rotation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationRecord {
+    /// Monotonically-increasing rotation identifier.
+    pub rotation_id: u64,
+    /// Admins removed by this rotation.
+    pub removed_admins: Vec<Address>,
+    /// Admins added by this rotation.
+    pub added_admins: Vec<Address>,
+    /// Unix timestamp (seconds) when the rotation executed.
+    pub executed_at: u64,
+    /// Address that triggered the execution.
+    pub executed_by: Address,
+}
+
+/// Notification emitted for every admin affected by a rotation.
+///
+/// Off-chain operators (and the admin UI) subscribe to these to notify the
+/// outgoing and incoming key holders.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminRotationNotification {
+    /// The rotation this notification belongs to.
+    pub rotation_id: u64,
+    /// The admin affected by the rotation (removed or added).
+    pub admin: Address,
+    /// Whether the admin was removed (`true`) or added (`false`).
+    pub removed: bool,
+    /// Unix timestamp (seconds) when the notification was created.
+    pub created_at: u64,
 }
 
 /// Types of admin actions recorded in the admin action log.
