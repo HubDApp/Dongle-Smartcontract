@@ -2692,6 +2692,231 @@ impl DongleContract {
         ReportRegistry::clear_project_reports(&env, project_id, &admin)
     }
 
+    /// Report a project under a category and return the report ID. The
+    /// report is auto-routed if the category has a routing rule - Issue #920
+    pub fn report_project_with_category(
+        env: Env,
+        project_id: u64,
+        reporter: Address,
+        reason_cid: String,
+        category: crate::types::ReportCategory,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::report_project_with_category(
+            &env, project_id, reporter, reason_cid, category,
+        )
+    }
+
+    /// Get a report by its global ID - Issue #920
+    pub fn get_report(env: Env, report_id: u64) -> Option<ProjectReport> {
+        ReportRegistry::get_report(&env, report_id)
+    }
+
+    /// Admin: route a report to the next moderator for a category - Issue #920
+    pub fn route_report_to_moderator(
+        env: Env,
+        admin: Address,
+        report_id: u64,
+        category: crate::types::ReportCategory,
+    ) -> Result<Address, ContractError> {
+        ReportRegistry::route_report_to_moderator(&env, admin, report_id, category)
+    }
+
+    /// Admin: reassign several reports to one moderator - Issue #920
+    pub fn bulk_reassign_reports(
+        env: Env,
+        admin: Address,
+        report_ids: Vec<u64>,
+        new_moderator: Address,
+    ) -> Result<u32, ContractError> {
+        ReportRegistry::bulk_reassign_reports(&env, admin, report_ids, new_moderator)
+    }
+
+    /// Admin: create or replace the routing rule for a category - Issue #920
+    pub fn set_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+        moderators: Vec<Address>,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::set_routing_rule(&env, admin, category, moderators)
+    }
+
+    /// Admin: remove the routing rule for a category - Issue #920
+    pub fn remove_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::remove_routing_rule(&env, admin, category)
+    }
+
+    /// Get the routing rule for a category - Issue #920
+    pub fn get_report_routing_rule(
+        env: Env,
+        category: crate::types::ReportCategory,
+    ) -> Option<crate::types::ReportRoutingRule> {
+        ReportRegistry::get_routing_rule(&env, category)
+    }
+
+    /// Get the current assignment for a report - Issue #920
+    pub fn get_report_assignment(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportAssignment> {
+        ReportRegistry::get_report_assignment(&env, report_id)
+    }
+
+    /// Get report IDs assigned to a moderator - Issue #920
+    pub fn get_moderator_report_assignments(env: Env, moderator: Address) -> Vec<u64> {
+        ReportRegistry::get_moderator_assignments(&env, moderator)
+    }
+
+    /// Attach an evidence CID to a report (reporter, assigned moderator or
+    /// admin; max 5 per report, append-only) - Issue #921
+    pub fn attach_evidence_to_report(
+        env: Env,
+        report_id: u64,
+        submitter: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::attach_evidence_to_report(&env, report_id, submitter, evidence_cid)
+    }
+
+    /// Get the evidence CIDs attached to a report - Issue #921
+    pub fn get_report_evidence(env: Env, report_id: u64) -> Vec<String> {
+        ReportRegistry::get_report_evidence(&env, report_id)
+    }
+
+    /// Get the evidence attachment audit trail for a report - Issue #921
+    pub fn get_report_evidence_audit(
+        env: Env,
+        report_id: u64,
+    ) -> Vec<crate::types::ReportEvidenceAttachment> {
+        ReportRegistry::get_report_evidence_audit(&env, report_id)
+    }
+
+    /// Record a moderation decision on a report (assigned moderator or
+    /// admin) - Issue #922
+    pub fn resolve_report(
+        env: Env,
+        moderator: Address,
+        report_id: u64,
+        decision: crate::types::ReportDecision,
+        notes_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_report(
+            &env, moderator, report_id, decision, notes_cid,
+        )
+    }
+
+    /// Get the moderation decision for a report - Issue #922
+    pub fn get_report_decision(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportDecisionRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_decision(
+            &env, report_id,
+        )
+    }
+
+    /// Appeal a report's moderation decision (reporter or project owner).
+    /// Routed to a senior moderator; returns the appeal ID - Issue #922
+    pub fn appeal_moderation_decision(
+        env: Env,
+        appellant: Address,
+        original_report_id: u64,
+        appeal_reason: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::moderation_appeal_registry::ModerationAppealRegistry::appeal_moderation_decision(
+            &env,
+            appellant,
+            original_report_id,
+            appeal_reason,
+        )
+    }
+
+    /// Senior moderator: uphold or overturn an appeal - Issue #922
+    pub fn resolve_moderation_appeal(
+        env: Env,
+        senior_moderator: Address,
+        appeal_id: u64,
+        overturn: bool,
+        resolution: String,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_moderation_appeal(
+            &env,
+            senior_moderator,
+            appeal_id,
+            overturn,
+            resolution,
+        )
+    }
+
+    /// Get a moderation appeal by ID - Issue #922
+    pub fn get_moderation_appeal(env: Env, appeal_id: u64) -> Option<crate::types::AppealRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_appeal(&env, appeal_id)
+    }
+
+    /// Get the appeal ID filed against a report, if any - Issue #922
+    pub fn get_report_appeal_id(env: Env, report_id: u64) -> Option<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_appeal_id(
+            &env, report_id,
+        )
+    }
+
+    /// Admin: designate an admin as a senior moderator - Issue #922
+    pub fn add_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::add_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// Admin: remove a senior moderator - Issue #922
+    pub fn remove_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::remove_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// List senior moderators - Issue #922
+    pub fn get_senior_moderators(env: Env) -> Vec<Address> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_moderators(&env)
+    }
+
+    /// Pending appeal IDs assigned to a senior moderator - Issue #922
+    pub fn get_senior_appeal_queue(env: Env, senior_moderator: Address) -> Vec<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_appeal_queue(
+            &env,
+            senior_moderator,
+        )
+    }
+
+    /// Appeal statistics for decisions made by a moderator - Issue #922
+    pub fn get_moderator_appeal_stats(
+        env: Env,
+        moderator: Address,
+    ) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_moderator_appeal_stats(
+            &env, moderator,
+        )
+    }
+
+    /// Appeal statistics across all moderators - Issue #922
+    pub fn get_global_appeal_stats(env: Env) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_global_appeal_stats(&env)
+    }
+
     /// List projects by tag - Issue #125
     /// Look projects up by one or more tags using the inverted index (issue #483).
     ///
@@ -3026,6 +3251,29 @@ impl DongleContract {
 
     pub fn get_project_dependencies(env: Env, project_id: u64) -> Vec<ProjectDependency> {
         crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
+    }
+
+    /// Versions of a project dependency that satisfy its version requirement,
+    /// drawn from the dependency project's changelog - Issue #923
+    pub fn get_compatible_versions(
+        env: Env,
+        project_id: u64,
+        dependency_project_id: u64,
+    ) -> Result<Vec<String>, ContractError> {
+        crate::dependency_registry::DependencyRegistry::get_compatible_versions(
+            &env,
+            project_id,
+            dependency_project_id,
+        )
+    }
+
+    /// Parse and validate a dependency version spec such as "^1.2" - Issue #923
+    pub fn parse_version_spec(
+        env: Env,
+        raw: String,
+    ) -> Result<crate::types::VersionSpec, ContractError> {
+        let _ = env;
+        crate::version_spec::VersionSpecParser::parse(&raw)
     }
 
     /// Returns the number of dependencies for a project without fetching

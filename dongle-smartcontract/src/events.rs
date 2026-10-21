@@ -1,7 +1,7 @@
 use crate::fork_types::ForkRelationship;
 use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
-    ProjectLifecycleStatus, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
+    AppealStatus, ProjectLifecycleStatus, ReportCategory, ReportDecision, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
 

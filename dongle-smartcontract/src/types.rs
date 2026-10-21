@@ -694,6 +694,148 @@ pub struct ProjectReport {
     pub reason_cid: String,
     /// Unix timestamp (seconds) when the report was submitted.
     pub timestamp: u64,
+    /// Globally unique report ID (#920).
+    pub report_id: u64,
+    /// Category used to route the report to a specialised review team (#920).
+    pub category: ReportCategory,
+    /// Moderator currently assigned to review the report, if routed (#920).
+    pub assigned_moderator: Option<Address>,
+    /// Evidence documents (screenshots, archives) attached as IPFS CIDs.
+    /// Append-only, capped at `MAX_REPORT_EVIDENCE` (#921).
+    pub evidence_cids: Vec<String>,
+}
+
+/// Outcome of a moderator's review of a report (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportDecision {
+    /// The report was found to be without merit.
+    Dismissed,
+    /// The report was upheld and moderation action was taken.
+    ActionTaken,
+}
+
+/// Moderation decision recorded against a report (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportDecisionRecord {
+    pub report_id: u64,
+    pub decision: ReportDecision,
+    /// Moderator that made the decision.
+    pub moderator: Address,
+    /// Optional IPFS CID of the moderator's notes.
+    pub notes_cid: Option<String>,
+    pub decided_at: u64,
+}
+
+/// Lifecycle of a moderation appeal (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AppealStatus {
+    /// Awaiting review by the assigned senior moderator.
+    Pending,
+    /// The original decision was confirmed.
+    Upheld,
+    /// The original decision was reversed.
+    Overturned,
+}
+
+/// An appeal against a moderation decision, routed to a senior moderator (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AppealRecord {
+    pub appeal_id: u64,
+    /// Report whose decision is being appealed.
+    pub report_id: u64,
+    pub project_id: u64,
+    /// Reporter or project owner that filed the appeal.
+    pub appellant: Address,
+    /// Decision being appealed.
+    pub original_decision: ReportDecision,
+    /// Moderator that made the original decision.
+    pub original_moderator: Address,
+    pub appeal_reason: String,
+    /// Senior moderator the appeal was routed to.
+    pub assigned_senior_moderator: Address,
+    pub status: AppealStatus,
+    /// Resolution explanation from the senior moderator.
+    pub resolution: Option<String>,
+    pub resolved_by: Option<Address>,
+    pub filed_at: u64,
+    pub resolved_at: Option<u64>,
+}
+
+/// Appeal counters, tracked per original moderator and globally (#922).
+#[contracttype]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AppealStats {
+    pub total: u32,
+    pub pending: u32,
+    pub upheld: u32,
+    pub overturned: u32,
+}
+
+/// Audit-trail entry recorded each time evidence is attached to a report.
+/// Entries are append-only and never removed (#921).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportEvidenceAttachment {
+    /// Report the evidence was attached to.
+    pub report_id: u64,
+    /// IPFS CID of the evidence document.
+    pub evidence_cid: String,
+    /// Position of the CID in the report's `evidence_cids`.
+    pub index: u32,
+    /// Address that attached the evidence.
+    pub attached_by: Address,
+    /// Unix timestamp (seconds) when the evidence was attached.
+    pub attached_at: u64,
+}
+
+/// Category of a project report. Each category can be routed to its own
+/// moderator team via a `ReportRoutingRule` (#920).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportCategory {
+    Spam,
+    Abuse,
+    Copyright,
+    Scam,
+    LowQuality,
+    Other,
+}
+
+/// Routing rule mapping a report category to the moderators that handle it.
+/// Reports are distributed round-robin across `moderators` (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportRoutingRule {
+    /// Category this rule applies to.
+    pub category: ReportCategory,
+    /// Moderators (admins) that review reports in this category.
+    pub moderators: Vec<Address>,
+    /// Index into `moderators` of the next moderator to receive a report.
+    pub next_index: u32,
+    /// Admin that last updated the rule.
+    pub updated_by: Address,
+    /// Unix timestamp (seconds) of the last update.
+    pub updated_at: u64,
+}
+
+/// Record of a report being assigned to a moderator (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportAssignment {
+    /// Report that was assigned.
+    pub report_id: u64,
+    /// Moderator the report is assigned to.
+    pub moderator: Address,
+    /// Category the report was routed under.
+    pub category: ReportCategory,
+    /// Admin that triggered the assignment (`None` when auto-routed on submission).
+    pub assigned_by: Option<Address>,
+    /// Unix timestamp (seconds) of the assignment.
+    pub assigned_at: u64,
 }
 
 /// Verification lifecycle status for a project.
@@ -1476,6 +1618,40 @@ pub struct DependencyRef {
     pub external_url: Option<String>,
     /// External Stellar contract address (56-char Strkey, starts with 'C').
     pub external_contract: Option<String>,
+    /// Compatible versions of the dependency (#923). Not part of the
+    /// dependency's identity: two refs that differ only here are the same
+    /// dependency.
+    pub version_requirement: Option<VersionSpec>,
+}
+
+/// Comparison operator of a dependency version requirement (#923).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionOperator {
+    /// `1.2.3` — exactly this version.
+    Exact,
+    /// `^1.2` — same leftmost non-zero component, at or above the version.
+    Caret,
+    /// `~1.2.3` — same major.minor (same major if only major given).
+    Tilde,
+    /// `>=1.0` — this version or any later one.
+    GreaterOrEqual,
+}
+
+/// A dependency version requirement such as `"^1.2"` (#923).
+///
+/// Callers only need to set `raw`; the contract re-parses it on
+/// `add_dependency` / `update_dependency` and overwrites the parsed fields
+/// with the canonical values.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionSpec {
+    /// The spec as written, e.g. `"~1.2.3"`.
+    pub raw: String,
+    pub operator: VersionOperator,
+    pub major: u32,
+    pub minor: Option<u32>,
+    pub patch: Option<u32>,
 }
 
 /// A single entry in a project's dependency list.

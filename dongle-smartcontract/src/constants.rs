@@ -676,3 +676,22 @@ pub const MAX_AUDIT_EXPORT_PROJECTS: u32 = 50;
 pub const MAX_AUDIT_EXPORT_ENTRIES: u32 = 500;
 /// Current layout version of `VerificationAuditExport`.
 pub const AUDIT_EXPORT_FORMAT_VERSION: u32 = 1;
+
+// ── Report routing (#920) ──────────────────────────────────────────────────
+
+/// Maximum moderators in a single report routing rule.
+pub const MAX_MODERATORS_PER_ROUTING_RULE: u32 = 20;
+/// Maximum reports moved in a single bulk reassignment call.
+pub const MAX_REPORT_REASSIGN_BATCH: u32 = 50;
+
+// ── Report evidence (#921) ─────────────────────────────────────────────────
+
+/// Maximum evidence CIDs that can be attached to a single report.
+pub const MAX_REPORT_EVIDENCE: u32 = 5;
+
+// ── Moderation appeals (#922) ──────────────────────────────────────────────
+
+/// Maximum length in bytes of an appeal reason or appeal resolution.
+pub const MAX_APPEAL_TEXT_LEN: u32 = 512;
+/// Maximum number of senior moderators.
+pub const MAX_SENIOR_MODERATORS: u32 = 20;
