@@ -7,6 +7,10 @@ mod admin_action_log;
 mod admin_concurrent;
 mod archival;
 mod auto_archival;
+// Issue #873: archive reasons, audit log and bulk archive
+mod archive_lifecycle;
+// Issue #874: project visibility modes
+mod project_visibility;
 mod collection_registry_crud;
 mod collections;
 mod collection_visibility;

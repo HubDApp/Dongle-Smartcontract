@@ -530,6 +530,9 @@ pub struct Project {
     /// stability (Active, Beta, Paused, Deprecated, Sunset). Does not affect
     /// any on-chain permissions.
     pub lifecycle_status: ProjectLifecycleStatus,
+    /// Who may read the project (#874). Defaults to `Public` at registration.
+    /// Changed by the owner via `set_project_visibility`.
+    pub visibility: ProjectVisibility,
     /// Unix timestamp (seconds) when the project was first registered.
     pub created_at: u64,
     /// Unix timestamp (seconds) of the most recent update to any project field.
@@ -739,6 +742,51 @@ pub enum ProjectLifecycleStatus {
     Sunset,
     /// Abandoned with no expected further maintenance
     Abandoned,
+}
+
+/// Project visibility mode (#874).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectVisibility {
+    /// Readable by anyone and included in public listings.
+    Public,
+    /// Readable only by the owner and contract admins.
+    Private,
+    /// Readable by the owner, listed maintainers, and contract admins.
+    Restricted,
+}
+
+/// Reason recorded when a project is archived (#873).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArchiveReason {
+    /// Temporarily archived while the project undergoes maintenance.
+    Maintenance,
+    /// Archived because the project moved to a new home or contract.
+    Migration,
+    /// Archived because the project has been discontinued.
+    Discontinuation,
+}
+
+/// Archive lifecycle operation recorded in the archive audit log (#873).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArchiveAction {
+    Archived,
+    Reactivated,
+}
+
+/// Append-only audit log entry for archive/unarchive operations (#873).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchiveAuditEntry {
+    pub project_id: u64,
+    pub action: ArchiveAction,
+    pub caller: Address,
+    /// Reason supplied at archive time; `None` for reactivation or when the
+    /// project was archived without a reason (e.g. `archive_project`).
+    pub reason: Option<ArchiveReason>,
+    pub timestamp: u64,
 }
 
 /// Scheduled deprecation and sunset metadata for a project.

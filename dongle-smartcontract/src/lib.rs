@@ -609,8 +609,28 @@ impl DongleContract {
         ProjectRegistry::get_linked_projects(&env, project_id)
     }
 
+    /// Anonymous read: returns only `Public` projects (#874). Use
+    /// `get_project_as_viewer` to read `Private` / `Restricted` projects.
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
         ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, None))
+    }
+
+    /// Authenticated read honouring project visibility (#874).
+    pub fn get_project_as_viewer(env: Env, project_id: u64, viewer: Address) -> Option<Project> {
+        viewer.require_auth();
+        ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, Some(&viewer)))
+    }
+
+    pub fn set_project_visibility(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        visibility: crate::types::ProjectVisibility,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_visibility(&env, project_id, caller, visibility)
     }
 
     pub fn get_project_versions(
@@ -959,6 +979,39 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
+    pub fn archive_project_with_reason(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::archive_project_with_reason(&env, project_id, caller, reason)
+    }
+
+    pub fn bulk_archive_projects(
+        env: Env,
+        caller: Address,
+        project_ids: Vec<u64>,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::bulk_archive_projects(&env, caller, project_ids, reason)
+    }
+
+    pub fn get_archive_reason(env: Env, project_id: u64) -> Option<crate::types::ArchiveReason> {
+        ProjectRegistry::get_archive_reason(&env, project_id)
+    }
+
+    pub fn get_archive_audit_log(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ArchiveAuditEntry> {
+        ProjectRegistry::get_archive_audit_log(&env, project_id, start, limit)
     }
 
     // ── Automatic Inactivity Archival (#753) ───────────────────────────────

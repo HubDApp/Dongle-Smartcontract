@@ -75,6 +75,16 @@ pub struct ProjectReactivatedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectVisibilityChangedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub old_visibility: crate::types::ProjectVisibility,
+    pub new_visibility: crate::types::ProjectVisibility,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectOwnershipTransferredEvent {
     pub project_id: u64,
     pub caller: Address,
@@ -646,6 +656,30 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Add
         (
             symbol_short!("PROJECT"),
             symbol_short!("RESTORED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_visibility_changed_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    old_visibility: crate::types::ProjectVisibility,
+    new_visibility: crate::types::ProjectVisibility,
+) {
+    let event_data = ProjectVisibilityChangedEvent {
+        project_id,
+        caller,
+        old_visibility,
+        new_visibility,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("VISIBLE"),
             project_id,
         ),
         event_data,
