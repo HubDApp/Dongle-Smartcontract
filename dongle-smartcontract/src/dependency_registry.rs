@@ -2,6 +2,7 @@ use crate::errors::ContractError;
 use crate::storage_keys::{ExtensionKey, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{DependencyRef, ProjectDependency};
+use crate::version_spec::VersionSpecParser;
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -74,6 +75,19 @@ impl DependencyRegistry {
             Self::validate_contract_address(contract)?;
         }
 
+        if let Some(spec) = &dep.version_requirement {
+            VersionSpecParser::parse(&spec.raw)?;
+        }
+
+        Ok(())
+    }
+
+    /// Replace a caller-supplied version requirement with the canonical
+    /// parse of its `raw` string so stored fields always match the spec.
+    fn normalize_version_requirement(dep: &mut DependencyRef) -> Result<(), ContractError> {
+        if let Some(spec) = &dep.version_requirement {
+            dep.version_requirement = Some(VersionSpecParser::parse(&spec.raw)?);
+        }
         Ok(())
     }
 
@@ -231,6 +245,8 @@ impl DependencyRegistry {
             return Err(ContractError::Unauthorized);
         }
         Self::validate_dependency_ref(env, &dependency.reference)?;
+        let mut dependency = dependency;
+        Self::normalize_version_requirement(&mut dependency.reference)?;
 
         if let Some(dep_pid) = dependency.reference.project_id {
             Self::check_project_dependency_graph(env, project_id, dep_pid)?;
@@ -309,10 +325,13 @@ impl DependencyRegistry {
             return Err(ContractError::ProjectNotFound);
         }
 
-        // Keep same key slot; allow updating metadata.
+        // Keep same key slot; allow updating metadata and the version requirement.
         let mut stored = new_dependency;
+        let version_requirement = stored.reference.version_requirement.clone();
         // Ensure dependency reference doesn't change the identity slot (still uses key)
         stored.reference = dependency_key;
+        stored.reference.version_requirement = version_requirement;
+        Self::normalize_version_requirement(&mut stored.reference)?;
 
         env.storage()
             .persistent()
@@ -455,5 +474,59 @@ impl DependencyRegistry {
             level += 1;
         }
         out
+    }
+
+    /// Versions of a project-to-project dependency that satisfy its version
+    /// requirement (#923).
+    ///
+    /// Candidate versions come from the `version` field of the dependency
+    /// project's changelog entries, in changelog order and de-duplicated.
+    /// Entries whose version is not `MAJOR.MINOR.PATCH` are skipped. Without
+    /// a version requirement every valid version is compatible.
+    pub fn get_compatible_versions(
+        env: &Env,
+        project_id: u64,
+        dependency_project_id: u64,
+    ) -> Result<Vec<String>, ContractError> {
+        let dep_ref = DependencyRef {
+            project_id: Some(dependency_project_id),
+            external_cid: None,
+            external_url: None,
+            external_contract: None,
+            version_requirement: None,
+        };
+        let key = Self::dependency_key(env, &dep_ref)?;
+        let dependency: ProjectDependency = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::ProjectDependency(project_id, key))
+            .ok_or(ContractError::DependencyNotFound)?;
+
+        let mut out: Vec<String> = Vec::new(env);
+        let entries = crate::changelog_registry::ChangelogRegistry::get_project_changelog_entries(
+            env,
+            dependency_project_id,
+        );
+        for changelog_id in entries.iter() {
+            let Some(entry) =
+                crate::changelog_registry::ChangelogRegistry::get_changelog_entry(env, changelog_id)
+            else {
+                continue;
+            };
+            let Some(version) = entry.version else {
+                continue;
+            };
+            let Some(parsed) = VersionSpecParser::parse_version(&version) else {
+                continue;
+            };
+            let compatible = match &dependency.reference.version_requirement {
+                Some(spec) => VersionSpecParser::matches(spec, parsed),
+                None => true,
+            };
+            if compatible && !out.contains(&version) {
+                out.push_back(version);
+            }
+        }
+        Ok(out)
     }
 }

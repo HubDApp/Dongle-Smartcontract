@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Map, String, Vec};
 
 /// Parameters supplied to `register_project`. All required fields must be
 /// non-empty; optional fields default to `None` when omitted.
@@ -43,6 +43,9 @@ pub struct ProjectRegistrationParams {
     pub repository_url: Option<String>,
     /// Optional ISO 639-1 two-letter language code for the project (e.g., "en", "es").
     pub language_code: Option<String>,
+    /// Custom verification requirements for this project, stored as IPFS CIDs
+    /// pointing to off-chain requirement definition documents.
+    pub verification_requirements: Option<Vec<String>>,
 }
 
 /// Parameters supplied to `update_project`. Each field is an `Option`
@@ -96,6 +99,9 @@ pub struct ProjectUpdateParams {
     /// `Some(Some(code))` to set language code, `Some(None)` to clear,
     /// `None` to leave unchanged.
     pub language_code: Option<Option<String>>,
+    /// `Some(Some(cids))` to set verification requirements, `Some(None)` to clear,
+    /// `None` to leave unchanged.
+    pub verification_requirements: Option<Option<Vec<String>>>,
     // NOTE: lifecycle status is deliberately not updatable here. It has its own
     // entry point, `set_project_lifecycle_status`, which emits a dedicated
     // event. A `lifecycle_status` field previously sat here but was never read
@@ -524,6 +530,9 @@ pub struct Project {
     /// stability (Active, Beta, Paused, Deprecated, Sunset). Does not affect
     /// any on-chain permissions.
     pub lifecycle_status: ProjectLifecycleStatus,
+    /// Who may read the project (#874). Defaults to `Public` at registration.
+    /// Changed by the owner via `set_project_visibility`.
+    pub visibility: ProjectVisibility,
     /// Unix timestamp (seconds) when the project was first registered.
     pub created_at: u64,
     /// Unix timestamp (seconds) of the most recent update to any project field.
@@ -559,6 +568,46 @@ pub struct Project {
     /// language of the project's documentation and interface (e.g., "en", "es").
     /// Used for international discovery and filtering.
     pub language_code: Option<String>,
+    /// Custom verification requirements for this project, stored as IPFS CIDs
+    /// pointing to off-chain requirement definition documents. These define
+    /// additional criteria that must be met before verification approval.
+    /// The contract validates these requirements before allowing verification.
+    pub verification_requirements: Option<Vec<String>>,
+}
+
+/// Verification requirement record containing metadata about custom requirements.
+///
+/// Stored separately from Project to allow querying requirements without
+/// fetching the full project struct.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectVerificationRequirements {
+    /// ID of the project these requirements belong to.
+    pub project_id: u64,
+    /// List of IPFS CIDs pointing to requirement definition documents.
+    /// Each CID should reference a JSON document conforming to a
+    /// verification-requirements schema.
+    pub requirement_cids: Vec<String>,
+    /// Unix timestamp (seconds) when requirements were last updated.
+    pub updated_at: u64,
+    /// Address that last updated the requirements (owner or admin).
+    pub updated_by: Option<Address>,
+}
+
+/// Result of an admin audit to check requirement-tier consistency.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRequirementAudit {
+    /// ID of the project that was audited.
+    pub project_id: u64,
+    /// Whether the requirements are consistent with the project's tier.
+    pub is_consistent: bool,
+    /// List of inconsistencies found (empty if consistent).
+    pub inconsistencies: Vec<String>,
+    /// Unix timestamp when the audit was performed.
+    pub audited_at: u64,
+    /// Admin who performed the audit.
+    pub audited_by: Address,
 }
 
 /// Read-only view of a project's security contact, returned by
@@ -645,6 +694,148 @@ pub struct ProjectReport {
     pub reason_cid: String,
     /// Unix timestamp (seconds) when the report was submitted.
     pub timestamp: u64,
+    /// Globally unique report ID (#920).
+    pub report_id: u64,
+    /// Category used to route the report to a specialised review team (#920).
+    pub category: ReportCategory,
+    /// Moderator currently assigned to review the report, if routed (#920).
+    pub assigned_moderator: Option<Address>,
+    /// Evidence documents (screenshots, archives) attached as IPFS CIDs.
+    /// Append-only, capped at `MAX_REPORT_EVIDENCE` (#921).
+    pub evidence_cids: Vec<String>,
+}
+
+/// Outcome of a moderator's review of a report (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportDecision {
+    /// The report was found to be without merit.
+    Dismissed,
+    /// The report was upheld and moderation action was taken.
+    ActionTaken,
+}
+
+/// Moderation decision recorded against a report (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportDecisionRecord {
+    pub report_id: u64,
+    pub decision: ReportDecision,
+    /// Moderator that made the decision.
+    pub moderator: Address,
+    /// Optional IPFS CID of the moderator's notes.
+    pub notes_cid: Option<String>,
+    pub decided_at: u64,
+}
+
+/// Lifecycle of a moderation appeal (#922).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AppealStatus {
+    /// Awaiting review by the assigned senior moderator.
+    Pending,
+    /// The original decision was confirmed.
+    Upheld,
+    /// The original decision was reversed.
+    Overturned,
+}
+
+/// An appeal against a moderation decision, routed to a senior moderator (#922).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AppealRecord {
+    pub appeal_id: u64,
+    /// Report whose decision is being appealed.
+    pub report_id: u64,
+    pub project_id: u64,
+    /// Reporter or project owner that filed the appeal.
+    pub appellant: Address,
+    /// Decision being appealed.
+    pub original_decision: ReportDecision,
+    /// Moderator that made the original decision.
+    pub original_moderator: Address,
+    pub appeal_reason: String,
+    /// Senior moderator the appeal was routed to.
+    pub assigned_senior_moderator: Address,
+    pub status: AppealStatus,
+    /// Resolution explanation from the senior moderator.
+    pub resolution: Option<String>,
+    pub resolved_by: Option<Address>,
+    pub filed_at: u64,
+    pub resolved_at: Option<u64>,
+}
+
+/// Appeal counters, tracked per original moderator and globally (#922).
+#[contracttype]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AppealStats {
+    pub total: u32,
+    pub pending: u32,
+    pub upheld: u32,
+    pub overturned: u32,
+}
+
+/// Audit-trail entry recorded each time evidence is attached to a report.
+/// Entries are append-only and never removed (#921).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportEvidenceAttachment {
+    /// Report the evidence was attached to.
+    pub report_id: u64,
+    /// IPFS CID of the evidence document.
+    pub evidence_cid: String,
+    /// Position of the CID in the report's `evidence_cids`.
+    pub index: u32,
+    /// Address that attached the evidence.
+    pub attached_by: Address,
+    /// Unix timestamp (seconds) when the evidence was attached.
+    pub attached_at: u64,
+}
+
+/// Category of a project report. Each category can be routed to its own
+/// moderator team via a `ReportRoutingRule` (#920).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReportCategory {
+    Spam,
+    Abuse,
+    Copyright,
+    Scam,
+    LowQuality,
+    Other,
+}
+
+/// Routing rule mapping a report category to the moderators that handle it.
+/// Reports are distributed round-robin across `moderators` (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportRoutingRule {
+    /// Category this rule applies to.
+    pub category: ReportCategory,
+    /// Moderators (admins) that review reports in this category.
+    pub moderators: Vec<Address>,
+    /// Index into `moderators` of the next moderator to receive a report.
+    pub next_index: u32,
+    /// Admin that last updated the rule.
+    pub updated_by: Address,
+    /// Unix timestamp (seconds) of the last update.
+    pub updated_at: u64,
+}
+
+/// Record of a report being assigned to a moderator (#920).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportAssignment {
+    /// Report that was assigned.
+    pub report_id: u64,
+    /// Moderator the report is assigned to.
+    pub moderator: Address,
+    /// Category the report was routed under.
+    pub category: ReportCategory,
+    /// Admin that triggered the assignment (`None` when auto-routed on submission).
+    pub assigned_by: Option<Address>,
+    /// Unix timestamp (seconds) of the assignment.
+    pub assigned_at: u64,
 }
 
 /// Verification lifecycle status for a project.
@@ -693,6 +884,51 @@ pub enum ProjectLifecycleStatus {
     Sunset,
     /// Abandoned with no expected further maintenance
     Abandoned,
+}
+
+/// Project visibility mode (#874).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectVisibility {
+    /// Readable by anyone and included in public listings.
+    Public,
+    /// Readable only by the owner and contract admins.
+    Private,
+    /// Readable by the owner, listed maintainers, and contract admins.
+    Restricted,
+}
+
+/// Reason recorded when a project is archived (#873).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArchiveReason {
+    /// Temporarily archived while the project undergoes maintenance.
+    Maintenance,
+    /// Archived because the project moved to a new home or contract.
+    Migration,
+    /// Archived because the project has been discontinued.
+    Discontinuation,
+}
+
+/// Archive lifecycle operation recorded in the archive audit log (#873).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArchiveAction {
+    Archived,
+    Reactivated,
+}
+
+/// Append-only audit log entry for archive/unarchive operations (#873).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchiveAuditEntry {
+    pub project_id: u64,
+    pub action: ArchiveAction,
+    pub caller: Address,
+    /// Reason supplied at archive time; `None` for reactivation or when the
+    /// project was archived without a reason (e.g. `archive_project`).
+    pub reason: Option<ArchiveReason>,
+    pub timestamp: u64,
 }
 
 /// Scheduled deprecation and sunset metadata for a project.
@@ -755,6 +991,94 @@ pub struct VerificationRecord {
     /// Admin assigned to review this verification request via
     /// `assign_verification`. `None` until explicitly assigned.
     pub assigned_admin: Option<Address>,
+    /// Admin who approved this request. `None` until the request is approved.
+    pub approver: Option<Address>,
+    /// Unix timestamp when the request was approved. Zero until approved.
+    pub approved_at: u64,
+    /// Free-form notes supplied by the approver. Empty when none were given.
+    pub approval_notes: String,
+}
+
+/// Immutable record of a single verification rejection.
+///
+/// Rejections are kept separately from `VerificationRecord` so that a project
+/// with several rejected attempts retains every rejection even after a later
+/// request supersedes the record pointed to by `current_verification_id`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RejectionRecord {
+    /// One-based index of this rejection within the project's rejections.
+    pub rejection_id: u32,
+    pub project_id: u64,
+    pub request_id: u64,
+    /// Address that submitted the rejected request.
+    pub requester: Address,
+    /// Admin who rejected the request.
+    pub rejected_by: Address,
+    pub rejected_at: u64,
+    /// Admin-supplied reason. Empty when none was given.
+    pub reason: String,
+}
+
+/// Kind of verification decision captured in the audit trail.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationAuditAction {
+    Approved,
+    Rejected,
+    Revoked,
+    Suspended,
+    Restored,
+    RenewalApproved,
+    RenewalRejected,
+}
+
+/// Append-only audit trail entry for a verification decision. Entries are
+/// never updated or removed once written.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditEntry {
+    /// Globally unique, monotonically increasing entry ID.
+    pub entry_id: u64,
+    pub project_id: u64,
+    pub request_id: u64,
+    pub action: VerificationAuditAction,
+    /// Admin who made the decision.
+    pub actor: Address,
+    pub timestamp: u64,
+    /// Approval notes or rejection/revocation/suspension reason.
+    pub notes: String,
+}
+
+/// Filter applied to audit trail queries and exports. Every `None` field
+/// matches all entries; `from_ts` / `to_ts` are inclusive bounds.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditFilter {
+    pub actor: Option<Address>,
+    pub from_ts: Option<u64>,
+    pub to_ts: Option<u64>,
+    pub action: Option<VerificationAuditAction>,
+}
+
+/// Batch export of verification audit data in a stable compliance format.
+///
+/// `digest` is the SHA-256 of the XDR-encoded `entries` vector so auditors
+/// can verify an export has not been altered after it was produced.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationAuditExport {
+    /// Export format version; bumped on any breaking layout change.
+    pub format_version: u32,
+    pub generated_at: u64,
+    pub project_ids: Vec<u64>,
+    pub filter: VerificationAuditFilter,
+    pub entries: Vec<VerificationAuditEntry>,
+    pub rejections: Vec<RejectionRecord>,
+    pub total_entries: u32,
+    /// True when the export hit `MAX_AUDIT_EXPORT_ENTRIES` and was cut short.
+    pub truncated: bool,
+    pub digest: BytesN<32>,
 }
 
 /// Immutable snapshot of the evidence CID used by a verification request.
@@ -1294,6 +1618,40 @@ pub struct DependencyRef {
     pub external_url: Option<String>,
     /// External Stellar contract address (56-char Strkey, starts with 'C').
     pub external_contract: Option<String>,
+    /// Compatible versions of the dependency (#923). Not part of the
+    /// dependency's identity: two refs that differ only here are the same
+    /// dependency.
+    pub version_requirement: Option<VersionSpec>,
+}
+
+/// Comparison operator of a dependency version requirement (#923).
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionOperator {
+    /// `1.2.3` — exactly this version.
+    Exact,
+    /// `^1.2` — same leftmost non-zero component, at or above the version.
+    Caret,
+    /// `~1.2.3` — same major.minor (same major if only major given).
+    Tilde,
+    /// `>=1.0` — this version or any later one.
+    GreaterOrEqual,
+}
+
+/// A dependency version requirement such as `"^1.2"` (#923).
+///
+/// Callers only need to set `raw`; the contract re-parses it on
+/// `add_dependency` / `update_dependency` and overwrites the parsed fields
+/// with the canonical values.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionSpec {
+    /// The spec as written, e.g. `"~1.2.3"`.
+    pub raw: String,
+    pub operator: VersionOperator,
+    pub major: u32,
+    pub minor: Option<u32>,
+    pub patch: Option<u32>,
 }
 
 /// A single entry in a project's dependency list.
@@ -1420,6 +1778,45 @@ pub struct SmartFolderFilter {
     pub verification_status: VerificationStatusFilter,
 }
 
+/// Rules used to auto-populate a smart bookmark collection (#914).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkRules {
+    /// Only include bookmarks for projects carrying this tag, if set.
+    pub tag: Option<String>,
+    /// Only include bookmarks for projects in this category, if set.
+    pub category: Option<String>,
+    /// Minimum registration date timestamp (seconds), inclusive, if set.
+    pub min_date: Option<u64>,
+    /// Maximum registration date timestamp (seconds), inclusive, if set.
+    pub max_date: Option<u64>,
+    /// Optional parent folder ID for nesting within user bookmarks.
+    pub parent_id: Option<u64>,
+}
+
+/// A smart bookmark collection that auto-populates bookmarked projects based on rules (#914).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollection {
+    /// Monotonically increasing unique collection ID.
+    pub id: u64,
+    /// Owner address who created this collection.
+    pub owner: Address,
+    /// Human-readable collection name.
+    pub name: String,
+    /// Filtering rules.
+    pub rules: SmartBookmarkRules,
+    /// Optional parent folder ID (for nesting).
+    pub parent_id: Option<u64>,
+    /// Auto-populated project IDs matching the rules from user bookmarks.
+    pub project_ids: Vec<u64>,
+    /// Unix timestamp when created.
+    pub created_at: u64,
+    /// Unix timestamp when last refreshed / modified.
+    pub updated_at: u64,
+}
+
+
 /// The member list is stored separately under
 /// `ExtensionKey::CollectionProjects(id)` as a `Vec<u64>` of project IDs.
 /// The collection record itself only stores metadata.
@@ -1441,6 +1838,139 @@ pub struct Collection {
     pub created_at: u64,
     /// Unix timestamp (seconds) when the collection metadata was last updated.
     pub updated_at: u64,
+    /// Identifier of the parent collection when this collection is nested
+    /// inside another one (`None` for a top-level collection).
+    ///
+    /// The hierarchy is a **forest**: every collection has at most one
+    /// parent and the parent chain is acyclic (enforced by
+    /// `CollectionRegistry::set_collection_parent`) and at most
+    /// `MAX_COLLECTION_DEPTH` levels deep.
+    ///
+    /// Part of issue #905 ("Collection Hierarchies and Nesting").
+    pub parent_collection_id: Option<u64>,
+}
+
+/// A node of a collection subtree returned by `get_collection_tree`.
+///
+/// The tree is returned in **breadth-first order** with explicit
+/// parent/child links (`parent_id` / `child_ids`) rather than as a
+/// recursively nested Rust type: a recursive `#[contracttype]` cannot be
+/// represented in the contract ABI without risking unbounded recursion in
+/// the generated conversion code, and the flat representation keeps every
+/// node independently addressable for indexers.
+///
+/// Part of issue #905 ("Collection Hierarchies and Nesting").
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CollectionTreeNode {
+    /// The collection record itself.
+    pub collection: Collection,
+    /// Depth of the node relative to the requested root (`0` for the root).
+    pub depth: u32,
+    /// Identifier of the parent collection (`None` for the root node).
+    pub parent_id: Option<u64>,
+    /// Identifiers of the direct children of this collection.
+    pub child_ids: Vec<u64>,
+}
+
+/// Fine-grained pause state of the contract (issue #902).
+///
+/// Replaces the previous boolean pause flag.  The state describes *which*
+/// family of operations is currently blocked:
+///
+/// | State | Effect |
+/// |-------|--------|
+/// | `Running` | Nothing is blocked. |
+/// | `PausedAll` | Every mutating operation is blocked (read operations still work). |
+/// | `PausedVerification` | Only verification operations are blocked. |
+/// | `PausedFees` | Only fee operations are blocked. |
+/// | `PausedReviews` | Only review operations are blocked. |
+/// | `PausedVerificationAndFees` | Verification **and** fee operations are blocked (staged recovery phase 2). |
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseState {
+    /// Normal operation — nothing is paused.
+    Running,
+    /// Emergency stop: every mutating operation is blocked.
+    PausedAll,
+    /// Only verification requests/approvals are blocked.
+    PausedVerification,
+    /// Only fee payments/refunds are blocked.
+    PausedFees,
+    /// Only review submission/moderation is blocked.
+    PausedReviews,
+    /// Verification and fee operations are blocked (used by the staged
+    /// recovery plan of issue #904 — phase "reviews resumed").
+    PausedVerificationAndFees,
+}
+
+/// The family of operations a pause check applies to (issue #902).
+///
+/// Every mutating entry point declares which family it belongs to; the
+/// pause gate then decides whether that family is currently blocked.
+/// See `PAUSE_MATRIX.md` for the full matrix.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseOperation {
+    /// A generic mutating operation (project lifecycle, links, transfers,
+    /// collections, bookmarks, changelog, …).  Blocked by `PausedAll` and
+    /// during a staged recovery that has not reached its final phase.
+    All,
+    /// A read-only operation.  Read operations are **never** blocked by the
+    /// pause gate — they are always available.
+    Read,
+    /// Verification requests, reviews of verification requests, renewals
+    /// and appeals.
+    Verification,
+    /// Fee payments, cancellations and refunds.
+    Fees,
+    /// Review submission, editing and moderation.
+    Reviews,
+}
+
+/// Full emergency-pause record (issues #901, #902 and #904).
+///
+/// Stored as a single ledger entry under `PauseKey::PauseState`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyPauseState {
+    /// Current fine-grained pause state.
+    pub state: PauseState,
+    /// Human-readable reason for the pause (issue #901).  `None` when the
+    /// contract was paused without giving a reason.
+    pub pause_reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).  `None` when
+    /// no estimate was supplied.
+    pub estimated_resume: Option<u64>,
+    /// Unix timestamp (seconds) of the most recent pause transition.
+    pub paused_at: u64,
+    /// Current staged-recovery phase (issue #904).  `0` means "no staged
+    /// recovery in progress"; `MAX_RESUME_PHASE` means "fully resumed".
+    pub resume_phase: u32,
+}
+
+/// Snapshot of the contract's operational status (issue #901).
+///
+/// Returned by the `get_contract_status` endpoint so frontends and
+/// indexers can surface *why* the contract is paused (if it is) and which
+/// operation families are currently blocked.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractStatus {
+    /// True when at least one operation family is blocked.
+    pub is_paused: bool,
+    /// Current fine-grained pause state.
+    pub pause_state: PauseState,
+    /// Human-readable pause reason (issue #901).
+    pub pause_reason: Option<String>,
+    /// Estimated resume time as a Unix timestamp (issue #901).
+    pub estimated_resume: Option<u64>,
+    /// Unix timestamp (seconds) of the most recent pause transition.
+    pub paused_at: u64,
+    /// Current staged-recovery phase (issue #904).
+    pub resume_phase: u32,
+    /// The operation families that are currently blocked.
+    pub paused_operations: Vec<PauseOperation>,
 }
 
 /// Types of admin actions recorded in the admin action log.
@@ -1449,7 +1979,7 @@ pub struct Collection {
 /// `u32` discriminants, but XDR union types have a practical limit of
 /// **50 variants** before SDK tooling and contract-size constraints become
 /// problematic (same constraint as [`StorageKey`] / [`ExtensionKey`]).
-/// This enum currently has **40 variants**; stay under 50. If you need
+/// This enum currently has **49 variants**; stay under 50. If you need
 /// more, introduce an `AdminActionTypeExt` enum (mirroring the
 /// `ExtensionKey` pattern) rather than pushing past the ceiling.
 #[contracttype]
@@ -1513,6 +2043,10 @@ pub enum AdminActionType {
     AdminExpertiseSet,
     /// Verification SLA was configured.
     VerificationSlaSet,
+    /// Review flagged for moderator follow-up via batch moderation.
+    ReviewFlagged,
+    /// Admin audited verification requirements for consistency with tier.
+    VerificationRequirementsAudited,
 }
 
 /// Current state of a duplicate-project dispute.
@@ -2075,6 +2609,40 @@ pub struct VerificationExpiryNotification {
     pub owner_responded: bool,
 }
 
+/// Scheduled verification revocation with advance notice.
+/// Allows admins to schedule a verification revocation to take effect at a future time.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationSchedule {
+    /// Project ID whose verification is scheduled for revocation.
+    pub project_id: u64,
+    /// ID of the verification request being revoked.
+    pub request_id: u64,
+    /// Admin who scheduled the revocation.
+    pub scheduled_by: Address,
+    /// Unix timestamp when the revocation should take effect.
+    pub revoke_at: u64,
+    /// Unix timestamp when the revocation was scheduled.
+    pub scheduled_at: u64,
+    /// Admin-supplied reason for the revocation.
+    pub reason: String,
+    /// Whether the scheduled revocation has been executed.
+    pub executed: bool,
+    /// Timestamp when the revocation was executed (0 if not yet executed).
+    pub executed_at: u64,
+    /// Whether the scheduled revocation was cancelled.
+    pub cancelled: bool,
+    /// Timestamp when the revocation was cancelled (0 if not cancelled).
+    pub cancelled_at: u64,
+    /// Admin who cancelled the scheduled revocation (None if not cancelled).
+    pub cancelled_by: Option<Address>,
+    /// Flags for which reminder notifications have been sent.
+    /// Bit 0: 7-day reminder sent
+    /// Bit 1: 24-hour reminder sent
+    /// Bit 2: final reminder sent at schedule time
+    pub reminder_flags: u8,
+}
+
 /// Global notification preferences for a user.
 ///
 /// Controls which project-update events are forwarded to the user
@@ -2500,6 +3068,9 @@ pub struct SecurityContactVerificationStatus {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Configuration for the health score weights (must sum to 100).
+///
+/// The four components are: rating, activity, verification, and engagement.
+/// All four weights must sum to exactly 100.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HealthScoreConfig {
@@ -2509,6 +3080,9 @@ pub struct HealthScoreConfig {
     pub activity_weight: u32,
     /// Points allocated to the verification status component (0–100).
     pub verification_weight: u32,
+    /// Points allocated to the community-engagement component (0–100).
+    /// Engagement is measured by endorsements + bookmarks above the project.
+    pub engagement_weight: u32,
     /// Minimum interval (seconds) between automatic recomputations.
     pub update_frequency_secs: u64,
 }
@@ -2523,6 +3097,8 @@ pub struct HealthScoreBreakdown {
     pub activity_score: u32,
     /// Points contributed by the verification status component.
     pub verification_score: u32,
+    /// Points contributed by the community-engagement component.
+    pub engagement_score: u32,
     /// Number of reviews at time of computation.
     pub review_count: u32,
     /// Bayesian average rating × 100 at time of computation.
@@ -2531,6 +3107,8 @@ pub struct HealthScoreBreakdown {
     pub last_updated_at: u64,
     /// Verification status at time of computation.
     pub verification_status: VerificationStatus,
+    /// Number of endorsements at time of computation.
+    pub endorsement_count: u32,
 }
 
 /// A historical snapshot of a project's health score.
@@ -3316,37 +3894,246 @@ pub struct ProjectDataExport {
     pub verification_records: Vec<crate::types::VerificationRecord>,
 }
 
-
+/// A project returned with its calculated trending score and trend velocity (#912).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectDataExport {
-    pub version: u32,
-    pub project: crate::types::Project,
-    pub reviews: Vec<crate::types::Review>,
-    pub verification_records: Vec<crate::types::VerificationRecord>,
+pub struct TrendingProject {
+    /// Project record.
+    pub project: Project,
+    /// Dynamically calculated trending score.
+    pub trending_score: u64,
+    /// Trend velocity (rate of engagement per window).
+    pub trend_velocity: u32,
 }
 
-
-// ── Mutual project recommendations (issue #948) ─────────────────────────────
+/// A candidate similar project returned with its computed similarity score (#913).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectRecommendation {
-    pub id: u64,
-    pub recommender_id: u64,
-    pub target_id: u64,
-    pub reason_cid: String,
-    pub created_at: u64,
-}
-
-// ── Grant / funding announcements (issue #949) ──────────────────────────────
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Grant {
-    pub id: u64,
+pub struct SimilarProject {
+    /// Project ID of the similar project.
     pub project_id: u64,
-    pub title: String,
-    pub amount: u128,
-    pub deadline: u64,
-    pub criteria: String,
+    /// Name of the similar project.
+    pub name: String,
+    /// Overall similarity score in basis points (0..10_000, where 10_000 = 100%).
+    pub similarity_score: u32,
+}
+
+/// Action applied by `moderate_reviews_batch`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModerateAction {
+    /// Hide the review and drop it from project stats.
+    Hide,
+    /// Permanently delete the review (admin hard-delete).
+    Delete,
+    /// Mark the review for follow-up without hiding it.
+    Flag,
+    /// Un-hide the review and clear any flag.
+    Restore,
+}
+
+/// A review that could not be moderated in a batch.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerateFailure {
+    pub project_id: u64,
+    pub reviewer: Address,
+    /// `ContractError` discriminant explaining the failure.
+    pub error_code: u32,
+}
+
+/// Outcome of `moderate_reviews_batch`. Every input review appears in
+/// exactly one of `successful` or `failed`, in input order.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModerateResult {
+    pub action: ModerateAction,
+    pub successful: Vec<(u64, Address)>,
+    pub failed: Vec<ModerateFailure>,
+}
+
+/// Moderator flag stored against a review.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReviewFlag {
+    pub flagged_by: Address,
+    pub flagged_at: u64,
+}
+
+// ── Fee Extensions ────────────────────────────────────────────────────────────
+// Types for fee waivers, auto-refunds, fee receipts, and fee escrow.
+
+/// Classification of why a fee waiver was granted.
+///
+/// Used by `apply_for_fee_waiver` and the admin grant path.
+/// `None` on a project means no waiver applies.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeeWaiverType {
+    /// No waiver — normal fee applies.
+    None,
+    /// Open-source project verified against GitHub/npm registries.
+    OpenSource,
+    /// Academic research project.
+    Academic,
+    /// Non-profit organisation.
+    Nonprofit,
+}
+
+/// Current approval state of a fee-waiver application.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WaiverStatus {
+    /// Application has been submitted and is awaiting admin review.
+    Pending,
+    /// Waiver was approved (either manually or auto-granted).
+    Approved,
+    /// Admin rejected the application.
+    Rejected,
+}
+
+/// On-chain record of a fee-waiver application for a project.
+///
+/// Stored under `FeeExtensionKey::ProjectFeeWaiver(project_id)`.
+/// Auto-granted when the submitted `proof_cid` matches a pre-approved
+/// proof or registry response.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverRecord {
+    /// Project the waiver applies to.
+    pub project_id: u64,
+    /// Type of waiver requested / granted.
+    pub waiver_type: FeeWaiverType,
+    /// IPFS CID of the supporting proof document (registry export, org docs, …).
+    pub proof_cid: String,
+    /// Address that submitted the application (must be the project owner).
+    pub applicant: Address,
+    /// Current status of the application.
+    pub status: WaiverStatus,
+    /// Unix timestamp when the application was submitted.
+    pub applied_at: u64,
+    /// Unix timestamp when an admin approved or rejected the application.
+    /// Zero while still pending.
+    pub decided_at: u64,
+    /// Admin who decided (approved/rejected). `None` while pending.
+    pub decided_by: Option<Address>,
+}
+
+// ── Auto-refund types ─────────────────────────────────────────────────────────
+
+/// Lifecycle event that triggers an automatic refund.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RefundTrigger {
+    /// Project was deleted / permanently archived.
+    ProjectDeleted,
+    /// Verification request was rejected by an admin.
+    VerificationRejected,
+    /// Manually initiated by an admin or partial-refund endpoint.
+    Manual,
+}
+
+/// On-chain record of an auto-refund owed to a project owner.
+///
+/// Stored under `FeeExtensionKey::AutoRefundRecord(project_id)`.
+/// Created automatically when a lifecycle event triggers a refund,
+/// or by `request_partial_refund`. The payer settles the debt via
+/// `claim_auto_refund`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundRecord {
+    /// Project the refund is associated with.
+    pub project_id: u64,
+    /// Event that triggered this refund.
+    pub trigger: RefundTrigger,
+    /// Free-form admin/system reason string.
+    pub reason: String,
+    /// Address owed the refund.
+    pub payer: Address,
+    /// Full refund amount (smallest token unit).
+    pub total_amount: u128,
+    /// Amount remaining to be paid out (supports partial payouts).
+    pub remaining_amount: u128,
+    /// Token the original fee was paid in. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Unix timestamp when this record was created.
     pub created_at: u64,
+    /// Unix timestamp when the refund was fully settled. `None` while outstanding.
+    pub settled_at: Option<u64>,
+}
+
+// ── Fee receipt types ─────────────────────────────────────────────────────────
+
+/// Verifiable proof of a fee payment, suitable for accounting / tax export.
+///
+/// Stored under `FeeExtensionKey::FeeReceipt(payment_id)`.
+/// Also referenced by `FeeExtensionKey::ProjectFeeReceiptIds(project_id)`
+/// and `FeeExtensionKey::AddressFeeReceiptIds(address)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceipt {
+    /// Unique monotonically-increasing receipt identifier.
+    pub payment_id: u64,
+    /// Project the payment was made for (0 for registration fees).
+    pub project_id: u64,
+    /// Payer address.
+    pub payer: Address,
+    /// Amount paid in the smallest token unit.
+    pub amount: u128,
+    /// Token used for payment. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Operation this receipt covers.
+    pub operation: crate::events::FeeOperation,
+    /// Unix timestamp (seconds) of the payment.
+    pub paid_at: u64,
+    /// IPFS CID of the JSON receipt document (for audit trail).
+    /// Set by an off-chain indexer or admin after pinning the receipt.
+    pub receipt_cid: Option<String>,
+    /// Cryptographic signature from the fee manager on the receipt CID.
+    /// Populated by `sign_fee_receipt` (admin-only).
+    pub manager_signature: Option<String>,
+}
+
+// ── Fee escrow types ──────────────────────────────────────────────────────────
+
+/// Outcome of an admin resolving a fee dispute.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeeDisputeResolution {
+    /// Return the full escrowed amount to the payer.
+    FullRefund,
+    /// Transfer the full escrowed amount to treasury (fee stands).
+    FeeMaintained,
+    /// Partial refund: caller specifies an amount via the struct field.
+    PartialRefund(u128),
+}
+
+/// On-chain record of a fee locked in escrow while a dispute is active.
+///
+/// Stored under `FeeExtensionKey::EscrowedFee(project_id)`.
+/// Created by `dispute_fee` and resolved by `resolve_fee_dispute`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowedFee {
+    /// Project the disputed fee is associated with.
+    pub project_id: u64,
+    /// Amount locked in escrow (smallest token unit).
+    pub amount: u128,
+    /// Token the fee was paid in. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Ledger timestamp after which an unresolved dispute may be auto-escalated.
+    pub locked_until: u64,
+    /// Free-form reason provided by the project owner when opening the dispute.
+    pub dispute_reason: String,
+    /// Address that opened the dispute (project owner).
+    pub disputer: Address,
+    /// Unix timestamp when the escrow was created.
+    pub created_at: u64,
+    /// Unix timestamp when the escrow was released (resolved or expired).
+    /// `None` while still active.
+    pub released_at: Option<u64>,
+    /// Resolution applied when closing the escrow. `None` while pending.
+    pub resolution: Option<FeeDisputeResolution>,
+    /// Admin who resolved the dispute. `None` while pending.
+    pub resolved_by: Option<Address>,
 }

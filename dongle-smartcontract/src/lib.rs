@@ -9,11 +9,14 @@ mod admin_manager;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
+mod blacklist_registry;
 mod bookmark_registry;
 pub mod category_types;
 mod category_registry;
 mod changelog_registry;
 mod collection_registry;
+mod computed_view_cache;
+mod rate_limiter;
 // mod community_collection_registry;
 mod config_registry;
 pub mod constants;
@@ -25,6 +28,7 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod fee_extensions;
 mod governance_ranges;
 mod notification_registry;
 mod mutual_recommendation;
@@ -35,7 +39,7 @@ mod project_registry;
 pub mod project_controls;
 mod project_operation_limiter;
 pub mod rating_calculator;
-// mod recommendation_registry;
+mod recommendation_registry;
 mod report_registry;
 mod reward_registry;
 pub mod review_registry;
@@ -52,16 +56,25 @@ mod verification_registry;
 mod social_analytics_registry;
 mod probation_registry;
 mod performance_metrics;
+mod invariant_checker;
+mod pow_challenge;
+mod compliance_mode;
+mod benchmark_suite;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
+mod bounty_registry;
 mod metadata_enrichment_registry;
+mod similarity_registry;
+mod smart_bookmark_registry;
+mod trending_registry;
 
 #[cfg(test)]
 mod tests;
 
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
+use crate::blacklist_registry::BlacklistRegistry;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
@@ -69,25 +82,33 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::fee_extensions::FeeExtensions;
 use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::similarity_registry::SimilarityRegistry;
+use crate::smart_bookmark_registry::SmartBookmarkRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
+use crate::trending_registry::TrendingRegistry;
 use crate::activity_feed_registry::ActivityFeedRegistry;
 use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
+use crate::notification_registry::NotificationRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
+    SimilarProject, SmartBookmarkCollection, SmartBookmarkRules, TrendingProject,
+
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
     CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
     DisputeResolutionAction, DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
-    FeeRefundRecord, NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
+    FeeRefundRecord, FeeWaiverRecord, FeeWaiverType, AutoRefundRecord, FeeReceipt, EscrowedFee, FeeDisputeResolution, RefundTrigger, WaiverStatus,
+    NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
     ProjectEngagementMetric, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSocialAnalyticsExport, ProjectSocialDailyCheckpoint, ProjectSocialPeerRow,
     ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalComment, ProposalPayload,
@@ -124,6 +145,17 @@ use crate::types::{
     ActivityEntry, ActivityKind,
     // #760 metadata enrichment
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
+    // Custom verification requirements
+    VerificationRequirementAudit, ProjectVerificationRequirements,
+    // #915 bookmark auto-archive
+    ArchivedBookmarkRecord, BookmarkConfig, BookmarkExpirationPolicy,
+    // #911 feature recommendations
+    RecommendationABAnalytics, RecommendationABConfig, RecommendationOptions,
+    RecommendationStrategy, RecommendationVariant,
+    // #910 complex query filters
+    FilterLogic, ProjectFilterCriteria, ProjectFilterSortBy, ProjectQueryFilter, ProjectQueryResult,
+    // #908 collection immutable snapshots
+    CollectionSnapshot, CollectionSnapshotComparison,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -372,18 +404,113 @@ impl DongleContract {
         EmergencyPause::is_paused(&env)
     }
 
+    // --- Fine-grained pause control (#902) ---
+
+    /// Pause the contract with a reason and an estimated resume time
+    /// (admin-only, issue #901).
+    ///
+    /// `reason` is a short operator note (1..=256 bytes) explaining why the
+    /// contract was halted.  `estimated_resume` is the expected resume time
+    /// as a Unix timestamp (`0` means "no estimate").
+    pub fn set_pause_with_reason(
+        env: Env,
+        admin: Address,
+        reason: String,
+        estimated_resume: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::set_pause_with_reason(&env, &admin, reason, estimated_resume)
+    }
+
+    /// Pause only a specific family of operations (admin-only, issue #902).
+    ///
+    /// `state` selects the blocked operation family
+    /// (`PausedVerification`, `PausedFees`, `PausedReviews`, `PausedAll`);
+    /// passing `Running` resumes the contract.
+    pub fn set_pause_state(
+        env: Env,
+        admin: Address,
+        state: PauseState,
+        reason: Option<String>,
+        estimated_resume: Option<u64>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::set_pause_state(&env, &admin, state, reason, estimated_resume)
+    }
+
+    /// Current fine-grained pause state (issue #902).
+    pub fn get_pause_state(env: Env) -> PauseState {
+        EmergencyPause::get_pause_state(&env)
+    }
+
+    /// Operational status of the contract including the pause reason and the
+    /// estimated resume time (issue #901).
+    pub fn get_contract_status(env: Env) -> ContractStatus {
+        EmergencyPause::get_contract_status(&env)
+    }
+
+    // --- Staged recovery after an emergency pause (#904) ---
+
+    /// Resume the contract up to the given staged-recovery phase
+    /// (admin-only, issue #904).
+    ///
+    /// Phases: `0` = nothing resumed, `1` = read operations, `2` = reviews,
+    /// `3` = verification, `4` = fees (fully running again).
+    pub fn resume_operations_phase(
+        env: Env,
+        admin: Address,
+        phase: u32,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::resume_operations_phase(&env, &admin, phase)
+    }
+
+    /// Roll the staged recovery back by one phase (admin-only, issue #904).
+    pub fn rollback_operations_phase(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::rollback_operations_phase(&env, &admin)
+    }
+
+    /// Current staged-recovery phase (issue #904).
+    pub fn get_resume_phase(env: Env) -> u32 {
+        EmergencyPause::get_resume_phase(&env)
+    }
+
+    /// Ordered history of staged-recovery phase transitions (issue #904).
+    pub fn get_phase_history(env: Env) -> Vec<u32> {
+        EmergencyPause::get_phase_history(&env)
+    }
+
+    // --- Pause notifications (#901) ---
+
+    /// Subscribe an address to emergency-pause notifications (issue #901).
+    pub fn subscribe_pause_notifications(env: Env, subscriber: Address) -> Result<(), ContractError> {
+        subscriber.require_auth();
+        NotificationRegistry::subscribe_pause_notifications(&env, subscriber)
+    }
+
+    /// Unsubscribe an address from emergency-pause notifications (issue #901).
+    pub fn unsubscribe_pause_notifications(
+        env: Env,
+        subscriber: Address,
+    ) -> Result<(), ContractError> {
+        subscriber.require_auth();
+        NotificationRegistry::unsubscribe_pause_notifications(&env, subscriber)
+    }
+
+    /// Addresses currently subscribed to emergency-pause notifications (#901).
+    pub fn list_pause_subscribers(env: Env) -> Vec<Address> {
+        NotificationRegistry::list_pause_subscribers(&env)
+    }
+
     // --- Project Registry ---
 
     pub fn register_project(
         env: Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::register_project(&env, params)
     }
 
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -420,7 +547,7 @@ impl DongleContract {
         caller: Address,
     ) -> Result<u64, ContractError> {
         caller.require_auth();
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         
         let params = crate::types::ProjectRegistrationParams {
             owner: caller.clone(),
@@ -485,7 +612,7 @@ impl DongleContract {
         caller: Address,
         status: ProjectLifecycleStatus,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
@@ -497,7 +624,7 @@ impl DongleContract {
         secondary_owner: Address,
         admin: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::merge_projects(
             &env,
             primary_project_id,
@@ -523,7 +650,7 @@ impl DongleContract {
         alternative_project_ids: Vec<u64>,
         redirect_project_id: Option<u64>,
     ) -> Result<ProjectSunsetPlan, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::schedule_project_sunset(
             &env,
             project_id,
@@ -556,7 +683,7 @@ impl DongleContract {
         caller: Address,
         contact: Option<String>,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
     }
 
@@ -566,7 +693,7 @@ impl DongleContract {
         caller: Address,
         proof_cid: String,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::submit_security_contact_proof(&env, project_id, caller, proof_cid)
     }
 
@@ -583,7 +710,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -593,7 +720,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::unlink_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -601,8 +728,28 @@ impl DongleContract {
         ProjectRegistry::get_linked_projects(&env, project_id)
     }
 
+    /// Anonymous read: returns only `Public` projects (#874). Use
+    /// `get_project_as_viewer` to read `Private` / `Restricted` projects.
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
         ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, None))
+    }
+
+    /// Authenticated read honouring project visibility (#874).
+    pub fn get_project_as_viewer(env: Env, project_id: u64, viewer: Address) -> Option<Project> {
+        viewer.require_auth();
+        ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, Some(&viewer)))
+    }
+
+    pub fn set_project_visibility(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        visibility: crate::types::ProjectVisibility,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_visibility(&env, project_id, caller, visibility)
     }
 
     pub fn get_project_versions(
@@ -620,7 +767,7 @@ impl DongleContract {
         version: u32,
         admin: Address,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::restore_project_version(&env, project_id, version, admin)
     }
 
@@ -638,7 +785,7 @@ impl DongleContract {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
     }
 
@@ -647,7 +794,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::cancel_transfer(&env, project_id, caller)
     }
 
@@ -679,6 +826,11 @@ impl DongleContract {
         ProjectRegistry::get_projects_by_ids(&env, ids)
     }
 
+    /// Batch-fetch projects by ID in one call (max 100). See `get_projects_batch`.
+    pub fn get_projects_batch(env: Env, project_ids: Vec<u64>) -> Vec<Project> {
+        ProjectRegistry::get_projects_batch(&env, project_ids)
+    }
+
     /// Sets an optional region tag for a project (owner only).
     /// Delegates to `ProjectRegistry::set_project_region` for the actual logic.
     pub fn set_project_region(
@@ -687,7 +839,7 @@ impl DongleContract {
         caller: Address,
         region: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_region(&env, project_id, caller, region)
     }
 
@@ -697,7 +849,7 @@ impl DongleContract {
         caller: Address,
         region: Option<ProjectRegionHierarchy>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_region_hierarchy(&env, project_id, caller, region)
     }
 
@@ -720,7 +872,7 @@ impl DongleContract {
         cid: String,
         media_type: crate::types::MediaType,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::add_media(&env, project_id, caller, cid, media_type)
     }
 
@@ -731,7 +883,7 @@ impl DongleContract {
         caller: Address,
         cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::remove_media(&env, project_id, caller, cid)
     }
 
@@ -861,6 +1013,16 @@ impl DongleContract {
         ProjectRegistry::search_projects(&env, query, start_index, limit)
     }
 
+    /// Search active projects with limit (starts at index 0) (#909).
+    pub fn search_projects_with_limit(
+        env: Env,
+        query: String,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::search_projects_with_limit(&env, query, limit)
+    }
+
+
     /// List projects filtered by lifecycle status.
     ///
     /// Named `list_projects_by_lifecycle` rather than
@@ -930,7 +1092,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
@@ -939,8 +1101,41 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
+    pub fn archive_project_with_reason(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::archive_project_with_reason(&env, project_id, caller, reason)
+    }
+
+    pub fn bulk_archive_projects(
+        env: Env,
+        caller: Address,
+        project_ids: Vec<u64>,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::bulk_archive_projects(&env, caller, project_ids, reason)
+    }
+
+    pub fn get_archive_reason(env: Env, project_id: u64) -> Option<crate::types::ArchiveReason> {
+        ProjectRegistry::get_archive_reason(&env, project_id)
+    }
+
+    pub fn get_archive_audit_log(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ArchiveAuditEntry> {
+        ProjectRegistry::get_archive_audit_log(&env, project_id, start, limit)
     }
 
     // ── Automatic Inactivity Archival (#753) ───────────────────────────────
@@ -955,7 +1150,7 @@ impl DongleContract {
         admin: Address,
         config: crate::auto_archive_types::AutoArchiveConfig,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::set_config(&env, admin, config)
     }
 
@@ -966,7 +1161,7 @@ impl DongleContract {
         keeper: Address,
         project_id: u64,
     ) -> Result<bool, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::notify_project(
             &env,
             keeper,
@@ -988,7 +1183,7 @@ impl DongleContract {
         project_id: u64,
         delivered: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::record_notice_delivery(
             &env,
             admin,
@@ -1004,7 +1199,7 @@ impl DongleContract {
         start_project_id: u64,
         limit: u32,
     ) -> Result<crate::auto_archive_types::AutoArchiveBatchResult, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::archive_inactive_batch(
             &env,
             keeper,
@@ -1026,7 +1221,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<crate::types::Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::restore_archived_project(
             &env,
             project_id,
@@ -1055,7 +1250,7 @@ impl DongleContract {
         caller: Address,
         maintainer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
@@ -1101,7 +1296,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None, None)
     }
 
@@ -1114,7 +1309,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::add_review_with_attribution(
             &env,
             project_id,
@@ -1166,7 +1361,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::submit_review_with_attribution(
             &env,
             project_id,
@@ -1206,6 +1401,11 @@ impl DongleContract {
 
     pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
         ReviewRegistry::get_reviews_by_ids(&env, ids)
+    }
+
+    /// Batch-fetch reviews in one call (max 100). Same filtering as `get_reviews_by_ids`.
+    pub fn get_reviews_batch(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        ReviewRegistry::get_reviews_batch(&env, ids)
     }
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
@@ -1406,6 +1606,36 @@ impl DongleContract {
         ReviewRegistry::restore_review(&env, project_id, reviewer, admin)
     }
 
+    /// Hide, delete, flag, or restore up to `MAX_MODERATION_BATCH_SIZE`
+    /// reviews in one call (admin-only). Each tuple is `(project_id, reviewer)`.
+    ///
+    /// Per-review failures are returned in `ModerateResult::failed` rather than
+    /// aborting the batch. Every item, successful or not, counts toward the
+    /// admin's `MODERATION_ACTIONS_PER_WINDOW` budget; a batch that would
+    /// exceed it is rejected with `ModerationRateLimitExceeded` before any write.
+    pub fn moderate_reviews_batch(
+        env: Env,
+        admin: Address,
+        reviews: Vec<(u64, Address)>,
+        action: crate::types::ModerateAction,
+    ) -> Result<crate::types::ModerateResult, ContractError> {
+        ReviewRegistry::moderate_reviews_batch(&env, admin, reviews, action)
+    }
+
+    /// Return the moderator flag on a review, if any.
+    pub fn get_review_flag(
+        env: Env,
+        project_id: u64,
+        reviewer: Address,
+    ) -> Option<crate::types::ReviewFlag> {
+        ReviewRegistry::get_review_flag(&env, project_id, reviewer)
+    }
+
+    /// Moderation actions `admin` may still attempt in the current window.
+    pub fn get_moderation_budget(env: Env, admin: Address) -> u32 {
+        ReviewRegistry::get_moderation_budget(&env, admin)
+    }
+
     /// Admin hard-delete a review permanently (admin-only).
     pub fn admin_delete_review(
         env: Env,
@@ -1507,7 +1737,7 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Verification)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
@@ -1725,6 +1955,34 @@ impl DongleContract {
         request_ids: Vec<u64>,
     ) -> Vec<(u64, VerificationRecord)> {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
+    }
+
+    // --- Custom Verification Requirements ---
+
+    /// Get the verification requirements for a project.
+    ///
+    /// Returns the list of IPFS CIDs pointing to requirement definition documents
+    /// for the given project. These define additional criteria that must be met
+    /// before verification approval.
+    pub fn get_project_verification_requirements(
+        env: Env,
+        project_id: u64,
+    ) -> Option<Vec<String>> {
+        VerificationRegistry::get_project_verification_requirements(&env, project_id)
+    }
+
+    /// Audit verification requirements for a project to ensure they are consistent
+    /// with the project's tier.
+    ///
+    /// Admins can use this to verify that custom requirements match what is expected
+    /// for projects at a given verification tier. Returns an audit report with any
+    /// inconsistencies found.
+    pub fn audit_verification_requirements(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<crate::types::VerificationRequirementAudit, ContractError> {
+        VerificationRegistry::audit_verification_requirements(&env, project_id, admin)
     }
 
     // --- Probationary Verification & Enhanced Monitoring ---
@@ -2156,7 +2414,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Fees)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -2166,7 +2424,7 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         if !AdminManager::is_admin(&env, &caller) {
-            EmergencyPause::require_not_paused(&env)?;
+            EmergencyPause::require_not_paused(&env, PauseOperation::Fees)?;
         }
         FeeManager::cancel_fee_payment(&env, caller, project_id)
     }
@@ -2199,6 +2457,179 @@ impl DongleContract {
     /// Get registration fee payment details for an address.
     pub fn get_reg_fee_payment_details(env: Env, address: Address) -> Option<FeePaymentRecord> {
         FeeManager::get_registration_fee_payment_details(&env, &address)
+    }
+
+    // --- Fee Waivers ---
+
+    /// Apply for a fee waiver (owner only).
+    ///
+    /// `proof_cid` must be an IPFS CID of a document proving the project
+    /// qualifies for the requested `waiver_type` (GitHub repo, npm package,
+    /// academic affiliation, nonprofit registration, etc.).
+    /// If the CID is pre-approved by an admin the waiver is auto-granted.
+    pub fn apply_for_fee_waiver(
+        env: Env,
+        project_id: u64,
+        proof_cid: String,
+        waiver_type: FeeWaiverType,
+    ) -> Result<FeeWaiverRecord, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::apply_for_fee_waiver(&env, project_id, proof_cid, waiver_type)
+    }
+
+    /// Admin: approve or reject a pending fee waiver application.
+    pub fn decide_fee_waiver(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        approve: bool,
+    ) -> Result<FeeWaiverRecord, ContractError> {
+        FeeExtensions::decide_fee_waiver(&env, admin, project_id, approve)
+    }
+
+    /// Admin: register an IPFS proof CID for automatic waiver granting.
+    pub fn pre_approve_waiver_proof(
+        env: Env,
+        admin: Address,
+        proof_cid: String,
+        waiver_type: FeeWaiverType,
+    ) -> Result<(), ContractError> {
+        FeeExtensions::pre_approve_waiver_proof(&env, admin, proof_cid, waiver_type)
+    }
+
+    /// Read the fee waiver record for a project (any status).
+    pub fn get_fee_waiver(env: Env, project_id: u64) -> Option<FeeWaiverRecord> {
+        FeeExtensions::get_fee_waiver(&env, project_id)
+    }
+
+    /// Check whether a project has an active (approved) fee waiver.
+    pub fn has_active_fee_waiver(env: Env, project_id: u64) -> bool {
+        FeeExtensions::has_active_waiver(&env, project_id)
+    }
+
+    /// Admin dashboard: list all project IDs with a fee waiver record.
+    pub fn list_waiver_project_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_waiver_project_ids(&env)
+    }
+
+    // --- Auto-Refunds ---
+
+    /// Project owner: request a partial refund with a free-form reason.
+    ///
+    /// Creates (or accumulates) an `AutoRefundRecord` with
+    /// `RefundTrigger::Manual`. The actual payout is done via
+    /// `claim_auto_refund`.
+    pub fn request_partial_refund(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: String,
+        amount: u128,
+    ) -> Result<AutoRefundRecord, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::request_partial_refund(&env, project_id, caller, reason, amount)
+    }
+
+    /// Claim a pending auto-refund (payer or admin).
+    ///
+    /// `payout_amount` must be ≤ `remaining_amount` on the record.
+    /// When fully settled, `settled_at` is stamped on the record.
+    pub fn claim_auto_refund(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        payout_amount: u128,
+    ) -> Result<(), ContractError> {
+        FeeExtensions::claim_auto_refund(&env, caller, project_id, payout_amount)
+    }
+
+    /// Read the auto-refund record for a project.
+    pub fn get_auto_refund(env: Env, project_id: u64) -> Option<AutoRefundRecord> {
+        FeeExtensions::get_auto_refund(&env, project_id)
+    }
+
+    /// List project IDs that have pending (unsettled) auto-refunds.
+    pub fn list_pending_auto_refund_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_pending_auto_refund_ids(&env)
+    }
+
+    // --- Fee Receipts ---
+
+    /// Fetch a fee receipt by its unique `payment_id`.
+    pub fn get_fee_receipt(env: Env, payment_id: u64) -> Option<FeeReceipt> {
+        FeeExtensions::get_fee_receipt(&env, payment_id)
+    }
+
+    /// Admin: attach an IPFS CID and cryptographic signature to a receipt.
+    ///
+    /// `manager_signature` is a base64-encoded signature over `receipt_cid`
+    /// produced by the fee manager's key. Indexers can verify it off-chain.
+    pub fn sign_fee_receipt(
+        env: Env,
+        admin: Address,
+        payment_id: u64,
+        receipt_cid: String,
+        manager_signature: String,
+    ) -> Result<FeeReceipt, ContractError> {
+        FeeExtensions::sign_fee_receipt(&env, admin, payment_id, receipt_cid, manager_signature)
+    }
+
+    /// List all receipt IDs for a project (verification fees).
+    pub fn get_project_fee_receipt_ids(env: Env, project_id: u64) -> Vec<u64> {
+        FeeExtensions::get_project_fee_receipt_ids(&env, project_id)
+    }
+
+    /// List all receipt IDs for a payer address (registration fees or any payment).
+    pub fn get_address_fee_receipt_ids(env: Env, address: Address) -> Vec<u64> {
+        FeeExtensions::get_address_fee_receipt_ids(&env, address)
+    }
+
+    /// Batch-export receipts by payment IDs (for tax/accounting).
+    /// Missing IDs are silently skipped.
+    pub fn batch_export_receipts(env: Env, payment_ids: Vec<u64>) -> Vec<FeeReceipt> {
+        FeeExtensions::batch_export_receipts(&env, payment_ids)
+    }
+
+    // --- Fee Escrow / Dispute ---
+
+    /// Project owner: dispute a pending fee payment, locking it in escrow.
+    ///
+    /// The fee must be in a paid-but-not-yet-consumed state. A 7-day
+    /// lock window is set; the admin resolves the dispute via
+    /// `resolve_fee_dispute`.
+    pub fn dispute_fee(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: String,
+    ) -> Result<EscrowedFee, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::dispute_fee(&env, project_id, caller, reason)
+    }
+
+    /// Admin: resolve a fee dispute.
+    ///
+    /// - `FeeDisputeResolution::FullRefund` — full amount returned to payer.
+    /// - `FeeDisputeResolution::FeeMaintained` — amount stays in treasury.
+    /// - `FeeDisputeResolution::PartialRefund(n)` — `n` tokens refunded;
+    ///   remainder stays in treasury.
+    pub fn resolve_fee_dispute(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        resolution: FeeDisputeResolution,
+    ) -> Result<EscrowedFee, ContractError> {
+        FeeExtensions::resolve_fee_dispute(&env, admin, project_id, resolution)
+    }
+
+    /// Read the escrow record for a project.
+    pub fn get_escrowed_fee(env: Env, project_id: u64) -> Option<EscrowedFee> {
+        FeeExtensions::get_escrowed_fee(&env, project_id)
+    }
+
+    /// List project IDs with an active (unresolved) fee escrow.
+    pub fn list_active_escrow_project_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_active_escrow_project_ids(&env)
     }
 
     // --- TTL Management ---
@@ -2345,7 +2776,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -2371,6 +2802,231 @@ impl DongleContract {
         admin: Address,
     ) -> Result<(), ContractError> {
         ReportRegistry::clear_project_reports(&env, project_id, &admin)
+    }
+
+    /// Report a project under a category and return the report ID. The
+    /// report is auto-routed if the category has a routing rule - Issue #920
+    pub fn report_project_with_category(
+        env: Env,
+        project_id: u64,
+        reporter: Address,
+        reason_cid: String,
+        category: crate::types::ReportCategory,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::report_project_with_category(
+            &env, project_id, reporter, reason_cid, category,
+        )
+    }
+
+    /// Get a report by its global ID - Issue #920
+    pub fn get_report(env: Env, report_id: u64) -> Option<ProjectReport> {
+        ReportRegistry::get_report(&env, report_id)
+    }
+
+    /// Admin: route a report to the next moderator for a category - Issue #920
+    pub fn route_report_to_moderator(
+        env: Env,
+        admin: Address,
+        report_id: u64,
+        category: crate::types::ReportCategory,
+    ) -> Result<Address, ContractError> {
+        ReportRegistry::route_report_to_moderator(&env, admin, report_id, category)
+    }
+
+    /// Admin: reassign several reports to one moderator - Issue #920
+    pub fn bulk_reassign_reports(
+        env: Env,
+        admin: Address,
+        report_ids: Vec<u64>,
+        new_moderator: Address,
+    ) -> Result<u32, ContractError> {
+        ReportRegistry::bulk_reassign_reports(&env, admin, report_ids, new_moderator)
+    }
+
+    /// Admin: create or replace the routing rule for a category - Issue #920
+    pub fn set_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+        moderators: Vec<Address>,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::set_routing_rule(&env, admin, category, moderators)
+    }
+
+    /// Admin: remove the routing rule for a category - Issue #920
+    pub fn remove_report_routing_rule(
+        env: Env,
+        admin: Address,
+        category: crate::types::ReportCategory,
+    ) -> Result<(), ContractError> {
+        ReportRegistry::remove_routing_rule(&env, admin, category)
+    }
+
+    /// Get the routing rule for a category - Issue #920
+    pub fn get_report_routing_rule(
+        env: Env,
+        category: crate::types::ReportCategory,
+    ) -> Option<crate::types::ReportRoutingRule> {
+        ReportRegistry::get_routing_rule(&env, category)
+    }
+
+    /// Get the current assignment for a report - Issue #920
+    pub fn get_report_assignment(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportAssignment> {
+        ReportRegistry::get_report_assignment(&env, report_id)
+    }
+
+    /// Get report IDs assigned to a moderator - Issue #920
+    pub fn get_moderator_report_assignments(env: Env, moderator: Address) -> Vec<u64> {
+        ReportRegistry::get_moderator_assignments(&env, moderator)
+    }
+
+    /// Attach an evidence CID to a report (reporter, assigned moderator or
+    /// admin; max 5 per report, append-only) - Issue #921
+    pub fn attach_evidence_to_report(
+        env: Env,
+        report_id: u64,
+        submitter: Address,
+        evidence_cid: String,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ReportRegistry::attach_evidence_to_report(&env, report_id, submitter, evidence_cid)
+    }
+
+    /// Get the evidence CIDs attached to a report - Issue #921
+    pub fn get_report_evidence(env: Env, report_id: u64) -> Vec<String> {
+        ReportRegistry::get_report_evidence(&env, report_id)
+    }
+
+    /// Get the evidence attachment audit trail for a report - Issue #921
+    pub fn get_report_evidence_audit(
+        env: Env,
+        report_id: u64,
+    ) -> Vec<crate::types::ReportEvidenceAttachment> {
+        ReportRegistry::get_report_evidence_audit(&env, report_id)
+    }
+
+    /// Record a moderation decision on a report (assigned moderator or
+    /// admin) - Issue #922
+    pub fn resolve_report(
+        env: Env,
+        moderator: Address,
+        report_id: u64,
+        decision: crate::types::ReportDecision,
+        notes_cid: Option<String>,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_report(
+            &env, moderator, report_id, decision, notes_cid,
+        )
+    }
+
+    /// Get the moderation decision for a report - Issue #922
+    pub fn get_report_decision(
+        env: Env,
+        report_id: u64,
+    ) -> Option<crate::types::ReportDecisionRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_decision(
+            &env, report_id,
+        )
+    }
+
+    /// Appeal a report's moderation decision (reporter or project owner).
+    /// Routed to a senior moderator; returns the appeal ID - Issue #922
+    pub fn appeal_moderation_decision(
+        env: Env,
+        appellant: Address,
+        original_report_id: u64,
+        appeal_reason: String,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::moderation_appeal_registry::ModerationAppealRegistry::appeal_moderation_decision(
+            &env,
+            appellant,
+            original_report_id,
+            appeal_reason,
+        )
+    }
+
+    /// Senior moderator: uphold or overturn an appeal - Issue #922
+    pub fn resolve_moderation_appeal(
+        env: Env,
+        senior_moderator: Address,
+        appeal_id: u64,
+        overturn: bool,
+        resolution: String,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::resolve_moderation_appeal(
+            &env,
+            senior_moderator,
+            appeal_id,
+            overturn,
+            resolution,
+        )
+    }
+
+    /// Get a moderation appeal by ID - Issue #922
+    pub fn get_moderation_appeal(env: Env, appeal_id: u64) -> Option<crate::types::AppealRecord> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_appeal(&env, appeal_id)
+    }
+
+    /// Get the appeal ID filed against a report, if any - Issue #922
+    pub fn get_report_appeal_id(env: Env, report_id: u64) -> Option<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_report_appeal_id(
+            &env, report_id,
+        )
+    }
+
+    /// Admin: designate an admin as a senior moderator - Issue #922
+    pub fn add_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::add_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// Admin: remove a senior moderator - Issue #922
+    pub fn remove_senior_moderator(
+        env: Env,
+        admin: Address,
+        moderator: Address,
+    ) -> Result<(), ContractError> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::remove_senior_moderator(
+            &env, admin, moderator,
+        )
+    }
+
+    /// List senior moderators - Issue #922
+    pub fn get_senior_moderators(env: Env) -> Vec<Address> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_moderators(&env)
+    }
+
+    /// Pending appeal IDs assigned to a senior moderator - Issue #922
+    pub fn get_senior_appeal_queue(env: Env, senior_moderator: Address) -> Vec<u64> {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_senior_appeal_queue(
+            &env,
+            senior_moderator,
+        )
+    }
+
+    /// Appeal statistics for decisions made by a moderator - Issue #922
+    pub fn get_moderator_appeal_stats(
+        env: Env,
+        moderator: Address,
+    ) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_moderator_appeal_stats(
+            &env, moderator,
+        )
+    }
+
+    /// Appeal statistics across all moderators - Issue #922
+    pub fn get_global_appeal_stats(env: Env) -> crate::types::AppealStats {
+        crate::moderation_appeal_registry::ModerationAppealRegistry::get_global_appeal_stats(&env)
     }
 
     /// List projects by tag - Issue #125
@@ -2436,6 +3092,74 @@ impl DongleContract {
         is_public: bool,
     ) -> Result<u64, ContractError> {
         CollectionRegistry::create_user_collection(&env, creator, name, description, is_public)
+    }
+
+    // --- Collection hierarchy & nesting (#905) ---
+
+    /// Create a collection nested inside another collection (issue #905).
+    ///
+    /// The parent must exist and the hierarchy depth must stay within
+    /// `MAX_COLLECTION_DEPTH` (5 levels).
+    pub fn create_nested_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+        parent_collection_id: u64,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_nested_collection(
+            &env,
+            creator,
+            name,
+            description,
+            is_public,
+            parent_collection_id,
+        )
+    }
+
+    /// Move a collection under a new parent, or promote it to the top level
+    /// by passing `None` (owner or admin only, issue #905).
+    ///
+    /// Rejects assignments that would create a cycle or exceed the maximum
+    /// hierarchy depth.
+    pub fn set_collection_parent(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        parent_collection_id: Option<u64>,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::set_collection_parent(&env, caller, collection_id, parent_collection_id)
+    }
+
+    /// Return the subtree rooted at `root_id` (issue #905).
+    ///
+    /// The nodes are returned breadth-first; each node carries its depth and
+    /// the identifiers of its direct children.
+    pub fn get_collection_tree(
+        env: Env,
+        root_id: u64,
+    ) -> Result<Vec<CollectionTreeNode>, ContractError> {
+        CollectionRegistry::get_collection_tree(&env, root_id)
+    }
+
+    /// Return the breadcrumb path of a collection: root first, the requested
+    /// collection last (issue #905).
+    pub fn get_collection_path(
+        env: Env,
+        collection_id: u64,
+    ) -> Result<Vec<Collection>, ContractError> {
+        CollectionRegistry::get_collection_path(&env, collection_id)
+    }
+
+    /// Direct children of a collection (issue #905).
+    pub fn get_collection_children(env: Env, collection_id: u64) -> Vec<u64> {
+        CollectionRegistry::get_collection_children(&env, collection_id)
+    }
+
+    /// Depth of a collection in the hierarchy (`1` = top level, issue #905).
+    pub fn get_collection_depth(env: Env, collection_id: u64) -> Result<u32, ContractError> {
+        CollectionRegistry::get_collection_depth(&env, collection_id)
     }
 
     /// Toggle collection visibility between public and private (owner or admin only).
@@ -2709,6 +3433,29 @@ impl DongleContract {
         crate::dependency_registry::DependencyRegistry::get_dependencies(&env, project_id)
     }
 
+    /// Versions of a project dependency that satisfy its version requirement,
+    /// drawn from the dependency project's changelog - Issue #923
+    pub fn get_compatible_versions(
+        env: Env,
+        project_id: u64,
+        dependency_project_id: u64,
+    ) -> Result<Vec<String>, ContractError> {
+        crate::dependency_registry::DependencyRegistry::get_compatible_versions(
+            &env,
+            project_id,
+            dependency_project_id,
+        )
+    }
+
+    /// Parse and validate a dependency version spec such as "^1.2" - Issue #923
+    pub fn parse_version_spec(
+        env: Env,
+        raw: String,
+    ) -> Result<crate::types::VersionSpec, ContractError> {
+        let _ = env;
+        crate::version_spec::VersionSpecParser::parse(&raw)
+    }
+
     /// Returns the number of dependencies for a project without fetching
     /// the full dependency list.  Useful for UI count badges.
     pub fn get_project_dependency_count(env: Env, project_id: u64) -> u32 {
@@ -2762,6 +3509,37 @@ impl DongleContract {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 
+    /// Find projects similar to `project_id` exceeding similarity threshold (#913).
+    /// `threshold` is provided in basis points (0..10_000) or percentage shorthand (1..100).
+    pub fn find_similar_projects(
+        env: Env,
+        project_id: u64,
+        threshold: u32,
+    ) -> Vec<SimilarProject> {
+        SimilarityRegistry::find_similar_projects(&env, project_id, threshold)
+    }
+
+    /// Open a duplicate dispute integrated with similarity verification (#913).
+    pub fn open_duplicate_dispute_with_similarity(
+        env: Env,
+        project_id: u64,
+        original_project_id: u64,
+        creator: Address,
+        evidence_cid: String,
+        min_threshold: u32,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SimilarityRegistry::open_duplicate_dispute_with_similarity(
+            &env,
+            project_id,
+            original_project_id,
+            creator,
+            evidence_cid,
+            min_threshold,
+        )
+    }
+
+
     // --- Project Changelog ---
 
     /// Add a new changelog entry for a project (owner only).
@@ -2786,7 +3564,7 @@ impl DongleContract {
         version: Option<String>,
         changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ChangelogRegistry::add_changelog_entry(
             &env,
             project_id,
@@ -2812,7 +3590,7 @@ impl DongleContract {
         changelog_id: u64,
         owner: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ChangelogRegistry::remove_changelog_entry(&env, changelog_id, owner)
     }
 
@@ -2865,7 +3643,7 @@ impl DongleContract {
         project_id: u64,
         follower: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::subscription_registry::SubscriptionRegistry::follow_project(
             &env, project_id, follower,
         )
@@ -2927,7 +3705,7 @@ impl DongleContract {
         digest_frequency: crate::types::DigestFrequency,
         kinds: soroban_sdk::Vec<crate::types::NotificationKind>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::set_notification_prefs(
             &env,
             user,
@@ -2952,7 +3730,7 @@ impl DongleContract {
         opted_out: bool,
         kinds: Option<soroban_sdk::Vec<crate::types::NotificationKind>>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::set_project_notification_override(
             &env, user, project_id, opted_out, kinds,
         )
@@ -2978,14 +3756,14 @@ impl DongleContract {
     }
 
     pub fn flush_digest_queue(env: Env, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::flush_digest_queue(&env, user)
     }
 
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -3019,7 +3797,7 @@ impl DongleContract {
         name: String,
         parent_id: Option<u64>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::create_folder(&env, user, name, parent_id)
     }
 
@@ -3029,7 +3807,7 @@ impl DongleContract {
         user: Address,
         folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::delete_folder(&env, user, folder_id)
     }
 
@@ -3040,7 +3818,7 @@ impl DongleContract {
         folder_id: u64,
         new_name: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::rename_folder(&env, user, folder_id, new_name)
     }
 
@@ -3074,7 +3852,7 @@ impl DongleContract {
         project_id: u64,
         folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::move_bookmark_to_folder(
             &env, user, project_id, folder_id,
         )
@@ -3086,7 +3864,7 @@ impl DongleContract {
         user: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::remove_bookmark_from_folder(
             &env, user, project_id,
         )
@@ -3123,7 +3901,7 @@ impl DongleContract {
         name: String,
         filter: SmartFolderFilter,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::create_smart_folder(&env, user, name, filter)
     }
 
@@ -3133,7 +3911,7 @@ impl DongleContract {
         user: Address,
         smart_folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(&env, user, smart_folder_id)
     }
 
@@ -3164,10 +3942,79 @@ impl DongleContract {
         )
     }
 
+    // --- Smart Bookmark Collections (#914) ---
+
+    /// Create a smart bookmark collection with filtering rules (#914).
+    pub fn create_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        name: String,
+        rules: SmartBookmarkRules,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::create_smart_bookmark_collection(&env, user, name, rules)
+    }
+
+    /// Refresh a smart bookmark collection's auto-populated member projects (#914).
+    pub fn refresh_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Result<Vec<u64>, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::refresh_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// Get a smart bookmark collection by ID (#914).
+    pub fn get_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Option<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::get_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// List all smart bookmark collections owned by the user (#914).
+    pub fn list_smart_bookmark_collections(
+        env: Env,
+        user: Address,
+    ) -> Vec<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::list_smart_bookmark_collections(&env, user)
+    }
+
+    /// Delete a smart bookmark collection (#914).
+    pub fn delete_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::delete_smart_bookmark_collection(&env, user, collection_id)
+    }
+
+    // --- Dynamic Trending Projects (#912) ---
+
+    /// Get dynamically calculated trending projects for a specified time window (#912).
+    /// `time_window` supports 86400 (24h), 604800 (7d), 2592000 (30d), and 0 (all-time).
+    pub fn get_trending_projects(
+        env: Env,
+        time_window: u64,
+        limit: u32,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::get_trending_projects(&env, time_window, limit)
+    }
+
+    /// Recalculate trending projects cache (for background job / keeper) (#912).
+    pub fn recalculate_trending_projects(
+        env: Env,
+        time_window: u64,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::recalculate_trending(&env, time_window)
+    }
+
     // --- Endorsement Registry ---
 
+
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -3322,7 +4169,7 @@ impl DongleContract {
         score: Option<u64>,
         label: Option<String>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::create_recommendation(
             &env,
             creator,
@@ -3387,7 +4234,7 @@ impl DongleContract {
         recommendation_id: u64,
         viewer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_impression(
             &env,
             recommendation_id,
@@ -3402,7 +4249,7 @@ impl DongleContract {
         recommendation_id: u64,
         viewer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_click(
             &env,
             recommendation_id,
@@ -3419,7 +4266,7 @@ impl DongleContract {
         user: Address,
         kind: RecommendationEngagementKind,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_engagement(
             &env,
             recommendation_id,
@@ -3438,7 +4285,7 @@ impl DongleContract {
         user: Address,
         helpful: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::give_feedback(
             &env,
             recommendation_id,
@@ -3495,7 +4342,7 @@ impl DongleContract {
         viewer: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_project_view(
             &env, viewer, project_id,
         )
@@ -3516,7 +4363,7 @@ impl DongleContract {
         source_project_id: u64,
         limit: u32,
     ) -> Result<Vec<Recommendation>, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::recommend_projects(
             &env,
             viewer,
@@ -3531,7 +4378,7 @@ impl DongleContract {
         admin: Address,
         config: RecommendationABConfig,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::set_ab_config(
             &env, admin, config,
         )
@@ -3555,7 +4402,7 @@ impl DongleContract {
         recommendation_id: u64,
         user: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_conversion(
             &env,
             recommendation_id,
@@ -3586,7 +4433,7 @@ impl DongleContract {
         creator_revenue_share_bps: Option<u32>,
         initial_curators: Option<Vec<Address>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create(
             &env,
             creator,
@@ -3610,7 +4457,7 @@ impl DongleContract {
         override_description: Option<String>,
         seed_projects: Option<Vec<u64>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create_template(
             &env,
             admin,
@@ -3636,7 +4483,7 @@ impl DongleContract {
         creator_revenue_share_bps: Option<u32>,
         initial_curators: Option<Vec<Address>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create_from_template(
             &env,
             caller,
@@ -3722,7 +4569,7 @@ impl DongleContract {
         description: String,
         tags: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::update_metadata(
             &env,
             id,
@@ -3740,7 +4587,7 @@ impl DongleContract {
         approval_threshold: u32,
         disapproval_threshold: u32,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_thresholds(
             &env,
             id,
@@ -3756,7 +4603,7 @@ impl DongleContract {
         updater: Address,
         creator_revenue_share_bps: u32,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_revenue_share(
             &env,
             id,
@@ -3771,7 +4618,7 @@ impl DongleContract {
         actor: Address,
         new_curator: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::add_curator(
             &env,
             id,
@@ -3786,7 +4633,7 @@ impl DongleContract {
         actor: Address,
         curator_to_remove: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::remove_curator(
             &env,
             id,
@@ -3801,7 +4648,7 @@ impl DongleContract {
         curator: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::curator_add_project(
             &env, id, curator, project_id,
         )
@@ -3813,7 +4660,7 @@ impl DongleContract {
         curator: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::curator_remove_project(
             &env, id, curator, project_id,
         )
@@ -3827,7 +4674,7 @@ impl DongleContract {
         project_id: u64,
         approve: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::cast_vote(
             &env, id, voter, project_id, approve,
         )
@@ -3861,7 +4708,7 @@ impl DongleContract {
         id: u64,
         featured: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_featured(
             &env, admin, id, featured,
         )
@@ -3886,7 +4733,7 @@ impl DongleContract {
         id: u64,
         total_amount_scaled: u128,
     ) -> Result<CommunityColRevenueSnapshot, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::attribute_revenue(
             &env,
             caller,
@@ -3917,7 +4764,7 @@ impl DongleContract {
         caller: Address,
         project_id: u64,
     ) -> Result<u32, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::social_analytics_registry::SocialAnalyticsRegistry::record_daily_checkpoint(
             &env, caller, project_id,
         )
@@ -4083,6 +4930,132 @@ impl DongleContract {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
     }
 
+    // ── #940: Runtime Invariant Checks ────────────────────────────────────
+
+    /// Admin-only debug endpoint: run enabled invariant checks
+    /// (project count, review counts, admin count, fee balance),
+    /// log violations, and return them.
+    pub fn verify_contract_invariants(
+        env: Env,
+        admin: Address,
+    ) -> Result<Vec<crate::invariant_checker::InvariantViolation>, ContractError> {
+        crate::invariant_checker::InvariantChecker::verify_contract_invariants(&env, admin)
+    }
+
+    /// Admin-only: enable or disable a single invariant check.
+    pub fn set_invariant_check_enabled(
+        env: Env,
+        admin: Address,
+        check: crate::invariant_checker::InvariantCheckId,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        crate::invariant_checker::InvariantChecker::set_check_enabled(&env, admin, check, enabled)
+    }
+
+    /// Return all logged invariant violations (oldest first).
+    pub fn get_invariant_violations(
+        env: Env,
+    ) -> Vec<crate::invariant_checker::InvariantViolation> {
+        crate::invariant_checker::InvariantChecker::get_violations(&env)
+    }
+
+    // ── #946: Proof-of-Work for Expensive Operations ──────────────────────
+
+    /// Issue a PoW challenge scaled to the operation cost (e.g. batch size).
+    /// See `pow_challenge` docs for the algorithm and difficulty levels.
+    pub fn issue_pow_challenge(env: Env, op_cost: u32) -> crate::pow_challenge::PowChallenge {
+        crate::pow_challenge::PowGate::issue(&env, op_cost)
+    }
+
+    /// Difficulty (leading-zero bits) required for the given operation cost.
+    pub fn pow_difficulty_for(op_cost: u32) -> u32 {
+        crate::pow_challenge::PowGate::difficulty_for(op_cost)
+    }
+
+    /// Validate a PoW solution before running a resource-heavy function.
+    pub fn verify_pow(
+        env: Env,
+        challenge: crate::pow_challenge::PowChallenge,
+        nonce: u64,
+        op_cost: u32,
+    ) -> Result<(), ContractError> {
+        crate::pow_challenge::PowGate::verify(&env, &challenge, nonce, op_cost)
+    }
+
+    // ── #947: Restricted-Mode Compliance Deployments ─────────────────────
+
+    /// Admin-only: set compliance mode config (restricted features, geo/KYC).
+    pub fn set_compliance_config(
+        env: Env,
+        admin: Address,
+        config: crate::compliance_mode::ComplianceConfig,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_config(&env, admin, config)
+    }
+
+    /// Return the current compliance mode config.
+    pub fn get_compliance_config(env: Env) -> crate::compliance_mode::ComplianceConfig {
+        crate::compliance_mode::ComplianceMode::get_config(&env)
+    }
+
+    /// Set the geographic country code for a project (compliance geo rule).
+    pub fn set_project_geo(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        country_code: String,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_project_geo(&env, caller, project_id, country_code)
+    }
+
+    /// Admin-only KYC/AML hook: approve or revoke a user.
+    pub fn set_kyc_approved(
+        env: Env,
+        admin: Address,
+        user: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_kyc_approved(&env, admin, user, approved)
+    }
+
+    /// Return the compliance audit log.
+    pub fn get_compliance_audit_log(
+        env: Env,
+    ) -> Vec<crate::compliance_mode::ComplianceAuditEntry> {
+        crate::compliance_mode::ComplianceMode::get_audit_log(&env)
+    }
+
+    // ── #941: Benchmark Suite & Regression Alerts ────────────────────────
+
+    /// Record a benchmark sample for a critical function (admin-only).
+    pub fn record_benchmark(
+        env: Env,
+        caller: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::record(&env, caller, name, storage_reads, exec_units)
+    }
+
+    /// Admin-only: pin the baseline for a benchmark.
+    pub fn set_benchmark_baseline(
+        env: Env,
+        admin: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::set_baseline(&env, admin, name, storage_reads, exec_units)
+    }
+
+    /// Compare latest samples vs baselines; returns regressions over 10%.
+    pub fn check_benchmark_regressions(
+        env: Env,
+    ) -> Vec<crate::benchmark_suite::BenchmarkRegression> {
+        crate::benchmark_suite::BenchmarkSuite::check_regressions(&env)
+    }
+
     // ── #757: Security Contact Email Verification ─────────────────────────
 
     /// Initiate a challenge-response verification for a project's security
@@ -4161,7 +5134,7 @@ impl DongleContract {
     }
 
     /// Admin: configure the health score weights and update frequency.
-    /// `rating_weight + activity_weight + verification_weight` must equal 100.
+    /// `rating_weight + activity_weight + verification_weight + engagement_weight` must equal 100.
     pub fn set_health_score_config(
         env: Env,
         admin: Address,
@@ -4615,111 +5588,60 @@ impl DongleContract {
         crate::project_controls::ProjectControls::delete_quarantine(&env, admin, project_id)
     }
 
-    // ── Mutual project recommendations (issue #948) ──────────────────────────
+    // --- Community bounties (#950) ---
 
-    /// Record a mutual recommendation from `recommender_id` to `target_id`
-    /// with an off-chain reason document `reason_cid`. Rejects
-    /// self-recommendations and duplicates, and emits `ProjectRecommended`.
-    pub fn recommend_project(
+    /// Post a bounty for a project. Only the project owner may post.
+    pub fn post_bounty(
         env: Env,
-        recommender_id: u64,
-        target_id: u64,
-        reason_cid: String,
-    ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::mutual_recommendation::MutualRecommendationRegistry::recommend_project(
-            &env,
-            recommender_id,
-            target_id,
-            reason_cid,
-        )
-    }
-
-    /// Recommendation counter for the project display: number of mutual
-    /// recommendations received by `target_id`.
-    pub fn get_mutual_recommendation_count(env: Env, target_id: u64) -> u32 {
-        crate::mutual_recommendation::MutualRecommendationRegistry::get_recommendation_count(
-            &env, target_id,
-        )
-    }
-
-    /// Filter mutual recommendations by the target project's category
-    /// (oldest-first, paginated).
-    pub fn list_recommendations_by_category(
-        env: Env,
-        category: String,
-        start_index: u32,
-        limit: u32,
-    ) -> Vec<crate::types::ProjectRecommendation> {
-        crate::mutual_recommendation::MutualRecommendationRegistry::list_by_category(
-            &env,
-            category,
-            start_index,
-            limit,
-        )
-    }
-
-    // ── Grant / funding announcements (issue #949) ───────────────────────────
-
-    /// Post a grant/funding opportunity for `project_id`. Emits
-    /// `GrantOpportunityPosted`.
-    pub fn post_grant_opportunity(
-        env: Env,
-        poster: Address,
         project_id: u64,
+        owner: Address,
         title: String,
         amount: u128,
         deadline: u64,
-        criteria: String,
+        acceptance_criteria: String,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::grant_registry::GrantRegistry::post_grant_opportunity(
+        crate::bounty_registry::BountyRegistry::post_bounty(
             &env,
-            poster,
             project_id,
+            owner,
             title,
             amount,
             deadline,
-            criteria,
+            acceptance_criteria,
         )
     }
 
-    /// Return all grants posted by any of `project_ids`.
-    pub fn get_grants_for_projects(
+    /// Claim an open bounty with a work CID.
+    pub fn claim_bounty(
         env: Env,
-        project_ids: Vec<u64>,
-    ) -> Vec<crate::types::Grant> {
-        crate::grant_registry::GrantRegistry::get_grants_for_projects(&env, project_ids)
-    }
-
-    /// Apply for a grant before its deadline.
-    pub fn apply_for_grant(
-        env: Env,
-        applicant: Address,
-        grant_id: u64,
+        bounty_id: u64,
+        claimant: Address,
+        work_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::grant_registry::GrantRegistry::apply_for_grant(&env, applicant, grant_id)
+        crate::bounty_registry::BountyRegistry::claim_bounty(&env, bounty_id, claimant, work_cid)
     }
 
-    /// Record the winning applicant (project owner only).
-    pub fn select_grant_winner(
+    /// Owner approves a claimed bounty and records payout history.
+    pub fn approve_bounty(
         env: Env,
-        caller: Address,
-        grant_id: u64,
-        winner: Address,
+        bounty_id: u64,
+        owner: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
-        crate::grant_registry::GrantRegistry::select_grant_winner(&env, caller, grant_id, winner)
+        crate::bounty_registry::BountyRegistry::approve_bounty(&env, bounty_id, owner)
     }
 
-    /// Tracked applications for a grant.
-    pub fn get_grant_applications(env: Env, grant_id: u64) -> Vec<Address> {
-        crate::grant_registry::GrantRegistry::get_grant_applications(&env, grant_id)
+    /// Get a bounty by id.
+    pub fn get_bounty(env: Env, bounty_id: u64) -> Option<crate::types::Bounty> {
+        crate::bounty_registry::BountyRegistry::get_bounty(&env, bounty_id)
     }
 
-    /// Tracked winner for a grant, if selected.
-    pub fn get_grant_winner(env: Env, grant_id: u64) -> Option<Address> {
-        crate::grant_registry::GrantRegistry::get_grant_winner(&env, grant_id)
+    /// List bounty ids for a project and payout history for a bounty.
+    pub fn list_project_bounties(env: Env, project_id: u64) -> Vec<u64> {
+        crate::bounty_registry::BountyRegistry::list_project_bounties(&env, project_id)
+    }
+
+    /// Payout history for a bounty.
+    pub fn bounty_payout_history(env: Env, bounty_id: u64) -> Vec<crate::types::BountyPayout> {
+        crate::bounty_registry::BountyRegistry::payout_history(&env, bounty_id)
     }
 }

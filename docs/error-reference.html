@@ -1,0 +1,146 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Dongle Error Reference</title>
+<style>body{font-family:sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem}input{width:100%;padding:.5rem;font-size:1rem}table{width:100%;border-collapse:collapse;margin-top:1rem}td,th{border:1px solid #ccc;padding:.4rem;text-align:left}</style></head>
+<body><h1>Dongle Error Reference</h1><p>Searchable reference for all contract error codes. See ERROR_CATALOG.md for full guides.</p>
+<input id="q" type="search" placeholder="Search by code or name..." oninput="filter()">
+<table><thead><tr><th>Code</th><th>Error</th><th>Summary</th></tr></thead><tbody id="rows"><tr><td>1</td><td>AlreadyInitialized</td><td>Contract has already been initialized</td></tr>
+<tr><td>2</td><td>Unauthorized</td><td>Unauthorized access - caller is not permitted</td></tr>
+<tr><td>3</td><td>ProjectNotFound</td><td>Project not found</td></tr>
+<tr><td>4</td><td>InvalidRating</td><td>Invalid rating - must be between 1 and 5</td></tr>
+<tr><td>5</td><td>ReviewNotFound</td><td>Review not found</td></tr>
+<tr><td>6</td><td>DuplicateReview</td><td>Duplicate review submission for same project and reviewer</td></tr>
+<tr><td>7</td><td>NotReviewOwner</td><td>Caller is not the owner of the targeted review</td></tr>
+<tr><td>8</td><td>VerificationNotFound</td><td>Verification record not found</td></tr>
+<tr><td>9</td><td>InvalidStatusTransition</td><td>Invalid verification status transition</td></tr>
+<tr><td>10</td><td>AdminOnly</td><td>Only admin can perform this action</td></tr>
+<tr><td>11</td><td>FeeConfigNotSet</td><td>Fee configuration not set</td></tr>
+<tr><td>12</td><td>TreasuryNotSet</td><td>Treasury address not set</td></tr>
+<tr><td>13</td><td>InsufficientFee</td><td>Insufficient fee paid</td></tr>
+<tr><td>14</td><td>InvalidProjectData</td><td>Invalid project data - missing required fields</td></tr>
+<tr><td>15</td><td>ProjectNameTooLong</td><td>Project name too long</td></tr>
+<tr><td>16</td><td>InvalidProjectNameFormat</td><td>Invalid project name format</td></tr>
+<tr><td>17</td><td>CannotRemoveLastAdmin</td><td>Cannot remove last admin</td></tr>
+<tr><td>18</td><td>AdminNotFound</td><td>Admin not found</td></tr>
+<tr><td>19</td><td>InvalidProjectName</td><td>Invalid project name - empty or whitespace only</td></tr>
+<tr><td>20</td><td>InvalidProjectDescription</td><td>Invalid project description - empty or whitespace only</td></tr>
+<tr><td>21</td><td>InvalidProjectCategory</td><td>Invalid project category - empty or whitespace only</td></tr>
+<tr><td>22</td><td>ProjectDescriptionTooLong</td><td>Project description too long</td></tr>
+<tr><td>23</td><td>InvalidProjectDescriptionFormat</td><td>Project description contains invalid characters</td></tr>
+<tr><td>24</td><td>MaxProjectsExceeded</td><td>Maximum number of projects exceeded</td></tr>
+<tr><td>25</td><td>InvalidProjectWebsite</td><td>Invalid project website</td></tr>
+<tr><td>26</td><td>InvalidProjectLogoCid</td><td>Invalid project logo CID</td></tr>
+<tr><td>27</td><td>InvalidProjectMetadataCid</td><td>Invalid project metadata CID</td></tr>
+<tr><td>28</td><td>ProjectCategoryTooLong</td><td>Project category too long</td></tr>
+<tr><td>29</td><td>ProjectWebsiteTooLong</td><td>Project website too long</td></tr>
+<tr><td>30</td><td>VerificationNotRevocable</td><td>Project is not in a revocable state (must be Verified)</td></tr>
+<tr><td>31</td><td>TransferNotFound</td><td>No pending ownership transfer found for this project</td></tr>
+<tr><td>32</td><td>NotPendingTransferRecipient</td><td>Caller is not the designated recipient of the pending transfer</td></tr>
+<tr><td>33</td><td>VerificationExpired</td><td>Verification has expired and is no longer active</td></tr>
+<tr><td>34</td><td>ProjectAlreadyExists</td><td>Project with this name or slug already exists</td></tr>
+<tr><td>35</td><td>InvalidCid</td><td>Invalid CID format</td></tr>
+<tr><td>36</td><td>InvalidInput</td><td>Invalid input provided</td></tr>
+<tr><td>37</td><td>InvalidProjectSlug</td><td>Invalid project slug</td></tr>
+<tr><td>38</td><td>InvalidStatus</td><td>Invalid status for the requested operation</td></tr>
+<tr><td>39</td><td>AlreadyArchived</td><td>Project is already archived</td></tr>
+<tr><td>40</td><td>ProjectNotArchived</td><td>Project is not archived</td></tr>
+<tr><td>41</td><td>ProjectTooYoung</td><td>Project is too young for this operation</td></tr>
+<tr><td>42</td><td>VerifiedFieldFrozen</td><td>Verified field is frozen and cannot be modified</td></tr>
+<tr><td>43</td><td>ReservedName</td><td>Project name is reserved</td></tr>
+<tr><td>44</td><td>DuplicateProjectName</td><td>Duplicate project name</td></tr>
+<tr><td>45</td><td>CannotLinkToSelf</td><td>Cannot link a project to itself</td></tr>
+<tr><td>46</td><td>AlreadyLinked</td><td>Projects are already linked</td></tr>
+<tr><td>47</td><td>AlreadyFollowing</td><td>Already following this project</td></tr>
+<tr><td>48</td><td>NotFollowing</td><td>Not following this project</td></tr>
+<tr><td>49</td><td>AlreadyReported</td><td>Review has already been reported</td></tr>
+<tr><td>50</td><td>ReviewAlreadyHidden</td><td>Review is already hidden</td></tr>
+<tr><td>51</td><td>ReviewNotHidden</td><td>Review is not hidden</td></tr>
+<tr><td>52</td><td>CollectionNotFound</td><td>Collection not found</td></tr>
+<tr><td>53</td><td>CollectionExists</td><td>Collection already exists</td></tr>
+<tr><td>54</td><td>AlreadyInCollection</td><td>Project is already in the collection</td></tr>
+<tr><td>55</td><td>ReviewsDisabled</td><td>Reviews are disabled for this project</td></tr>
+<tr><td>56</td><td>OwnerCannotReview</td><td>Project owner cannot review their own project</td></tr>
+<tr><td>57</td><td>InvalidNameFormat</td><td>Invalid name format</td></tr>
+<tr><td>58</td><td>ReviewerNotEligible</td><td>Reviewer is not eligible</td></tr>
+<tr><td>59</td><td>ReviewFeeRequired</td><td>Review fee is required</td></tr>
+<tr><td>60</td><td>CollectionFull</td><td>Collection is full</td></tr>
+<tr><td>61</td><td>ContractPaused</td><td>Contract is paused</td></tr>
+<tr><td>62</td><td>AlreadyBookmarked</td><td>Project is already bookmarked</td></tr>
+<tr><td>63</td><td>AlreadyEndorsed</td><td>Project is already endorsed</td></tr>
+<tr><td>64</td><td>NotBookmarked</td><td>Project is not bookmarked</td></tr>
+<tr><td>65</td><td>NotEndorsed</td><td>Project is not endorsed</td></tr>
+<tr><td>66</td><td>TimelockNotExpired</td><td>Timelock action has not expired yet</td></tr>
+<tr><td>67</td><td>PayloadHashMismatch</td><td>Stored proposal payload does not match its recorded hash</td></tr>
+<tr><td>68</td><td>InvalidTags</td><td>Tag list is invalid (empty, over-length, too many, bad charset, or duplicates)</td></tr>
+<tr><td>69</td><td>ProposalExpired</td><td>Admin proposal has passed its expiry time and can no longer be executed</td></tr>
+<tr><td>70</td><td>NoRefundAvailable</td><td>No refund is recorded for the given project.</td></tr>
+<tr><td>71</td><td>RefundAlreadyClaimed</td><td>The recorded refund has already been paid out.</td></tr>
+<tr><td>72</td><td>ArithmeticOverflow</td><td>A checked arithmetic operation overflowed.</td></tr>
+<tr><td>73</td><td>NotInCollection</td><td>Project is not in the collection</td></tr>
+<tr><td>74</td><td>ThresholdDowngradeRequiresSupermajority</td><td>A SetThreshold proposal that would lower the threshold must be approved by strictly more admins than the proposed new threshold (supermajority rule). This prevents the multi-sig quorum from being silently dismantled by exactly the number of colluding admins it is meant to require.</td></tr>
+<tr><td>75</td><td>CircularDependency</td><td>Adding this dependency would create a circular reference in the transitive project-dependency graph (project A depends on B which depends back on A, directly or indirectly).</td></tr>
+<tr><td>76</td><td>DependencyDepthExceeded</td><td>Adding this dependency would make the transitive project-dependency chain deeper than `MAX_DEPENDENCY_DEPTH` levels.</td></tr>
+<tr><td>77</td><td>MultiSigRequired</td><td>Multi-signature admin approval is required for this operation.</td></tr>
+<tr><td>78</td><td>FeePaymentExpired</td><td>The stored fee payment has expired and is no longer valid.</td></tr>
+<tr><td>79</td><td>LinkedProjectNotFound</td><td>The linked project referenced by this operation no longer exists.</td></tr>
+<tr><td>80</td><td>AlreadyMaintainerAdded</td><td>The maintainer is already on the project maintainer list.</td></tr>
+<tr><td>81</td><td>DisputeNotPending</td><td>The dispute is not in a pending state and cannot be resolved.</td></tr>
+<tr><td>82</td><td>TooManyEvidenceLinks</td><td>Too many evidence links supplied (max MAX_EVIDENCE_LINKS_PER_REVIEW).</td></tr>
+<tr><td>83</td><td>InvalidEvidenceLink</td><td>Evidence link URL is empty or has an invalid scheme.</td></tr>
+<tr><td>84</td><td>EvidenceLinkTooLong</td><td>Evidence link URL exceeds MAX_EVIDENCE_LINK_URL_LEN bytes.</td></tr>
+<tr><td>85</td><td>ReviewArchived</td><td>The requested review has been archived and is no longer in primary storage. Use `get_archived_review` to retrieve the compact archived record.</td></tr>
+<tr><td>86</td><td>ReviewNotArchived</td><td>The requested review has not been archived; the operation requires an archived review (e.g., `set_archived_review_arweave_tx`).</td></tr>
+<tr><td>87</td><td>AppealLimitExceeded</td><td>Maximum number of appeals for the current rejection has been reached. The project must follow the manual review process after the cap is hit.</td></tr>
+<tr><td>88</td><td>AppealNotFound</td><td>The requested verification appeal does not exist or is no longer valid.</td></tr>
+<tr><td>89</td><td>AppealAlreadyReviewed</td><td>The verification appeal has already been reviewed and cannot be changed.</td></tr>
+<tr><td>90</td><td>AdminLacksExpertise</td><td>Admin lacks the required expertise for this verification assignment.</td></tr>
+<tr><td>91</td><td>AssignmentNotFound</td><td>Verification assignment record not found.</td></tr>
+<tr><td>92</td><td>InvalidAssignmentStatus</td><td>Invalid assignment status for the requested transition.</td></tr>
+<tr><td>93</td><td>SlaNotBreached</td><td>SLA has not been breached yet; cannot escalate without cause.</td></tr>
+<tr><td>94</td><td>NotAssignedAdmin</td><td>Caller is not the assigned admin for this verification.</td></tr>
+<tr><td>95</td><td>NoActiveAssignment</td><td>No active assignment exists for this verification request.</td></tr>
+<tr><td>96</td><td>ParameterOutOfRange</td><td>A governance parameter value was set outside its configured `[min, max]` range (issue #740). Use `get_param_range` to read the bounds currently in force.</td></tr>
+<tr><td>97</td><td>InvalidParamRange</td><td>A governance parameter range was supplied with `min > max`, or the range would leave the parameter's current value invalid (issue #740).</td></tr>
+<tr><td>98</td><td>RecoveryCaseNotFound</td><td>The referenced project-ownership recovery case does not exist (issue #747).</td></tr>
+<tr><td>99</td><td>RecoveryNotActive</td><td>The ownership-recovery case is not in a state that allows this operation — e.g. voting before the nomination reached `RECOVERY_REQUIRED_ENDORSEMENTS`, or a second vote from the same address (issue #747).</td></tr>
+<tr><td>100</td><td>BulkImportValidationFailed</td><td>A bulk import was rejected because at least one entry failed validation. Nothing was written (issue #742); the `validate_bulk_import` dry run reports the individual failures.</td></tr>
+<tr><td>101</td><td>BulkImportTooLarge</td><td>A bulk import exceeded `MAX_BULK_IMPORT_PROJECTS` entries (issue #742). Split the payload across several calls.</td></tr>
+<tr><td>102</td><td>FolderNotFound</td><td>Bookmark folder not found.</td></tr>
+<tr><td>103</td><td>FolderAlreadyExists</td><td>A folder with this name already exists for the user.</td></tr>
+<tr><td>104</td><td>MaxFoldersExceeded</td><td>The maximum number of bookmark folders per user has been reached.</td></tr>
+<tr><td>105</td><td>FolderDepthExceeded</td><td>Nested folder depth limit exceeded.</td></tr>
+<tr><td>106</td><td>SmartFolderNotFound</td><td>Smart folder not found.</td></tr>
+<tr><td>107</td><td>MaxSmartFoldersExceeded</td><td>The maximum number of smart folders per user has been reached.</td></tr>
+<tr><td>108</td><td>RecommendationNotFound</td><td>Recommendation referenced by the operation does not exist.</td></tr>
+<tr><td>109</td><td>RecommendationFeedbackAlreadyGiven</td><td>User has already submitted thumbs-up / thumbs-down feedback for this recommendation. Feedback cannot be rewritten (see issue #820 — feedback is append-only to preserve an auditable paper-trail for recommendation improvement).</td></tr>
+<tr><td>110</td><td>RecommendationLabelTooLong</td><td>Recommendation label string exceeds the configured length limit.</td></tr>
+<tr><td>111</td><td>RecommendationNoImpression</td><td>Engagement recording rejected because impressions are required before clicks. (Prevents CTR inflation via click-only spamming.)</td></tr>
+<tr><td>112</td><td>RecommendationInvalidContext</td><td>The combination of audience + reference project specified for the recommendation is invalid (e.g. Similar recs require a reference project).</td></tr>
+<tr><td>113</td><td>RecommendationAudienceMismatch</td><td>Attempted to record feedback from a user who does not match the recommendation's restricted audience (when audience.is_some).</td></tr>
+<tr><td>114</td><td>CommunityColNotFound</td><td>Community collection referenced by the operation does not exist.</td></tr>
+<tr><td>115</td><td>CommunityColNameExists</td><td>Community-collection name already in use by another community collection.</td></tr>
+<tr><td>116</td><td>CommunityColInvalidMetadata</td><td>Community-collection name or description violates configured length limits.</td></tr>
+<tr><td>117</td><td>CommunityColFull</td><td>Community-collection project-membership limit reached; cannot add more.</td></tr>
+<tr><td>118</td><td>CommunityColNotCurator</td><td>Operation restricted to the creator or an active curator but caller is neither.</td></tr>
+<tr><td>119</td><td>CommunityColVoteAlreadyCast</td><td>Voter has already cast a vote for this project in this collection. Voting is append-only per voter per project per collection.</td></tr>
+<tr><td>120</td><td>CommunityColAlreadyIncluded</td><td>Project is already explicitly included in the community collection.</td></tr>
+<tr><td>121</td><td>CommunityColNotIncluded</td><td>Project is not in the community collection (for removal operations).</td></tr>
+<tr><td>122</td><td>CommunityColCuratorsEmpty</td><td>A curator set can never be empty — removing the last curator (or the creator) would strand the collection.</td></tr>
+<tr><td>123</td><td>CommunityColCreatorIsImmutable</td><td>Creator cannot be removed from the curator set — creator status is permanent.</td></tr>
+<tr><td>124</td><td>CommunityColRevenueShareInvalid</td><td>Revenue share cannot exceed 10_000 bps; creator share + per-curator allocation sum must be ≤ 10_000 bps.</td></tr>
+<tr><td>125</td><td>CommunityColThresholdInvalid</td><td>Vote thresholds must both be zero (disabled) or both be > zero (to keep the approval/disapproval symmetry obvious and avoid accidental open-gate configurations).</td></tr>
+<tr><td>126</td><td>CommunityColIsTemplate</td><td>Template collections cannot accept votes, revenue attribution, or member edits — clone them first to produce a working collection.</td></tr>
+<tr><td>127</td><td>CommunityColTemplateUnknown</td><td>The referenced pre-defined template id is not in the `CommunityCollectionTemplateId` enum.</td></tr>
+<tr><td>128</td><td>CommunityColFeaturedCapExceeded</td><td>Admin flagged this community collection as featured but a global cap on featured community collections was reached.</td></tr>
+<tr><td>129</td><td>SocialAnalyticsProjectNotFound</td><td>Social analytics: target project passed to the analytics endpoint does not exist in the registry.</td></tr>
+<tr><td>130</td><td>SocialAnalyticsInvalidWindow</td><td>Social analytics: caller passed `window_start_day > window_end_day`.</td></tr>
+<tr><td>131</td><td>SocialAnalyticsCheckpointCapExceeded</td><td>Social analytics: daily-checkpoint storage has a cap per project so that the per-project index cannot grow indefinitely.</td></tr>
+<tr><td>132</td><td>SocialAnalyticsNoPeers</td><td>Social analytics: peer-comparison set requires at least 1 other project in the same category to run a meaningful comparison.</td></tr>
+<tr><td>133</td><td>SocialAnalyticsNoCheckpoints</td><td>Social analytics: the export/report endpoint requires at least one checkpoint to produce a "growth over time" report. Callers may run the checkpoint endpoint first.</td></tr>
+<tr><td>134</td><td>InvalidLanguageCode</td><td>Invalid ISO 639-1 language code format (must be exactly 2 lowercase letters).</td></tr>
+<tr><td>135</td><td>VetoLimitExceeded</td><td>Admin has exceeded the monthly veto (rejection) limit (#730).</td></tr>
+<tr><td>136</td><td>CommentLocked</td><td>Comment on a proposal is not allowed because voting has already started.</td></tr>
+<tr><td>137</td><td>EmergencyRecoveryNotFound</td><td>Emergency recovery request not found.</td></tr>
+<tr><td>138</td><td>EmergencyRecoveryNotPending</td><td>Emergency recovery request is not in the pending state.</td></tr>
+<tr><td>139</td><td>ThresholdRequiresUnanimousApproval</td><td>Threshold increase requires all admins to approve.</td></tr>
+<tr><td>140</td><td>RateLimitExceeded</td><td>Caller exceeded the configured per-address rate limit for this operation (issue #945). Wait for the window to reset or ask an admin for a trusted-address override.</td></tr></tbody></table>
+<script>function filter(){const q=document.getElementById('q').value.toLowerCase();for(const r of document.getElementById('rows').rows){r.style.display=r.innerText.toLowerCase().includes(q)?'':'none';}}</script>
+</body></html>
