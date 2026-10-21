@@ -36,7 +36,7 @@ mod project_registry;
 pub mod project_controls;
 mod project_operation_limiter;
 pub mod rating_calculator;
-// mod recommendation_registry;
+mod recommendation_registry;
 mod report_registry;
 mod reward_registry;
 pub mod review_registry;
@@ -142,6 +142,15 @@ use crate::types::{
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
     // Custom verification requirements
     VerificationRequirementAudit, ProjectVerificationRequirements,
+    // #915 bookmark auto-archive
+    ArchivedBookmarkRecord, BookmarkConfig, BookmarkExpirationPolicy,
+    // #911 feature recommendations
+    RecommendationABAnalytics, RecommendationABConfig, RecommendationOptions,
+    RecommendationStrategy, RecommendationVariant,
+    // #910 complex query filters
+    FilterLogic, ProjectFilterCriteria, ProjectFilterSortBy, ProjectQueryFilter, ProjectQueryResult,
+    // #908 collection immutable snapshots
+    CollectionSnapshot, CollectionSnapshotComparison,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};

@@ -9,8 +9,9 @@ use crate::errors::ContractError;
 use crate::events::{
     publish_collection_created_event, publish_collection_deleted_event,
     publish_collection_share_link_generated_event, publish_collection_share_link_revoked_event,
-    publish_collection_updated_event, publish_collection_visibility_toggled_event,
-    publish_project_added_to_collection_event, publish_project_removed_from_collection_event,
+    publish_collection_snapshot_created_event, publish_collection_updated_event,
+    publish_collection_visibility_toggled_event, publish_project_added_to_collection_event,
+    publish_project_removed_from_collection_event,
 };
 use crate::pagination::paginate;
 use crate::storage_keys::{CollectionHierarchyKey, CollectionVisibilityKey, StorageKey};
@@ -1229,4 +1230,197 @@ impl CollectionRegistry {
             .get(&StorageKey::NextCollectionId)
             .unwrap_or(1u64)
     }
+
+    // ── Collection Immutable Snapshots (#908) ──────────────────────────────
+
+    /// Create an immutable snapshot of the collection state with an IPFS CID.
+    pub fn snapshot_collection(
+        env: &Env,
+        caller: Address,
+        collection_id: u64,
+        ipfs_cid: Option<String>,
+    ) -> Result<CollectionSnapshot, ContractError> {
+        caller.require_auth();
+
+        let collection = Self::require_collection(env, collection_id)?;
+
+        if collection.owner != caller && !AdminManager::is_admin(env, &caller) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let cid = match ipfs_cid {
+            Some(ref c) => {
+                Utils::validate_metadata_cid(c)?;
+                c.clone()
+            }
+            None => {
+                // Canonical default CIDv1 representation for on-chain generated snapshot
+                String::from_str(env, "bafybeigdyrzt5sfp7udm7ahu76uh7y26nf3efuylqabf3oclgtqy55fbkd")
+            }
+        };
+
+        let project_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CollectionProjectIds(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let next_ver: u32 = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::NextSnapshotVersion(collection_id))
+            .unwrap_or(1u32);
+
+        let now = env.ledger().timestamp();
+        let snapshot = CollectionSnapshot {
+            collection_id,
+            version: next_ver,
+            ipfs_cid: cid.clone(),
+            project_count: project_ids.len(),
+            project_ids,
+            created_at: now,
+            created_by: caller.clone(),
+        };
+
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::Snapshot(collection_id, next_ver),
+            &snapshot,
+        );
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::LatestSnapshotVersion(collection_id),
+            &next_ver,
+        );
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::NextSnapshotVersion(collection_id),
+            &next_ver.saturating_add(1),
+        );
+
+        let mut versions: Vec<u32> = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::CollectionSnapshotVersions(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+        versions.push_back(next_ver);
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::CollectionSnapshotVersions(collection_id),
+            &versions,
+        );
+
+        publish_collection_snapshot_created_event(
+            env,
+            collection_id,
+            next_ver,
+            cid,
+            caller,
+            now,
+        );
+
+        Ok(snapshot)
+    }
+
+    /// Retrieve a specific version snapshot of a collection.
+    pub fn get_collection_snapshot(
+        env: &Env,
+        collection_id: u64,
+        version: u32,
+    ) -> Option<CollectionSnapshot> {
+        env.storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::Snapshot(collection_id, version))
+    }
+
+    /// Retrieve the most recent snapshot of a collection.
+    pub fn get_latest_collection_snapshot(
+        env: &Env,
+        collection_id: u64,
+    ) -> Option<CollectionSnapshot> {
+        let latest_ver: u32 = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::LatestSnapshotVersion(collection_id))?;
+        Self::get_collection_snapshot(env, collection_id, latest_ver)
+    }
+
+    /// List all snapshots for a collection with pagination.
+    pub fn list_collection_snapshots(
+        env: &Env,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CollectionSnapshot> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let versions: Vec<u32> = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::CollectionSnapshotVersions(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let len = versions.len();
+        if start_index >= len {
+            return Vec::new(env);
+        }
+
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
+        let mut list = Vec::new(env);
+        for i in start_index..end {
+            if let Some(ver) = versions.get(i) {
+                if let Some(snap) = Self::get_collection_snapshot(env, collection_id, ver) {
+                    list.push_back(snap);
+                }
+            }
+        }
+        list
+    }
+
+    /// Compare two snapshots of a collection to observe added, removed, and unchanged projects.
+    pub fn compare_collection_snapshots(
+        env: &Env,
+        collection_id: u64,
+        version_a: u32,
+        version_b: u32,
+    ) -> Result<CollectionSnapshotComparison, ContractError> {
+        let snap_a = Self::get_collection_snapshot(env, collection_id, version_a)
+            .ok_or(ContractError::SnapshotNotFound)?;
+        let snap_b = Self::get_collection_snapshot(env, collection_id, version_b)
+            .ok_or(ContractError::SnapshotNotFound)?;
+
+        let mut added_projects = Vec::new(env);
+        let mut removed_projects = Vec::new(env);
+        let mut unchanged_projects = Vec::new(env);
+
+        for i in 0..snap_b.project_ids.len() {
+            if let Some(pid) = snap_b.project_ids.get(i) {
+                if snap_a.project_ids.contains(pid) {
+                    unchanged_projects.push_back(pid);
+                } else {
+                    added_projects.push_back(pid);
+                }
+            }
+        }
+
+        for i in 0..snap_a.project_ids.len() {
+            if let Some(pid) = snap_a.project_ids.get(i) {
+                if !snap_b.project_ids.contains(pid) {
+                    removed_projects.push_back(pid);
+                }
+            }
+        }
+
+        Ok(CollectionSnapshotComparison {
+            collection_id,
+            version_a,
+            version_b,
+            cid_a: snap_a.ipfs_cid,
+            cid_b: snap_b.ipfs_cid,
+            added_projects,
+            removed_projects,
+            unchanged_projects,
+        })
+    }
 }
+

@@ -468,6 +468,18 @@ pub enum BookmarkKey {
     /// Per-user index: project_id → folder_id.  Lets `move_bookmark` find
     /// the current folder of a project without scanning all folder lists.
     BookmarkFolderIndex(Address, u64),
+    /// Global bookmark configuration (#915).
+    GlobalBookmarkConfig,
+    /// Per-user bookmark expiration policy (#915).
+    UserBookmarkPolicy(Address),
+    /// Per-bookmark expiration policy override: (user, project_id) (#915).
+    BookmarkExpirationPolicy(Address, u64),
+    /// Timestamp when project was bookmarked: (user, project_id) (#915).
+    BookmarkCreatedAt(Address, u64),
+    /// Archived bookmark project IDs for user (#915).
+    UserArchivedBookmarks(Address),
+    /// Archived bookmark details: (user, project_id) (#915).
+    ArchivedBookmarkDetails(Address, u64),
 }
 
 /// Storage keys for featured algorithm configuration, A/B testing, and metrics (#816).
@@ -710,6 +722,22 @@ pub enum RecommendationKey {
     /// Per-user impression tracking (recommendation_id, user) → bool, so we
     /// can enforce "impression before click" invariants and dedupe impressions.
     ImpressionSeen(u64, Address),
+    /// Active A/B test configuration (#749).
+    ABConfig,
+    /// Aggregate A/B analytics for Variant A (#749).
+    VariantAAnalytics,
+    /// Aggregate A/B analytics for Variant B (#749).
+    VariantBAnalytics,
+    /// Ordered list of recent project views for viewer (#749).
+    ViewHistory(Address),
+    /// Deduplication key for personalized recommendations: (viewer, source, candidate, algorithm).
+    PersonalizedRecommendation(Address, u64, u64, u32),
+    /// Click dedup tracking per viewer.
+    ClickSeen(u64, Address),
+    /// Conversion tracking per viewer.
+    Converted(u64, Address),
+    /// Total conversions recorded for a recommendation.
+    ConversionCount(u64),
 }
 /// Storage keys for community collections (issue #821). Held in its own enum to
 /// respect the 50-variant Soroban union cap (StorageKey = 50, ExtensionKey ≈ 50)
