@@ -9,6 +9,7 @@ mod admin_manager;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
+mod blacklist_registry;
 mod bookmark_registry;
 pub mod category_types;
 mod category_registry;
@@ -71,6 +72,7 @@ mod tests;
 
 use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
+use crate::blacklist_registry::BlacklistRegistry;
 use crate::changelog_registry::ChangelogRegistry;
 use crate::collection_registry::CollectionRegistry;
 use crate::config_registry::ConfigRegistry;
