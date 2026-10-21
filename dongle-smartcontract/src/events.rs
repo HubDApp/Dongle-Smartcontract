@@ -4660,3 +4660,256 @@ pub fn publish_reviews_moderated_event(
         },
     );
 }
+
+// ── Fee Extension Events ───────────────────────────────────────────────────────
+// Events for fee waivers, auto-refunds, fee receipts, and fee escrow.
+
+use crate::types::{FeeWaiverType, WaiverStatus, RefundTrigger, FeeDisputeResolution};
+
+// ── Fee Waiver Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverAppliedEvent {
+    pub project_id: u64,
+    pub applicant: Address,
+    pub waiver_type: FeeWaiverType,
+    pub proof_cid: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverDecidedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub status: WaiverStatus,
+    pub waiver_type: FeeWaiverType,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_waiver_applied_event(
+    env: &Env,
+    project_id: u64,
+    applicant: Address,
+    waiver_type: FeeWaiverType,
+    proof_cid: String,
+) {
+    let event_data = FeeWaiverAppliedEvent {
+        project_id,
+        applicant,
+        waiver_type,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("WAIVER"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_waiver_decided_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    status: WaiverStatus,
+    waiver_type: FeeWaiverType,
+) {
+    let event_data = FeeWaiverDecidedEvent {
+        project_id,
+        admin,
+        status,
+        waiver_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("WAIVCIDE"), project_id),
+        event_data,
+    );
+}
+
+// ── Auto-Refund Events ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundCreatedEvent {
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub trigger: RefundTrigger,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundClaimedEvent {
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub timestamp: u64,
+}
+
+pub fn publish_auto_refund_created_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+    trigger: RefundTrigger,
+) {
+    let event_data = AutoRefundCreatedEvent {
+        project_id,
+        payer,
+        amount,
+        trigger,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("AUTOREF"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_auto_refund_claimed_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+) {
+    let event_data = AutoRefundClaimedEvent {
+        project_id,
+        payer,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RFDCLM"), project_id),
+        event_data,
+    );
+}
+
+// ── Fee Receipt Events ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceiptIssuedEvent {
+    pub payment_id: u64,
+    pub project_id: u64,
+    pub payer: Address,
+    pub amount: u128,
+    pub operation: FeeOperation,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceiptSignedEvent {
+    pub payment_id: u64,
+    pub admin: Address,
+    pub receipt_cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_receipt_issued_event(
+    env: &Env,
+    payment_id: u64,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+    operation: FeeOperation,
+) {
+    let event_data = FeeReceiptIssuedEvent {
+        payment_id,
+        project_id,
+        payer,
+        amount,
+        operation,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RECEIPT"), payment_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_receipt_signed_event(
+    env: &Env,
+    payment_id: u64,
+    admin: Address,
+    receipt_cid: String,
+) {
+    let event_data = FeeReceiptSignedEvent {
+        payment_id,
+        admin,
+        receipt_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RCTSIGN"), payment_id),
+        event_data,
+    );
+}
+
+// ── Fee Escrow Events ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeEscrowCreatedEvent {
+    pub project_id: u64,
+    pub disputer: Address,
+    pub amount: u128,
+    pub dispute_reason: String,
+    pub locked_until: u64,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeEscrowReleasedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub amount: u128,
+    pub resolution: FeeDisputeResolution,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_escrow_created_event(
+    env: &Env,
+    project_id: u64,
+    disputer: Address,
+    amount: u128,
+    dispute_reason: String,
+    locked_until: u64,
+) {
+    let event_data = FeeEscrowCreatedEvent {
+        project_id,
+        disputer,
+        amount,
+        dispute_reason,
+        locked_until,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("ESCRW"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_escrow_released_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    amount: u128,
+    resolution: FeeDisputeResolution,
+) {
+    let event_data = FeeEscrowReleasedEvent {
+        project_id,
+        admin,
+        amount,
+        resolution,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("ESCRREL"), project_id),
+        event_data,
+    );
+}

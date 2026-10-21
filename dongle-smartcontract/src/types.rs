@@ -3640,3 +3640,181 @@ pub struct ReviewFlag {
     pub flagged_by: Address,
     pub flagged_at: u64,
 }
+
+// ── Fee Extensions ────────────────────────────────────────────────────────────
+// Types for fee waivers, auto-refunds, fee receipts, and fee escrow.
+
+/// Classification of why a fee waiver was granted.
+///
+/// Used by `apply_for_fee_waiver` and the admin grant path.
+/// `None` on a project means no waiver applies.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeeWaiverType {
+    /// No waiver — normal fee applies.
+    None,
+    /// Open-source project verified against GitHub/npm registries.
+    OpenSource,
+    /// Academic research project.
+    Academic,
+    /// Non-profit organisation.
+    Nonprofit,
+}
+
+/// Current approval state of a fee-waiver application.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WaiverStatus {
+    /// Application has been submitted and is awaiting admin review.
+    Pending,
+    /// Waiver was approved (either manually or auto-granted).
+    Approved,
+    /// Admin rejected the application.
+    Rejected,
+}
+
+/// On-chain record of a fee-waiver application for a project.
+///
+/// Stored under `FeeExtensionKey::ProjectFeeWaiver(project_id)`.
+/// Auto-granted when the submitted `proof_cid` matches a pre-approved
+/// proof or registry response.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWaiverRecord {
+    /// Project the waiver applies to.
+    pub project_id: u64,
+    /// Type of waiver requested / granted.
+    pub waiver_type: FeeWaiverType,
+    /// IPFS CID of the supporting proof document (registry export, org docs, …).
+    pub proof_cid: String,
+    /// Address that submitted the application (must be the project owner).
+    pub applicant: Address,
+    /// Current status of the application.
+    pub status: WaiverStatus,
+    /// Unix timestamp when the application was submitted.
+    pub applied_at: u64,
+    /// Unix timestamp when an admin approved or rejected the application.
+    /// Zero while still pending.
+    pub decided_at: u64,
+    /// Admin who decided (approved/rejected). `None` while pending.
+    pub decided_by: Option<Address>,
+}
+
+// ── Auto-refund types ─────────────────────────────────────────────────────────
+
+/// Lifecycle event that triggers an automatic refund.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RefundTrigger {
+    /// Project was deleted / permanently archived.
+    ProjectDeleted,
+    /// Verification request was rejected by an admin.
+    VerificationRejected,
+    /// Manually initiated by an admin or partial-refund endpoint.
+    Manual,
+}
+
+/// On-chain record of an auto-refund owed to a project owner.
+///
+/// Stored under `FeeExtensionKey::AutoRefundRecord(project_id)`.
+/// Created automatically when a lifecycle event triggers a refund,
+/// or by `request_partial_refund`. The payer settles the debt via
+/// `claim_auto_refund`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoRefundRecord {
+    /// Project the refund is associated with.
+    pub project_id: u64,
+    /// Event that triggered this refund.
+    pub trigger: RefundTrigger,
+    /// Free-form admin/system reason string.
+    pub reason: String,
+    /// Address owed the refund.
+    pub payer: Address,
+    /// Full refund amount (smallest token unit).
+    pub total_amount: u128,
+    /// Amount remaining to be paid out (supports partial payouts).
+    pub remaining_amount: u128,
+    /// Token the original fee was paid in. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Unix timestamp when this record was created.
+    pub created_at: u64,
+    /// Unix timestamp when the refund was fully settled. `None` while outstanding.
+    pub settled_at: Option<u64>,
+}
+
+// ── Fee receipt types ─────────────────────────────────────────────────────────
+
+/// Verifiable proof of a fee payment, suitable for accounting / tax export.
+///
+/// Stored under `FeeExtensionKey::FeeReceipt(payment_id)`.
+/// Also referenced by `FeeExtensionKey::ProjectFeeReceiptIds(project_id)`
+/// and `FeeExtensionKey::AddressFeeReceiptIds(address)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceipt {
+    /// Unique monotonically-increasing receipt identifier.
+    pub payment_id: u64,
+    /// Project the payment was made for (0 for registration fees).
+    pub project_id: u64,
+    /// Payer address.
+    pub payer: Address,
+    /// Amount paid in the smallest token unit.
+    pub amount: u128,
+    /// Token used for payment. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Operation this receipt covers.
+    pub operation: crate::events::FeeOperation,
+    /// Unix timestamp (seconds) of the payment.
+    pub paid_at: u64,
+    /// IPFS CID of the JSON receipt document (for audit trail).
+    /// Set by an off-chain indexer or admin after pinning the receipt.
+    pub receipt_cid: Option<String>,
+    /// Cryptographic signature from the fee manager on the receipt CID.
+    /// Populated by `sign_fee_receipt` (admin-only).
+    pub manager_signature: Option<String>,
+}
+
+// ── Fee escrow types ──────────────────────────────────────────────────────────
+
+/// Outcome of an admin resolving a fee dispute.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeeDisputeResolution {
+    /// Return the full escrowed amount to the payer.
+    FullRefund,
+    /// Transfer the full escrowed amount to treasury (fee stands).
+    FeeMaintained,
+    /// Partial refund: caller specifies an amount via the struct field.
+    PartialRefund(u128),
+}
+
+/// On-chain record of a fee locked in escrow while a dispute is active.
+///
+/// Stored under `FeeExtensionKey::EscrowedFee(project_id)`.
+/// Created by `dispute_fee` and resolved by `resolve_fee_dispute`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowedFee {
+    /// Project the disputed fee is associated with.
+    pub project_id: u64,
+    /// Amount locked in escrow (smallest token unit).
+    pub amount: u128,
+    /// Token the fee was paid in. `None` when fees were free.
+    pub token: Option<Address>,
+    /// Ledger timestamp after which an unresolved dispute may be auto-escalated.
+    pub locked_until: u64,
+    /// Free-form reason provided by the project owner when opening the dispute.
+    pub dispute_reason: String,
+    /// Address that opened the dispute (project owner).
+    pub disputer: Address,
+    /// Unix timestamp when the escrow was created.
+    pub created_at: u64,
+    /// Unix timestamp when the escrow was released (resolved or expired).
+    /// `None` while still active.
+    pub released_at: Option<u64>,
+    /// Resolution applied when closing the escrow. `None` while pending.
+    pub resolution: Option<FeeDisputeResolution>,
+    /// Admin who resolved the dispute. `None` while pending.
+    pub resolved_by: Option<Address>,
+}

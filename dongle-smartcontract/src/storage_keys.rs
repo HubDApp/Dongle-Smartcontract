@@ -799,6 +799,45 @@ pub enum SmartBookmarkKey {
     NextCollectionId,
 }
 
+/// Storage keys for fee waivers, receipts, auto-refunds, and escrow.
+///
+/// Introduced as a dedicated enum because `ExtensionKey` is at its
+/// 50-variant Soroban `#[contracttype]` hard cap. Follows the same
+/// pattern as `FeeHistoryKey`, `NotificationKey`, etc.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeExtensionKey {
+    // ── Fee waiver keys ──────────────────────────────────────────────────────
+    /// Fee waiver record for a project: project_id -> FeeWaiverRecord.
+    ProjectFeeWaiver(u64),
+    /// List of all project IDs that have a fee waiver (for admin dashboard).
+    FeeWaiverProjectIds,
+    /// Pre-approved IPFS proof CIDs for auto-grant: String -> FeeWaiverType.
+    PreApprovedWaiverProof(String),
+
+    // ── Auto-refund keys ─────────────────────────────────────────────────────
+    /// Auto-refund record by project: project_id -> AutoRefundRecord.
+    AutoRefundRecord(u64),
+    /// List of project IDs with pending auto-refunds.
+    PendingAutoRefundIds,
+
+    // ── Fee receipt keys ─────────────────────────────────────────────────────
+    /// Fee receipt by payment_id: payment_id -> FeeReceipt.
+    FeeReceipt(u64),
+    /// Next payment receipt ID counter.
+    NextFeeReceiptId,
+    /// List of receipt IDs for a project (verification fees).
+    ProjectFeeReceiptIds(u64),
+    /// List of receipt IDs for an address (registration fees).
+    AddressFeeReceiptIds(Address),
+
+    // ── Fee escrow keys ──────────────────────────────────────────────────────
+    /// Escrowed fee for a project: project_id -> EscrowedFee.
+    EscrowedFee(u64),
+    /// List of project IDs with active fee escrows.
+    ActiveEscrowProjectIds,
+}
+
 /// Storage keys for dynamic trending projects cache (#912).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
