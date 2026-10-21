@@ -88,6 +88,7 @@ use crate::trending_registry::TrendingRegistry;
 use crate::activity_feed_registry::ActivityFeedRegistry;
 use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
+use crate::notification_registry::NotificationRegistry;
 use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
@@ -387,18 +388,113 @@ impl DongleContract {
         EmergencyPause::is_paused(&env)
     }
 
+    // --- Fine-grained pause control (#902) ---
+
+    /// Pause the contract with a reason and an estimated resume time
+    /// (admin-only, issue #901).
+    ///
+    /// `reason` is a short operator note (1..=256 bytes) explaining why the
+    /// contract was halted.  `estimated_resume` is the expected resume time
+    /// as a Unix timestamp (`0` means "no estimate").
+    pub fn set_pause_with_reason(
+        env: Env,
+        admin: Address,
+        reason: String,
+        estimated_resume: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::set_pause_with_reason(&env, &admin, reason, estimated_resume)
+    }
+
+    /// Pause only a specific family of operations (admin-only, issue #902).
+    ///
+    /// `state` selects the blocked operation family
+    /// (`PausedVerification`, `PausedFees`, `PausedReviews`, `PausedAll`);
+    /// passing `Running` resumes the contract.
+    pub fn set_pause_state(
+        env: Env,
+        admin: Address,
+        state: PauseState,
+        reason: Option<String>,
+        estimated_resume: Option<u64>,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::set_pause_state(&env, &admin, state, reason, estimated_resume)
+    }
+
+    /// Current fine-grained pause state (issue #902).
+    pub fn get_pause_state(env: Env) -> PauseState {
+        EmergencyPause::get_pause_state(&env)
+    }
+
+    /// Operational status of the contract including the pause reason and the
+    /// estimated resume time (issue #901).
+    pub fn get_contract_status(env: Env) -> ContractStatus {
+        EmergencyPause::get_contract_status(&env)
+    }
+
+    // --- Staged recovery after an emergency pause (#904) ---
+
+    /// Resume the contract up to the given staged-recovery phase
+    /// (admin-only, issue #904).
+    ///
+    /// Phases: `0` = nothing resumed, `1` = read operations, `2` = reviews,
+    /// `3` = verification, `4` = fees (fully running again).
+    pub fn resume_operations_phase(
+        env: Env,
+        admin: Address,
+        phase: u32,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::resume_operations_phase(&env, &admin, phase)
+    }
+
+    /// Roll the staged recovery back by one phase (admin-only, issue #904).
+    pub fn rollback_operations_phase(env: Env, admin: Address) -> Result<(), ContractError> {
+        EmergencyPause::rollback_operations_phase(&env, &admin)
+    }
+
+    /// Current staged-recovery phase (issue #904).
+    pub fn get_resume_phase(env: Env) -> u32 {
+        EmergencyPause::get_resume_phase(&env)
+    }
+
+    /// Ordered history of staged-recovery phase transitions (issue #904).
+    pub fn get_phase_history(env: Env) -> Vec<u32> {
+        EmergencyPause::get_phase_history(&env)
+    }
+
+    // --- Pause notifications (#901) ---
+
+    /// Subscribe an address to emergency-pause notifications (issue #901).
+    pub fn subscribe_pause_notifications(env: Env, subscriber: Address) -> Result<(), ContractError> {
+        subscriber.require_auth();
+        NotificationRegistry::subscribe_pause_notifications(&env, subscriber)
+    }
+
+    /// Unsubscribe an address from emergency-pause notifications (issue #901).
+    pub fn unsubscribe_pause_notifications(
+        env: Env,
+        subscriber: Address,
+    ) -> Result<(), ContractError> {
+        subscriber.require_auth();
+        NotificationRegistry::unsubscribe_pause_notifications(&env, subscriber)
+    }
+
+    /// Addresses currently subscribed to emergency-pause notifications (#901).
+    pub fn list_pause_subscribers(env: Env) -> Vec<Address> {
+        NotificationRegistry::list_pause_subscribers(&env)
+    }
+
     // --- Project Registry ---
 
     pub fn register_project(
         env: Env,
         params: ProjectRegistrationParams,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::register_project(&env, params)
     }
 
     pub fn update_project(env: Env, params: ProjectUpdateParams) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::update_project(&env, params)
     }
 
@@ -435,7 +531,7 @@ impl DongleContract {
         caller: Address,
     ) -> Result<u64, ContractError> {
         caller.require_auth();
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         
         let params = crate::types::ProjectRegistrationParams {
             owner: caller.clone(),
@@ -500,7 +596,7 @@ impl DongleContract {
         caller: Address,
         status: ProjectLifecycleStatus,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_lifecycle_status(&env, project_id, caller, status)
     }
 
@@ -512,7 +608,7 @@ impl DongleContract {
         secondary_owner: Address,
         admin: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::merge_projects(
             &env,
             primary_project_id,
@@ -538,7 +634,7 @@ impl DongleContract {
         alternative_project_ids: Vec<u64>,
         redirect_project_id: Option<u64>,
     ) -> Result<ProjectSunsetPlan, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::schedule_project_sunset(
             &env,
             project_id,
@@ -571,7 +667,7 @@ impl DongleContract {
         caller: Address,
         contact: Option<String>,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::update_security_contact(&env, project_id, caller, contact)
     }
 
@@ -581,7 +677,7 @@ impl DongleContract {
         caller: Address,
         proof_cid: String,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::submit_security_contact_proof(&env, project_id, caller, proof_cid)
     }
 
@@ -598,7 +694,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::link_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -608,7 +704,7 @@ impl DongleContract {
         caller: Address,
         linked_project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::unlink_project(&env, project_id, caller, linked_project_id)
     }
 
@@ -655,7 +751,7 @@ impl DongleContract {
         version: u32,
         admin: Address,
     ) -> Result<Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::restore_project_version(&env, project_id, version, admin)
     }
 
@@ -673,7 +769,7 @@ impl DongleContract {
         caller: Address,
         new_owner: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::initiate_transfer(&env, project_id, caller, new_owner)
     }
 
@@ -682,7 +778,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::cancel_transfer(&env, project_id, caller)
     }
 
@@ -727,7 +823,7 @@ impl DongleContract {
         caller: Address,
         region: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_region(&env, project_id, caller, region)
     }
 
@@ -737,7 +833,7 @@ impl DongleContract {
         caller: Address,
         region: Option<ProjectRegionHierarchy>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::set_project_region_hierarchy(&env, project_id, caller, region)
     }
 
@@ -760,7 +856,7 @@ impl DongleContract {
         cid: String,
         media_type: crate::types::MediaType,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::add_media(&env, project_id, caller, cid, media_type)
     }
 
@@ -771,7 +867,7 @@ impl DongleContract {
         caller: Address,
         cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::remove_media(&env, project_id, caller, cid)
     }
 
@@ -980,7 +1076,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::archive_project(&env, project_id, caller)
     }
 
@@ -989,7 +1085,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
     }
 
@@ -1038,7 +1134,7 @@ impl DongleContract {
         admin: Address,
         config: crate::auto_archive_types::AutoArchiveConfig,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::set_config(&env, admin, config)
     }
 
@@ -1049,7 +1145,7 @@ impl DongleContract {
         keeper: Address,
         project_id: u64,
     ) -> Result<bool, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::notify_project(
             &env,
             keeper,
@@ -1071,7 +1167,7 @@ impl DongleContract {
         project_id: u64,
         delivered: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::record_notice_delivery(
             &env,
             admin,
@@ -1087,7 +1183,7 @@ impl DongleContract {
         start_project_id: u64,
         limit: u32,
     ) -> Result<crate::auto_archive_types::AutoArchiveBatchResult, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::archive_inactive_batch(
             &env,
             keeper,
@@ -1109,7 +1205,7 @@ impl DongleContract {
         project_id: u64,
         caller: Address,
     ) -> Result<crate::types::Project, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::auto_archive_registry::AutoArchiveRegistry::restore_archived_project(
             &env,
             project_id,
@@ -1138,7 +1234,7 @@ impl DongleContract {
         caller: Address,
         maintainer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ProjectRegistry::add_maintainer(&env, project_id, caller, maintainer)
     }
 
@@ -1184,7 +1280,7 @@ impl DongleContract {
         rating: u32,
         comment_cid: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::add_review(&env, project_id, reviewer, rating, comment_cid, None, None)
     }
 
@@ -1197,7 +1293,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::add_review_with_attribution(
             &env,
             project_id,
@@ -1249,7 +1345,7 @@ impl DongleContract {
         attribution: ReviewAttribution,
         reviewer_name: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Reviews)?;
         ReviewRegistry::submit_review_with_attribution(
             &env,
             project_id,
@@ -1625,7 +1721,7 @@ impl DongleContract {
         requester: Address,
         evidence_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Verification)?;
         VerificationRegistry::request_verification(&env, project_id, requester, evidence_cid)
     }
 
@@ -2302,7 +2398,7 @@ impl DongleContract {
         project_id: u64,
         token: Option<Address>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::Fees)?;
         FeeManager::pay_fee(&env, payer, project_id, token)
     }
 
@@ -2312,7 +2408,7 @@ impl DongleContract {
         project_id: u64,
     ) -> Result<(), ContractError> {
         if !AdminManager::is_admin(&env, &caller) {
-            EmergencyPause::require_not_paused(&env)?;
+            EmergencyPause::require_not_paused(&env, PauseOperation::Fees)?;
         }
         FeeManager::cancel_fee_payment(&env, caller, project_id)
     }
@@ -2664,7 +2760,7 @@ impl DongleContract {
         reporter: Address,
         reason_cid: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ReportRegistry::report_project(&env, project_id, reporter, reason_cid)
     }
 
@@ -2980,6 +3076,74 @@ impl DongleContract {
         is_public: bool,
     ) -> Result<u64, ContractError> {
         CollectionRegistry::create_user_collection(&env, creator, name, description, is_public)
+    }
+
+    // --- Collection hierarchy & nesting (#905) ---
+
+    /// Create a collection nested inside another collection (issue #905).
+    ///
+    /// The parent must exist and the hierarchy depth must stay within
+    /// `MAX_COLLECTION_DEPTH` (5 levels).
+    pub fn create_nested_collection(
+        env: Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+        parent_collection_id: u64,
+    ) -> Result<u64, ContractError> {
+        CollectionRegistry::create_nested_collection(
+            &env,
+            creator,
+            name,
+            description,
+            is_public,
+            parent_collection_id,
+        )
+    }
+
+    /// Move a collection under a new parent, or promote it to the top level
+    /// by passing `None` (owner or admin only, issue #905).
+    ///
+    /// Rejects assignments that would create a cycle or exceed the maximum
+    /// hierarchy depth.
+    pub fn set_collection_parent(
+        env: Env,
+        caller: Address,
+        collection_id: u64,
+        parent_collection_id: Option<u64>,
+    ) -> Result<(), ContractError> {
+        CollectionRegistry::set_collection_parent(&env, caller, collection_id, parent_collection_id)
+    }
+
+    /// Return the subtree rooted at `root_id` (issue #905).
+    ///
+    /// The nodes are returned breadth-first; each node carries its depth and
+    /// the identifiers of its direct children.
+    pub fn get_collection_tree(
+        env: Env,
+        root_id: u64,
+    ) -> Result<Vec<CollectionTreeNode>, ContractError> {
+        CollectionRegistry::get_collection_tree(&env, root_id)
+    }
+
+    /// Return the breadcrumb path of a collection: root first, the requested
+    /// collection last (issue #905).
+    pub fn get_collection_path(
+        env: Env,
+        collection_id: u64,
+    ) -> Result<Vec<Collection>, ContractError> {
+        CollectionRegistry::get_collection_path(&env, collection_id)
+    }
+
+    /// Direct children of a collection (issue #905).
+    pub fn get_collection_children(env: Env, collection_id: u64) -> Vec<u64> {
+        CollectionRegistry::get_collection_children(&env, collection_id)
+    }
+
+    /// Depth of a collection in the hierarchy (`1` = top level, issue #905).
+    pub fn get_collection_depth(env: Env, collection_id: u64) -> Result<u32, ContractError> {
+        CollectionRegistry::get_collection_depth(&env, collection_id)
     }
 
     /// Toggle collection visibility between public and private (owner or admin only).
@@ -3384,7 +3548,7 @@ impl DongleContract {
         version: Option<String>,
         changelog_cid: Option<String>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ChangelogRegistry::add_changelog_entry(
             &env,
             project_id,
@@ -3410,7 +3574,7 @@ impl DongleContract {
         changelog_id: u64,
         owner: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         ChangelogRegistry::remove_changelog_entry(&env, changelog_id, owner)
     }
 
@@ -3463,7 +3627,7 @@ impl DongleContract {
         project_id: u64,
         follower: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::subscription_registry::SubscriptionRegistry::follow_project(
             &env, project_id, follower,
         )
@@ -3525,7 +3689,7 @@ impl DongleContract {
         digest_frequency: crate::types::DigestFrequency,
         kinds: soroban_sdk::Vec<crate::types::NotificationKind>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::set_notification_prefs(
             &env,
             user,
@@ -3550,7 +3714,7 @@ impl DongleContract {
         opted_out: bool,
         kinds: Option<soroban_sdk::Vec<crate::types::NotificationKind>>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::set_project_notification_override(
             &env, user, project_id, opted_out, kinds,
         )
@@ -3576,14 +3740,14 @@ impl DongleContract {
     }
 
     pub fn flush_digest_queue(env: Env, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::notification_registry::NotificationRegistry::flush_digest_queue(&env, user)
     }
 
     // --- Bookmark Registry ---
 
     pub fn bookmark_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::bookmark_project(&env, project_id, user)
     }
 
@@ -3617,7 +3781,7 @@ impl DongleContract {
         name: String,
         parent_id: Option<u64>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::create_folder(&env, user, name, parent_id)
     }
 
@@ -3627,7 +3791,7 @@ impl DongleContract {
         user: Address,
         folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::delete_folder(&env, user, folder_id)
     }
 
@@ -3638,7 +3802,7 @@ impl DongleContract {
         folder_id: u64,
         new_name: String,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::rename_folder(&env, user, folder_id, new_name)
     }
 
@@ -3672,7 +3836,7 @@ impl DongleContract {
         project_id: u64,
         folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::move_bookmark_to_folder(
             &env, user, project_id, folder_id,
         )
@@ -3684,7 +3848,7 @@ impl DongleContract {
         user: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::remove_bookmark_from_folder(
             &env, user, project_id,
         )
@@ -3721,7 +3885,7 @@ impl DongleContract {
         name: String,
         filter: SmartFolderFilter,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::create_smart_folder(&env, user, name, filter)
     }
 
@@ -3731,7 +3895,7 @@ impl DongleContract {
         user: Address,
         smart_folder_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::bookmark_registry::BookmarkRegistry::delete_smart_folder(&env, user, smart_folder_id)
     }
 
@@ -3834,7 +3998,7 @@ impl DongleContract {
 
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::endorsement_registry::EndorsementRegistry::endorse_project(&env, project_id, user)
     }
 
@@ -3989,7 +4153,7 @@ impl DongleContract {
         score: Option<u64>,
         label: Option<String>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::create_recommendation(
             &env,
             creator,
@@ -4054,7 +4218,7 @@ impl DongleContract {
         recommendation_id: u64,
         viewer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_impression(
             &env,
             recommendation_id,
@@ -4069,7 +4233,7 @@ impl DongleContract {
         recommendation_id: u64,
         viewer: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_click(
             &env,
             recommendation_id,
@@ -4086,7 +4250,7 @@ impl DongleContract {
         user: Address,
         kind: RecommendationEngagementKind,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_engagement(
             &env,
             recommendation_id,
@@ -4105,7 +4269,7 @@ impl DongleContract {
         user: Address,
         helpful: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::give_feedback(
             &env,
             recommendation_id,
@@ -4162,7 +4326,7 @@ impl DongleContract {
         viewer: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_project_view(
             &env, viewer, project_id,
         )
@@ -4183,7 +4347,7 @@ impl DongleContract {
         source_project_id: u64,
         limit: u32,
     ) -> Result<Vec<Recommendation>, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::recommend_projects(
             &env,
             viewer,
@@ -4198,7 +4362,7 @@ impl DongleContract {
         admin: Address,
         config: RecommendationABConfig,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::set_ab_config(
             &env, admin, config,
         )
@@ -4222,7 +4386,7 @@ impl DongleContract {
         recommendation_id: u64,
         user: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::recommendation_registry::RecommendationRegistry::record_conversion(
             &env,
             recommendation_id,
@@ -4253,7 +4417,7 @@ impl DongleContract {
         creator_revenue_share_bps: Option<u32>,
         initial_curators: Option<Vec<Address>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create(
             &env,
             creator,
@@ -4277,7 +4441,7 @@ impl DongleContract {
         override_description: Option<String>,
         seed_projects: Option<Vec<u64>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create_template(
             &env,
             admin,
@@ -4303,7 +4467,7 @@ impl DongleContract {
         creator_revenue_share_bps: Option<u32>,
         initial_curators: Option<Vec<Address>>,
     ) -> Result<u64, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::create_from_template(
             &env,
             caller,
@@ -4389,7 +4553,7 @@ impl DongleContract {
         description: String,
         tags: Option<String>,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::update_metadata(
             &env,
             id,
@@ -4407,7 +4571,7 @@ impl DongleContract {
         approval_threshold: u32,
         disapproval_threshold: u32,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_thresholds(
             &env,
             id,
@@ -4423,7 +4587,7 @@ impl DongleContract {
         updater: Address,
         creator_revenue_share_bps: u32,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_revenue_share(
             &env,
             id,
@@ -4438,7 +4602,7 @@ impl DongleContract {
         actor: Address,
         new_curator: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::add_curator(
             &env,
             id,
@@ -4453,7 +4617,7 @@ impl DongleContract {
         actor: Address,
         curator_to_remove: Address,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::remove_curator(
             &env,
             id,
@@ -4468,7 +4632,7 @@ impl DongleContract {
         curator: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::curator_add_project(
             &env, id, curator, project_id,
         )
@@ -4480,7 +4644,7 @@ impl DongleContract {
         curator: Address,
         project_id: u64,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::curator_remove_project(
             &env, id, curator, project_id,
         )
@@ -4494,7 +4658,7 @@ impl DongleContract {
         project_id: u64,
         approve: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::cast_vote(
             &env, id, voter, project_id, approve,
         )
@@ -4528,7 +4692,7 @@ impl DongleContract {
         id: u64,
         featured: bool,
     ) -> Result<(), ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::set_featured(
             &env, admin, id, featured,
         )
@@ -4553,7 +4717,7 @@ impl DongleContract {
         id: u64,
         total_amount_scaled: u128,
     ) -> Result<CommunityColRevenueSnapshot, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::community_collection_registry::CommunityCollectionRegistry::attribute_revenue(
             &env,
             caller,
@@ -4584,7 +4748,7 @@ impl DongleContract {
         caller: Address,
         project_id: u64,
     ) -> Result<u32, ContractError> {
-        EmergencyPause::require_not_paused(&env)?;
+        EmergencyPause::require_not_paused(&env, PauseOperation::All)?;
         crate::social_analytics_registry::SocialAnalyticsRegistry::record_daily_checkpoint(
             &env, caller, project_id,
         )

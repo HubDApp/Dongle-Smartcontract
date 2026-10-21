@@ -8,6 +8,19 @@ Audience: contract admins and incident responders. Pair this with
 [ADMIN_ROTATION_PLAYBOOK.md](ADMIN_ROTATION_PLAYBOOK.md) (key custody, admin set)
 and [THREAT_MODEL.md](THREAT_MODEL.md) (what the pause is meant to contain).
 
+### Companion documents
+
+* [PAUSE_MATRIX.md](PAUSE_MATRIX.md) — which operation families are blocked by
+  which pause state (issue #902).
+* [PAUSE_RECOVERY_PHASES.md](PAUSE_RECOVERY_PHASES.md) — staged resumption of
+  the contract after an emergency pause (issue #904).
+
+The pause is no longer a single boolean: the contract stores a fine-grained
+`PauseState`, an optional pause **reason** with an estimated resume time, and
+the current recovery phase (issues #901, #902, #904).  The legacy boolean flag
+`StorageKey::ContractPaused` is still kept in sync so that `get_config()`
+keeps reporting the pause state.
+
 ---
 
 ## 1. What the pause is

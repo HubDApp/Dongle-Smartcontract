@@ -345,6 +345,36 @@ pub enum ExtensionKey2 {
     ProjectVerificationRequirements(u64),
 }
 
+/// Storage keys for the emergency-pause subsystem (issues #901, #902, #904).
+///
+/// `StorageKey`, `ExtensionKey` and `ExtensionKey2` are all at (or near) the
+/// 50-variant Soroban `#[contracttype]` cap, so the pause subsystem uses this
+/// independent namespace following the same pattern as `NotificationKey`,
+/// `BookmarkKey` and `FeeHistoryKey`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PauseKey {
+    /// The full emergency-pause record (`EmergencyPauseState`): pause state,
+    /// reason, estimated resume time, pause timestamp and recovery phase.
+    PauseState,
+    /// Addresses subscribed to pause notifications (issue #901).
+    PauseSubscribers,
+    /// Ordered history of staged-recovery phase transitions (issue #904).
+    PhaseHistory,
+}
+
+/// Storage keys for the collection hierarchy (issue #905).
+///
+/// `Collection` itself carries `parent_collection_id`; this enum stores the
+/// reverse index (parent → direct children) used to walk a subtree without
+/// scanning every collection.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CollectionHierarchyKey {
+    /// Identifiers of the direct child collections of a collection.
+    Children(u64),
+}
+
 /// Storage keys for fee configuration history, split into a separate enum to stay under
 /// Soroban's 50-variant limit per `#[contracttype]` enum.
 #[contracttype]
