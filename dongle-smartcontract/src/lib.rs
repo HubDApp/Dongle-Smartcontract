@@ -6,6 +6,7 @@ extern crate std;
 
 mod admin_action_log;
 mod admin_manager;
+mod analytics_export;
 mod auto_archive_registry;
 pub mod auto_archive_types;
 pub mod auth;
@@ -49,6 +50,8 @@ mod social_analytics_registry;
 pub mod storage_keys;
 pub mod trust_and_safety;
 pub mod storage_manager;
+mod state_export;
+mod subscription_bulk;
 mod subscription_registry;
 mod timelock_manager;
 pub mod types;
@@ -3908,6 +3911,178 @@ impl DongleContract {
             user,
             start_index,
             limit,
+        )
+    }
+
+    // --- Bulk Subscriptions (#932) ---
+
+    /// Create up to `MAX_SUBSCRIPTION_BATCH_SIZE` subscriptions in one call.
+    /// Each distinct subscriber must authorize. Duplicates and per-entry
+    /// failures are reported in the result rather than aborting the batch.
+    pub fn subscribe_to_events_batch(
+        env: Env,
+        subscriptions: Vec<crate::types::EventSubscription>,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::subscribe_to_events_batch(&env, subscriptions)
+    }
+
+    /// Export `subscriber`'s subscriptions for a later `import_subscriptions`.
+    pub fn export_subscriptions(env: Env, subscriber: Address) -> crate::types::SubscriptionExport {
+        crate::subscription_bulk::SubscriptionBulk::export_subscriptions(&env, subscriber)
+    }
+
+    /// Re-create the subscriptions in `export` for `subscriber`.
+    pub fn import_subscriptions(
+        env: Env,
+        subscriber: Address,
+        export: crate::types::SubscriptionExport,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::import_subscriptions(&env, subscriber, export)
+    }
+
+    /// Admin-only: subscribe `target` to every project `source` follows.
+    pub fn clone_subscriptions_from_address(
+        env: Env,
+        admin: Address,
+        source: Address,
+        target: Address,
+    ) -> Result<crate::types::BatchSubscriptionResult, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        crate::subscription_bulk::SubscriptionBulk::clone_subscriptions_from_address(
+            &env, admin, source, target,
+        )
+    }
+
+    // --- State Snapshots (#933) ---
+
+    /// Export one page of contract state for audit or recovery (admin-only).
+    /// `limit` project IDs from `start_project_id` (0 or over
+    /// `MAX_SNAPSHOT_PAGE_SIZE` uses the maximum); `Configs` ignores the range.
+    pub fn export_contract_state_snapshot(
+        env: Env,
+        admin: Address,
+        scope: crate::types::SnapshotScope,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Result<crate::types::ContractStateSnapshot, ContractError> {
+        crate::state_export::StateExport::export_contract_state_snapshot(
+            &env,
+            admin,
+            scope,
+            start_project_id,
+            limit,
+        )
+    }
+
+    /// Record that the snapshot for `scope` and page was published to IPFS
+    /// at `ipfs_cid` (admin-only). Returns the new snapshot ID.
+    pub fn record_state_snapshot(
+        env: Env,
+        admin: Address,
+        scope: crate::types::SnapshotScope,
+        start_project_id: u64,
+        limit: u32,
+        ipfs_cid: String,
+        export_sha256: soroban_sdk::BytesN<32>,
+    ) -> Result<u64, ContractError> {
+        crate::state_export::StateExport::record_state_snapshot(
+            &env,
+            admin,
+            scope,
+            start_project_id,
+            limit,
+            ipfs_cid,
+            export_sha256,
+        )
+    }
+
+    pub fn get_state_snapshot(
+        env: Env,
+        snapshot_id: u64,
+    ) -> Option<crate::types::StateSnapshotRecord> {
+        crate::state_export::StateExport::get_state_snapshot(&env, snapshot_id)
+    }
+
+    pub fn get_state_snapshot_count(env: Env) -> u64 {
+        crate::state_export::StateExport::get_state_snapshot_count(&env)
+    }
+
+    /// Check whether current state still matches a recorded snapshot.
+    pub fn verify_state_snapshot(
+        env: Env,
+        snapshot_id: u64,
+    ) -> Result<crate::types::SnapshotVerification, ContractError> {
+        crate::state_export::StateExport::verify_state_snapshot(&env, snapshot_id)
+    }
+
+    // --- Analytics Export (#934) ---
+
+    /// Export registry metrics for `[start, end]` (inclusive timestamps) as
+    /// JSON or CSV. Scans the first `MAX_ANALYTICS_SCAN_SIZE` project IDs;
+    /// use `export_analytics_data_filtered` for later pages and filters.
+    pub fn export_analytics_data(
+        env: Env,
+        start: u64,
+        end: u64,
+        format: crate::types::ExportFormat,
+    ) -> Result<crate::types::AnalyticsExport, ContractError> {
+        crate::analytics_export::AnalyticsExportRegistry::export_analytics_data(
+            &env,
+            start,
+            end,
+            format,
+            crate::analytics_export::AnalyticsExportRegistry::default_filter(),
+        )
+    }
+
+    /// `export_analytics_data` with category / verification filters and
+    /// project-ID paging.
+    pub fn export_analytics_data_filtered(
+        env: Env,
+        start: u64,
+        end: u64,
+        format: crate::types::ExportFormat,
+        filter: crate::types::AnalyticsFilter,
+    ) -> Result<crate::types::AnalyticsExport, ContractError> {
+        crate::analytics_export::AnalyticsExportRegistry::export_analytics_data(
+            &env, start, end, format, filter,
+        )
+    }
+
+    // --- Migration Export (#935) ---
+
+    /// Package one page of state for migration to contract `version`
+    /// (admin-only). Pages work as in `export_contract_state_snapshot`;
+    /// follow `metadata.next_project_id` until it is `None`.
+    pub fn export_for_migration(
+        env: Env,
+        admin: Address,
+        version: String,
+        start_project_id: u64,
+        limit: u32,
+    ) -> Result<crate::types::MigrationBundle, ContractError> {
+        crate::migration_export::MigrationExport::export_for_migration(
+            &env,
+            admin,
+            version,
+            start_project_id,
+            limit,
+        )
+    }
+
+    /// Check a migration bundle's integrity and compatibility with
+    /// `target_version`. Read-only.
+    pub fn validate_migration_bundle(
+        env: Env,
+        bundle: crate::types::MigrationBundle,
+        target_version: String,
+    ) -> crate::types::MigrationCompatibilityReport {
+        crate::migration_export::MigrationExport::validate_migration_bundle(
+            &env,
+            bundle,
+            target_version,
         )
     }
 

@@ -3,7 +3,7 @@ use crate::types::{
     AdminActionType, DigestFrequency, EvidenceLink, ModerateAction, NotificationKind,
     AppealStatus, ProjectLifecycleStatus, ReportCategory, ReportDecision, ReviewAction, ReviewAttribution, ReviewEventData, VerificationStatus,
 };
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol, Vec};
 
 pub const REVIEW: Symbol = symbol_short!("REVIEW");
 
