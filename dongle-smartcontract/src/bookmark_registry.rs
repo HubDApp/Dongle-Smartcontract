@@ -20,21 +20,27 @@
 //! flat list.  A per-user index (`BookmarkFolderIndex(owner, project_id)`)
 //! tracks the current folder so callers do not need to search every folder.
 
+use crate::auth::require_admin_auth;
 use crate::constants::{
     MAX_BOOKMARKS_PER_FOLDER, MAX_BOOKMARK_FOLDERS_PER_USER, MAX_FOLDER_DEPTH, MAX_FOLDER_NAME_LEN,
     MAX_PAGE_LIMIT, MAX_SMART_FOLDERS_PER_USER,
 };
 use crate::errors::ContractError;
 use crate::events::{
+    publish_bookmark_archived_event, publish_bookmark_config_updated_event,
     publish_bookmark_moved_to_folder_event, publish_bookmark_removed_from_folder_event,
-    publish_folder_created_event, publish_folder_deleted_event, publish_folder_renamed_event,
-    publish_project_bookmarked_event, publish_project_unbookmarked_event,
-    publish_smart_folder_created_event, publish_smart_folder_deleted_event,
+    publish_bookmark_restored_event, publish_folder_created_event, publish_folder_deleted_event,
+    publish_folder_renamed_event, publish_project_bookmarked_event,
+    publish_project_unbookmarked_event, publish_smart_folder_created_event,
+    publish_smart_folder_deleted_event,
 };
 use crate::project_registry::ProjectRegistry;
 use crate::storage_keys::{BookmarkKey, ExtensionKey};
 use crate::storage_manager::StorageManager;
-use crate::types::{BookmarkFolder, SmartFolder, SmartFolderFilter, VerificationStatusFilter};
+use crate::types::{
+    ArchivedBookmarkRecord, BookmarkConfig, BookmarkExpirationPolicy, BookmarkFolder, SmartFolder,
+    SmartFolderFilter, VerificationStatusFilter,
+};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, Vec};
 
@@ -67,6 +73,12 @@ impl BookmarkRegistry {
         env.storage()
             .persistent()
             .set(&ExtensionKey::UserBookmarks(user.clone()), &bookmarks);
+
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &BookmarkKey::BookmarkCreatedAt(user.clone(), project_id),
+            &now,
+        );
 
         StorageManager::extend_project_ttl(env, project_id);
         StorageManager::extend_user_bookmarks_ttl(env, &user);
@@ -109,6 +121,13 @@ impl BookmarkRegistry {
             .persistent()
             .set(&ExtensionKey::UserBookmarks(user.clone()), &new_bookmarks);
 
+        env.storage()
+            .persistent()
+            .remove(&BookmarkKey::BookmarkCreatedAt(user.clone(), project_id));
+        env.storage()
+            .persistent()
+            .remove(&BookmarkKey::BookmarkExpirationPolicy(user.clone(), project_id));
+
         StorageManager::extend_project_ttl(env, project_id);
         StorageManager::extend_user_bookmarks_ttl(env, &user);
 
@@ -126,6 +145,8 @@ impl BookmarkRegistry {
     }
 
     pub fn get_user_bookmarks(env: &Env, user: Address, start_index: u32, limit: u32) -> Vec<u64> {
+        Self::lazy_cleanup_expired(env, &user);
+
         let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
             MAX_PAGE_LIMIT
         } else {
@@ -776,4 +797,271 @@ impl BookmarkRegistry {
 
         true
     }
+
+    // ── Bookmark Auto-Archival and Recovery (#915) ──────────────────────────
+
+    /// Lazy cleanup of expired bookmarks for a user based on effective policy.
+    pub fn lazy_cleanup_expired(env: &Env, user: &Address) -> u32 {
+        let bookmarks: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::UserBookmarks(user.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+
+        if bookmarks.is_empty() {
+            return 0;
+        }
+
+        let global_config = Self::get_bookmark_config(env);
+        let user_policy = Self::get_user_bookmark_policy(env, user);
+        let now = env.ledger().timestamp();
+
+        let mut active = Vec::new(env);
+        let mut archived_count = 0u32;
+
+        let mut user_archived: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&BookmarkKey::UserArchivedBookmarks(user.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+
+        for i in 0..bookmarks.len() {
+            if let Some(pid) = bookmarks.get(i) {
+                let override_days = Self::get_bookmark_policy(env, user, pid);
+                let effective_days = override_days
+                    .or_else(|| user_policy.as_ref().and_then(|p| p.auto_archive_after_days))
+                    .or(global_config.auto_archive_after_days);
+
+                let should_archive = match effective_days {
+                    Some(days) if days > 0 => {
+                        let created_at = env
+                            .storage()
+                            .persistent()
+                            .get::<_, u64>(&BookmarkKey::BookmarkCreatedAt(user.clone(), pid))
+                            .unwrap_or(now);
+                        let expiry = created_at.saturating_add((days as u64) * 86_400);
+                        now >= expiry
+                    }
+                    _ => false,
+                };
+
+                if should_archive {
+                    // Remove from folder if currently assigned
+                    if let Some(folder_id) = Self::get_bookmark_folder(env, pid, user) {
+                        let _ = Self::remove_from_folder_list(env, user, folder_id, pid);
+                        env.storage()
+                            .persistent()
+                            .remove(&BookmarkKey::BookmarkFolderIndex(user.clone(), pid));
+                    }
+
+                    if !user_archived.contains(pid) {
+                        user_archived.push_back(pid);
+                    }
+
+                    let created_at = env
+                        .storage()
+                        .persistent()
+                        .get::<_, u64>(&BookmarkKey::BookmarkCreatedAt(user.clone(), pid))
+                        .unwrap_or(now);
+
+                    let record = ArchivedBookmarkRecord {
+                        project_id: pid,
+                        bookmarked_at: created_at,
+                        archived_at: now,
+                    };
+
+                    env.storage().persistent().set(
+                        &BookmarkKey::ArchivedBookmarkDetails(user.clone(), pid),
+                        &record,
+                    );
+
+                    publish_bookmark_archived_event(env, user.clone(), pid, now);
+                    archived_count += 1;
+                } else {
+                    active.push_back(pid);
+                }
+            }
+        }
+
+        if archived_count > 0 {
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::UserBookmarks(user.clone()), &active);
+            env.storage()
+                .persistent()
+                .set(&BookmarkKey::UserArchivedBookmarks(user.clone()), &user_archived);
+            StorageManager::extend_user_bookmarks_ttl(env, user);
+        }
+
+        archived_count
+    }
+
+    /// Set the global bookmark auto-archive configuration (admin only).
+    pub fn set_bookmark_config(
+        env: &Env,
+        admin: Address,
+        config: BookmarkConfig,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        env.storage()
+            .persistent()
+            .set(&BookmarkKey::GlobalBookmarkConfig, &config);
+        publish_bookmark_config_updated_event(env, admin, config.auto_archive_after_days);
+        Ok(())
+    }
+
+    /// Retrieve the global bookmark auto-archive configuration.
+    pub fn get_bookmark_config(env: &Env) -> BookmarkConfig {
+        env.storage()
+            .persistent()
+            .get(&BookmarkKey::GlobalBookmarkConfig)
+            .unwrap_or(BookmarkConfig {
+                auto_archive_after_days: None,
+            })
+    }
+
+    /// Set per-user bookmark expiration policy.
+    pub fn set_user_bookmark_policy(
+        env: &Env,
+        user: Address,
+        policy: BookmarkExpirationPolicy,
+    ) -> Result<(), ContractError> {
+        user.require_auth();
+        env.storage()
+            .persistent()
+            .set(&BookmarkKey::UserBookmarkPolicy(user), &policy);
+        Ok(())
+    }
+
+    /// Get per-user bookmark expiration policy.
+    pub fn get_user_bookmark_policy(env: &Env, user: &Address) -> Option<BookmarkExpirationPolicy> {
+        env.storage()
+            .persistent()
+            .get(&BookmarkKey::UserBookmarkPolicy(user.clone()))
+    }
+
+    /// Set an expiration override for a specific bookmarked project.
+    pub fn set_bookmark_policy(
+        env: &Env,
+        user: Address,
+        project_id: u64,
+        auto_archive_after_days: Option<u32>,
+    ) -> Result<(), ContractError> {
+        user.require_auth();
+        if !Self::is_bookmarked(env, project_id, &user) {
+            return Err(ContractError::NotBookmarked);
+        }
+        if let Some(days) = auto_archive_after_days {
+            env.storage().persistent().set(
+                &BookmarkKey::BookmarkExpirationPolicy(user, project_id),
+                &days,
+            );
+        } else {
+            env.storage()
+                .persistent()
+                .remove(&BookmarkKey::BookmarkExpirationPolicy(user, project_id));
+        }
+        Ok(())
+    }
+
+    /// Get per-bookmark expiration override.
+    pub fn get_bookmark_policy(env: &Env, user: &Address, project_id: u64) -> Option<u32> {
+        env.storage()
+            .persistent()
+            .get(&BookmarkKey::BookmarkExpirationPolicy(user.clone(), project_id))
+    }
+
+    /// Explicitly trigger archival of expired bookmarks for a user.
+    pub fn archive_expired_bookmarks(env: &Env, user: Address) -> Result<u32, ContractError> {
+        user.require_auth();
+        Ok(Self::lazy_cleanup_expired(env, &user))
+    }
+
+    /// Restore an archived bookmark back to the user's active bookmark list.
+    pub fn restore_archived_bookmark(
+        env: &Env,
+        user: Address,
+        bookmark_id: u64,
+    ) -> Result<(), ContractError> {
+        user.require_auth();
+
+        let archived: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&BookmarkKey::UserArchivedBookmarks(user.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+
+        if !archived.contains(bookmark_id) {
+            return Err(ContractError::BookmarkNotFound);
+        }
+
+        if ProjectRegistry::get_project(env, bookmark_id).is_none() {
+            return Err(ContractError::ProjectNotFound);
+        }
+
+        let new_archived = Utils::remove_item_from_vec(env, &archived, &bookmark_id);
+        env.storage()
+            .persistent()
+            .set(&BookmarkKey::UserArchivedBookmarks(user.clone()), &new_archived);
+        env.storage()
+            .persistent()
+            .remove(&BookmarkKey::ArchivedBookmarkDetails(user.clone(), bookmark_id));
+
+        let mut bookmarks: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&ExtensionKey::UserBookmarks(user.clone()))
+            .unwrap_or_else(|| Vec::new(env));
+        let _ = Utils::add_unique_to_vec(&mut bookmarks, &bookmark_id);
+        env.storage()
+            .persistent()
+            .set(&ExtensionKey::UserBookmarks(user.clone()), &bookmarks);
+
+        let now = env.ledger().timestamp();
+        env.storage().persistent().set(
+            &BookmarkKey::BookmarkCreatedAt(user.clone(), bookmark_id),
+            &now,
+        );
+
+        StorageManager::extend_project_ttl(env, bookmark_id);
+        StorageManager::extend_user_bookmarks_ttl(env, &user);
+
+        publish_bookmark_restored_event(env, user, bookmark_id, now);
+        Ok(())
+    }
+
+    /// Paginate over archived bookmarks for a user.
+    pub fn get_archived_bookmarks(
+        env: &Env,
+        user: Address,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<u64> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let archived: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&BookmarkKey::UserArchivedBookmarks(user))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let len = archived.len();
+        if start_index >= len {
+            return Vec::new(env);
+        }
+
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
+        let mut page = Vec::new(env);
+        for i in start_index..end {
+            if let Some(pid) = archived.get(i) {
+                page.push_back(pid);
+            }
+        }
+        page
+    }
 }
+

@@ -66,6 +66,7 @@ graph TD
     F[test] --> BUILD
     BUILD --> OPT[optimize]
     OPT --> Z
+    CM[compat matrix] --> Z
 ```
 
 `validate-manifest`, `validate-changelog`, `fmt`, `wasm-check`, `clippy`, and
@@ -73,6 +74,9 @@ graph TD
 `wasm-check` (`needs: [fmt, clippy, test, wasm-check]`). `optimize` waits for
 `build` (`needs: [build]`). The two Python validators are independent of the
 Rust jobs.
+
+`compat` (§4.9) also starts in parallel and fans out into one status check
+per OS × Rust version cell.
 
 A PR is mergeable only when every job is green.
 
@@ -271,6 +275,36 @@ Steps:
 ```bash
 cargo build -p dongle-contract --target wasm32-unknown-unknown --release
 bash scripts/optimize_wasm.sh
+```
+
+---
+
+### 4.9 `compat` — Rust version × platform matrix (#871)
+
+Runs `cargo test -p dongle-contract`, a release WASM build, and
+`scripts/optimize_wasm.sh` (using `wasm-opt` from the `binaryen` npm package)
+on every combination of:
+
+| OS               | Rust                    |
+|------------------|-------------------------|
+| `ubuntu-latest`  | `1.70`, `1.74`, `stable` |
+| `macos-latest`   | `1.70`, `1.74`, `stable` |
+| `windows-latest` | `1.70`, `1.74`, `stable` |
+
+Each cell appears as its own PR status check named
+`Compat (<os>, <rust>)`. `RUSTUP_TOOLCHAIN` is set per cell so the matrix
+toolchain overrides `rust-toolchain.toml`. `fail-fast` is disabled so every
+cell reports. The `1.70` and `1.74` cells are older than the MSRV of the
+pinned `soroban-sdk` and the v4 `Cargo.lock` format, so they run with
+`continue-on-error` — their result is visible but does not block merging.
+`stable` cells are required.
+
+Reproduce one cell locally:
+
+```bash
+RUSTUP_TOOLCHAIN=stable cargo test -p dongle-contract
+RUSTUP_TOOLCHAIN=stable cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+npm install -g binaryen@116.0.0 && bash scripts/optimize_wasm.sh
 ```
 
 ---

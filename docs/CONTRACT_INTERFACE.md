@@ -846,6 +846,22 @@ let results = search_projects(env, String::from_slice(&env, "lending"), 0, 100);
 
 ---
 
+### `search_projects_with_limit`
+
+**Purpose**: Search active projects by query with an explicit limit (starts from index 0). Supports wildcard search using `*` (e.g. `*pay*`, `dex*`) and phrase search using double quotes (e.g. `"automated market maker"`). Results are ranked by relevance and rating.
+
+**Parameters**:
+- `env` (Env): Contract environment
+- `query` (String): Search query string (supports wildcards and quoted phrases)
+- `limit` (u32): Maximum projects to return (capped at 100)
+
+**Return Value**: `Vec<Project>`
+
+**Authorization**: None
+
+---
+
+
 ### `list_projects_by_tag`
 
 **Purpose**: Retrieve projects filtered by tag with pagination.
@@ -5558,3 +5574,74 @@ notes, correlated with an optional semantic version string.
 **Authorization**: None (public read)
 
 **Possible Errors**: None
+
+---
+
+## Smart Bookmark Collections (#914)
+
+### `create_smart_bookmark_collection`
+- **Purpose**: Creates an auto-populating smart bookmark collection with custom filtering rules (tag matching, category, and date ranges) and optional parent folder nesting.
+- **Parameters**: `env`, `user` (Address), `name` (String), `rules` (SmartBookmarkRules)
+- **Return Value**: `Result<u64, ContractError>` (Collection ID)
+- **Authorization**: `user.require_auth()`
+- **Errors**: `InvalidProjectData`, `InvalidProjectName`, `FolderNotFound`, `MaxSmartBookmarkCollectionsExceeded`
+
+### `refresh_smart_bookmark_collection`
+- **Purpose**: Refreshes the project membership of a smart collection based on its rules and the user's current bookmarks.
+- **Parameters**: `env`, `collection_id` (u64)
+- **Return Value**: `Result<Vec<u64>, ContractError>` (Updated project IDs)
+- **Authorization**: `owner.require_auth()`
+- **Errors**: `SmartBookmarkCollectionNotFound`
+
+### `get_smart_bookmark_collection`
+- **Purpose**: Fetches a smart bookmark collection by ID.
+- **Parameters**: `env`, `collection_id` (u64)
+- **Return Value**: `Option<SmartBookmarkCollection>`
+- **Authorization**: None (public read)
+
+### `list_smart_bookmark_collections`
+- **Purpose**: Lists all smart bookmark collections created by a user.
+- **Parameters**: `env`, `user` (Address)
+- **Return Value**: `Vec<SmartBookmarkCollection>`
+- **Authorization**: None (public read)
+
+### `delete_smart_bookmark_collection`
+- **Purpose**: Deletes a smart bookmark collection.
+- **Parameters**: `env`, `user` (Address), `collection_id` (u64)
+- **Return Value**: `Result<(), ContractError>`
+- **Authorization**: `user.require_auth()`
+- **Errors**: `SmartBookmarkCollectionNotFound`, `Unauthorized`
+
+---
+
+## Dynamic Trending Projects (#912)
+
+### `get_trending_projects`
+- **Purpose**: Calculates and returns popular projects dynamically based on reviews, follows, and registration volume across specified time windows (24h, 7d, 30d, all-time).
+- **Parameters**: `env`, `time_window` (u64, in seconds; 0 for all-time), `limit` (u32, capped at 100)
+- **Return Value**: `Vec<TrendingProject>` (with project, trending_score, and trend_velocity)
+- **Authorization**: None (public read)
+
+### `recalculate_trending_projects`
+- **Purpose**: Triggers cache recalculation of trending projects for background jobs/keepers.
+- **Parameters**: `env`, `time_window` (u64)
+- **Return Value**: `Vec<TrendingProject>`
+- **Authorization**: None
+
+---
+
+## Similar & Near-Duplicate Project Detection (#913)
+
+### `find_similar_projects`
+- **Purpose**: Finds projects similar to a target project using multi-field scoring (fuzzy matching for name and description, Jaccard similarity for tags and dependencies).
+- **Parameters**: `env`, `project_id` (u64), `threshold` (u32: basis points 0..10_000, e.g. 5000 = 50%, or 1..100 percentage shorthand)
+- **Return Value**: `Vec<SimilarProject>` (sorted descending by similarity score)
+- **Authorization**: None (public read)
+
+### `open_duplicate_dispute_with_similarity`
+- **Purpose**: Opens a duplicate dispute only if the candidate duplicate meets a minimum similarity threshold against the original project.
+- **Parameters**: `env`, `project_id` (u64), `original_project_id` (u64), `creator` (Address), `evidence_cid` (String), `min_threshold` (u32)
+- **Return Value**: `Result<u64, ContractError>` (Dispute ID)
+- **Authorization**: `creator.require_auth()`
+- **Errors**: `SimilarityThresholdNotMet`, `ProjectNotFound`, `CannotLinkToSelf`, `AlreadyArchived`
+

@@ -329,15 +329,93 @@ pub enum ContractError {
     EmergencyRecoveryNotPending = 138,
     /// Threshold increase requires all admins to approve.
     ThresholdRequiresUnanimousApproval = 139,
+    /// Admin permission denied for role.
+    PermissionDenied = 140,
+    /// Approval quorum not met.
+    ApprovalQuorumNotMet = 141,
+    /// Timelock emergency bypass not authorized.
+    BypassNotAuthorized = 142,
+    /// Multi-stage cooldown or stage delay has not passed.
+    StageDelayNotPassed = 143,
+    /// Configured approval workflow not found.
+    WorkflowNotFound = 144,
+    /// Sensitive proposal already approved.
+    ProposalAlreadyApproved = 145,
+    /// Sensitive proposal already executed.
+    ProposalAlreadyExecuted = 146,
     /// Review is already flagged for moderator follow-up.
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
-    /// No state snapshot record exists with the given ID.
-    SnapshotNotFound = 142,
-    /// Migration target version is a downgrade or more than one major
-    /// version ahead of this contract.
-    IncompatibleMigrationTarget = 143,
+    /// Smart bookmark collection referenced by ID does not exist (#914).
+    SmartBookmarkCollectionNotFound = 142,
+    /// Maximum smart bookmark collections per user exceeded (#914).
+    MaxSmartBookmarkCollectionsExceeded = 143,
+    /// Project similarity score did not meet the required threshold (#913).
+    SimilarityThresholdNotMet = 144,
+
+    // ── Fee extensions ─────────────────────────────────────────────────────
+    /// A fee waiver application already exists for this project.
+    WaiverAlreadyApplied = 145,
+    /// No fee waiver record found for this project.
+    WaiverNotFound = 146,
+    /// The fee waiver application is not in a pending state.
+    WaiverNotPending = 147,
+    /// Auto-refund record not found for this project.
+    AutoRefundNotFound = 148,
+    /// The auto-refund has already been fully settled.
+    AutoRefundAlreadySettled = 149,
+    /// Fee receipt not found for the given payment ID.
+    FeeReceiptNotFound = 150,
+    /// A fee dispute is already open for this project.
+    EscrowAlreadyActive = 151,
+    /// No active fee escrow found for this project.
+    EscrowNotFound = 152,
+    /// Partial refund amount exceeds the escrowed balance.
+    PartialRefundExceedsEscrow = 153,
+    /// The fee is not in a state that allows being disputed (must be pending/consumed).
+    FeeNotDisputable = 154,
 }
 
 pub type Error = ContractError;
+
+impl ContractError {
+    /// Numeric error code as exposed in the contract ABI.
+    pub fn code(self) -> u32 {
+        self as u32
+    }
+
+    /// Short troubleshooting hint surfaced alongside the error code so users
+    /// know what went wrong and where to look (full guides: ERROR_CATALOG.md).
+    pub fn troubleshooting_hint(self) -> &'static str {
+        match self {
+            ContractError::AlreadyInitialized => "Contract already initialized; do not re-initialize.",
+            ContractError::Unauthorized | ContractError::AdminOnly => {
+                "Caller lacks permission; check admin list and require_auth."
+            }
+            ContractError::ProjectNotFound
+            | ContractError::ReviewNotFound
+            | ContractError::VerificationNotFound
+            | ContractError::CollectionNotFound
+            | ContractError::FolderNotFound
+            | ContractError::AppealNotFound
+            | ContractError::AssignmentNotFound
+            | ContractError::RecoveryCaseNotFound
+            | ContractError::EmergencyRecoveryNotFound => {
+                "Referenced record does not exist; verify the id/slug first."
+            }
+            ContractError::InvalidRating => "Rating must be an integer 1-5.",
+            ContractError::DuplicateReview | ContractError::DuplicateProjectName | ContractError::ProjectAlreadyExists => {
+                "Duplicate submission; fetch existing records before retrying."
+            }
+            ContractError::InsufficientFee | ContractError::FeeConfigNotSet | ContractError::ReviewFeeRequired => {
+                "Check fee config and amount paid; see ERROR_CATALOG.md."
+            }
+            ContractError::ContractPaused => "Contract is paused; wait for unpause.",
+            ContractError::RateLimitExceeded => {
+                "Too many calls; wait for the window reset or request a trusted override."
+            }
+            _ => "See ERROR_CATALOG.md for root cause, debugging steps, and resolution.",
+        }
+    }
+}
