@@ -31,6 +31,7 @@ mod events;
 mod moderation;
 mod moderation_batch;
 mod name_search;
+mod project_registration_e2e;
 mod project_search;
 mod pagination;
 mod pause_state_recovery;

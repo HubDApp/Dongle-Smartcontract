@@ -31,6 +31,8 @@ mod fee_manager;
 mod fee_extensions;
 mod governance_ranges;
 mod notification_registry;
+mod mutual_recommendation;
+mod grant_registry;
 pub mod pagination;
 mod probation_registry;
 mod project_registry;
