@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DongleCollectionSnapshot",
+  "description": "Schema for permanent, verifiable collection snapshots exported and published to IPFS (#908)",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version of this snapshot export document",
+      "default": "1.0.0"
+    },
+    "collection_id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "On-chain identifier of the collection"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential immutable snapshot version"
+    },
+    "name": {
+      "type": "string",
+      "description": "Collection name at snapshot time",
+      "maxLength": 50
+    },
+    "description": {
+      "type": "string",
+      "description": "Collection description at snapshot time",
+      "maxLength": 255
+    },
+    "owner": {
+      "type": "string",
+      "description": "Stellar address of the collection owner"
+    },
+    "is_public": {
+      "type": "boolean",
+      "description": "Whether the collection was public or private when snapshotted"
+    },
+    "created_at": {
+      "type": "integer",
+      "description": "Unix timestamp when the snapshot was generated"
+    },
+    "project_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of projects in this collection snapshot"
+    },
+    "projects": {
+      "type": "array",
+      "description": "Full details and metadata of all projects in the collection",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "owner": { "type": "string" },
+          "website": { "type": "string" },
+          "rating": { "type": "integer" },
+          "review_count": { "type": "integer" },
+          "verification_status": { "type": "string" },
+          "metadata_cid": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["id", "name", "category", "owner"]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "collection_id",
+    "version",
+    "name",
+    "owner",
+    "created_at",
+    "project_count",
+    "projects"
+  ]
+}

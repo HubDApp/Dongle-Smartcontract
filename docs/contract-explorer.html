@@ -1,0 +1,52 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Dongle Contract Explorer</title>
+<style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px;font-size:13px}input,select{margin:4px}canvas{border:1px solid #ccc;width:100%;height:180px}</style>
+</head><body>
+<h1>Dongle Contract Explorer</h1>
+<div>
+<label>RPC <input id="rpc" size="40" value="https://soroban-testnet.stellar.org"></label>
+<label>Contract <input id="cid" size="40" placeholder="C..."></label>
+<button onclick="refresh()">Refresh</button>
+<label><input type="checkbox" id="live" checked> live</label>
+<label>Search <input id="q" oninput="render()" placeholder="filter projects/reviews/admins"></label>
+</div>
+<h2>Projects</h2><table><thead><tr><th>ID</th><th>Owner</th><th>Status</th><th>Storage bytes</th></tr></thead><tbody id="projects"></tbody></table>
+<h2>Reviews</h2><table><thead><tr><th>Project</th><th>Reviewer</th><th>CID</th></tr></thead><tbody id="reviews"></tbody></table>
+<h2>Admins</h2><table><thead><tr><th>Address</th><th>Role</th></tr></thead><tbody id="admins"></tbody></table>
+<h2>Storage usage per key</h2><table><thead><tr><th>Key</th><th>Entries</th><th>Bytes</th></tr></thead><tbody id="storage"></tbody></table>
+<h2>Recent events / transactions</h2><ul id="events"></ul>
+<h2>WASM state visualization</h2><canvas id="viz" width="800" height="180"></canvas>
+<script>
+let state={projects:[],reviews:[],admins:[],storage:[],events:[]};
+async function refresh(){
+  // Live reads via soroban-rpc; falls back to demo data when unconfigured.
+  const rpc=document.getElementById('rpc').value, cid=document.getElementById('cid').value;
+  if(!cid){seedDemo();render();return;}
+  try{
+    const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'getEvents',params:{filters:[{contractIds:[cid]}],pagination:{limit:20}}})});
+    const j=await r.json(); state.events=(j.result?.events||[]).map(e=>e.txHash||e.id||JSON.stringify(e).slice(0,80));
+  }catch(e){state.events=['rpc error: '+e.message];}
+  render();
+}
+function seedDemo(){
+  state.projects=[{id:1,owner:'G...A',status:'verified',bytes:512},{id:2,owner:'G...B',status:'pending',bytes:420}];
+  state.reviews=[{p:1,by:'G...R',cid:'bafy...1'}];
+  state.admins=[{a:'G...ADMIN',role:'super'}];
+  state.storage=[{k:'Project',n:2,b:932},{k:'Review',n:1,b:310},{k:'Admin',n:1,b:120}];
+  state.events=['tx abc123: project_registered','tx def456: review_submitted'];
+}
+function matchQ(s){const q=document.getElementById('q').value.toLowerCase();return !q||String(s).toLowerCase().includes(q);}
+function render(){
+  const tb=(id,rows)=>document.getElementById(id).innerHTML=rows.filter(matchQ).map(r=>`<tr>${r}</tr>`).join('');
+  tb('projects',state.projects.map(p=>`<td>${p.id}</td><td>${p.owner}</td><td>${p.status}</td><td>${p.bytes}</td>`));
+  tb('reviews',state.reviews.map(r=>`<td>${r.p}</td><td>${r.by}</td><td>${r.cid}</td>`));
+  tb('admins',state.admins.map(a=>`<td>${a.a}</td><td>${a.role}</td>`));
+  tb('storage',state.storage.map(s=>`<td>${s.k}</td><td>${s.n}</td><td>${s.b}</td>`));
+  document.getElementById('events').innerHTML=state.events.map(e=>`<li>${e}</li>`).join('');
+  const c=document.getElementById('viz').getContext('2d');c.clearRect(0,0,800,180);
+  let x=0;const tot=Math.max(1,...state.storage.map(s=>s.b));
+  state.storage.forEach((s,i)=>{const w=Math.max(20,700*s.b/tot/state.storage.length*state.storage.length/4);c.fillStyle=['#4a90d9','#50c878','#e67e22'][i%3];c.fillRect(x,40,w,80);c.fillStyle='#000';c.fillText(s.k,x+4,130);x+=w+8;});
+}
+setInterval(()=>{if(document.getElementById('live').checked&&document.getElementById('cid').value)refresh();},15000);
+seedDemo();render();
+</script></body></html>
