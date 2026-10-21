@@ -52,7 +52,16 @@ impl SubscriptionRegistry {
         follower: Address,
     ) -> Result<(), ContractError> {
         follower.require_auth();
+        Self::apply_follow(env, project_id, follower)
+    }
 
+    /// Follow without an auth check. Callers must have authorized `follower`
+    /// (or an admin) already. Returns any error before its first write.
+    pub(crate) fn apply_follow(
+        env: &Env,
+        project_id: u64,
+        follower: Address,
+    ) -> Result<(), ContractError> {
         ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
         if Self::is_following(env, project_id, &follower) {

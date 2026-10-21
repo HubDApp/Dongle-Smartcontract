@@ -470,4 +470,70 @@ mod tests {
         // Result (375) should be closer to prior (350) than to actual (500)
         assert!(weighted < 450 && weighted > 350);
     }
+
+    // ── Edge-case coverage (issue #951) ──────────────────────────────────────
+
+    #[test]
+    fn test_rating_overflow_saturates() {
+        // Saturating arithmetic: a near-max sum plus another rating clamps
+        // at u64::MAX instead of wrapping or panicking.
+        let (sum, count, avg) = RatingCalculator::add_rating(u64::MAX, 10, 5);
+        assert_eq!(sum, u64::MAX);
+        assert_eq!(count, 11);
+        assert_eq!(avg, (u64::MAX / 11) as u32);
+    }
+
+    #[test]
+    fn test_rating_underflow_saturates() {
+        // Removing a larger rating than the accumulated sum clamps at zero.
+        let (sum, count, avg) = RatingCalculator::remove_rating(50, 1, 5);
+        assert_eq!(sum, 0);
+        assert_eq!(count, 0);
+        assert_eq!(avg, 0);
+    }
+
+    #[test]
+    fn test_rating_update_underflow_saturates() {
+        // Downgrading past the accumulated sum clamps at zero, count kept.
+        let (sum, count, avg) = RatingCalculator::update_rating(100, 2, 5, 1);
+        assert_eq!(sum, 0);
+        assert_eq!(count, 2);
+        assert_eq!(avg, 0);
+    }
+
+    #[test]
+    fn test_rating_bounds_valid_range() {
+        // Every valid rating (1-5 stars) yields an average inside [100, 500].
+        for rating in 1..=5u32 {
+            let (_, _, avg) = RatingCalculator::add_rating(0, 0, rating);
+            assert!(avg >= 100 && avg <= 500, "rating {rating} out of bounds: {avg}");
+        }
+    }
+
+    #[test]
+    fn test_weighted_rating_bounds() {
+        // Bayesian weighted ratings stay within the 1-5 star band (100-500).
+        for (sum, count) in [(0u64, 0u32), (500, 1), (2500, 5), (40000, 100)] {
+            let weighted = RatingCalculator::calculate_weighted(sum, count);
+            assert!(
+                weighted >= 100 && weighted <= 500,
+                "weighted out of bounds: {weighted}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_rating_recalculation_after_deletion() {
+        // Add three reviews (5, 4, 3), delete the 3-star one: avg must be 4.50.
+        let (sum, count, _) = RatingCalculator::add_rating(0, 0, 5);
+        let (sum, count, _) = RatingCalculator::add_rating(sum, count, 4);
+        let (sum, count, _) = RatingCalculator::add_rating(sum, count, 3);
+        assert_eq!((sum, count), (1200, 3));
+        let (sum, count, avg) = RatingCalculator::remove_rating(sum, count, 3);
+        assert_eq!((sum, count, avg), (900, 2, 450));
+        // Deleting the rest recalculates back to the empty state.
+        let (sum, count, _) = RatingCalculator::remove_rating(sum, count, 5);
+        let (sum, count, avg) = RatingCalculator::remove_rating(sum, count, 4);
+        assert_eq!((sum, count, avg), (0, 0, 0));
+    }
 }

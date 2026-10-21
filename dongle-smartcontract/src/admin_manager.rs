@@ -7,12 +7,15 @@ use crate::admin_action_log::AdminActionLog;
 use crate::auth::require_admin_auth;
 use crate::constants::DEFAULT_VERIFICATION_DURATION_SECS;
 use crate::errors::ContractError;
-use crate::events::{publish_admin_added_event, publish_admin_removed_event};
-use crate::storage_keys::{ExtensionKey2, StorageKey};
+use crate::events::{
+    publish_admin_added_event, publish_admin_removed_event, publish_admin_role_assigned_event,
+};
+use crate::storage_keys::{AdminSecurityKey, ExtensionKey2, StorageKey};
 use crate::storage_manager::StorageManager;
 use crate::types::{
-    AdminActionType, AdminActivityRecord, AdminProposal, EmergencyRecoveryRequest, FeeConfig,
-    ProposalComment, ProposalPayload, ProposalStatus, VerificationStatus,
+    AdminActionType, AdminActivityRecord, AdminPermission, AdminProposal, AdminRole,
+    EmergencyRecoveryRequest, FeeConfig, ProposalComment, ProposalPayload, ProposalStatus,
+    VerificationStatus,
 };
 use crate::utils::Utils;
 use soroban_sdk::{xdr::ToXdr, Address, Env, Map, Vec};
@@ -33,6 +36,11 @@ impl AdminManager {
             .persistent()
             .set(&StorageKey::Admin(admin.clone()), &true);
 
+        // Assign genesis admin SuperAdmin role
+        env.storage()
+            .persistent()
+            .set(&AdminSecurityKey::AdminRole(admin.clone()), &AdminRole::SuperAdmin);
+
         // Initialize admin list
         let mut admins = Vec::new(env);
         admins.push_back(admin.clone());
@@ -43,11 +51,8 @@ impl AdminManager {
         // Extend TTL for admin data
         StorageManager::extend_all_admin_ttl(env, &admin);
 
-        // Track when the key joined the admin set so that the automatic
-        // rotation schedule (issue #900) knows which key is the oldest.
-        crate::admin_rotation::AdminRotation::record_admin_join(env, &admin);
-
-        publish_admin_added_event(env, admin);
+        publish_admin_added_event(env, admin.clone());
+        publish_admin_role_assigned_event(env, admin.clone(), AdminRole::SuperAdmin, admin);
 
         Ok(())
     }
@@ -77,22 +82,48 @@ impl AdminManager {
     /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
     /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
     /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
-    pub fn add_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
+    /// Add a new admin with an assigned role and permission set.
+    ///
+    /// Replacing `add_admin` with role-based assignment.
+    pub fn add_admin_with_role(
+        env: &Env,
+        caller: Address,
+        new_admin: Address,
+        role: AdminRole,
+    ) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
+        Self::require_admin_permission(env, &caller, AdminPermission::ManageAdmins)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
             return Err(ContractError::MultiSigRequired);
         }
 
-        // Check if already an admin
+        // If already an admin, update role
         if Self::is_admin(env, &new_admin) {
-            return Ok(()); // Already an admin, no-op
+            env.storage()
+                .persistent()
+                .set(&AdminSecurityKey::AdminRole(new_admin.clone()), &role);
+            publish_admin_role_assigned_event(env, new_admin.clone(), role, caller.clone());
+            AdminActionLog::record_action(
+                env,
+                caller,
+                AdminActionType::AdminRoleSet,
+                None,
+                Some(new_admin),
+                None,
+            );
+            return Ok(());
         }
 
         // Add to admin mapping
         env.storage()
             .persistent()
             .set(&StorageKey::Admin(new_admin.clone()), &true);
+
+        // Set role
+        env.storage()
+            .persistent()
+            .set(&AdminSecurityKey::AdminRole(new_admin.clone()), &role);
 
         // Add to admin list
         let mut admins = Self::get_admin_list(env);
@@ -108,48 +139,33 @@ impl AdminManager {
         crate::admin_rotation::AdminRotation::record_admin_join(env, &new_admin);
 
         publish_admin_added_event(env, new_admin.clone());
+        publish_admin_role_assigned_event(env, new_admin.clone(), role, caller.clone());
 
         AdminActionLog::record_action(
             env,
-            caller.clone(),
+            caller,
             AdminActionType::AdminAdded,
             None,
-            Some(new_admin.clone()),
+            Some(new_admin),
             None,
         );
 
         Ok(())
     }
 
-    /// Remove an admin (only callable by existing admins)
-    ///
-    /// # Atomicity and Concurrent-Operation Safety
-    ///
-    /// Like `add_admin`, this function benefits from Soroban's per-transaction
-    /// atomicity guarantee.  The `Admin(addr)` key removal and the `AdminList`
-    /// vector update are both written in the same transaction and are therefore
-    /// committed together — or not at all.
-    ///
-    /// If two transactions attempt to remove the same admin concurrently:
-    /// * The first to execute will succeed and remove the admin.
-    /// * The second will find the address absent from the mapping and return
-    ///   `AdminNotFound`, leaving the state unchanged.
-    ///
-    /// This gives **explicit conflict handling**: the second caller receives a
-    /// typed error rather than silently corrupting state, and there is no
-    /// possibility of the address being stuck in `AdminList` without a
-    /// corresponding `Admin(addr)` mapping entry (or vice-versa).
-    ///
-    /// # Errors
-    /// Returns `MultiSigRequired` (code 77) when the admin approval threshold > 1.
-    /// Use the proposal system (`create_proposal`) instead for multi-signature environments.
-    /// See `docs/APPROVAL_THRESHOLD_AUDIT.md` for the full governance-path map.
+    /// Add a new admin (delegates to `add_admin_with_role` with `AdminRole::SuperAdmin`).
+    pub fn add_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), ContractError> {
+        Self::add_admin_with_role(env, caller, new_admin, AdminRole::SuperAdmin)
+    }
+
+    /// Remove an admin (only callable by existing admins with ManageAdmins permission)
     pub fn remove_admin(
         env: &Env,
         caller: Address,
         admin_to_remove: Address,
     ) -> Result<(), ContractError> {
         require_admin_auth(env, &caller)?;
+        Self::require_admin_permission(env, &caller, AdminPermission::ManageAdmins)?;
 
         if Self::get_admin_approval_threshold(env) > 1 {
             return Err(ContractError::MultiSigRequired);
@@ -170,6 +186,11 @@ impl AdminManager {
         env.storage()
             .persistent()
             .remove(&StorageKey::Admin(admin_to_remove.clone()));
+
+        // Remove role entry
+        env.storage()
+            .persistent()
+            .remove(&AdminSecurityKey::AdminRole(admin_to_remove.clone()));
 
         // Remove from admin list
         let new_admins = Utils::remove_item_from_vec(env, &admins, &admin_to_remove);
@@ -214,6 +235,92 @@ impl AdminManager {
         } else {
             Err(ContractError::AdminOnly)
         }
+    }
+
+    /// Get the role assigned to an admin. Returns None if the address is not an admin.
+    /// If an existing admin has no explicit role stored, returns SuperAdmin for backward compatibility.
+    pub fn get_admin_role(env: &Env, address: &Address) -> Option<AdminRole> {
+        if !Self::is_admin(env, address) {
+            return None;
+        }
+        Some(
+            env.storage()
+                .persistent()
+                .get(&AdminSecurityKey::AdminRole(address.clone()))
+                .unwrap_or(AdminRole::SuperAdmin),
+        )
+    }
+
+    /// Check whether an admin holds a specific permission.
+    pub fn has_admin_permission(
+        env: &Env,
+        address: &Address,
+        permission: AdminPermission,
+    ) -> bool {
+        if let Some(role) = Self::get_admin_role(env, address) {
+            role.has_permission(permission)
+        } else {
+            false
+        }
+    }
+
+    /// Require that the caller is an admin and possesses the requested permission.
+    pub fn require_admin_permission(
+        env: &Env,
+        address: &Address,
+        permission: AdminPermission,
+    ) -> Result<(), ContractError> {
+        if !Self::is_admin(env, address) {
+            return Err(ContractError::AdminOnly);
+        }
+        if !Self::has_admin_permission(env, address, permission) {
+            return Err(ContractError::PermissionDenied);
+        }
+        Ok(())
+    }
+
+    /// Migrate existing admins without roles to SuperAdmin for backward compatibility.
+    pub fn migrate_existing_admins(env: &Env, caller: Address) -> Result<u32, ContractError> {
+        require_admin_auth(env, &caller)?;
+        Self::require_admin_permission(env, &caller, AdminPermission::ManageAdmins)?;
+
+        let admins = Self::get_admin_list(env);
+        let mut count = 0u32;
+        let total = admins.len();
+        for i in 0..total {
+            if let Some(admin) = admins.get(i) {
+                if !env
+                    .storage()
+                    .persistent()
+                    .has(&AdminSecurityKey::AdminRole(admin.clone()))
+                {
+                    env.storage().persistent().set(
+                        &AdminSecurityKey::AdminRole(admin.clone()),
+                        &AdminRole::SuperAdmin,
+                    );
+                    publish_admin_role_assigned_event(
+                        env,
+                        admin.clone(),
+                        AdminRole::SuperAdmin,
+                        caller.clone(),
+                    );
+                    count += 1;
+                }
+            }
+        }
+
+        if count > 0 {
+            AdminActionLog::record_action(
+                env,
+                caller,
+                AdminActionType::AdminRoleSet,
+                None,
+                None,
+                None,
+            );
+        }
+
+        Ok(count)
     }
 
     /// Get the list of all admins
@@ -295,7 +402,7 @@ impl AdminManager {
         threshold: u32,
     ) -> Result<(), ContractError> {
         caller.require_auth();
-        Self::require_admin(env, &caller)?;
+        Self::require_admin_permission(env, &caller, AdminPermission::ManageAdmins)?;
 
         if threshold == 0 || threshold > Self::get_admin_count(env) {
             return Err(ContractError::InvalidProjectData);

@@ -94,27 +94,9 @@ as variants of `ContractError`. They are returned as Soroban `u32` error codes.
 | 74 | `ThresholdDowngradeRequiresSupermajority` | A `SetThreshold` proposal that would lower the current approval threshold does not have enough approvals. The number of approvals must be **strictly greater than** the proposed new threshold (supermajority rule). | Gather additional admin approvals before executing the downgrade proposal. The required count is `new_threshold + 1`. |
 | 75 | `CircularDependency` | Adding this project-to-project dependency would create a circular reference: the target project already depends (directly or transitively) on the project you are editing. | Remove the opposing dependency edge first, or reference the dependency as an external CID / URL / contract instead of a `project_id`. See `docs/DEPENDENCY_REGISTRY.md`. |
 | 76 | `DependencyDepthExceeded` | Adding this dependency would make the transitive project-dependency chain deeper than `MAX_DEPENDENCY_DEPTH` (5) levels. | Restructure the dependency graph so the chain from your project to its deepest transitive dependency is at most 5 levels, or use an external reference. See `docs/DEPENDENCY_REGISTRY.md`. |
-| 145 | `SmartCollectionNotFound` | The referenced smart (rule-based) collection does not exist. | Check the collection ID; only collections created with `create_smart_collection` are smart collections. |
-| 146 | `InvalidCurationRule` | A curation rule has no condition set, or a condition value is out of range (e.g. `min_rating` above 500 = 5.00 stars). | Give the rule at least one of `tag`, `min_rating` or `category`, and keep the values inside the documented limits. |
-| 147 | `TooManyCurationRules` | The number of rules attached to a smart collection exceeds `MAX_CURATION_RULES` (10). | Split the rules across several smart collections. |
-| 148 | `SmartCollectionRuleVersionNotFound` | The requested rule-set version does not exist for this collection. | Read `list_smart_collection_versions` and use one of the stored version numbers. |
-| 149 | `EmptyCurationRules` | A smart collection must have at least one curation rule. | Provide at least one rule when creating or updating the rule set. |
-| 150 | `SmartCollectionNameExists` | A smart collection with the same name already exists. | Pick a different collection name. |
-| 151 | `CollectionVotingDisabled` | Community voting is disabled for this collection. | The collection owner (or an admin) must call `set_collection_voting` first. |
-| 152 | `CollectionVoteAlreadyCast` | The voter already cast a vote for this project in this collection. | Votes are append-only; a voter can only vote once per project and collection. |
-| 153 | `CollectionVoteInsufficientReputation` | The voter does not meet the minimum reputation requirements (authored reviews, reviewer points or a verified reviewer identity). | Build a track record first, or let a verified reviewer cast the vote. |
-| 154 | `InvalidVoteThreshold` | The membership-vote threshold is outside the valid range (1..=10_000 basis points). | Pass a threshold between 1 and 10 000 bps (the default is 7 500 = 75 %). |
-| 155 | `CollectionVoteAlreadyResolved` | The membership proposal was already resolved by a previous vote. | A resolved proposal is final; create a new collection or have the owner curate manually. |
-| 156 | `InvalidPausePhase` | The requested pause-recovery phase is unknown or not part of the active recovery plan. | Use one of the documented phase codes (1..=6) that appears in `get_pause_recovery_state`. |
-| 157 | `ContractNotPaused` | The contract is not paused, so there is no recovery plan to act on. | Only resume or roll back phases while the contract is paused. |
-| 158 | `NoPhaseToRollBack` | No recovery phase has been resumed yet, so there is nothing to roll back. | Resume a phase first, then roll it back if needed. |
-| 159 | `RotationScheduleNotSet` | No (enabled) admin rotation schedule is configured. | An admin must call `set_rotation_schedule` first. |
-| 160 | `InvalidRotationInterval` | The rotation interval is not one of the supported values (30, 60 or 90 days). | Use 30, 60 or 90 days. |
-| 161 | `RotationNotDue` | The scheduled admin rotation is not due yet. | Wait until `next_rotation_at` has passed. |
-| 162 | `RotationPreflightNotConfirmed` | The rotation pre-flight checklist has not been confirmed by an admin. | An admin must call `confirm_rotation_preflight` before the rotation can execute. |
-| 163 | `NoAdminsDueForRotation` | No admin is eligible for rotation right now. | Check the admin set and the rotation schedule. |
-| 164 | `RotationWouldRemoveLastAdmin` | The rotation would remove the last remaining admin and brick the contract. | Add another admin before the rotation becomes due. |
-| 165 | `RotationPreflightChecklistIncomplete` | At least one item of the rotation pre-flight checklist does not pass. | Resolve the failing checklist items (see `get_rotation_preflight_checklist`) and confirm again. |
+| 142 | `CampaignNotFound` | No feature campaign exists with the given ID. | Check the ID with `list_feature_campaigns`. See `docs/FEATURED_CAMPAIGNS.md`. |
+| 143 | `CampaignNotActive` | The campaign has ended (for `add_to_campaign`) or is outside its `start_date`..`end_date` window (for `record_campaign_interaction`). | Only add projects before `end_date` and record interactions while the campaign is running. |
+| 144 | `CampaignFull` | The campaign already holds `MAX_PROJECTS_PER_CAMPAIGN` (50) projects. | Create a second campaign for the remaining projects. |
 
 ## Adding New Error Codes
 

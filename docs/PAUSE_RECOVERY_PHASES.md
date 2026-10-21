@@ -1,181 +1,134 @@
-# Pause Recovery Phases
+# Pause Recovery Phases — staged resumption (issue #904)
 
-Operational guide for the **staged resumption** of operations after an
-emergency pause (issue #903).
+When an emergency pause is lifted it is rarely safe to flip everything back on
+at once: the area that caused the incident is usually not the area that
+breaks first when traffic returns. The contract therefore supports a **staged
+recovery**: an operator walks the platform back to life one area at a time and
+can roll back a phase if the next area misbehaves.
 
-Audience: contract admins and incident responders. Pair this with
-[EMERGENCY_PAUSE_RECOVERY.md](EMERGENCY_PAUSE_RECOVERY.md) (the global pause
-state machine and the post-unpause validation) and
-[ADMIN_ROTATION_SCHEDULES.md](ADMIN_ROTATION_SCHEDULES.md) (key custody).
+## The recovery plan
 
----
+| Phase | Resumed | Pause state after the transition | Generic mutations (`All`) |
+|-------|---------|----------------------------------|---------------------------|
+| 0 | nothing (fully paused) | `PausedAll` | blocked |
+| 1 | read operations | `PausedAll` | blocked |
+| 2 | reviews | `PausedVerificationAndFees` | blocked |
+| 3 | verification | `PausedFees` | blocked |
+| 4 | fees — the contract is fully running again | `Running` | allowed |
 
-## 1. Why staged recovery?
+Read operations are available in every phase, so users can always see what is
+going on while the recovery is in progress.
 
-The emergency pause is all-or-nothing: while `StorageKey::ContractPaused` is
-set, every guarded mutating call is rejected. During an incident that is often
-too coarse. A registry that is only serving reads is not useful, and a full
-`unpause` after an incomplete investigation can re-open the very path that
-caused the incident.
+## API
 
-Staged recovery lets an operator bring the system back **one area at a time**,
-validate that area, and roll back to the previous area if something still
-misbehaves.
+| Endpoint | Purpose |
+|----------|---------|
+| `resume_operations_phase(admin, phase)` | Move to `phase` (0..=4). Emits `CONTRACT/PHASE` with the new and the previous phase. |
+| `rollback_operations_phase(admin)` | Move back one phase. Fails with `InvalidPhaseRollback` when no phase has been resumed yet. |
+| `get_resume_phase()` | Current phase (0 = no staged recovery in progress). |
+| `get_phase_history()` | Ordered list of the phase transitions (capped at 50 entries). |
+| `get_contract_status()` | Full status, including the current phase and the pause reason. |
 
-The implementation lives in `src/pause_recovery.rs` (`PauseRecovery`) and is
-exposed through four contract functions:
+`resume_operations_phase` accepts any phase in `0..=MAX_RESUME_PHASE`
+(`MAX_RESUME_PHASE = 4`). Passing a **lower** phase number than the current
+one is a rollback, so an operator can move forward and backward with a single
+endpoint; `rollback_operations_phase` is the explicit, safer form of the same
+operation.
 
-| Function | Auth | Effect |
-|---|---|---|
-| `resume_operations_phase(admin, phase)` | admin | Re-enables a single recovery phase. Emits `PAUSE/PHASE`. |
-| `rollback_recovery_phase(admin)` | admin | Halts the most recently resumed phase again. Emits `PAUSE/PHASE`. |
-| `get_pause_recovery_state() -> PauseRecoveryState` | none (read) | Current plan, live phases, completed phases, last change. |
-| `set_pause_recovery_plan(admin, phases)` | admin | Installs a custom recovery ladder. Emits `PAUSE/PHASE`. |
+An unknown phase (> 4) is rejected with `InvalidPausePhase` and leaves the
+state untouched.
 
----
+## Operator guide
 
-## 2. The recovery ladder
+### 1. Declare the incident
 
-| Phase | Name | Re-enables |
-|---|---|---|
-| 0 | `FULL_PAUSE` | nothing — the contract is fully halted |
-| 1 | `READ_OPS` | read-only traffic (reads are never gated by the pause) |
-| 2 | `CORE_WRITES` | project register / update / archive / link / region / changelog |
-| 3 | `REVIEWS` | review create / update / delete, review reports |
-| 4 | `VERIFICATION` | verification request (and the verification admin paths) |
-| 5 | `FEES` | fee payment / cancellation / refund |
-| 6 | `ALL` | everything (equivalent to a full resume) |
+```json
+{
+  "function": "set_pause_with_reason",
+  "args": ["<admin>", "Fee token migration – treasury balances inconsistent", 1800000000]
+}
+```
 
-The default plan is `1 → 2 → 3 → 4 → 5 → 6`. It extends the ladder named in
-the issue (`read ops → reviews → verification → fees`) with an explicit
-*core writes* step, because project registration and metadata updates are the
-first write path an operator usually wants back.
+* The reason is a short operator note (1..=256 bytes).
+* `estimated_resume` is the expected resume time as a **Unix timestamp**
+  (`0` means "no estimate").  It is shown by `get_contract_status()` and
+  included in the `CONTRACT/PAUSED` event.
+* The reason is stored on the pause record and pushed to every address that
+  subscribed to pause notifications (`subscribe_pause_notifications`).
 
-Use `set_pause_recovery_plan` to install a different ladder — for example
-`[1, 3, 4, 6]` to skip core writes entirely during a data-integrity incident.
-The plan is only consulted while the contract is paused.
+Prefer a *partial* pause when only one area is affected:
 
----
+```json
+{ "function": "set_pause_state", "args": ["<admin>", "PausedVerification", "Verification queue overflow", 0] }
+```
 
-## 3. Non-cumulative semantics
+### 2. Confirm the blast radius
 
-Resuming a phase **only** re-enables that phase. Resuming `REVIEWS` does not
-re-enable core writes, fee payments or verification requests.
+```json
+{ "function": "get_contract_status" }
+```
 
-This is deliberate: it is what "recover one area at a time" means. Each area
-can therefore be validated in isolation before the next one is let through.
+Returns the pause state, the reason, the estimated resume time, the pause
+timestamp, the current recovery phase and the list of blocked operation
+families.  The same information is emitted as `CONTRACT/NOTIFY` to the
+subscribers.
 
-Two special cases:
+### 3. Recover one area at a time
 
-* `ALL` is a wildcard — once phase 6 is resumed, every phase is live.
-* `pause()` resets the recovery state: a new incident always starts from a
-  full pause with no live phase.
+```json
+{ "function": "resume_operations_phase", "args": ["<admin>", 1] }   // reads confirmed
+{ "function": "resume_operations_phase", "args": ["<admin>", 2] }   // reviews back on
+{ "function": "resume_operations_phase", "args": ["<admin>", 3] }   // verification back on
+{ "function": "resume_operations_phase", "args": ["<admin>", 4] }   // fees back on, fully running
+```
 
----
+After **every** transition:
 
-## 4. Phase progress and rollback
+* the new phase is stored on the pause record (`get_resume_phase()`),
+* the transition is appended to the phase history (`get_phase_history()`),
+* a `CONTRACT/PHASE` event is emitted with the new phase and the previous
+  phase,
+* the final phase (`4`) also emits `CONTRACT/UNPAUSED` and clears the pause
+  reason.
 
-Every phase change is pushed onto a stack:
+Between two phases, watch the metrics of the area that was just resumed.  If
+something looks wrong, roll back immediately:
 
-* `resume_operations_phase` pushes the phase,
-* `rollback_recovery_phase` pops the most recent phase and halts that area
-  again,
-* `get_pause_recovery_state` reports the **plan**, the **enabled phases**
-  (the stack) and the **completed phases** (the phases of the plan the
-  operator already moved past).
+```json
+{ "function": "rollback_operations_phase", "args": ["<admin>"] }
+```
 
-Rolling back is the "undo" for a bad resumption: e.g. if reviews are still
-causing trouble, roll the phase back, keep the incident open, and fix the
-underlying problem before resuming again.
+### 4. Close the incident
 
----
+```json
+{ "function": "unpause", "args": ["<admin>"] }
+```
 
-## 5. Incident runbook
+`unpause` resets the phase to `0`, clears the reason and the estimated resume
+time and emits `CONTRACT/UNPAUSED`.
 
-1. **Halt everything.**
+## Checklist
 
-   ```
-   pause(admin)
-   ```
+- [ ] The reason names the failing subsystem and the incident ticket.
+- [ ] The subscriber list contains the on-call operators.
+- [ ] `get_contract_status()` matches the expected state before every step.
+- [ ] Each phase is confirmed with the metrics of the resumed area before the
+      next phase is started.
+- [ ] A rollback was rehearsed (or at least is one transaction away).
+- [ ] The phase history is archived with the incident report.
 
-   All recovery phases are reset. `get_pause_recovery_state()` now reports
-   `is_paused = true` and an empty `enabled_phases` list.
+## Failure modes
 
-2. **Investigate with reads only.**
+| Symptom | Cause | Action |
+|---------|-------|--------|
+| `InvalidPausePhase` | `phase > 4` | Use a phase between 0 and 4. |
+| `InvalidPhaseRollback` | No phase has been resumed yet | Resume a phase first, or use `unpause`. |
+| `ContractPaused` after a phase change | The call belongs to a family that is still closed | Check `get_contract_status().paused_operations`. |
+| `ContractPaused` on a generic mutation | The recovery has not reached phase 4 | Finish the recovery plan or accept the restriction. |
 
-   Read traffic keeps working during the pause, so the indexer, the front-end
-   and the dashboards can be used to scope the incident.
+## See also
 
-3. **Bring the first area back.**
-
-   ```
-   resume_operations_phase(admin, 2)   // core writes
-   ```
-
-   Watch the `PAUSE/PHASE` event and the error rate of the resumed area.
-
-4. **Validate, then continue with the next area.**
-
-   ```
-   resume_operations_phase(admin, 3)   // reviews
-   resume_operations_phase(admin, 4)   // verification
-   resume_operations_phase(admin, 5)   // fees
-   ```
-
-5. **Roll back if an area misbehaves.**
-
-   ```
-   rollback_recovery_phase(admin)
-   ```
-
-   The most recent phase is halted again; the previous areas stay live.
-
-6. **Finish the incident.**
-
-   ```
-   unpause(admin)
-   ```
-
-   `unpause` clears the recovery state and restores the contract to full
-   operation. Follow the post-unpause validation checklist in
-   [EMERGENCY_PAUSE_RECOVERY.md](EMERGENCY_PAUSE_RECOVERY.md).
-
----
-
-## 6. Events
-
-Every phase change emits a `PAUSE/PHASE` event:
-
-| Field | Meaning |
-|---|---|
-| `phase` | the phase that is now current (`0` = nothing live) |
-| `previous_phase` | the phase that was current before the change |
-| `enabled_phases` | all live phases |
-| `completed_phases` | phases of the plan already moved past |
-| `admin` | the operator that performed the change |
-| `rolled_back` | `true` when the change was a rollback |
-
-Indexers should treat `rolled_back = true` as "the area was halted again".
-
----
-
-## 7. Error codes
-
-| Error | Meaning |
-|---|---|
-| `ContractNotPaused` (157) | there is no incident to recover from — the contract is running |
-| `InvalidPausePhase` (156) | the phase code is unknown or not part of the active plan |
-| `NoPhaseToRollBack` (158) | no phase has been resumed yet, so there is nothing to roll back |
-| `ContractPaused` (61) | the call belongs to a phase that is still halted |
-
----
-
-## 8. Guard mapping
-
-| Operation group | Guard |
-|---|---|
-| project register / update / archive / link / region / changelog | `PAUSE_PHASE_CORE_WRITES` |
-| review create / update / delete, review reports | `PAUSE_PHASE_REVIEWS` |
-| verification requests and verification admin paths | `PAUSE_PHASE_VERIFICATION` |
-| fee payment / cancellation / refund | `PAUSE_PHASE_FEES` |
-| everything else that mutates state | `PAUSE_PHASE_CORE_WRITES` |
+* [PAUSE_MATRIX.md](PAUSE_MATRIX.md) — which operation families are blocked by
+  which pause state.
+* [EMERGENCY_PAUSE_RECOVERY.md](EMERGENCY_PAUSE_RECOVERY.md) — the general
+  emergency-pause runbook.

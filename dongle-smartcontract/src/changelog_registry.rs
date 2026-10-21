@@ -16,14 +16,41 @@
 //!
 //! All changes (add and remove) emit on-chain events so indexers can reconstruct
 //! the full audit trail.
+//!
+//! # Admin approval (#930)
+//!
+//! Every entry carries a [`ChangelogStatus`]: `Draft` → `Approved` → `Published`.
+//! Only `Published` entries appear in [`ChangelogRegistry::get_project_changelog`]
+//! and [`ChangelogRegistry::get_changelog_count`]. Status transitions never
+//! touch the entry's content, so the write-once contract above still holds.
+//!
+//! - Owners call [`ChangelogRegistry::submit_changelog_for_approval`], which
+//!   stores a `Draft` and queues it for admin review.
+//! - Admins review drafts in bulk with
+//!   [`ChangelogRegistry::approve_changelog_entries`] (optionally publishing
+//!   immediately) and [`ChangelogRegistry::reject_changelog_entries`].
+//! - Approved entries are published in bulk by the owner or an admin via
+//!   [`ChangelogRegistry::publish_changelog_entries`], emitting
+//!   `ChangelogEntryPublished`.
+//!
+//! When an admin enables approval via
+//! [`ChangelogRegistry::set_changelog_approval_required`], the direct
+//! `add_changelog_entry` path is closed (`ChangelogApprovalRequired`). It is
+//! open by default so existing integrations keep working.
 
-use crate::constants::MAX_CID_LEN;
+use crate::admin_manager::AdminManager;
+use crate::auth::require_admin_auth;
+use crate::constants::{MAX_CHANGELOG_APPROVAL_BATCH, MAX_CID_LEN};
 use crate::errors::ContractError;
-use crate::events::{publish_changelog_added_event, publish_changelog_removed_event};
+use crate::events::{
+    publish_changelog_added_event, publish_changelog_entry_published_event,
+    publish_changelog_removed_event, publish_changelog_reviewed_event,
+    publish_changelog_submitted_event,
+};
 use crate::project_registry::ProjectRegistry;
-use crate::storage_keys::{ExtensionKey, ExtensionKey2};
+use crate::storage_keys::{ChangelogApprovalKey, ExtensionKey, ExtensionKey2};
 use crate::storage_manager::StorageManager;
-use crate::types::ChangelogEntry;
+use crate::types::{ChangelogBatchResult, ChangelogEntry, ChangelogStatus};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Env, String, Vec};
 
@@ -56,11 +83,84 @@ impl ChangelogRegistry {
         // Authentication check
         owner.require_auth();
 
+        if Self::is_changelog_approval_required(env) {
+            return Err(ContractError::ChangelogApprovalRequired);
+        }
+
+        let now = env.ledger().timestamp();
+        let entry = Self::create_entry(
+            env,
+            project_id,
+            &owner,
+            cid,
+            description,
+            version,
+            changelog_cid,
+            ChangelogStatus::Published,
+            Some(now),
+        )?;
+
+        publish_changelog_added_event(env, entry.id, project_id, owner, entry.cid);
+
+        Ok(entry.id)
+    }
+
+    /// Submit a changelog entry for admin approval (project owner only).
+    ///
+    /// The entry is stored as `Draft`, queued for admin review and hidden from
+    /// the public changelog until it is approved and published.
+    pub fn submit_changelog_for_approval(
+        env: &Env,
+        project_id: u64,
+        owner: Address,
+        cid: String,
+        description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
+    ) -> Result<u64, ContractError> {
+        owner.require_auth();
+
+        let entry = Self::create_entry(
+            env,
+            project_id,
+            &owner,
+            cid,
+            description,
+            version,
+            changelog_cid,
+            ChangelogStatus::Draft,
+            None,
+        )?;
+
+        let mut queue = Self::get_pending_queue(env);
+        queue.push_back(entry.id);
+        env.storage()
+            .persistent()
+            .set(&ChangelogApprovalKey::PendingQueue, &queue);
+
+        publish_changelog_submitted_event(env, entry.id, project_id, owner, entry.cid);
+
+        Ok(entry.id)
+    }
+
+    /// Validate and store a new entry with the given status.
+    #[allow(clippy::too_many_arguments)]
+    fn create_entry(
+        env: &Env,
+        project_id: u64,
+        owner: &Address,
+        cid: String,
+        description: Option<String>,
+        version: Option<String>,
+        changelog_cid: Option<String>,
+        status: ChangelogStatus,
+        published_at: Option<u64>,
+    ) -> Result<ChangelogEntry, ContractError> {
         // Verify project exists and caller is owner
         let project =
             ProjectRegistry::get_project(env, project_id).ok_or(ContractError::ProjectNotFound)?;
 
-        if project.owner != owner {
+        if project.owner != *owner {
             return Err(ContractError::Unauthorized);
         }
 
@@ -116,11 +216,14 @@ impl ChangelogRegistry {
         let entry = ChangelogEntry {
             id: changelog_id,
             project_id,
-            cid: cid.clone(),
+            cid,
             created_at: now,
             description,
             version,
             changelog_cid,
+            status,
+            approved_by: None,
+            published_at,
         };
 
         // Store changelog entry
@@ -144,10 +247,199 @@ impl ChangelogRegistry {
         // Extend TTL
         StorageManager::extend_project_ttl(env, project_id);
 
-        // Publish event
-        publish_changelog_added_event(env, changelog_id, project_id, owner, cid);
+        Ok(entry)
+    }
 
-        Ok(changelog_id)
+    /// Admin bulk approval of `Draft` entries.
+    ///
+    /// With `publish = true` approved entries are published immediately.
+    /// IDs that do not exist or are not `Draft` are reported in `failed`
+    /// instead of aborting the batch.
+    pub fn approve_changelog_entries(
+        env: &Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+        publish: bool,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        require_admin_auth(env, &admin)?;
+        Self::validate_batch(&changelog_ids)?;
+
+        let mut result = Self::empty_batch_result(env);
+        let mut queue = Self::get_pending_queue(env);
+        for id in changelog_ids.iter() {
+            let Some(mut entry) = Self::get_changelog_entry(env, id) else {
+                result.failed.push_back(id);
+                continue;
+            };
+            if entry.status != ChangelogStatus::Draft {
+                result.failed.push_back(id);
+                continue;
+            }
+
+            entry.status = ChangelogStatus::Approved;
+            entry.approved_by = Some(admin.clone());
+            publish_changelog_reviewed_event(env, id, entry.project_id, admin.clone(), true);
+            if publish {
+                Self::mark_published(env, &mut entry, admin.clone());
+            }
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectChangelogEntry(id), &entry);
+
+            queue = Utils::remove_item_from_vec(env, &queue, &id);
+            result.succeeded.push_back(id);
+        }
+        env.storage()
+            .persistent()
+            .set(&ChangelogApprovalKey::PendingQueue, &queue);
+
+        Ok(result)
+    }
+
+    /// Admin bulk rejection of `Draft` entries. Rejected drafts are deleted.
+    pub fn reject_changelog_entries(
+        env: &Env,
+        admin: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        require_admin_auth(env, &admin)?;
+        Self::validate_batch(&changelog_ids)?;
+
+        let mut result = Self::empty_batch_result(env);
+        let mut queue = Self::get_pending_queue(env);
+        for id in changelog_ids.iter() {
+            let Some(entry) = Self::get_changelog_entry(env, id) else {
+                result.failed.push_back(id);
+                continue;
+            };
+            if entry.status != ChangelogStatus::Draft {
+                result.failed.push_back(id);
+                continue;
+            }
+
+            Self::delete_entry(env, &entry);
+            queue = Utils::remove_item_from_vec(env, &queue, &id);
+            publish_changelog_reviewed_event(env, id, entry.project_id, admin.clone(), false);
+            result.succeeded.push_back(id);
+        }
+        env.storage()
+            .persistent()
+            .set(&ChangelogApprovalKey::PendingQueue, &queue);
+
+        Ok(result)
+    }
+
+    /// Bulk-publish `Approved` entries. Callable by an admin, or by the owner
+    /// of each entry's project (entries of other projects are reported as
+    /// failed).
+    pub fn publish_changelog_entries(
+        env: &Env,
+        caller: Address,
+        changelog_ids: Vec<u64>,
+    ) -> Result<ChangelogBatchResult, ContractError> {
+        caller.require_auth();
+        Self::validate_batch(&changelog_ids)?;
+        let is_admin = AdminManager::is_admin(env, &caller);
+
+        let mut result = Self::empty_batch_result(env);
+        for id in changelog_ids.iter() {
+            let Some(mut entry) = Self::get_changelog_entry(env, id) else {
+                result.failed.push_back(id);
+                continue;
+            };
+            let is_owner = ProjectRegistry::get_project(env, entry.project_id)
+                .map(|p| p.owner == caller)
+                .unwrap_or(false);
+            if entry.status != ChangelogStatus::Approved || !(is_admin || is_owner) {
+                result.failed.push_back(id);
+                continue;
+            }
+
+            Self::mark_published(env, &mut entry, caller.clone());
+            env.storage()
+                .persistent()
+                .set(&ExtensionKey::ProjectChangelogEntry(id), &entry);
+            result.succeeded.push_back(id);
+        }
+
+        Ok(result)
+    }
+
+    /// Require (or stop requiring) admin approval for new changelog entries.
+    pub fn set_changelog_approval_required(
+        env: &Env,
+        admin: Address,
+        required: bool,
+    ) -> Result<(), ContractError> {
+        require_admin_auth(env, &admin)?;
+        env.storage()
+            .persistent()
+            .set(&ChangelogApprovalKey::ApprovalRequired, &required);
+        Ok(())
+    }
+
+    pub fn is_changelog_approval_required(env: &Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&ChangelogApprovalKey::ApprovalRequired)
+            .unwrap_or(false)
+    }
+
+    /// Draft entries awaiting admin review, oldest first.
+    pub fn get_pending_changelog_entries(
+        env: &Env,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<ChangelogEntry> {
+        let queue = Self::get_pending_queue(env);
+        let page = crate::pagination::paginate(env, &queue, start_index, limit);
+        let mut result = Vec::new(env);
+        for id in page.iter() {
+            if let Some(entry) = Self::get_changelog_entry(env, id) {
+                result.push_back(entry);
+            }
+        }
+        result
+    }
+
+    fn mark_published(env: &Env, entry: &mut ChangelogEntry, published_by: Address) {
+        entry.status = ChangelogStatus::Published;
+        entry.published_at = Some(env.ledger().timestamp());
+        publish_changelog_entry_published_event(env, entry, published_by);
+    }
+
+    fn validate_batch(changelog_ids: &Vec<u64>) -> Result<(), ContractError> {
+        if changelog_ids.is_empty() || changelog_ids.len() > MAX_CHANGELOG_APPROVAL_BATCH {
+            return Err(ContractError::InvalidChangelogBatch);
+        }
+        Ok(())
+    }
+
+    fn empty_batch_result(env: &Env) -> ChangelogBatchResult {
+        ChangelogBatchResult {
+            succeeded: Vec::new(env),
+            failed: Vec::new(env),
+        }
+    }
+
+    fn get_pending_queue(env: &Env) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&ChangelogApprovalKey::PendingQueue)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Remove an entry from storage and from its project's entry list.
+    fn delete_entry(env: &Env, entry: &ChangelogEntry) {
+        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
+        let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &entry.id);
+        env.storage().persistent().set(
+            &ExtensionKey::ProjectChangelogEntries(entry.project_id),
+            &new_changelogs,
+        );
+        env.storage()
+            .persistent()
+            .remove(&ExtensionKey::ProjectChangelogEntry(entry.id));
     }
 
     /// Remove a changelog entry (project owner only).
@@ -183,18 +475,15 @@ impl ChangelogRegistry {
             return Err(ContractError::Unauthorized);
         }
 
-        // Remove from project's changelog list
-        let project_changelogs = Self::get_project_changelog_entries(env, entry.project_id);
-        let new_changelogs = Utils::remove_item_from_vec(env, &project_changelogs, &changelog_id);
-        env.storage().persistent().set(
-            &ExtensionKey::ProjectChangelogEntries(entry.project_id),
-            &new_changelogs,
-        );
+        Self::delete_entry(env, &entry);
 
-        // Remove the changelog entry
-        env.storage()
-            .persistent()
-            .remove(&ExtensionKey::ProjectChangelogEntry(changelog_id));
+        // A withdrawn draft no longer needs admin review
+        if entry.status == ChangelogStatus::Draft {
+            let queue = Utils::remove_item_from_vec(env, &Self::get_pending_queue(env), &changelog_id);
+            env.storage()
+                .persistent()
+                .set(&ChangelogApprovalKey::PendingQueue, &queue);
+        }
 
         // Extend TTL
         StorageManager::extend_project_ttl(env, entry.project_id);
@@ -236,22 +525,21 @@ impl ChangelogRegistry {
             limit
         };
 
-        // Get all changelog entry IDs for the project
+        // Collect published entries only; drafts and approved-but-unpublished
+        // entries are not part of the public changelog (#930).
         let changelog_ids = Self::get_project_changelog_entries(env, project_id);
-        let total = changelog_ids.len();
-
-        if total == 0 || start_index >= total {
-            return Vec::new(env);
-        }
-
-        // Collect all entries
         let mut entries = Vec::new(env);
-        for i in 0..total {
-            if let Some(changelog_id) = changelog_ids.get(i) {
-                if let Some(entry) = Self::get_changelog_entry(env, changelog_id) {
+        for changelog_id in changelog_ids.iter() {
+            if let Some(entry) = Self::get_changelog_entry(env, changelog_id) {
+                if entry.status == ChangelogStatus::Published {
                     entries.push_back(entry);
                 }
             }
+        }
+
+        let total = entries.len();
+        if total == 0 || start_index >= total {
+            return Vec::new(env);
         }
 
         // Sort entries based on sort_mode
@@ -300,9 +588,17 @@ impl ChangelogRegistry {
     /// - `project_id`: The project ID
     ///
     /// # Returns
-    /// - `u32` number of changelog entries
+    /// - `u32` number of published changelog entries
     pub fn get_changelog_count(env: &Env, project_id: u64) -> u32 {
-        Self::get_project_changelog_entries(env, project_id).len()
+        let mut count = 0;
+        for changelog_id in Self::get_project_changelog_entries(env, project_id).iter() {
+            if let Some(entry) = Self::get_changelog_entry(env, changelog_id) {
+                if entry.status == ChangelogStatus::Published {
+                    count += 1;
+                }
+            }
+        }
+        count
     }
 
     /// Explicitly reject any attempt to update a changelog entry in-place.
@@ -338,7 +634,7 @@ impl ChangelogRegistry {
     }
 
     // Internal helper function to get project changelog entry IDs
-    fn get_project_changelog_entries(env: &Env, project_id: u64) -> Vec<u64> {
+    pub(crate) fn get_project_changelog_entries(env: &Env, project_id: u64) -> Vec<u64> {
         env.storage()
             .persistent()
             .get(&ExtensionKey::ProjectChangelogEntries(project_id))

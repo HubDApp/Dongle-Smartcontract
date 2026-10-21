@@ -2,19 +2,20 @@ use crate::admin_action_log::AdminActionLog;
 use crate::admin_manager::AdminManager;
 use crate::auth::require_admin_auth;
 use crate::constants::{
-    DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS, MAX_COLLECTIONS, MAX_COLLECTION_DESCRIPTION_LEN,
-    MAX_COLLECTION_NAME_LEN, MAX_PROJECTS_PER_COLLECTION,
+    MAX_COLLECTIONS, MAX_COLLECTION_DEPTH, MAX_COLLECTION_DESCRIPTION_LEN, MAX_COLLECTION_NAME_LEN,
+    MAX_COLLECTION_TREE_NODES, MAX_PROJECTS_PER_COLLECTION,
 };
 use crate::errors::ContractError;
 use crate::events::{
     publish_collection_created_event, publish_collection_deleted_event,
     publish_collection_share_link_generated_event, publish_collection_share_link_revoked_event,
-    publish_collection_updated_event, publish_collection_visibility_toggled_event,
-    publish_project_added_to_collection_event, publish_project_removed_from_collection_event,
+    publish_collection_snapshot_created_event, publish_collection_updated_event,
+    publish_collection_visibility_toggled_event, publish_project_added_to_collection_event,
+    publish_project_removed_from_collection_event,
 };
 use crate::pagination::paginate;
-use crate::storage_keys::{CollectionVisibilityKey, StorageKey};
-use crate::types::{AdminActionType, Collection};
+use crate::storage_keys::{CollectionHierarchyKey, CollectionVisibilityKey, StorageKey};
+use crate::types::{AdminActionType, Collection, CollectionTreeNode};
 use crate::utils::Utils;
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
@@ -29,7 +30,7 @@ impl CollectionRegistry {
         description: String,
     ) -> Result<u64, ContractError> {
         require_admin_auth(env, &admin)?;
-        Self::create_collection_internal(env, admin, name, description, true)
+        Self::create_collection_internal(env, admin, name, description, true, None)
     }
 
     /// Create a collection with explicit visibility (admin-only).
@@ -41,7 +42,7 @@ impl CollectionRegistry {
         is_public: bool,
     ) -> Result<u64, ContractError> {
         require_admin_auth(env, &admin)?;
-        Self::create_collection_internal(env, admin, name, description, is_public)
+        Self::create_collection_internal(env, admin, name, description, is_public, None)
     }
 
     /// Create a collection owned by the authenticated caller.
@@ -53,7 +54,40 @@ impl CollectionRegistry {
         is_public: bool,
     ) -> Result<u64, ContractError> {
         creator.require_auth();
-        Self::create_collection_internal(env, creator, name, description, is_public)
+        Self::create_collection_internal(env, creator, name, description, is_public, None)
+    }
+
+    /// Create a collection **nested inside** an existing collection
+    /// (issue #905).
+    ///
+    /// The parent must exist and the resulting hierarchy depth must not
+    /// exceed [`MAX_COLLECTION_DEPTH`].  Because a brand-new collection has
+    /// no children of its own, the depth of the new node is
+    /// `depth(parent) + 1`.
+    pub fn create_nested_collection(
+        env: &Env,
+        creator: Address,
+        name: String,
+        description: String,
+        is_public: bool,
+        parent_collection_id: u64,
+    ) -> Result<u64, ContractError> {
+        creator.require_auth();
+
+        let parent = Self::require_collection(env, parent_collection_id)?;
+        let parent_depth = Self::compute_depth(env, &parent)?;
+        if parent_depth + 1 > MAX_COLLECTION_DEPTH {
+            return Err(ContractError::CollectionDepthExceeded);
+        }
+
+        Self::create_collection_internal(
+            env,
+            creator,
+            name,
+            description,
+            is_public,
+            Some(parent_collection_id),
+        )
     }
 
     fn create_collection_internal(
@@ -62,6 +96,7 @@ impl CollectionRegistry {
         name: String,
         description: String,
         is_public: bool,
+        parent_collection_id: Option<u64>,
     ) -> Result<u64, ContractError> {
         Self::validate_name(&name)?;
         Self::validate_description(&description)?;
@@ -86,6 +121,7 @@ impl CollectionRegistry {
             vote_threshold_bps: DEFAULT_COLLECTION_VOTE_THRESHOLD_BPS,
             created_at: timestamp,
             updated_at: timestamp,
+            parent_collection_id,
         };
 
         env.storage()
@@ -103,6 +139,11 @@ impl CollectionRegistry {
         env.storage()
             .persistent()
             .set(&CollectionVisibilityKey::CollectionIsPublic(id), &is_public);
+
+        // Register the collection in its parent's child index (issue #905).
+        if let Some(parent_id) = parent_collection_id {
+            Self::add_child(env, parent_id, id);
+        }
 
         let mut list: Vec<u64> = env
             .storage()
@@ -209,6 +250,13 @@ impl CollectionRegistry {
 
         let collection = Self::require_collection(env, collection_id)?;
 
+        // A collection that still contains nested collections cannot be
+        // deleted — the hierarchy must stay acyclic and fully reachable
+        // (issue #905).
+        if !Self::get_child_ids(env, collection_id).is_empty() {
+            return Err(ContractError::CollectionHasChildren);
+        }
+
         let project_ids: Vec<u64> = env
             .storage()
             .persistent()
@@ -274,6 +322,11 @@ impl CollectionRegistry {
             .persistent()
             .remove(&CollectionVisibilityKey::CollectionShareToken(collection_id));
 
+        // Detach the collection from its parent (issue #905).
+        if let Some(parent_id) = collection.parent_collection_id {
+            Self::remove_child(env, parent_id, collection_id);
+        }
+
         publish_collection_deleted_event(env, collection_id, admin.clone());
 
         AdminActionLog::record_action(
@@ -286,6 +339,186 @@ impl CollectionRegistry {
         );
 
         Ok(())
+    }
+
+    // ── Collection Hierarchy & Nesting (Issue #905) ────────────────────────
+
+    /// Move a collection under a new parent (or promote it to the top level
+    /// by passing `None`).
+    ///
+    /// Guards (all of them keep the hierarchy a **forest**):
+    /// - the new parent must exist (`CollectionNotFound`),
+    /// - a collection can never become its own ancestor
+    ///   (`CollectionHierarchyCycle`),
+    /// - the resulting depth of the moved subtree must not exceed
+    ///   [`MAX_COLLECTION_DEPTH`] (`CollectionDepthExceeded`).
+    pub fn set_collection_parent(
+        env: &Env,
+        caller: Address,
+        collection_id: u64,
+        parent_collection_id: Option<u64>,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let mut collection = Self::require_collection(env, collection_id)?;
+        if collection.owner != caller && !AdminManager::is_admin(env, &caller) {
+            return Err(ContractError::NotCollectionOwner);
+        }
+
+        let old_parent = collection.parent_collection_id;
+
+        if let Some(parent_id) = parent_collection_id {
+            if parent_id == collection_id {
+                return Err(ContractError::CollectionHierarchyCycle);
+            }
+
+            let parent = Self::require_collection(env, parent_id)?;
+
+            // The new parent must not be a descendant of the collection
+            // itself — otherwise the hierarchy would contain a cycle.
+            if Self::is_descendant(env, parent_id, collection_id)? {
+                return Err(ContractError::CollectionHierarchyCycle);
+            }
+
+            // The whole subtree is re-parented, so the deepest leaf decides
+            // whether the depth limit is still respected.
+            let parent_depth = Self::compute_depth(env, &parent)?;
+            let subtree_height = Self::subtree_height(env, collection_id)?;
+            let deepest_leaf_depth = parent_depth + subtree_height - 1;
+            if deepest_leaf_depth > MAX_COLLECTION_DEPTH {
+                return Err(ContractError::CollectionDepthExceeded);
+            }
+        }
+
+        collection.parent_collection_id = parent_collection_id;
+        collection.updated_at = env.ledger().timestamp();
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Collection(collection_id), &collection);
+
+        // Update the reverse (parent → children) index.
+        if let Some(old) = old_parent {
+            if Some(old) != parent_collection_id {
+                Self::remove_child(env, old, collection_id);
+            }
+        }
+        if let Some(new) = parent_collection_id {
+            Self::add_child(env, new, collection_id);
+        }
+
+        publish_collection_updated_event(env, collection_id, caller);
+        Ok(())
+    }
+
+    /// Return the subtree rooted at `root_id`.
+    ///
+    /// The nodes are returned in breadth-first order; every node carries its
+    /// depth (relative to the root) and the identifiers of its direct
+    /// children, which together describe the nested structure (issue #905).
+    ///
+    /// The walk is bounded by [`MAX_COLLECTION_TREE_NODES`] and by the
+    /// acyclic-graph invariant, so it always terminates.
+    pub fn get_collection_tree(
+        env: &Env,
+        root_id: u64,
+    ) -> Result<Vec<CollectionTreeNode>, ContractError> {
+        // Validate that the root exists.
+        Self::require_collection(env, root_id)?;
+
+        let mut nodes = Vec::new(env);
+        let mut queue: Vec<(u64, u32)> = Vec::new(env);
+        queue.push_back((root_id, 0u32));
+
+        while !queue.is_empty() {
+            if nodes.len() >= MAX_COLLECTION_TREE_NODES {
+                break;
+            }
+            let (current_id, depth) = queue.remove(0);
+            let collection = match env
+                .storage()
+                .persistent()
+                .get::<_, Collection>(&StorageKey::Collection(current_id))
+            {
+                Some(c) => c,
+                None => continue,
+            };
+            let parent_id = collection.parent_collection_id;
+            let child_ids = Self::get_child_ids(env, current_id);
+            for child_id in child_ids.iter() {
+                queue.push_back((child_id, depth + 1));
+            }
+            nodes.push_back(CollectionTreeNode {
+                collection,
+                depth,
+                parent_id,
+                child_ids,
+            });
+        }
+
+        Ok(nodes)
+    }
+
+    /// Return the breadcrumb path of a collection: the chain of ancestors
+    /// from the root collection down to (and including) `collection_id`
+    /// (issue #905).
+    ///
+    /// Returns an empty vector for an unknown collection.
+    pub fn get_collection_path(
+        env: &Env,
+        collection_id: u64,
+    ) -> Result<Vec<Collection>, ContractError> {
+        let mut path: Vec<Collection> = Vec::new(env);
+        let mut current_id = collection_id;
+        let mut guard: u32 = 0;
+
+        loop {
+            guard += 1;
+            if guard > MAX_COLLECTION_DEPTH {
+                // The stored hierarchy violates the depth invariant — refuse
+                // to walk further instead of looping forever.
+                return Err(ContractError::CollectionDepthExceeded);
+            }
+
+            let collection = match env
+                .storage()
+                .persistent()
+                .get::<_, Collection>(&StorageKey::Collection(current_id))
+            {
+                Some(c) => c,
+                None => break,
+            };
+            let parent_id = collection.parent_collection_id;
+            path.push_back(collection);
+
+            match parent_id {
+                Some(pid) => current_id = pid,
+                None => break,
+            }
+        }
+
+        // Reverse so that the root comes first.
+        let mut ordered: Vec<Collection> = Vec::new(env);
+        let mut i = path.len();
+        while i > 0 {
+            i -= 1;
+            if let Some(c) = path.get(i) {
+                ordered.push_back(c.clone());
+            }
+        }
+
+        Ok(ordered)
+    }
+
+    /// Direct children of a collection (issue #905).
+    pub fn get_collection_children(env: &Env, collection_id: u64) -> Vec<u64> {
+        Self::get_child_ids(env, collection_id)
+    }
+
+    /// Depth of a collection in the hierarchy (`1` for a top-level
+    /// collection).  Issue #905.
+    pub fn get_collection_depth(env: &Env, collection_id: u64) -> Result<u32, ContractError> {
+        let collection = Self::require_collection(env, collection_id)?;
+        Self::compute_depth(env, &collection)
     }
 
     // ── Visibility & Privacy Controls (Issue #819 AC1, AC2, AC3) ──────────
@@ -744,6 +977,130 @@ impl CollectionRegistry {
 
     // ── Internal Helpers ──────────────────────────────────────────────────
 
+    // ── Hierarchy helpers (issue #905) ────────────────────────────────────
+
+    /// Direct children of a collection (reverse index).
+    fn get_child_ids(env: &Env, parent_id: u64) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&CollectionHierarchyKey::Children(parent_id))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Register `child_id` in the child index of `parent_id` (idempotent).
+    fn add_child(env: &Env, parent_id: u64, child_id: u64) {
+        let mut children = Self::get_child_ids(env, parent_id);
+        if !children.iter().any(|c| c == child_id) {
+            children.push_back(child_id);
+            env.storage()
+                .persistent()
+                .set(&CollectionHierarchyKey::Children(parent_id), &children);
+        }
+    }
+
+    /// Remove `child_id` from the child index of `parent_id` (idempotent).
+    fn remove_child(env: &Env, parent_id: u64, child_id: u64) {
+        let children = Self::get_child_ids(env, parent_id);
+        let mut remaining: Vec<u64> = Vec::new(env);
+        for c in children.iter() {
+            if c != child_id {
+                remaining.push_back(c);
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&CollectionHierarchyKey::Children(parent_id), &remaining);
+    }
+
+    /// Depth of a collection: `1` for a top-level collection.
+    ///
+    /// Walks the parent chain; the walk is bounded by
+    /// [`MAX_COLLECTION_DEPTH`] so a corrupted (cyclic) hierarchy can never
+    /// loop forever.
+    fn compute_depth(env: &Env, collection: &Collection) -> Result<u32, ContractError> {
+        let mut depth: u32 = 1;
+        let mut current = collection.parent_collection_id;
+        let mut steps: u32 = 0;
+
+        while let Some(parent_id) = current {
+            steps += 1;
+            if steps > MAX_COLLECTION_DEPTH {
+                return Err(ContractError::CollectionDepthExceeded);
+            }
+            depth += 1;
+            if depth > MAX_COLLECTION_DEPTH {
+                return Err(ContractError::CollectionDepthExceeded);
+            }
+            let parent = Self::require_collection(env, parent_id)?;
+            current = parent.parent_collection_id;
+        }
+
+        Ok(depth)
+    }
+
+    /// Returns `true` when `ancestor_id` is an ancestor of `candidate_id`.
+    ///
+    /// Used to reject parent assignments that would create a cycle.
+    fn is_descendant(
+        env: &Env,
+        candidate_id: u64,
+        ancestor_id: u64,
+    ) -> Result<bool, ContractError> {
+        let mut current_id = candidate_id;
+        let mut steps: u32 = 0;
+
+        loop {
+            steps += 1;
+            if steps > MAX_COLLECTION_DEPTH {
+                return Ok(false);
+            }
+
+            let current = match env
+                .storage()
+                .persistent()
+                .get::<_, Collection>(&StorageKey::Collection(current_id))
+            {
+                Some(c) => c,
+                None => return Ok(false),
+            };
+
+            match current.parent_collection_id {
+                Some(parent_id) => {
+                    if parent_id == ancestor_id {
+                        return Ok(true);
+                    }
+                    current_id = parent_id;
+                }
+                None => return Ok(false),
+            }
+        }
+    }
+
+    /// Height of the subtree rooted at `root_id` (`1` for a leaf).
+    fn subtree_height(env: &Env, root_id: u64) -> Result<u32, ContractError> {
+        let mut max_depth: u32 = 1;
+        let mut queue: Vec<(u64, u32)> = Vec::new(env);
+        queue.push_back((root_id, 1u32));
+        let mut visited: u32 = 0;
+
+        while !queue.is_empty() {
+            visited += 1;
+            if visited > MAX_COLLECTION_TREE_NODES {
+                break;
+            }
+            let (current_id, depth) = queue.remove(0);
+            if depth > max_depth {
+                max_depth = depth;
+            }
+            let children = Self::get_child_ids(env, current_id);
+            for child_id in children.iter() {
+                queue.push_back((child_id, depth + 1));
+            }
+        }
+
+        Ok(max_depth)
+    }
+
     fn bytes_to_hex_string(env: &Env, bytes: &[u8]) -> String {
         const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
         let mut buf = [0u8; 64];
@@ -877,4 +1234,197 @@ impl CollectionRegistry {
             .get(&StorageKey::NextCollectionId)
             .unwrap_or(1u64)
     }
+
+    // ── Collection Immutable Snapshots (#908) ──────────────────────────────
+
+    /// Create an immutable snapshot of the collection state with an IPFS CID.
+    pub fn snapshot_collection(
+        env: &Env,
+        caller: Address,
+        collection_id: u64,
+        ipfs_cid: Option<String>,
+    ) -> Result<CollectionSnapshot, ContractError> {
+        caller.require_auth();
+
+        let collection = Self::require_collection(env, collection_id)?;
+
+        if collection.owner != caller && !AdminManager::is_admin(env, &caller) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let cid = match ipfs_cid {
+            Some(ref c) => {
+                Utils::validate_metadata_cid(c)?;
+                c.clone()
+            }
+            None => {
+                // Canonical default CIDv1 representation for on-chain generated snapshot
+                String::from_str(env, "bafybeigdyrzt5sfp7udm7ahu76uh7y26nf3efuylqabf3oclgtqy55fbkd")
+            }
+        };
+
+        let project_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::CollectionProjectIds(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let next_ver: u32 = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::NextSnapshotVersion(collection_id))
+            .unwrap_or(1u32);
+
+        let now = env.ledger().timestamp();
+        let snapshot = CollectionSnapshot {
+            collection_id,
+            version: next_ver,
+            ipfs_cid: cid.clone(),
+            project_count: project_ids.len(),
+            project_ids,
+            created_at: now,
+            created_by: caller.clone(),
+        };
+
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::Snapshot(collection_id, next_ver),
+            &snapshot,
+        );
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::LatestSnapshotVersion(collection_id),
+            &next_ver,
+        );
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::NextSnapshotVersion(collection_id),
+            &next_ver.saturating_add(1),
+        );
+
+        let mut versions: Vec<u32> = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::CollectionSnapshotVersions(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+        versions.push_back(next_ver);
+        env.storage().persistent().set(
+            &CollectionSnapshotKey::CollectionSnapshotVersions(collection_id),
+            &versions,
+        );
+
+        publish_collection_snapshot_created_event(
+            env,
+            collection_id,
+            next_ver,
+            cid,
+            caller,
+            now,
+        );
+
+        Ok(snapshot)
+    }
+
+    /// Retrieve a specific version snapshot of a collection.
+    pub fn get_collection_snapshot(
+        env: &Env,
+        collection_id: u64,
+        version: u32,
+    ) -> Option<CollectionSnapshot> {
+        env.storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::Snapshot(collection_id, version))
+    }
+
+    /// Retrieve the most recent snapshot of a collection.
+    pub fn get_latest_collection_snapshot(
+        env: &Env,
+        collection_id: u64,
+    ) -> Option<CollectionSnapshot> {
+        let latest_ver: u32 = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::LatestSnapshotVersion(collection_id))?;
+        Self::get_collection_snapshot(env, collection_id, latest_ver)
+    }
+
+    /// List all snapshots for a collection with pagination.
+    pub fn list_collection_snapshots(
+        env: &Env,
+        collection_id: u64,
+        start_index: u32,
+        limit: u32,
+    ) -> Vec<CollectionSnapshot> {
+        let effective_limit = if limit == 0 || limit > MAX_PAGE_LIMIT {
+            MAX_PAGE_LIMIT
+        } else {
+            limit
+        };
+
+        let versions: Vec<u32> = env
+            .storage()
+            .persistent()
+            .get(&CollectionSnapshotKey::CollectionSnapshotVersions(collection_id))
+            .unwrap_or_else(|| Vec::new(env));
+
+        let len = versions.len();
+        if start_index >= len {
+            return Vec::new(env);
+        }
+
+        let end = core::cmp::min(start_index.saturating_add(effective_limit), len);
+        let mut list = Vec::new(env);
+        for i in start_index..end {
+            if let Some(ver) = versions.get(i) {
+                if let Some(snap) = Self::get_collection_snapshot(env, collection_id, ver) {
+                    list.push_back(snap);
+                }
+            }
+        }
+        list
+    }
+
+    /// Compare two snapshots of a collection to observe added, removed, and unchanged projects.
+    pub fn compare_collection_snapshots(
+        env: &Env,
+        collection_id: u64,
+        version_a: u32,
+        version_b: u32,
+    ) -> Result<CollectionSnapshotComparison, ContractError> {
+        let snap_a = Self::get_collection_snapshot(env, collection_id, version_a)
+            .ok_or(ContractError::SnapshotNotFound)?;
+        let snap_b = Self::get_collection_snapshot(env, collection_id, version_b)
+            .ok_or(ContractError::SnapshotNotFound)?;
+
+        let mut added_projects = Vec::new(env);
+        let mut removed_projects = Vec::new(env);
+        let mut unchanged_projects = Vec::new(env);
+
+        for i in 0..snap_b.project_ids.len() {
+            if let Some(pid) = snap_b.project_ids.get(i) {
+                if snap_a.project_ids.contains(pid) {
+                    unchanged_projects.push_back(pid);
+                } else {
+                    added_projects.push_back(pid);
+                }
+            }
+        }
+
+        for i in 0..snap_a.project_ids.len() {
+            if let Some(pid) = snap_a.project_ids.get(i) {
+                if !snap_b.project_ids.contains(pid) {
+                    removed_projects.push_back(pid);
+                }
+            }
+        }
+
+        Ok(CollectionSnapshotComparison {
+            collection_id,
+            version_a,
+            version_b,
+            cid_a: snap_a.ipfs_cid,
+            cid_b: snap_b.ipfs_cid,
+            added_projects,
+            removed_projects,
+            unchanged_projects,
+        })
+    }
 }
+

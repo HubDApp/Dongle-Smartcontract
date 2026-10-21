@@ -37,18 +37,20 @@
 //! | `NotificationKey::UserDigestQueue(address)` | `Vec<u64>` | Pending project IDs for digest |
 
 use crate::constants::MAX_PAGE_LIMIT;
+use crate::constants::MAX_PAUSE_SUBSCRIBERS;
 use crate::errors::ContractError;
 use crate::events::{
-    publish_notification_prefs_updated_event, publish_project_notif_override_set_event,
+    publish_notification_prefs_updated_event, publish_pause_notification_event,
+    publish_pause_subscriber_event, publish_project_notif_override_set_event,
     publish_project_update_notification_event, publish_user_digest_scheduled_event,
 };
-use crate::storage_keys::NotificationKey;
+use crate::storage_keys::{NotificationKey, PauseKey};
 use crate::storage_manager::StorageManager;
 use crate::subscription_registry::SubscriptionRegistry;
 use crate::types::{
     DigestFrequency, NotificationKind, ProjectNotificationOverride, UserNotificationPrefs,
 };
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
 pub struct NotificationRegistry;
 
@@ -147,7 +149,109 @@ impl NotificationRegistry {
     /// against `UserNotificationPrefs` / `ProjectNotificationOverride`.
     pub fn emit_project_notification(env: &Env, project_id: u64, update_kind: NotificationKind) {
         let follower_count = SubscriptionRegistry::get_follower_count(env, project_id);
-        publish_project_update_notification_event(env, project_id, update_kind, follower_count);
+        publish_project_update_notification_event(
+            env,
+            project_id,
+            update_kind.clone(),
+            follower_count,
+        );
+        crate::changelog_generator::ChangelogGenerator::record_project_event(
+            env,
+            project_id,
+            update_kind,
+        );
+    }
+
+    // ── Pause notifications (issue #901) ───────────────────────────────────
+
+    /// Subscribe an address to emergency-pause notifications.
+    ///
+    /// When the contract is paused (with or without a reason) a
+    /// `CONTRACT/NOTIFY` event is emitted carrying the reason, the estimated
+    /// resume time and the number of subscribers.  Off-chain indexers use
+    /// that event to fan the alert out to every address in
+    /// [`NotificationRegistry::list_pause_subscribers`].
+    ///
+    /// Subscribing twice is a no-op.
+    pub fn subscribe_pause_notifications(
+        env: &Env,
+        subscriber: Address,
+    ) -> Result<(), ContractError> {
+        subscriber.require_auth();
+
+        let mut subscribers = Self::list_pause_subscribers(env);
+        if subscribers.iter().any(|a| a == subscriber) {
+            return Ok(());
+        }
+
+        if subscribers.len() >= MAX_PAUSE_SUBSCRIBERS {
+            return Err(ContractError::PauseSubscriberLimitExceeded);
+        }
+
+        subscribers.push_back(subscriber.clone());
+        env.storage()
+            .persistent()
+            .set(&PauseKey::PauseSubscribers, &subscribers);
+
+        publish_pause_subscriber_event(env, subscriber, true);
+        Ok(())
+    }
+
+    /// Unsubscribe an address from emergency-pause notifications.
+    ///
+    /// Unsubscribing an address that is not subscribed is a no-op.
+    pub fn unsubscribe_pause_notifications(
+        env: &Env,
+        subscriber: Address,
+    ) -> Result<(), ContractError> {
+        subscriber.require_auth();
+
+        let subscribers = Self::list_pause_subscribers(env);
+        if !subscribers.iter().any(|a| a == subscriber) {
+            return Ok(());
+        }
+
+        let mut remaining = Vec::new(env);
+        for addr in subscribers.iter() {
+            if addr != subscriber {
+                remaining.push_back(addr);
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&PauseKey::PauseSubscribers, &remaining);
+
+        publish_pause_subscriber_event(env, subscriber, false);
+        Ok(())
+    }
+
+    /// All addresses currently subscribed to pause notifications.
+    pub fn list_pause_subscribers(env: &Env) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&PauseKey::PauseSubscribers)
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    /// Whether `subscriber` receives pause notifications.
+    pub fn is_pause_notification_subscriber(env: &Env, subscriber: &Address) -> bool {
+        Self::list_pause_subscribers(env)
+            .iter()
+            .any(|a| a == subscriber.clone())
+    }
+
+    /// Emit the pause notification event (issue #901).
+    ///
+    /// Called by the emergency-pause module whenever the contract is paused.
+    /// The event carries the reason and the estimated resume time so that
+    /// subscribers understand *why* the contract is halted.
+    pub fn emit_pause_notification(
+        env: &Env,
+        reason: Option<String>,
+        estimated_resume: Option<u64>,
+    ) {
+        let subscriber_count = Self::list_pause_subscribers(env).len();
+        publish_pause_notification_event(env, reason, estimated_resume, subscriber_count);
     }
 
     // ── Digest queue management ───────────────────────────────────────────
