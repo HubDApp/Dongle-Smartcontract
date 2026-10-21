@@ -8,6 +8,7 @@
 # Job overview (all start in parallel unless a `needs:` says otherwise):
 #   validate-manifest   - schema-check deployments.json
 #   validate-changelog  - Keep a Changelog conventions + validator self-tests
+#   pre-commit-hooks    - verify .pre-commit-config.yaml hooks execute (#872)
 #   fmt                 - cargo fmt --all -- --check
 #   wasm-check          - early no_std compile to wasm32-unknown-unknown
 #   clippy              - cargo clippy (WASM target, --all-features, -D warnings)
@@ -15,6 +16,8 @@
 #   test               - cargo test on the native host (soroban testutils host)
 #   build              - release WASM build            [needs fmt, clippy, test, wasm-check]
 #   optimize           - wasm-opt + upload artifact    [needs build]
+#   compat             - Rust 1.70 / 1.74 / stable x Linux / macOS / Windows:
+#                        tests, WASM build and WASM optimization check (#871)
 #
 # Toolchain is pinned by rust-toolchain.toml (1.85.0). The global
 # RUSTFLAGS: "-D warnings" below promotes every rustc warning to an error for
@@ -50,6 +53,24 @@ jobs:
         run: python3 scripts/validate_changelog.py
       - name: Run changelog validator self-tests
         run: python3 scripts/test_validate_changelog.py
+
+  pre-commit-hooks:
+    name: Pre-commit Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Install pre-commit
+        run: pip install pre-commit pyyaml
+
+      - name: Verify hooks execute
+        run: python3 scripts/test_pre_commit_hooks.py
 
   fmt:
     name: Formatting
@@ -171,6 +192,38 @@ jobs:
       - name: Run tests
         run: cargo test -p dongle-contract
 
+  fuzz:
+    name: Fuzz (proptest harness)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-fuzz-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-
+
+      - name: Run fuzz harness
+        run: cargo test -p dongle-contract fuzz_test_harness
+
+      - name: Upload proptest regressions
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proptest-regressions
+          path: dongle-smartcontract/proptest-regressions/
+
   build:
     name: Build Contract
     runs-on: ubuntu-latest
@@ -250,3 +303,60 @@ jobs:
         with:
           name: dongle_contract_optimized
           path: target/wasm32-unknown-unknown/release/dongle_contract.optimized.wasm
+
+  # Compatibility matrix (#871): verify the contract across Rust versions and
+  # host platforms. Every matrix cell reports as its own PR status check
+  # ("Compat (<os>, <rust>)"). RUSTUP_TOOLCHAIN overrides the channel pinned
+  # in rust-toolchain.toml so each cell really uses its matrix toolchain.
+  # 1.70 and 1.74 are older than the MSRV of the pinned soroban-sdk and the
+  # v4 Cargo.lock format, so they are reported but do not block merging.
+  compat:
+    name: Compat (${{ matrix.os }}, ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.rust != 'stable' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: ["1.70", "1.74", stable]
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: wasm32-unknown-unknown
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-compat-${{ matrix.rust }}-${{ hashFiles('Cargo.lock', 'dongle-smartcontract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-compat-${{ matrix.rust }}-
+
+      - name: Show toolchain
+        run: rustc --version && cargo --version
+
+      - name: Run tests
+        run: cargo test -p dongle-contract
+
+      - name: Build WASM release
+        run: cargo build -p dongle-contract --target wasm32-unknown-unknown --release
+
+      # Binaryen from npm ships a wasm-opt CLI on every runner OS, so the
+      # same optimization check runs on Linux, macOS and Windows.
+      - name: Install wasm-opt (Binaryen)
+        run: npm install -g binaryen@116.0.0
+
+      - name: Optimize WASM
+        run: bash scripts/optimize_wasm.sh
