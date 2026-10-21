@@ -1071,6 +1071,24 @@ impl ReviewRegistry {
         reviews
     }
 
+    /// Batch-fetch reviews with a single pass over the requested keys.
+    /// Same visibility filtering as `get_reviews_by_ids`. Clamped to 100 entries.
+    pub fn get_reviews_batch(env: &Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        const MAX_BATCH: u32 = 100;
+        let len = core::cmp::min(ids.len(), MAX_BATCH);
+        let mut reviews = Vec::new(env);
+        for i in 0..len {
+            if let Some((project_id, reviewer)) = ids.get(i) {
+                if let Some(review) = Self::get_review_record(env, project_id, reviewer) {
+                    if !review.hidden && review.attribution == ReviewAttribution::Attributed {
+                        reviews.push_back(review);
+                    }
+                }
+            }
+        }
+        reviews
+    }
+
     pub fn respond_to_review(
         env: &Env,
         project_id: u64,

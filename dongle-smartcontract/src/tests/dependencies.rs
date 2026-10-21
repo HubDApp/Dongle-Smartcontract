@@ -36,6 +36,7 @@ fn test_add_get_remove_project_dependencies_external_cid() {
         external_cid: Some(mk_external_cid(&env)),
         external_url: None,
         external_contract: None,
+        version_requirement: None,
     };
 
     let dep = mk_dep(&env, dep_ref.clone(), "oracle");
@@ -68,6 +69,7 @@ fn test_add_dependency_internal_project_id() {
         external_cid: None,
         external_url: None,
         external_contract: None,
+        version_requirement: None,
     };
 
     let dep = mk_dep(&env, dep_ref.clone(), "depends");
@@ -94,6 +96,7 @@ fn test_reject_duplicate_dependency_external_url() {
         external_cid: None,
         external_url: Some(mk_external_url(&env)),
         external_contract: None,
+        version_requirement: None,
     };
 
     let dep1 = mk_dep(&env, dep_ref.clone(), "a");
@@ -117,6 +120,7 @@ fn test_update_dependency_changes_metadata() {
         external_cid: Some(mk_external_cid(&env)),
         external_url: None,
         external_contract: None,
+        version_requirement: None,
     };
 
     let mut dep = mk_dep(&env, dep_ref.clone(), "old");
@@ -161,6 +165,7 @@ fn test_invalid_dependency_reference_rejected() {
         external_cid: None,
         external_url: None,
         external_contract: None,
+        version_requirement: None,
     };
 
     let bad_dep = ProjectDependency {
@@ -205,6 +210,7 @@ fn test_add_external_contract_dependency() {
         external_cid: None,
         external_url: None,
         external_contract: Some(mk_contract_address(&env)),
+        version_requirement: None,
     };
     let dep = mk_dep(&env, dep_ref.clone(), "oracle-contract");
     client.add_project_dependency(&project_id, &owner, &dep);
@@ -234,6 +240,7 @@ fn test_remove_external_contract_dependency() {
         external_cid: None,
         external_url: None,
         external_contract: Some(mk_contract_address(&env)),
+        version_requirement: None,
     };
     let dep = mk_dep(&env, dep_ref.clone(), "token");
     client.add_project_dependency(&project_id, &owner, &dep);
@@ -256,12 +263,14 @@ fn test_two_distinct_contract_addresses_are_separate_dependencies() {
         external_cid: None,
         external_url: None,
         external_contract: Some(mk_contract_address(&env)),
+        version_requirement: None,
     };
     let dep_ref2 = DependencyRef {
         project_id: None,
         external_cid: None,
         external_url: None,
         external_contract: Some(mk_contract_address_2(&env)),
+        version_requirement: None,
     };
 
     client.add_project_dependency(&project_id, &owner, &mk_dep(&env, dep_ref1, "first"));
@@ -283,6 +292,7 @@ fn test_duplicate_contract_dependency_rejected() {
         external_cid: None,
         external_url: None,
         external_contract: Some(mk_contract_address(&env)),
+        version_requirement: None,
     };
 
     client.add_project_dependency(&project_id, &owner, &mk_dep(&env, dep_ref.clone(), "a"));
@@ -308,6 +318,7 @@ fn test_invalid_contract_address_wrong_length_rejected() {
             &env,
             "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"[..55].as_ref(),
         )),
+        version_requirement: None,
     };
     let result = client.try_add_project_dependency(
         &project_id,
@@ -340,6 +351,7 @@ fn test_invalid_contract_address_wrong_prefix_rejected() {
             &env,
             "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         )),
+        version_requirement: None,
     };
     let result = client.try_add_project_dependency(
         &project_id,
@@ -369,6 +381,7 @@ fn test_multiple_fields_in_dep_ref_rejected() {
         external_cid: Some(mk_external_cid(&env)),
         external_url: None,
         external_contract: Some(mk_contract_address(&env)),
+        version_requirement: None,
     };
     let result = client.try_add_project_dependency(
         &project_id,
