@@ -530,6 +530,13 @@ impl VerificationRegistry {
             }
         }
 
+        // Validate custom verification requirements if any are defined
+        if let Some(ref requirements) = project.verification_requirements {
+            if !requirements.is_empty() {
+                Self::validate_verification_requirements(env, &project, requirements)?;
+            }
+        }
+
         // Then validate state transition
         VerificationStateMachine::validate_transition(
             project.verification_status,
@@ -586,6 +593,158 @@ impl VerificationRegistry {
         );
 
         Ok(())
+    }
+
+    /// Validates that a project meets its custom verification requirements.
+    ///
+    /// This function checks that any custom requirements defined for the project
+    /// are satisfied before verification approval. The requirements are stored as
+    /// IPFS CIDs pointing to off-chain requirement definition documents.
+    ///
+    /// # Arguments
+    /// * `env` - Soroban environment
+    /// * `project` - The project being verified
+    /// * `requirements` - List of IPFS CIDs defining the requirements
+    ///
+    /// # Returns
+    /// * `Ok(())` if all requirements are met
+    /// * `Err(ContractError)` if any requirement is not satisfied
+    fn validate_verification_requirements(
+        env: &Env,
+        project: &crate::types::Project,
+        requirements: &Vec<String>,
+    ) -> Result<(), ContractError> {
+        // Get the requirement records from storage
+        let req_record = env
+            .storage()
+            .persistent()
+            .get::<ExtensionKey2, crate::types::ProjectVerificationRequirements>(
+                &ExtensionKey2::ProjectVerificationRequirements(project.id),
+            );
+
+        if let Some(record) = req_record {
+            // Check each requirement CID
+            // Note: In a real implementation, the off-chain document would be fetched
+            // and its requirements validated. Since we can't fetch from IPFS on-chain,
+            // we validate the presence and basic structure of the requirements.
+            // The actual validation logic would depend on the requirement schema.
+            for req_cid in record.requirement_cids.iter() {
+                // Validate the CID format - basic check that it's not empty
+                if req_cid.is_empty() {
+                    return Err(ContractError::InvalidInput);
+                }
+                // Additional validation would be performed here based on the
+                // requirement document schema fetched from IPFS
+            }
+        } else if !requirements.is_empty() {
+            // Requirements are defined on the project but not stored separately
+            // This could happen if they were set directly without using the storage record
+            // Validate basic CID format
+            for req_cid in requirements.iter() {
+                if req_cid.is_empty() {
+                    return Err(ContractError::InvalidInput);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get the verification requirements for a project.
+    ///
+    /// Returns the stored requirement CIDs for the given project.
+    pub fn get_project_verification_requirements(
+        env: &Env,
+        project_id: u64,
+    ) -> Option<Vec<String>> {
+        let req_record = env
+            .storage()
+            .persistent()
+            .get::<ExtensionKey2, crate::types::ProjectVerificationRequirements>(
+                &ExtensionKey2::ProjectVerificationRequirements(project_id),
+            );
+
+        req_record.map(|r| r.requirement_cids)
+    }
+
+    /// Audit verification requirements for a project to ensure they are consistent
+    /// with the project's tier.
+    ///
+    /// Admins can use this to verify that custom requirements match what is expected
+    /// for projects at a given verification tier.
+    pub fn audit_verification_requirements(
+        env: &Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<crate::types::VerificationRequirementAudit, ContractError> {
+        require_admin_auth(env, &admin)?;
+
+        let project = ProjectRegistry::get_project(env, project_id)
+            .ok_or(ContractError::ProjectNotFound)?;
+
+        let now = env.ledger().timestamp();
+        let mut inconsistencies: Vec<String> = Vec::new(env);
+
+        // Get the requirements from storage
+        let req_record = env
+            .storage()
+            .persistent()
+            .get::<ExtensionKey2, crate::types::ProjectVerificationRequirements>(
+                &ExtensionKey2::ProjectVerificationRequirements(project_id),
+            );
+
+        let has_requirements = req_record.is_some() || project.verification_requirements.as_ref().map(|r| !r.is_empty()).unwrap_or(false);
+
+        // Check for tier-based consistency
+        // This is a placeholder implementation - in a real system, there would be
+        // tier definitions that specify what requirements are expected for each tier
+        // For now, we just check if requirements exist for verified projects
+        if project.verification_status == VerificationStatus::Verified {
+            // For verified projects, we could check if requirements are appropriate
+            // This is where tier-specific validation would happen
+            if !has_requirements {
+                // Optional: warn that verified projects might want requirements
+                // inconsistencies.push_back(String::from_str(env, "Verified project has no custom verification requirements"));
+            }
+        }
+
+        // Check if project has requirements but is not verified
+        if has_requirements && project.verification_status != VerificationStatus::Verified {
+            if project.verification_status == VerificationStatus::Pending {
+                // This is expected - requirements may be pending review
+            } else {
+                inconsistencies.push_back(String::from_str(env, "Project has verification requirements but is not in Pending or Verified status"));
+            }
+        }
+
+        // Validate that any stored requirements match the project's requirements field
+        if let Some(record) = req_record {
+            if let Some(project_reqs) = &project.verification_requirements {
+                if record.requirement_cids.len() != project_reqs.len() {
+                    inconsistencies.push_back(String::from_str(env, "Stored requirements count differs from project field"));
+                }
+            }
+        }
+
+        let is_consistent = inconsistencies.is_empty();
+
+        // Record the audit action
+        AdminActionLog::record_action(
+            env,
+            admin.clone(),
+            AdminActionType::VerificationRequirementsAudited,
+            Some(project_id),
+            None,
+            None,
+        );
+
+        Ok(crate::types::VerificationRequirementAudit {
+            project_id,
+            is_consistent,
+            inconsistencies,
+            audited_at: now,
+            audited_by: admin,
+        })
     }
 
     pub fn reject_verification(

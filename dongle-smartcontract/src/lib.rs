@@ -25,6 +25,7 @@ pub mod errors;
 pub mod events;
 mod featured_registry;
 mod fee_manager;
+mod fee_extensions;
 mod governance_ranges;
 mod notification_registry;
 pub mod pagination;
@@ -50,12 +51,17 @@ mod verification_registry;
 mod social_analytics_registry;
 mod probation_registry;
 mod performance_metrics;
+mod invariant_checker;
+mod pow_challenge;
+mod compliance_mode;
+mod benchmark_suite;
 mod security_contact_verification;
 mod health_score_registry;
 mod activity_feed_registry;
 mod metadata_enrichment_registry;
-mod moderation_appeal_registry;
-mod version_spec;
+mod similarity_registry;
+mod smart_bookmark_registry;
+mod trending_registry;
 
 #[cfg(test)]
 mod tests;
@@ -69,12 +75,16 @@ use crate::emergency_pause::EmergencyPause;
 use crate::errors::ContractError;
 use crate::featured_registry::FeaturedRegistry;
 use crate::fee_manager::FeeManager;
+use crate::fee_extensions::FeeExtensions;
 use crate::probation_registry::ProbationRegistry;
 use crate::project_registry::ProjectRegistry;
 use crate::report_registry::ReportRegistry;
 use crate::review_registry::ReviewRegistry;
+use crate::similarity_registry::SimilarityRegistry;
+use crate::smart_bookmark_registry::SmartBookmarkRegistry;
 use crate::storage_manager::StorageManager;
 use crate::timelock_manager::TimelockManager;
+use crate::trending_registry::TrendingRegistry;
 use crate::activity_feed_registry::ActivityFeedRegistry;
 use crate::health_score_registry::HealthScoreRegistry;
 use crate::metadata_enrichment_registry::MetadataEnrichmentRegistry;
@@ -82,12 +92,15 @@ use crate::security_contact_verification::SecurityContactVerificationRegistry;
 use crate::types::{
     AdminActionEntry, AdminActivityRecord, AdminProposal, AdminVerificationPerformance,
     ArchivedReview, BatchTtlResult,
+    SimilarProject, SmartBookmarkCollection, SmartBookmarkRules, TrendingProject,
+
     AdminActionEntry, AdminProposal, AdminWorkload, ArchivedReview, BatchTtlResult, BookmarkFolder,
     ChangelogEntry, ChangelogSortMode, ClaimRequest, Collection, CommunityColInclusionStatus,
     CommunityColRevenueSnapshot, CommunityCollection, CommunityCollectionTemplateId,
     CommunityCollectionVote, ContractClaimRequest, ContractConfigView, DependencyRef,
     DisputeResolutionAction, DuplicateDispute, EmergencyRecoveryRequest, EvidenceLink, FeeConfig, FeeConfigHistoryEntry, FeePaymentRecord,
-    FeeRefundRecord, NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
+    FeeRefundRecord, FeeWaiverRecord, FeeWaiverType, AutoRefundRecord, FeeReceipt, EscrowedFee, FeeDisputeResolution, RefundTrigger, WaiverStatus,
+    NotificationDeliveryStatus, ProbationRecord, Project, ProjectDependency,
     ProjectEngagementMetric, ProjectLifecycleStatus, ProjectRegistrationParams, ProjectReport,
     ProjectSocialAnalyticsExport, ProjectSocialDailyCheckpoint, ProjectSocialPeerRow,
     ProjectSortMode, ProjectStats, ProjectSunsetPlan, ProjectUpdateParams, ProposalComment, ProposalPayload,
@@ -124,6 +137,8 @@ use crate::types::{
     ActivityEntry, ActivityKind,
     // #760 metadata enrichment
     EnrichmentSuggestion, EnrichmentSuggestionStatus, MetadataEnrichmentFields,
+    // Custom verification requirements
+    VerificationRequirementAudit, ProjectVerificationRequirements,
 };
 use crate::verification_registry::{VerificationAssignmentRegistry, VerificationRegistry};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -601,8 +616,28 @@ impl DongleContract {
         ProjectRegistry::get_linked_projects(&env, project_id)
     }
 
+    /// Anonymous read: returns only `Public` projects (#874). Use
+    /// `get_project_as_viewer` to read `Private` / `Restricted` projects.
     pub fn get_project(env: Env, project_id: u64) -> Option<Project> {
         ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, None))
+    }
+
+    /// Authenticated read honouring project visibility (#874).
+    pub fn get_project_as_viewer(env: Env, project_id: u64, viewer: Address) -> Option<Project> {
+        viewer.require_auth();
+        ProjectRegistry::get_project(&env, project_id)
+            .filter(|p| ProjectRegistry::can_view_project(&env, p, Some(&viewer)))
+    }
+
+    pub fn set_project_visibility(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        visibility: crate::types::ProjectVisibility,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::set_project_visibility(&env, project_id, caller, visibility)
     }
 
     pub fn get_project_versions(
@@ -677,6 +712,11 @@ impl DongleContract {
 
     pub fn get_projects_by_ids(env: Env, ids: Vec<u64>) -> Vec<Project> {
         ProjectRegistry::get_projects_by_ids(&env, ids)
+    }
+
+    /// Batch-fetch projects by ID in one call (max 100). See `get_projects_batch`.
+    pub fn get_projects_batch(env: Env, project_ids: Vec<u64>) -> Vec<Project> {
+        ProjectRegistry::get_projects_batch(&env, project_ids)
     }
 
     /// Sets an optional region tag for a project (owner only).
@@ -861,6 +901,16 @@ impl DongleContract {
         ProjectRegistry::search_projects(&env, query, start_index, limit)
     }
 
+    /// Search active projects with limit (starts at index 0) (#909).
+    pub fn search_projects_with_limit(
+        env: Env,
+        query: String,
+        limit: u32,
+    ) -> Vec<Project> {
+        ProjectRegistry::search_projects_with_limit(&env, query, limit)
+    }
+
+
     /// List projects filtered by lifecycle status.
     ///
     /// Named `list_projects_by_lifecycle` rather than
@@ -941,6 +991,39 @@ impl DongleContract {
     ) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
         ProjectRegistry::reactivate_project(&env, project_id, caller)
+    }
+
+    pub fn archive_project_with_reason(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::archive_project_with_reason(&env, project_id, caller, reason)
+    }
+
+    pub fn bulk_archive_projects(
+        env: Env,
+        caller: Address,
+        project_ids: Vec<u64>,
+        reason: crate::types::ArchiveReason,
+    ) -> Result<u32, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        ProjectRegistry::bulk_archive_projects(&env, caller, project_ids, reason)
+    }
+
+    pub fn get_archive_reason(env: Env, project_id: u64) -> Option<crate::types::ArchiveReason> {
+        ProjectRegistry::get_archive_reason(&env, project_id)
+    }
+
+    pub fn get_archive_audit_log(
+        env: Env,
+        project_id: u64,
+        start: u32,
+        limit: u32,
+    ) -> Vec<crate::types::ArchiveAuditEntry> {
+        ProjectRegistry::get_archive_audit_log(&env, project_id, start, limit)
     }
 
     // ── Automatic Inactivity Archival (#753) ───────────────────────────────
@@ -1206,6 +1289,11 @@ impl DongleContract {
 
     pub fn get_reviews_by_ids(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
         ReviewRegistry::get_reviews_by_ids(&env, ids)
+    }
+
+    /// Batch-fetch reviews in one call (max 100). Same filtering as `get_reviews_by_ids`.
+    pub fn get_reviews_batch(env: Env, ids: Vec<(u64, Address)>) -> Vec<Review> {
+        ReviewRegistry::get_reviews_batch(&env, ids)
     }
 
     pub fn list_reviews(env: Env, project_id: u64, start_index: u32, limit: u32) -> Vec<Review> {
@@ -1757,6 +1845,34 @@ impl DongleContract {
         VerificationRegistry::get_verification_records_batch(&env, request_ids)
     }
 
+    // --- Custom Verification Requirements ---
+
+    /// Get the verification requirements for a project.
+    ///
+    /// Returns the list of IPFS CIDs pointing to requirement definition documents
+    /// for the given project. These define additional criteria that must be met
+    /// before verification approval.
+    pub fn get_project_verification_requirements(
+        env: Env,
+        project_id: u64,
+    ) -> Option<Vec<String>> {
+        VerificationRegistry::get_project_verification_requirements(&env, project_id)
+    }
+
+    /// Audit verification requirements for a project to ensure they are consistent
+    /// with the project's tier.
+    ///
+    /// Admins can use this to verify that custom requirements match what is expected
+    /// for projects at a given verification tier. Returns an audit report with any
+    /// inconsistencies found.
+    pub fn audit_verification_requirements(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<crate::types::VerificationRequirementAudit, ContractError> {
+        VerificationRegistry::audit_verification_requirements(&env, project_id, admin)
+    }
+
     // --- Probationary Verification & Enhanced Monitoring ---
 
     /// Returns the configured probationary duration in seconds (default: 30 days).
@@ -2229,6 +2345,179 @@ impl DongleContract {
     /// Get registration fee payment details for an address.
     pub fn get_reg_fee_payment_details(env: Env, address: Address) -> Option<FeePaymentRecord> {
         FeeManager::get_registration_fee_payment_details(&env, &address)
+    }
+
+    // --- Fee Waivers ---
+
+    /// Apply for a fee waiver (owner only).
+    ///
+    /// `proof_cid` must be an IPFS CID of a document proving the project
+    /// qualifies for the requested `waiver_type` (GitHub repo, npm package,
+    /// academic affiliation, nonprofit registration, etc.).
+    /// If the CID is pre-approved by an admin the waiver is auto-granted.
+    pub fn apply_for_fee_waiver(
+        env: Env,
+        project_id: u64,
+        proof_cid: String,
+        waiver_type: FeeWaiverType,
+    ) -> Result<FeeWaiverRecord, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::apply_for_fee_waiver(&env, project_id, proof_cid, waiver_type)
+    }
+
+    /// Admin: approve or reject a pending fee waiver application.
+    pub fn decide_fee_waiver(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        approve: bool,
+    ) -> Result<FeeWaiverRecord, ContractError> {
+        FeeExtensions::decide_fee_waiver(&env, admin, project_id, approve)
+    }
+
+    /// Admin: register an IPFS proof CID for automatic waiver granting.
+    pub fn pre_approve_waiver_proof(
+        env: Env,
+        admin: Address,
+        proof_cid: String,
+        waiver_type: FeeWaiverType,
+    ) -> Result<(), ContractError> {
+        FeeExtensions::pre_approve_waiver_proof(&env, admin, proof_cid, waiver_type)
+    }
+
+    /// Read the fee waiver record for a project (any status).
+    pub fn get_fee_waiver(env: Env, project_id: u64) -> Option<FeeWaiverRecord> {
+        FeeExtensions::get_fee_waiver(&env, project_id)
+    }
+
+    /// Check whether a project has an active (approved) fee waiver.
+    pub fn has_active_fee_waiver(env: Env, project_id: u64) -> bool {
+        FeeExtensions::has_active_waiver(&env, project_id)
+    }
+
+    /// Admin dashboard: list all project IDs with a fee waiver record.
+    pub fn list_waiver_project_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_waiver_project_ids(&env)
+    }
+
+    // --- Auto-Refunds ---
+
+    /// Project owner: request a partial refund with a free-form reason.
+    ///
+    /// Creates (or accumulates) an `AutoRefundRecord` with
+    /// `RefundTrigger::Manual`. The actual payout is done via
+    /// `claim_auto_refund`.
+    pub fn request_partial_refund(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: String,
+        amount: u128,
+    ) -> Result<AutoRefundRecord, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::request_partial_refund(&env, project_id, caller, reason, amount)
+    }
+
+    /// Claim a pending auto-refund (payer or admin).
+    ///
+    /// `payout_amount` must be ≤ `remaining_amount` on the record.
+    /// When fully settled, `settled_at` is stamped on the record.
+    pub fn claim_auto_refund(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        payout_amount: u128,
+    ) -> Result<(), ContractError> {
+        FeeExtensions::claim_auto_refund(&env, caller, project_id, payout_amount)
+    }
+
+    /// Read the auto-refund record for a project.
+    pub fn get_auto_refund(env: Env, project_id: u64) -> Option<AutoRefundRecord> {
+        FeeExtensions::get_auto_refund(&env, project_id)
+    }
+
+    /// List project IDs that have pending (unsettled) auto-refunds.
+    pub fn list_pending_auto_refund_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_pending_auto_refund_ids(&env)
+    }
+
+    // --- Fee Receipts ---
+
+    /// Fetch a fee receipt by its unique `payment_id`.
+    pub fn get_fee_receipt(env: Env, payment_id: u64) -> Option<FeeReceipt> {
+        FeeExtensions::get_fee_receipt(&env, payment_id)
+    }
+
+    /// Admin: attach an IPFS CID and cryptographic signature to a receipt.
+    ///
+    /// `manager_signature` is a base64-encoded signature over `receipt_cid`
+    /// produced by the fee manager's key. Indexers can verify it off-chain.
+    pub fn sign_fee_receipt(
+        env: Env,
+        admin: Address,
+        payment_id: u64,
+        receipt_cid: String,
+        manager_signature: String,
+    ) -> Result<FeeReceipt, ContractError> {
+        FeeExtensions::sign_fee_receipt(&env, admin, payment_id, receipt_cid, manager_signature)
+    }
+
+    /// List all receipt IDs for a project (verification fees).
+    pub fn get_project_fee_receipt_ids(env: Env, project_id: u64) -> Vec<u64> {
+        FeeExtensions::get_project_fee_receipt_ids(&env, project_id)
+    }
+
+    /// List all receipt IDs for a payer address (registration fees or any payment).
+    pub fn get_address_fee_receipt_ids(env: Env, address: Address) -> Vec<u64> {
+        FeeExtensions::get_address_fee_receipt_ids(&env, address)
+    }
+
+    /// Batch-export receipts by payment IDs (for tax/accounting).
+    /// Missing IDs are silently skipped.
+    pub fn batch_export_receipts(env: Env, payment_ids: Vec<u64>) -> Vec<FeeReceipt> {
+        FeeExtensions::batch_export_receipts(&env, payment_ids)
+    }
+
+    // --- Fee Escrow / Dispute ---
+
+    /// Project owner: dispute a pending fee payment, locking it in escrow.
+    ///
+    /// The fee must be in a paid-but-not-yet-consumed state. A 7-day
+    /// lock window is set; the admin resolves the dispute via
+    /// `resolve_fee_dispute`.
+    pub fn dispute_fee(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        reason: String,
+    ) -> Result<EscrowedFee, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        FeeExtensions::dispute_fee(&env, project_id, caller, reason)
+    }
+
+    /// Admin: resolve a fee dispute.
+    ///
+    /// - `FeeDisputeResolution::FullRefund` — full amount returned to payer.
+    /// - `FeeDisputeResolution::FeeMaintained` — amount stays in treasury.
+    /// - `FeeDisputeResolution::PartialRefund(n)` — `n` tokens refunded;
+    ///   remainder stays in treasury.
+    pub fn resolve_fee_dispute(
+        env: Env,
+        admin: Address,
+        project_id: u64,
+        resolution: FeeDisputeResolution,
+    ) -> Result<EscrowedFee, ContractError> {
+        FeeExtensions::resolve_fee_dispute(&env, admin, project_id, resolution)
+    }
+
+    /// Read the escrow record for a project.
+    pub fn get_escrowed_fee(env: Env, project_id: u64) -> Option<EscrowedFee> {
+        FeeExtensions::get_escrowed_fee(&env, project_id)
+    }
+
+    /// List project IDs with an active (unresolved) fee escrow.
+    pub fn list_active_escrow_project_ids(env: Env) -> Vec<u64> {
+        FeeExtensions::list_active_escrow_project_ids(&env)
     }
 
     // --- TTL Management ---
@@ -3040,6 +3329,37 @@ impl DongleContract {
         crate::dispute_registry::DisputeRegistry::get_disputes_for_project(&env, project_id)
     }
 
+    /// Find projects similar to `project_id` exceeding similarity threshold (#913).
+    /// `threshold` is provided in basis points (0..10_000) or percentage shorthand (1..100).
+    pub fn find_similar_projects(
+        env: Env,
+        project_id: u64,
+        threshold: u32,
+    ) -> Vec<SimilarProject> {
+        SimilarityRegistry::find_similar_projects(&env, project_id, threshold)
+    }
+
+    /// Open a duplicate dispute integrated with similarity verification (#913).
+    pub fn open_duplicate_dispute_with_similarity(
+        env: Env,
+        project_id: u64,
+        original_project_id: u64,
+        creator: Address,
+        evidence_cid: String,
+        min_threshold: u32,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SimilarityRegistry::open_duplicate_dispute_with_similarity(
+            &env,
+            project_id,
+            original_project_id,
+            creator,
+            evidence_cid,
+            min_threshold,
+        )
+    }
+
+
     // --- Project Changelog ---
 
     /// Add a new changelog entry for a project (owner only).
@@ -3442,7 +3762,76 @@ impl DongleContract {
         )
     }
 
+    // --- Smart Bookmark Collections (#914) ---
+
+    /// Create a smart bookmark collection with filtering rules (#914).
+    pub fn create_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        name: String,
+        rules: SmartBookmarkRules,
+    ) -> Result<u64, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::create_smart_bookmark_collection(&env, user, name, rules)
+    }
+
+    /// Refresh a smart bookmark collection's auto-populated member projects (#914).
+    pub fn refresh_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Result<Vec<u64>, ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::refresh_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// Get a smart bookmark collection by ID (#914).
+    pub fn get_smart_bookmark_collection(
+        env: Env,
+        collection_id: u64,
+    ) -> Option<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::get_smart_bookmark_collection(&env, collection_id)
+    }
+
+    /// List all smart bookmark collections owned by the user (#914).
+    pub fn list_smart_bookmark_collections(
+        env: Env,
+        user: Address,
+    ) -> Vec<SmartBookmarkCollection> {
+        SmartBookmarkRegistry::list_smart_bookmark_collections(&env, user)
+    }
+
+    /// Delete a smart bookmark collection (#914).
+    pub fn delete_smart_bookmark_collection(
+        env: Env,
+        user: Address,
+        collection_id: u64,
+    ) -> Result<(), ContractError> {
+        EmergencyPause::require_not_paused(&env)?;
+        SmartBookmarkRegistry::delete_smart_bookmark_collection(&env, user, collection_id)
+    }
+
+    // --- Dynamic Trending Projects (#912) ---
+
+    /// Get dynamically calculated trending projects for a specified time window (#912).
+    /// `time_window` supports 86400 (24h), 604800 (7d), 2592000 (30d), and 0 (all-time).
+    pub fn get_trending_projects(
+        env: Env,
+        time_window: u64,
+        limit: u32,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::get_trending_projects(&env, time_window, limit)
+    }
+
+    /// Recalculate trending projects cache (for background job / keeper) (#912).
+    pub fn recalculate_trending_projects(
+        env: Env,
+        time_window: u64,
+    ) -> Vec<TrendingProject> {
+        TrendingRegistry::recalculate_trending(&env, time_window)
+    }
+
     // --- Endorsement Registry ---
+
 
     pub fn endorse_project(env: Env, project_id: u64, user: Address) -> Result<(), ContractError> {
         EmergencyPause::require_not_paused(&env)?;
@@ -4359,6 +4748,132 @@ impl DongleContract {
     /// without guessing.
     pub fn get_tracked_performance_months(env: Env) -> Vec<u32> {
         crate::performance_metrics::PerformanceMetrics::get_tracked_months(&env)
+    }
+
+    // ── #940: Runtime Invariant Checks ────────────────────────────────────
+
+    /// Admin-only debug endpoint: run enabled invariant checks
+    /// (project count, review counts, admin count, fee balance),
+    /// log violations, and return them.
+    pub fn verify_contract_invariants(
+        env: Env,
+        admin: Address,
+    ) -> Result<Vec<crate::invariant_checker::InvariantViolation>, ContractError> {
+        crate::invariant_checker::InvariantChecker::verify_contract_invariants(&env, admin)
+    }
+
+    /// Admin-only: enable or disable a single invariant check.
+    pub fn set_invariant_check_enabled(
+        env: Env,
+        admin: Address,
+        check: crate::invariant_checker::InvariantCheckId,
+        enabled: bool,
+    ) -> Result<(), ContractError> {
+        crate::invariant_checker::InvariantChecker::set_check_enabled(&env, admin, check, enabled)
+    }
+
+    /// Return all logged invariant violations (oldest first).
+    pub fn get_invariant_violations(
+        env: Env,
+    ) -> Vec<crate::invariant_checker::InvariantViolation> {
+        crate::invariant_checker::InvariantChecker::get_violations(&env)
+    }
+
+    // ── #946: Proof-of-Work for Expensive Operations ──────────────────────
+
+    /// Issue a PoW challenge scaled to the operation cost (e.g. batch size).
+    /// See `pow_challenge` docs for the algorithm and difficulty levels.
+    pub fn issue_pow_challenge(env: Env, op_cost: u32) -> crate::pow_challenge::PowChallenge {
+        crate::pow_challenge::PowGate::issue(&env, op_cost)
+    }
+
+    /// Difficulty (leading-zero bits) required for the given operation cost.
+    pub fn pow_difficulty_for(op_cost: u32) -> u32 {
+        crate::pow_challenge::PowGate::difficulty_for(op_cost)
+    }
+
+    /// Validate a PoW solution before running a resource-heavy function.
+    pub fn verify_pow(
+        env: Env,
+        challenge: crate::pow_challenge::PowChallenge,
+        nonce: u64,
+        op_cost: u32,
+    ) -> Result<(), ContractError> {
+        crate::pow_challenge::PowGate::verify(&env, &challenge, nonce, op_cost)
+    }
+
+    // ── #947: Restricted-Mode Compliance Deployments ─────────────────────
+
+    /// Admin-only: set compliance mode config (restricted features, geo/KYC).
+    pub fn set_compliance_config(
+        env: Env,
+        admin: Address,
+        config: crate::compliance_mode::ComplianceConfig,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_config(&env, admin, config)
+    }
+
+    /// Return the current compliance mode config.
+    pub fn get_compliance_config(env: Env) -> crate::compliance_mode::ComplianceConfig {
+        crate::compliance_mode::ComplianceMode::get_config(&env)
+    }
+
+    /// Set the geographic country code for a project (compliance geo rule).
+    pub fn set_project_geo(
+        env: Env,
+        caller: Address,
+        project_id: u64,
+        country_code: String,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_project_geo(&env, caller, project_id, country_code)
+    }
+
+    /// Admin-only KYC/AML hook: approve or revoke a user.
+    pub fn set_kyc_approved(
+        env: Env,
+        admin: Address,
+        user: Address,
+        approved: bool,
+    ) -> Result<(), ContractError> {
+        crate::compliance_mode::ComplianceMode::set_kyc_approved(&env, admin, user, approved)
+    }
+
+    /// Return the compliance audit log.
+    pub fn get_compliance_audit_log(
+        env: Env,
+    ) -> Vec<crate::compliance_mode::ComplianceAuditEntry> {
+        crate::compliance_mode::ComplianceMode::get_audit_log(&env)
+    }
+
+    // ── #941: Benchmark Suite & Regression Alerts ────────────────────────
+
+    /// Record a benchmark sample for a critical function (admin-only).
+    pub fn record_benchmark(
+        env: Env,
+        caller: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::record(&env, caller, name, storage_reads, exec_units)
+    }
+
+    /// Admin-only: pin the baseline for a benchmark.
+    pub fn set_benchmark_baseline(
+        env: Env,
+        admin: Address,
+        name: String,
+        storage_reads: u32,
+        exec_units: u64,
+    ) -> Result<(), ContractError> {
+        crate::benchmark_suite::BenchmarkSuite::set_baseline(&env, admin, name, storage_reads, exec_units)
+    }
+
+    /// Compare latest samples vs baselines; returns regressions over 10%.
+    pub fn check_benchmark_regressions(
+        env: Env,
+    ) -> Vec<crate::benchmark_suite::BenchmarkRegression> {
+        crate::benchmark_suite::BenchmarkSuite::check_regressions(&env)
     }
 
     // ── #757: Security Contact Email Verification ─────────────────────────

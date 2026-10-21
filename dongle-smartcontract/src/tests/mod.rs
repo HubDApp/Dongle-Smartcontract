@@ -7,6 +7,10 @@ mod admin_action_log;
 mod admin_concurrent;
 mod archival;
 mod auto_archival;
+// Issue #873: archive reasons, audit log and bulk archive
+mod archive_lifecycle;
+// Issue #874: project visibility modes
+mod project_visibility;
 mod collection_registry_crud;
 mod collections;
 mod collection_visibility;
@@ -168,3 +172,22 @@ mod issues_720_723;
 // Performance metrics: approval time, appeal rate, reversal rate, percentiles,
 // per-admin comparison, and monthly reports (#perf)
 mod verification_performance;
+
+// Issue #914: Smart Bookmark Collections
+mod smart_bookmark_collections;
+// Issue #912: Dynamic Trending Projects
+mod trending_projects;
+// Issue #913: Similar and Duplicate Projects Detection
+mod similarity_projects;
+// Issue #909: Search Enhancements with Wildcards and Phrases
+mod search_enhancements;
+
+// Issue #972: Test reentrancy and race condition protection
+mod reentrancy_race_972;
+// Issue #973: Verify contract state integrity after emergency operations
+mod emergency_state_integrity_973;
+// Issue #974: Backward and forward compatibility
+mod compatibility_974;
+// Issue #975: Performance testing with realistic data volumes
+mod performance_volume_975;
+

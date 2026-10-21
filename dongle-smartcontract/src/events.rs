@@ -75,6 +75,16 @@ pub struct ProjectReactivatedEvent {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectVisibilityChangedEvent {
+    pub project_id: u64,
+    pub caller: Address,
+    pub old_visibility: crate::types::ProjectVisibility,
+    pub new_visibility: crate::types::ProjectVisibility,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectOwnershipTransferredEvent {
     pub project_id: u64,
     pub caller: Address,
@@ -267,6 +277,48 @@ pub struct VerificationExpiryNotificationEvent {
     pub sent_at: u64,
     pub resend: bool,
     pub resend_count: u32,
+}
+
+/// Emitted when an admin schedules a verification revocation with advance notice.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationScheduledEvent {
+    pub project_id: u64,
+    pub request_id: u64,
+    pub admin: Address,
+    pub revoke_at: u64,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+/// Emitted when a scheduled verification revocation is cancelled.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationCancelledEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub cancelled_by: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when a reminder notification is sent for a scheduled verification revocation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRevocationReminderEvent {
+    pub project_id: u64,
+    pub owner: Address,
+    pub revoke_at: u64,
+    pub reminder_type: VerificationRevocationReminderType,
+    pub timestamp: u64,
+}
+
+/// Type of reminder notification for scheduled verification revocation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerificationRevocationReminderType {
+    SevenDays,
+    TwentyFourHours,
+    Final,
 }
 
 /// Emitted when an admin renews (resets the expiry of) a verified project.
@@ -604,6 +656,30 @@ pub fn publish_project_reactivated_event(env: &Env, project_id: u64, caller: Add
         (
             symbol_short!("PROJECT"),
             symbol_short!("RESTORED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_project_visibility_changed_event(
+    env: &Env,
+    project_id: u64,
+    caller: Address,
+    old_visibility: crate::types::ProjectVisibility,
+    new_visibility: crate::types::ProjectVisibility,
+) {
+    let event_data = ProjectVisibilityChangedEvent {
+        project_id,
+        caller,
+        old_visibility,
+        new_visibility,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("PROJECT"),
+            symbol_short!("VISIBLE"),
             project_id,
         ),
         event_data,
@@ -1018,6 +1094,83 @@ pub fn publish_verification_revoked_event(
         (
             symbol_short!("VERIFY"),
             symbol_short!("REVOKED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_scheduled_event(
+    env: &Env,
+    project_id: u64,
+    request_id: u64,
+    admin: Address,
+    revoke_at: u64,
+    reason: String,
+) {
+    let event_data = VerificationRevocationScheduledEvent {
+        project_id,
+        request_id,
+        admin,
+        revoke_at,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("REVKSCH"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_cancelled_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    cancelled_by: Address,
+) {
+    let event_data = VerificationRevocationCancelledEvent {
+        project_id,
+        admin,
+        cancelled_by,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            symbol_short!("RevkCan"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_verification_revocation_reminder_event(
+    env: &Env,
+    project_id: u64,
+    owner: Address,
+    revoke_at: u64,
+    reminder_type: VerificationRevocationReminderType,
+) {
+    let event_data = VerificationRevocationReminderEvent {
+        project_id,
+        owner,
+        revoke_at,
+        reminder_type,
+        timestamp: env.ledger().timestamp(),
+    };
+    let topic = match reminder_type {
+        VerificationRevocationReminderType::SevenDays => symbol_short!("REV7DAY"),
+        VerificationRevocationReminderType::TwentyFourHours => symbol_short!("REV24HR"),
+        VerificationRevocationReminderType::Final => symbol_short!("REVFNL"),
+    };
+    env.events().publish(
+        (
+            symbol_short!("VERIFY"),
+            topic,
             project_id,
         ),
         event_data,
@@ -2793,6 +2946,41 @@ pub struct SmartFolderDeletedEvent {
     pub timestamp: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollectionCreatedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartBookmarkCollectionRefreshedEvent {
+    pub collection_id: u64,
+    pub owner: Address,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrendingRecalculatedEvent {
+    pub time_window: u64,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SimilarProjectsQueriedEvent {
+    pub project_id: u64,
+    pub count: u32,
+    pub timestamp: u64,
+}
+
+
 pub fn publish_folder_created_event(
     env: &Env,
     folder_id: u64,
@@ -2938,6 +3126,85 @@ pub fn publish_smart_folder_deleted_event(env: &Env, smart_folder_id: u64, owner
         event_data,
     );
 }
+
+pub fn publish_smart_bookmark_collection_created_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+    name: String,
+) {
+    let event_data = SmartBookmarkCollectionCreatedEvent {
+        collection_id,
+        owner: owner.clone(),
+        name,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SBMARK"),
+            symbol_short!("CREATED"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_smart_bookmark_collection_refreshed_event(
+    env: &Env,
+    collection_id: u64,
+    owner: Address,
+    count: u32,
+) {
+    let event_data = SmartBookmarkCollectionRefreshedEvent {
+        collection_id,
+        owner: owner.clone(),
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SBMARK"),
+            symbol_short!("REFRESH"),
+            collection_id,
+            owner,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_trending_recalculated_event(env: &Env, time_window: u64, count: u32) {
+    let event_data = TrendingRecalculatedEvent {
+        time_window,
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("TRENDING"),
+            symbol_short!("RECALC"),
+            time_window,
+        ),
+        event_data,
+    );
+}
+
+pub fn publish_similar_projects_queried_event(env: &Env, project_id: u64, count: u32) {
+    let event_data = SimilarProjectsQueriedEvent {
+        project_id,
+        count,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (
+            symbol_short!("SIMILAR"),
+            symbol_short!("QUERIED"),
+            project_id,
+        ),
+        event_data,
+    );
+}
+
 
 // ── Review Archival Events (#804) ─────────────────────────────────────────────
 
@@ -4394,191 +4661,255 @@ pub fn publish_reviews_moderated_event(
     );
 }
 
-/// Emitted when a report is routed or reassigned to a moderator (#920).
+// ── Fee Extension Events ───────────────────────────────────────────────────────
+// Events for fee waivers, auto-refunds, fee receipts, and fee escrow.
+
+use crate::types::{FeeWaiverType, WaiverStatus, RefundTrigger, FeeDisputeResolution};
+
+// ── Fee Waiver Events ──────────────────────────────────────────────────────────
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReportRoutedEvent {
-    pub report_id: u64,
+pub struct FeeWaiverAppliedEvent {
     pub project_id: u64,
-    pub category: ReportCategory,
-    pub moderator: Address,
-    pub previous_moderator: Option<Address>,
+    pub applicant: Address,
+    pub waiver_type: FeeWaiverType,
+    pub proof_cid: String,
     pub timestamp: u64,
 }
 
-pub fn publish_report_routed_event(
-    env: &Env,
-    report_id: u64,
-    project_id: u64,
-    category: ReportCategory,
-    moderator: Address,
-    previous_moderator: Option<Address>,
-) {
-    env.events().publish(
-        (symbol_short!("REPORT"), symbol_short!("ROUTED"), report_id),
-        ReportRoutedEvent {
-            report_id,
-            project_id,
-            category,
-            moderator,
-            previous_moderator,
-            timestamp: env.ledger().timestamp(),
-        },
-    );
-}
-
-/// Emitted when an admin creates, replaces or removes a routing rule (#920).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReportRoutingRuleUpdatedEvent {
-    pub category: ReportCategory,
+pub struct FeeWaiverDecidedEvent {
+    pub project_id: u64,
     pub admin: Address,
-    pub moderator_count: u32,
+    pub status: WaiverStatus,
+    pub waiver_type: FeeWaiverType,
     pub timestamp: u64,
 }
 
-pub fn publish_report_routing_rule_updated_event(
+pub fn publish_fee_waiver_applied_event(
     env: &Env,
-    category: ReportCategory,
+    project_id: u64,
+    applicant: Address,
+    waiver_type: FeeWaiverType,
+    proof_cid: String,
+) {
+    let event_data = FeeWaiverAppliedEvent {
+        project_id,
+        applicant,
+        waiver_type,
+        proof_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("WAIVER"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_waiver_decided_event(
+    env: &Env,
+    project_id: u64,
     admin: Address,
-    moderator_count: u32,
+    status: WaiverStatus,
+    waiver_type: FeeWaiverType,
 ) {
+    let event_data = FeeWaiverDecidedEvent {
+        project_id,
+        admin,
+        status,
+        waiver_type,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("REPORT"), symbol_short!("RULE_UPD")),
-        ReportRoutingRuleUpdatedEvent {
-            category,
-            admin,
-            moderator_count,
-            timestamp: env.ledger().timestamp(),
-        },
+        (symbol_short!("FEE"), symbol_short!("WAIVCIDE"), project_id),
+        event_data,
     );
 }
 
-/// Emitted when an evidence CID is attached to a report (#921).
+// ── Auto-Refund Events ─────────────────────────────────────────────────────────
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReportEvidenceAttachedEvent {
-    pub report_id: u64,
+pub struct AutoRefundCreatedEvent {
     pub project_id: u64,
-    pub evidence_cid: String,
-    pub index: u32,
-    pub attached_by: Address,
+    pub payer: Address,
+    pub amount: u128,
+    pub trigger: RefundTrigger,
     pub timestamp: u64,
 }
 
-pub fn publish_report_evidence_attached_event(
-    env: &Env,
-    report_id: u64,
-    project_id: u64,
-    evidence_cid: String,
-    index: u32,
-    attached_by: Address,
-) {
-    env.events().publish(
-        (symbol_short!("REPORT"), symbol_short!("EVIDENCE"), report_id),
-        ReportEvidenceAttachedEvent {
-            report_id,
-            project_id,
-            evidence_cid,
-            index,
-            attached_by,
-            timestamp: env.ledger().timestamp(),
-        },
-    );
-}
-
-/// Emitted when a moderator records a decision on a report (#922).
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReportResolvedEvent {
-    pub report_id: u64,
+pub struct AutoRefundClaimedEvent {
     pub project_id: u64,
-    pub decision: ReportDecision,
-    pub moderator: Address,
+    pub payer: Address,
+    pub amount: u128,
     pub timestamp: u64,
 }
 
-pub fn publish_report_resolved_event(
+pub fn publish_auto_refund_created_event(
     env: &Env,
-    report_id: u64,
     project_id: u64,
-    decision: ReportDecision,
-    moderator: Address,
+    payer: Address,
+    amount: u128,
+    trigger: RefundTrigger,
 ) {
+    let event_data = AutoRefundCreatedEvent {
+        project_id,
+        payer,
+        amount,
+        trigger,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("REPORT"), symbol_short!("RESOLVED"), report_id),
-        ReportResolvedEvent {
-            report_id,
-            project_id,
-            decision,
-            moderator,
-            timestamp: env.ledger().timestamp(),
-        },
+        (symbol_short!("FEE"), symbol_short!("AUTOREF"), project_id),
+        event_data,
     );
 }
 
-/// Emitted when a user appeals a moderation decision (#922).
+pub fn publish_auto_refund_claimed_event(
+    env: &Env,
+    project_id: u64,
+    payer: Address,
+    amount: u128,
+) {
+    let event_data = AutoRefundClaimedEvent {
+        project_id,
+        payer,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RFDCLM"), project_id),
+        event_data,
+    );
+}
+
+// ── Fee Receipt Events ─────────────────────────────────────────────────────────
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ModerationAppealFiledEvent {
-    pub appeal_id: u64,
-    pub report_id: u64,
+pub struct FeeReceiptIssuedEvent {
+    pub payment_id: u64,
     pub project_id: u64,
-    pub appellant: Address,
-    pub original_decision: ReportDecision,
-    pub assigned_senior_moderator: Address,
+    pub payer: Address,
+    pub amount: u128,
+    pub operation: FeeOperation,
     pub timestamp: u64,
 }
 
-pub fn publish_moderation_appeal_filed_event(
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeReceiptSignedEvent {
+    pub payment_id: u64,
+    pub admin: Address,
+    pub receipt_cid: String,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_receipt_issued_event(
     env: &Env,
-    appeal_id: u64,
-    report_id: u64,
+    payment_id: u64,
     project_id: u64,
-    appellant: Address,
-    original_decision: ReportDecision,
-    assigned_senior_moderator: Address,
+    payer: Address,
+    amount: u128,
+    operation: FeeOperation,
 ) {
+    let event_data = FeeReceiptIssuedEvent {
+        payment_id,
+        project_id,
+        payer,
+        amount,
+        operation,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("MOD_APPL"), symbol_short!("FILED"), appeal_id),
-        ModerationAppealFiledEvent {
-            appeal_id,
-            report_id,
-            project_id,
-            appellant,
-            original_decision,
-            assigned_senior_moderator,
-            timestamp: env.ledger().timestamp(),
-        },
+        (symbol_short!("FEE"), symbol_short!("RECEIPT"), payment_id),
+        event_data,
     );
 }
 
-/// Emitted when a senior moderator resolves an appeal (#922).
+pub fn publish_fee_receipt_signed_event(
+    env: &Env,
+    payment_id: u64,
+    admin: Address,
+    receipt_cid: String,
+) {
+    let event_data = FeeReceiptSignedEvent {
+        payment_id,
+        admin,
+        receipt_cid,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("RCTSIGN"), payment_id),
+        event_data,
+    );
+}
+
+// ── Fee Escrow Events ──────────────────────────────────────────────────────────
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ModerationAppealResolvedEvent {
-    pub appeal_id: u64,
-    pub report_id: u64,
-    pub status: AppealStatus,
-    pub resolved_by: Address,
+pub struct FeeEscrowCreatedEvent {
+    pub project_id: u64,
+    pub disputer: Address,
+    pub amount: u128,
+    pub dispute_reason: String,
+    pub locked_until: u64,
     pub timestamp: u64,
 }
 
-pub fn publish_moderation_appeal_resolved_event(
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeEscrowReleasedEvent {
+    pub project_id: u64,
+    pub admin: Address,
+    pub amount: u128,
+    pub resolution: FeeDisputeResolution,
+    pub timestamp: u64,
+}
+
+pub fn publish_fee_escrow_created_event(
     env: &Env,
-    appeal_id: u64,
-    report_id: u64,
-    status: AppealStatus,
-    resolved_by: Address,
+    project_id: u64,
+    disputer: Address,
+    amount: u128,
+    dispute_reason: String,
+    locked_until: u64,
 ) {
+    let event_data = FeeEscrowCreatedEvent {
+        project_id,
+        disputer,
+        amount,
+        dispute_reason,
+        locked_until,
+        timestamp: env.ledger().timestamp(),
+    };
     env.events().publish(
-        (symbol_short!("MOD_APPL"), symbol_short!("RESOLVED"), appeal_id),
-        ModerationAppealResolvedEvent {
-            appeal_id,
-            report_id,
-            status,
-            resolved_by,
-            timestamp: env.ledger().timestamp(),
-        },
+        (symbol_short!("FEE"), symbol_short!("ESCRW"), project_id),
+        event_data,
+    );
+}
+
+pub fn publish_fee_escrow_released_event(
+    env: &Env,
+    project_id: u64,
+    admin: Address,
+    amount: u128,
+    resolution: FeeDisputeResolution,
+) {
+    let event_data = FeeEscrowReleasedEvent {
+        project_id,
+        admin,
+        amount,
+        resolution,
+        timestamp: env.ledger().timestamp(),
+    };
+    env.events().publish(
+        (symbol_short!("FEE"), symbol_short!("ESCRREL"), project_id),
+        event_data,
     );
 }

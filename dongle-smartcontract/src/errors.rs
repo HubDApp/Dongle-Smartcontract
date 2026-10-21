@@ -333,30 +333,34 @@ pub enum ContractError {
     ReviewAlreadyFlagged = 140,
     /// Admin exhausted the review moderation budget for the current window.
     ModerationRateLimitExceeded = 141,
-    /// Report referenced by ID does not exist (#920).
-    ReportNotFound = 142,
-    /// No routing rule is configured for the report's category (#920).
-    ReportRoutingRuleNotFound = 143,
-    /// Report already holds the maximum number of evidence attachments (#921).
-    ReportEvidenceLimitReached = 144,
-    /// The evidence CID is already attached to the report (#921).
-    ReportEvidenceAlreadyAttached = 145,
-    /// The report has no moderation decision to appeal yet (#922).
-    ReportNotResolved = 146,
-    /// The report already has a moderation decision (#922).
-    ReportAlreadyResolved = 147,
-    /// An appeal was already filed against this report's decision (#922).
-    ModerationAppealAlreadyFiled = 148,
-    /// Moderation appeal referenced by ID does not exist (#922).
-    ModerationAppealNotFound = 149,
-    /// The appeal has already been resolved (#922).
-    ModerationAppealNotPending = 150,
-    /// No eligible senior moderator is available to review the appeal (#922).
-    NoSeniorModerators = 151,
-    /// Dependency version requirement is not a supported spec (#923).
-    InvalidVersionSpec = 152,
-    /// The project has no such dependency registered (#923).
-    DependencyNotFound = 153,
+    /// Smart bookmark collection referenced by ID does not exist (#914).
+    SmartBookmarkCollectionNotFound = 142,
+    /// Maximum smart bookmark collections per user exceeded (#914).
+    MaxSmartBookmarkCollectionsExceeded = 143,
+    /// Project similarity score did not meet the required threshold (#913).
+    SimilarityThresholdNotMet = 144,
+
+    // ── Fee extensions ─────────────────────────────────────────────────────
+    /// A fee waiver application already exists for this project.
+    WaiverAlreadyApplied = 145,
+    /// No fee waiver record found for this project.
+    WaiverNotFound = 146,
+    /// The fee waiver application is not in a pending state.
+    WaiverNotPending = 147,
+    /// Auto-refund record not found for this project.
+    AutoRefundNotFound = 148,
+    /// The auto-refund has already been fully settled.
+    AutoRefundAlreadySettled = 149,
+    /// Fee receipt not found for the given payment ID.
+    FeeReceiptNotFound = 150,
+    /// A fee dispute is already open for this project.
+    EscrowAlreadyActive = 151,
+    /// No active fee escrow found for this project.
+    EscrowNotFound = 152,
+    /// Partial refund amount exceeds the escrowed balance.
+    PartialRefundExceedsEscrow = 153,
+    /// The fee is not in a state that allows being disputed (must be pending/consumed).
+    FeeNotDisputable = 154,
 }
 
 pub type Error = ContractError;

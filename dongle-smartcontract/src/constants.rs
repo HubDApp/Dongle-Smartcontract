@@ -390,6 +390,16 @@ pub const MAX_BOOKMARK_FOLDERS_PER_USER: u32 = 50;
 /// the full bookmark list, so a small cap keeps aggregate query cost bounded.
 pub const MAX_SMART_FOLDERS_PER_USER: u32 = 20;
 
+/// Maximum number of smart bookmark collections per user (#914).
+pub const MAX_SMART_BOOKMARK_COLLECTIONS_PER_USER: u32 = 20;
+
+/// Trending time windows in seconds (#912).
+pub const TRENDING_WINDOW_24H: u64 = 24 * 60 * 60;
+pub const TRENDING_WINDOW_7D: u64 = 7 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_30D: u64 = 30 * 24 * 60 * 60;
+pub const TRENDING_WINDOW_ALL_TIME: u64 = 0;
+
+
 /// Maximum number of bookmarks inside a single folder.
 /// 500: matches `MAX_PROJECTS_PER_COLLECTION`; a `Vec<u64>` of 500 IDs is
 /// 4 KiB, well within a single ledger entry.
