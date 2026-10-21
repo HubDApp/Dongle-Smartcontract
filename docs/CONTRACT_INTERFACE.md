@@ -846,6 +846,22 @@ let results = search_projects(env, String::from_slice(&env, "lending"), 0, 100);
 
 ---
 
+### `search_projects_with_limit`
+
+**Purpose**: Search active projects by query with an explicit limit (starts from index 0). Supports wildcard search using `*` (e.g. `*pay*`, `dex*`) and phrase search using double quotes (e.g. `"automated market maker"`). Results are ranked by relevance and rating.
+
+**Parameters**:
+- `env` (Env): Contract environment
+- `query` (String): Search query string (supports wildcards and quoted phrases)
+- `limit` (u32): Maximum projects to return (capped at 100)
+
+**Return Value**: `Vec<Project>`
+
+**Authorization**: None
+
+---
+
+
 ### `list_projects_by_tag`
 
 **Purpose**: Retrieve projects filtered by tag with pagination.
@@ -5561,118 +5577,71 @@ notes, correlated with an optional semantic version string.
 
 ---
 
-## Bookmark Auto-Archive & Recovery (#915)
+## Smart Bookmark Collections (#914)
 
-### `set_bookmark_config`
-**Purpose**: Set global bookmark auto-archive configuration.
-**Parameters**: `env: Env`, `admin: Address`, `config: BookmarkConfig`
-**Authorization**: Admin auth required.
+### `create_smart_bookmark_collection`
+- **Purpose**: Creates an auto-populating smart bookmark collection with custom filtering rules (tag matching, category, and date ranges) and optional parent folder nesting.
+- **Parameters**: `env`, `user` (Address), `name` (String), `rules` (SmartBookmarkRules)
+- **Return Value**: `Result<u64, ContractError>` (Collection ID)
+- **Authorization**: `user.require_auth()`
+- **Errors**: `InvalidProjectData`, `InvalidProjectName`, `FolderNotFound`, `MaxSmartBookmarkCollectionsExceeded`
 
-### `get_bookmark_config`
-**Purpose**: Retrieve global bookmark auto-archive configuration.
-**Parameters**: `env: Env`
-**Return Value**: `BookmarkConfig`
+### `refresh_smart_bookmark_collection`
+- **Purpose**: Refreshes the project membership of a smart collection based on its rules and the user's current bookmarks.
+- **Parameters**: `env`, `collection_id` (u64)
+- **Return Value**: `Result<Vec<u64>, ContractError>` (Updated project IDs)
+- **Authorization**: `owner.require_auth()`
+- **Errors**: `SmartBookmarkCollectionNotFound`
 
-### `set_user_bookmark_policy`
-**Purpose**: Set per-user auto-archive policy.
-**Parameters**: `env: Env`, `user: Address`, `policy: BookmarkExpirationPolicy`
-**Authorization**: User auth required.
+### `get_smart_bookmark_collection`
+- **Purpose**: Fetches a smart bookmark collection by ID.
+- **Parameters**: `env`, `collection_id` (u64)
+- **Return Value**: `Option<SmartBookmarkCollection>`
+- **Authorization**: None (public read)
 
-### `get_user_bookmark_policy`
-**Purpose**: Get user auto-archive policy.
-**Parameters**: `env: Env`, `user: Address`
-**Return Value**: `Option<BookmarkExpirationPolicy>`
+### `list_smart_bookmark_collections`
+- **Purpose**: Lists all smart bookmark collections created by a user.
+- **Parameters**: `env`, `user` (Address)
+- **Return Value**: `Vec<SmartBookmarkCollection>`
+- **Authorization**: None (public read)
 
-### `set_bookmark_expiration_policy`
-**Purpose**: Set an override expiration policy on an individual bookmark.
-**Parameters**: `env: Env`, `user: Address`, `project_id: u64`, `auto_archive_after_days: Option<u32>`
-**Authorization**: User auth required.
-
-### `get_bookmark_expiration_policy`
-**Purpose**: Get bookmark expiration override.
-**Parameters**: `env: Env`, `user: Address`, `project_id: u64`
-**Return Value**: `Option<u32>`
-
-### `auto_archive_stale_bookmarks`
-**Purpose**: Explicitly trigger archival scan of expired bookmarks for a user.
-**Parameters**: `env: Env`, `user: Address`
-**Return Value**: `Result<u32, ContractError>` (count of archived bookmarks)
-
-### `restore_archived_bookmark`
-**Purpose**: Restore an archived bookmark back to active bookmarks list.
-**Parameters**: `env: Env`, `user: Address`, `bookmark_id: u64`
-**Authorization**: User auth required.
-
-### `get_archived_bookmarks`
-**Purpose**: List archived bookmarks for a user with pagination.
-**Parameters**: `env: Env`, `user: Address`, `start_index: u32`, `limit: u32`
-**Return Value**: `Vec<u64>`
+### `delete_smart_bookmark_collection`
+- **Purpose**: Deletes a smart bookmark collection.
+- **Parameters**: `env`, `user` (Address), `collection_id` (u64)
+- **Return Value**: `Result<(), ContractError>`
+- **Authorization**: `user.require_auth()`
+- **Errors**: `SmartBookmarkCollectionNotFound`, `Unauthorized`
 
 ---
 
-## Feature-Based Project Recommendations (#911)
+## Dynamic Trending Projects (#912)
 
-### `get_recommended_projects`
-**Purpose**: Suggest similar or related projects based on categories, tags, and link graph.
-**Parameters**: `env: Env`, `project_id: u64`, `limit: u32`
-**Return Value**: `Vec<u64>`
+### `get_trending_projects`
+- **Purpose**: Calculates and returns popular projects dynamically based on reviews, follows, and registration volume across specified time windows (24h, 7d, 30d, all-time).
+- **Parameters**: `env`, `time_window` (u64, in seconds; 0 for all-time), `limit` (u32, capped at 100)
+- **Return Value**: `Vec<TrendingProject>` (with project, trending_score, and trend_velocity)
+- **Authorization**: None (public read)
 
-### `get_recommended_projects_with_options`
-**Purpose**: Compute recommendations with configurable strategy (`Similar`, `Complementary`, `Trending`) and category diversity limits.
-**Parameters**: `env: Env`, `project_id: u64`, `options: RecommendationOptions`
-**Return Value**: `Vec<u64>`
-
-### `track_recommendation_click`
-**Purpose**: Record user click on a recommended project for ML model feedback.
-**Parameters**: `env: Env`, `user: Address`, `project_id: u64`, `recommended_project_id: u64`
-**Authorization**: User auth required.
-
-### `get_recommendation_clicks`
-**Purpose**: Get total recorded recommendation clicks between a source and recommended project.
-**Parameters**: `env: Env`, `project_id: u64`, `recommended_project_id: u64`
-**Return Value**: `u64`
+### `recalculate_trending_projects`
+- **Purpose**: Triggers cache recalculation of trending projects for background jobs/keepers.
+- **Parameters**: `env`, `time_window` (u64)
+- **Return Value**: `Vec<TrendingProject>`
+- **Authorization**: None
 
 ---
 
-## Complex Query Filters for Project Discovery (#910)
+## Similar & Near-Duplicate Project Detection (#913)
 
-### `query_projects`
-**Purpose**: Query projects using boolean combinations (AND / OR) of criteria, sorting, and cursor-based pagination.
-**Parameters**: `env: Env`, `filter: ProjectQueryFilter`, `cursor: Option<u64>`, `limit: u32`
-**Return Value**: `ProjectQueryResult` (`projects`, `next_cursor`, `has_more`, `total_matched`)
+### `find_similar_projects`
+- **Purpose**: Finds projects similar to a target project using multi-field scoring (fuzzy matching for name and description, Jaccard similarity for tags and dependencies).
+- **Parameters**: `env`, `project_id` (u64), `threshold` (u32: basis points 0..10_000, e.g. 5000 = 50%, or 1..100 percentage shorthand)
+- **Return Value**: `Vec<SimilarProject>` (sorted descending by similarity score)
+- **Authorization**: None (public read)
 
-### `list_projects_filtered`
-**Purpose**: Direct parameter filter wrapper for category, min rating, verification status, owner address, and featured status.
-**Parameters**: `env: Env`, `category: Option<String>`, `min_rating: Option<u32>`, `verification_status: Option<VerificationStatus>`, `owner_address: Option<Address>`, `featured_only: Option<bool>`, `logic: Option<FilterLogic>`, `sort_by: Option<ProjectFilterSortBy>`, `cursor: Option<u64>`, `limit: u32`
-**Return Value**: `ProjectQueryResult`
-
----
-
-## Collection Immutable Snapshots (#908)
-
-### `snapshot_collection`
-**Purpose**: Create an immutable snapshot of collection metadata and projects with an IPFS CID on-chain.
-**Parameters**: `env: Env`, `caller: Address`, `collection_id: u64`, `ipfs_cid: Option<String>`
-**Authorization**: Collection owner or admin auth required.
-**Return Value**: `Result<CollectionSnapshot, ContractError>`
-
-### `get_collection_snapshot`
-**Purpose**: Retrieve an immutable snapshot by version.
-**Parameters**: `env: Env`, `collection_id: u64`, `version: u32`
-**Return Value**: `Option<CollectionSnapshot>`
-
-### `get_latest_collection_snapshot`
-**Purpose**: Retrieve the most recent snapshot of a collection.
-**Parameters**: `env: Env`, `collection_id: u64`
-**Return Value**: `Option<CollectionSnapshot>`
-
-### `list_collection_snapshots`
-**Purpose**: List all snapshots for a collection with pagination.
-**Parameters**: `env: Env`, `collection_id: u64`, `start_index: u32`, `limit: u32`
-**Return Value**: `Vec<CollectionSnapshot>`
-
-### `compare_collection_snapshots`
-**Purpose**: Compare two collection snapshot versions to audit added, removed, and unchanged project memberships.
-**Parameters**: `env: Env`, `collection_id: u64`, `version_a: u32`, `version_b: u32`
-**Return Value**: `Result<CollectionSnapshotComparison, ContractError>`
+### `open_duplicate_dispute_with_similarity`
+- **Purpose**: Opens a duplicate dispute only if the candidate duplicate meets a minimum similarity threshold against the original project.
+- **Parameters**: `env`, `project_id` (u64), `original_project_id` (u64), `creator` (Address), `evidence_cid` (String), `min_threshold` (u32)
+- **Return Value**: `Result<u64, ContractError>` (Dispute ID)
+- **Authorization**: `creator.require_auth()`
+- **Errors**: `SimilarityThresholdNotMet`, `ProjectNotFound`, `CannotLinkToSelf`, `AlreadyArchived`
 
