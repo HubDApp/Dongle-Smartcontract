@@ -655,3 +655,49 @@ fn auth_project_owner_cannot_call_admin_only_approve_verification() {
         "project owner must not be able to self-approve their own verification"
     );
 }
+
+// ── Admin cannot archive a project they do not own ────────────────────────────
+
+/// An admin who is not the project owner must not be able to archive
+/// the project through \`archive_project\`.
+#[test]
+fn auth_admin_cannot_archive_project_they_do_not_own() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &owner, "AuthAdmArc970");
+
+    let result = client
+        .mock_all_auths()
+        .try_archive_project(&project_id, &admin);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::Unauthorized)),
+        "admin must not be able to archive a project they do not own"
+    );
+}
+
+// ── Stranger cannot request verification on another owner's project ───────────
+
+/// A random address that is neither admin nor owner must be rejected when
+/// calling \`request_verification\`.
+#[test]
+fn auth_stranger_cannot_request_verification_for_any_project() {
+    let env = Env::default();
+    let (client, admin) = setup(&env);
+    let owner = Address::generate(&env);
+    let stranger = Address::generate(&env);
+    let project_id = register_project(&client, &owner, "AuthStrVerReq970");
+
+    client.mock_all_auths().set_min_project_age(&admin, &0);
+    let evidence = String::from_str(&env, "QmEvidence970StrangerTest12345678901234567890ab");
+
+    let result = client
+        .mock_all_auths()
+        .try_request_verification(&project_id, &stranger, &evidence);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::Unauthorized)),
+        "a stranger must not be able to request verification for another owner's project"
+    );
+}
