@@ -705,3 +705,50 @@ fn event_ordering_verification_request_before_approval() {
         "VerificationRequestedEvent must precede VerificationApprovedEvent"
     );
 }
+
+// ── #17 — No spurious events emitted on a read-only call ─────────────────────
+
+/// Calling a read-only function must not produce any new events.
+/// \`get_project\` is used as the representative read-only call.
+#[test]
+fn event_read_only_call_emits_no_events() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+    let owner = Address::generate(&env);
+    let project_id = register_project(&client, &env, &owner, "NoEventRead969");
+
+    let before = env.events().all().len();
+    let _ = client.get_project(&project_id);
+    let after = env.events().all().len();
+
+    assert_eq!(
+        before, after,
+        "get_project must not emit any events"
+    );
+}
+
+// ── #18 — Each registration emits exactly one ProjectRegisteredEvent ──────────
+
+/// Registering two different projects must emit exactly two
+/// ProjectRegisteredEvent entries — one per registration, no duplicates.
+#[test]
+fn event_each_registration_emits_exactly_one_event() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+    let owner = Address::generate(&env);
+
+    let pid1 = register_project(&client, &env, &owner, "ExactOne969A");
+    let pid2 = register_project(&client, &env, &owner, "ExactOne969B");
+
+    let count1 = count_events_with_topics(
+        &env,
+        (symbol_short!("PROJECT"), symbol_short!("CREATED"), pid1),
+    );
+    let count2 = count_events_with_topics(
+        &env,
+        (symbol_short!("PROJECT"), symbol_short!("CREATED"), pid2),
+    );
+
+    assert_eq!(count1, 1, "pid1 must have exactly one CREATED event");
+    assert_eq!(count2, 1, "pid2 must have exactly one CREATED event");
+}
