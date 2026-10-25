@@ -435,3 +435,62 @@ fn overflow_calculate_average_large_values_no_panic() {
     let avg = RatingCalculator::calculate_average(sum, count);
     assert_eq!(avg, 500, "average of 1M identical 5-star ratings must be 500 (= 5.00 × 100)");
 }
+
+// ── Rating boundary: exactly 1 and exactly 5 are both valid ──────────────────
+
+/// The minimum valid rating (1) and maximum valid rating (5) must both be
+/// accepted by the contract without error.
+#[test]
+fn overflow_boundary_ratings_one_and_five_are_accepted() {
+    let env = Env::default();
+    let (client, _) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let project_id = create_test_project(&client, &owner, "BoundaryRating971");
+
+    let reviewer_min = Address::generate(&env);
+    let reviewer_max = Address::generate(&env);
+
+    let result_min = client
+        .mock_all_auths()
+        .try_add_review(&project_id, &reviewer_min, &1, &None);
+    assert!(result_min.is_ok(), "rating 1 (minimum) must be accepted");
+
+    let result_max = client
+        .mock_all_auths()
+        .try_add_review(&project_id, &reviewer_max, &5, &None);
+    assert!(result_max.is_ok(), "rating 5 (maximum) must be accepted");
+
+    let stats = client.get_project_stats(&project_id);
+    // sum = 1*100 + 5*100 = 600
+    assert_eq!(stats.rating_sum, 600, "rating sum must be 600 for ratings 1 and 5");
+    assert_eq!(stats.review_count, 2, "review count must be 2");
+}
+
+// ── u64 arithmetic: multiple add/remove round-trip stays exact ────────────────
+
+/// Adding 100 ratings of 3 and then removing all of them must leave the
+/// sum and count at exactly their original zero values — no accumulated
+/// rounding error.
+#[test]
+fn overflow_u64_bulk_add_then_remove_round_trips_exactly() {
+    let mut sum: u64 = 0;
+    let mut count: u32 = 0;
+
+    for _ in 0..100 {
+        let (s, c, _) = crate::rating_calculator::RatingCalculator::add_rating(sum, count, 3);
+        sum = s;
+        count = c;
+    }
+
+    assert_eq!(sum, 300 * 100, "sum after 100 rating-3 additions must be 30 000");
+    assert_eq!(count, 100);
+
+    for _ in 0..100 {
+        let (s, c, _) = crate::rating_calculator::RatingCalculator::remove_rating(sum, count, 3);
+        sum = s;
+        count = c;
+    }
+
+    assert_eq!(sum, 0, "sum must return to 0 after removing all 100 ratings");
+    assert_eq!(count, 0, "count must return to 0 after removing all 100 ratings");
+}
