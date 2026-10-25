@@ -514,3 +514,62 @@ fn storage_invariant_verification_status_consistent_across_project_and_record() 
         "verification record status must match project status after approval"
     );
 }
+
+// ── Reactivation restores owner index count ───────────────────────────────────
+
+/// After archiving and then reactivating a project, the owner index must
+/// still contain exactly the same number of entries as before the archive.
+#[test]
+fn storage_invariant_owner_index_count_unchanged_after_archive_and_reactivate() {
+    let env = Env::default();
+    let (client, _) = setup_contract(&env);
+    let owner = Address::generate(&env);
+
+    let _id1 = create_test_project(&client, &owner, "ReacInv968A");
+    let id2 = create_test_project(&client, &owner, "ReacInv968B");
+
+    let before = client.get_projects_by_owner(&owner).len();
+
+    client.mock_all_auths().archive_project(&id2, &owner);
+    client.mock_all_auths().reactivate_project(&id2, &owner);
+
+    let after = client.get_projects_by_owner(&owner).len();
+
+    assert_eq!(
+        before, after,
+        "owner index count must be unchanged after archive + reactivate cycle"
+    );
+}
+
+// ── Rating sum stays at zero when all reviews are deleted ─────────────────────
+
+/// After adding several reviews and then deleting every one of them, both
+/// `review_count` and `rating_sum` must return to their initial zero values.
+#[test]
+fn storage_invariant_stats_return_to_zero_after_all_reviews_deleted() {
+    let env = Env::default();
+    let (client, _) = setup_contract(&env);
+    let owner = Address::generate(&env);
+    let project_id = create_test_project(&client, &owner, "ZeroStats968");
+
+    let reviewers: Vec<Address> = (0..4).map(|_| Address::generate(&env)).collect();
+    for reviewer in &reviewers {
+        client
+            .mock_all_auths()
+            .add_review(&project_id, reviewer, &3, &None);
+    }
+
+    for reviewer in &reviewers {
+        client.mock_all_auths().delete_review(&project_id, reviewer);
+    }
+
+    let stats = client.get_project_stats(&project_id);
+    assert_eq!(
+        stats.review_count, 0,
+        "review_count must be 0 after all reviews are deleted"
+    );
+    assert_eq!(
+        stats.rating_sum, 0,
+        "rating_sum must be 0 after all reviews are deleted"
+    );
+}
