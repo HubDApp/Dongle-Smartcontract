@@ -40,7 +40,21 @@ for the full policy.
 
 ### Added
 
+- **Code Quality Monitoring Module** (`code_quality_monitor`) - New feature for tracking contract health metrics including function call patterns, error rates, and storage efficiency. Provides `health_check()` and error rate calculations for ongoing maintenance (#1030).
+- **Development Roadmap** (`ROADMAP.md`) - Published 2026-2027 roadmap showing active development plans and commitment to ongoing improvements (#1030).
 - Project visibility modes (`Public` / `Private` / `Restricted`) with `set_project_visibility`, `get_project_as_viewer`, and the `ProjectVisibilityChanged` event; `get_project` and `list_projects` return only public projects. **BREAKING** (`Project` struct gains `visibility`) (#874).
+
+### Removed
+
+- 8 dead code functions and constants to improve code clarity and maintainability:
+  - `constants::MIN_STRING_LEN`
+  - `notification_registry::enqueue_digest`
+  - `social_analytics_registry::_keep_extension_key_imported`
+  - `changelog_registry::update_changelog_entry`
+  - `verification_registry::storage::verification_exists`
+  - `verification_registry::storage::set_verification_duration`
+  - `verification_registry::state_machine::get_transition_error_message`
+  - `verification_registry::state_machine::can_be_approved`, `can_be_rejected`, `get_possible_next_states` (#1030).
 - Archive lifecycle: `archive_project_with_reason`, `bulk_archive_projects`, `get_archive_reason`, and `get_archive_audit_log` (#873).
 - `.pre-commit-config.yaml` with fmt, clippy, and doc hooks plus `scripts/test_pre_commit_hooks.py` (#872).
 - CI `compat` matrix across Rust 1.70 / 1.74 / stable on Linux, macOS, and Windows (#871).

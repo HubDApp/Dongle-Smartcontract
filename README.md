@@ -2,6 +2,17 @@
 
 **Dongle** is an open-source smart contract built on the **Stellar network** that enables decentralized project discovery and verification on-chain.
 
+## 📊 Project Status
+
+| Aspect | Status |
+|--------|--------|
+| **Maintenance** | 🟢 Actively Maintained |
+| **Latest Release** | Unreleased (development) |
+| **Code Quality** | ✅ Clean (dead code removed) |
+| **Security Audits** | Ongoing |
+| **Last Update** | 2026-11-06 |
+| **Development Roadmap** | [See ROADMAP.md](ROADMAP.md) |
+
 ## ⚠️ Build Status
 
 **Current Status:** 🔴 **NOT READY FOR DEPLOYMENT** — Build is broken, see [BUILD_STATUS.md](BUILD_STATUS.md) for details.
