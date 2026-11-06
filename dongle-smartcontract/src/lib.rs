@@ -80,6 +80,8 @@ mod similarity_registry;
 mod smart_bookmark_registry;
 mod smart_collection_registry;
 mod trending_registry;
+pub mod code_quality_monitor;
+pub mod performance_analyzer;
 
 #[cfg(test)]
 mod tests;
