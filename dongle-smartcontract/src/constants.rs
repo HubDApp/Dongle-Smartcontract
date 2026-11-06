@@ -99,8 +99,6 @@ pub const MODERATION_ACTIONS_PER_WINDOW: u32 = 100;
 // Dead-code justification: validation currently checks "not empty" inline rather than
 // comparing against this constant, but the constant is kept here so the lower bound
 // is documented alongside MAX_NAME_LEN and can be referenced in future refactors.
-#[allow(dead_code)]
-pub const MIN_STRING_LEN: usize = 1;
 
 /// Maximum length for project name.
 /// 50 bytes: long enough for real project names, short enough to render in a
