@@ -618,20 +618,7 @@ impl ChangelogRegistry {
     /// # Returns
     /// Always returns `Err(ContractError::Unauthorized)` — changelog entries
     /// cannot be updated; they can only be removed and recreated.
-    // Dead-code justification: intentional stub that enforces the immutability
-    // invariant.  It is kept (rather than deleted) so that call-sites that
-    // accidentally invoke "update" get a clear compile-time or runtime error
-    // instead of silently missing the function.
-    #[allow(dead_code)]
-    pub fn update_changelog_entry(
-        _env: &Env,
-        _changelog_id: u64,
-        _owner: Address,
-    ) -> Result<(), ContractError> {
-        // Changelog entries are write-once (immutable after creation).
-        // Use remove_changelog_entry + add_changelog_entry instead.
-        Err(ContractError::Unauthorized)
-    }
+
 
     // Internal helper function to get project changelog entry IDs
     pub(crate) fn get_project_changelog_entries(env: &Env, project_id: u64) -> Vec<u64> {

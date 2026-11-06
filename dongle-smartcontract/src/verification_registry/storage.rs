@@ -1682,16 +1682,7 @@ impl VerificationRegistry {
     ///
     /// This is a low-cost existence check (single storage `has` call) kept
     /// as a convenience for admin tooling and integration tests.  On-chain
-    /// callers currently use `get_verification` directly and check `is_some()`,
-    /// so this helper has no callers in production paths yet.
-    // Dead-code justification: convenience helper for integration tests and
-    // off-chain tooling; not yet called from on-chain paths.
-    #[allow(dead_code)]
-    pub fn verification_exists(env: &Env, project_id: u64) -> bool {
-        env.storage()
-            .persistent()
-            .has(&StorageKey::ProjectVerificationHistory(project_id))
-    }
+    /// callers currently use `get_verification` directly and check `is_some()`.
 
     pub fn revoke_verification(
         env: &Env,
@@ -1806,39 +1797,6 @@ impl VerificationRegistry {
     /// point.  It is kept here so that the getter/setter pair is complete
     /// and the setter can be exposed in a follow-up PR without touching this
     /// module again.
-    // Dead-code justification: setter is implemented but not yet exposed via
-    // lib.rs; will be wired in a follow-up PR adding the admin config endpoint.
-    #[allow(dead_code)]
-    pub fn set_verification_duration(
-        env: &Env,
-        admin: Address,
-        duration_seconds: u64,
-    ) -> Result<(), ContractError> {
-        require_admin_auth(env, &admin)?;
-        let previous_duration_seconds = Self::get_verification_duration(env);
-        env.storage()
-            .persistent()
-            .set(&StorageKey::VerificationDuration, &duration_seconds);
-
-        crate::events::publish_verification_duration_set_event(
-            env,
-            admin.clone(),
-            previous_duration_seconds,
-            duration_seconds,
-        );
-
-        AdminActionLog::record_action(
-            env,
-            admin,
-            AdminActionType::VerificationDurationSet,
-            None,
-            None,
-            None,
-        );
-
-        Ok(())
-    }
-
     /// Admin-driven direct renewal: reset the expiry of an already-verified project
     /// without requiring a pending renewal request.
     pub fn renew_verification(

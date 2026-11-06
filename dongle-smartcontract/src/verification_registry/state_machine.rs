@@ -73,43 +73,6 @@ impl VerificationStateMachine {
     /// allocations in some contexts.  It is retained for use in off-chain
     /// tooling, test harnesses, and future diagnostic logging once the
     /// SDK supports richer error payloads.
-    // Dead-code justification: diagnostic helper kept for off-chain tooling
-    // and test harnesses; not yet wired to a public contract entry point.
-    #[allow(dead_code)]
-    fn get_transition_error_message(
-        from: VerificationStatus,
-        to: VerificationStatus,
-    ) -> &'static str {
-        match (from, to) {
-            (VerificationStatus::Unverified, VerificationStatus::Verified) => {
-                "Cannot verify directly from Unverified status. Must request verification first."
-            }
-            (VerificationStatus::Unverified, VerificationStatus::Rejected) => {
-                "Cannot reject from Unverified status. Must request verification first."
-            }
-            (VerificationStatus::Pending, VerificationStatus::Unverified) => {
-                "Cannot return to Unverified from Pending status."
-            }
-            (VerificationStatus::Verified, VerificationStatus::Pending) => {
-                "Cannot request verification for already verified project."
-            }
-            (VerificationStatus::Verified, VerificationStatus::Rejected) => {
-                "Cannot reject already verified project."
-            }
-            (VerificationStatus::Verified, VerificationStatus::Unverified) => {
-                "Cannot unverify already verified project."
-            }
-            (VerificationStatus::Rejected, VerificationStatus::Verified) => {
-                "Cannot verify directly from Rejected status. Must request verification again."
-            }
-            (VerificationStatus::Rejected, VerificationStatus::Unverified) => {
-                "Cannot return to Unverified from Rejected status."
-            }
-            _ => "Invalid verification status transition.",
-        }
-    }
-
-    /// Checks if a project can request verification based on its current status
     pub fn can_request_verification(status: VerificationStatus) -> bool {
         matches!(
             status,
@@ -119,38 +82,12 @@ impl VerificationStateMachine {
 
     /// Checks if a project can be approved based on its current status.
     ///
-    /// Mirrors `can_request_verification` for symmetry.  Currently unused in
-    /// production paths because approval logic is inlined in
-    /// `VerificationRegistry::approve_verification`, but kept here so the
-    /// state-machine module remains the single source of truth for all
-    /// state queries.
-    // Dead-code justification: state-machine symmetry helper; approval logic
-    // is currently inlined in VerificationRegistry::approve_verification.
-    #[allow(dead_code)]
-    pub fn can_be_approved(status: VerificationStatus) -> bool {
-        matches!(status, VerificationStatus::Pending)
-    }
-
     /// Checks if a project can be rejected based on its current status.
     ///
-    /// See `can_be_approved` for the same rationale.
-    // Dead-code justification: state-machine symmetry helper; rejection logic
-    // is currently inlined in VerificationRegistry::reject_verification.
-    #[allow(dead_code)]
-    pub fn can_be_rejected(status: VerificationStatus) -> bool {
-        matches!(status, VerificationStatus::Pending)
-    }
-
     /// Gets all possible next states from the current state.
     ///
     /// Returns a `Vec` of every status that a project in `status` may legally
-    /// transition to.  Intended for off-chain tooling (indexers, admin UIs)
-    /// that need to enumerate valid actions; not used in the on-chain
-    /// execution paths.
-    // Dead-code justification: helper for off-chain tooling/admin UIs;
-    // on-chain paths call validate_transition directly.
-    #[allow(dead_code)]
-    pub fn get_possible_next_states(
+    /// transition to.
         env: &Env,
         status: VerificationStatus,
     ) -> Vec<VerificationStatus> {
